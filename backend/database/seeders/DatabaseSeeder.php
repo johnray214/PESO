@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             PhilippineLocationsSeeder::class,
+            JobListingSeeder::class,
         ]);
 
         User::factory()->create([

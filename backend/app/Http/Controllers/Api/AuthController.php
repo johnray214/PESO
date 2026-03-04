@@ -101,4 +101,60 @@ class AuthController extends Controller
             'data' => $request->user()
         ], 200);
     }
+
+    public function updateProfile(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name'    => 'sometimes|string|min:2|max:255',
+            'email'   => 'sometimes|string|email|max:255|unique:users,email,' . $request->user()->id,
+            'phone'   => 'nullable|string|max:20',
+            'address' => 'nullable|string|max:500',
+            'age'     => 'nullable|integer|min:15|max:120',
+            'gender'  => 'nullable|in:Male,Female,Other',
+            'skills'  => 'nullable|array',
+            'skills.*' => 'string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $user = $request->user();
+        $user->update($request->only(['name', 'email', 'phone', 'address', 'age', 'gender', 'skills']));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile updated successfully',
+            'data'    => $user->fresh(),
+        ], 200);
+    }
+
+    public function updateSkills(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'skills'   => 'required|array',
+            'skills.*' => 'string|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $user = $request->user();
+        $user->update(['skills' => $request->skills]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Skills updated successfully',
+            'data'    => $user->fresh(),
+        ], 200);
+    }
 }
