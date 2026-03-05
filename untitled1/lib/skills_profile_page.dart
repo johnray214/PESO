@@ -1655,6 +1655,29 @@ class _MatchedJobCard extends StatelessWidget {
               isApplied: jobActionService.isApplied(job.id),
               isSaved: jobActionService.isSaved(job.id),
               onApply: () async {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    title: const Text('Confirm Application'),
+                    content: Text(
+                      'Apply for ${job.title} at ${job.company}?',
+                      style: const TextStyle(height: 1.5),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Apply'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirmed != true || !context.mounted) return;
+
                 final error = await jobActionService.applyToJob(job.id, job.title);
                 if (context.mounted && error != null) {
                   ScaffoldMessenger.of(context).showSnackBar(

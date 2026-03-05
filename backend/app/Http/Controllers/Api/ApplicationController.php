@@ -49,7 +49,7 @@ class ApplicationController extends Controller
         $application = JobApplication::create([
             'user_id'        => $user->id,
             'job_listing_id' => $job->id,
-            'status'         => 'Submitted',
+            'status'         => 'Registration',
             'applied_at'     => now(),
         ]);
 

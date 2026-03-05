@@ -678,7 +678,7 @@ class _AboutPageState extends State<AboutPage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF5F7FA), Color(0xFFE8F0F8), Colors.white],
+            colors: [AppColors.darkBg1, AppColors.darkBg2, AppColors.darkBg3],
             stops: [0.0, 0.4, 1.0],
           ),
         ),
@@ -695,11 +695,11 @@ class _AboutPageState extends State<AboutPage> {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: AppColors.navyMid.withOpacity(0.08),
+                          color: AppColors.pesoBlue.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(Icons.arrow_back_rounded,
-                            color: AppColors.navyMid, size: 20),
+                            color: AppColors.pesoBlue, size: 20),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -721,12 +721,12 @@ class _AboutPageState extends State<AboutPage> {
                             horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [AppColors.navyMid, AppColors.navyLight],
+                            colors: [AppColors.pesoBlue, AppColors.navyLight],
                           ),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.navyMid.withOpacity(0.3),
+                              color: AppColors.pesoBlue.withOpacity(0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -823,10 +823,11 @@ class _AboutPageState extends State<AboutPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.glassWhite,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.glassBorder, width: 1),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 5))
+          BoxShadow(color: AppColors.pesoBlue.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 5))
         ],
       ),
       child: Column(
@@ -837,9 +838,9 @@ class _AboutPageState extends State<AboutPage> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                    color: AppColors.navyMid.withOpacity(0.1),
+                    color: AppColors.pesoBlue.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, color: AppColors.navyMid, size: 24),
+                child: Icon(icon, color: AppColors.pesoBlue, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -863,14 +864,14 @@ class _AboutPageState extends State<AboutPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: AppColors.navyLight, size: 20),
+        Icon(icon, color: AppColors.pesoBlue, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Text(text,
               style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: Color(0xFF2C3E50),
+                  color: AppColors.navyMid,
                   height: 1.5)),
         ),
       ],
@@ -881,9 +882,9 @@ class _AboutPageState extends State<AboutPage> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
+        color: AppColors.darkBg2.withOpacity(0.25),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.navyMid.withOpacity(0.1), width: 1),
+        border: Border.all(color: AppColors.glassBorder, width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -891,16 +892,16 @@ class _AboutPageState extends State<AboutPage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: AppColors.navyLight.withOpacity(0.1),
+                color: AppColors.pesoBlue.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: AppColors.navyLight, size: 24),
+            child: Icon(icon, color: AppColors.pesoBlue, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.navyMid)),
+                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.pesoBlue)),
                 const SizedBox(height: 6),
                 Text(description, style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4)),
               ],
@@ -915,9 +916,9 @@ class _AboutPageState extends State<AboutPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.navyLight.withOpacity(0.08),
+        color: AppColors.pesoBlue.withOpacity(0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.navyLight.withOpacity(0.25)),
+        border: Border.all(color: AppColors.pesoBlue.withOpacity(0.35)),
       ),
       child: Text(text,
           style: const TextStyle(
@@ -1319,7 +1320,27 @@ class _LoginModalState extends State<LoginModal>
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 0,
                           ),
-                          child: Text(
+                          child: _isSubmitting && !_isSignUpMode
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Signing in...',
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                    ),
+                                  ],
+                                )
+                              : Text(
                             _isSignUpMode ? 'Sign Up' : 'Sign In',
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                           ),

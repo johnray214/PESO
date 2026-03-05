@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LocationController;
 use App\Http\Controllers\Api\JobListingController;
+use App\Http\Controllers\Api\EventController;
 use App\Http\Controllers\Api\ApplicationController;
 use App\Http\Controllers\Api\SavedJobController;
 use Illuminate\Http\Request;
@@ -20,6 +21,9 @@ Route::get('/locations/all', [LocationController::class, 'getAllLocations']);
 Route::get('/jobs', [JobListingController::class, 'index']);
 Route::get('/jobs/{id}', [JobListingController::class, 'show']);
 Route::get('/jobs-skills/catalog', [JobListingController::class, 'skillCatalog']);
+
+// Events — public (job fairs, seminars, career events)
+Route::get('/events', [EventController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);

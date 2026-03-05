@@ -25,7 +25,7 @@ class _ProfileTabState extends State<ProfileTab> {
     _loadStats();
   }
 
-  String _getGreeting() => getPhilippinesGreeting();
+  String _getGreeting() => '${getPhilippinesGreeting()}, ${UserSession().displayName}.';
 
   Future<void> _loadStats() async {
     final token = UserSession().token;
@@ -52,7 +52,7 @@ class _ProfileTabState extends State<ProfileTab> {
         interview = list.where((item) {
           final map = item as Map<String, dynamic>;
           final status = (map['status'] as String? ?? '').trim();
-          return status == 'Interview Scheduled';
+          return status == 'Processing';
         }).length;
       }
 
@@ -258,7 +258,7 @@ class _ProfileTabState extends State<ProfileTab> {
                           Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
                           _buildStatItem(
                             '$_interviewCount',
-                            'Interview',
+                            'Processing',
                           ),
                           Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
                           _buildStatItem(
@@ -944,28 +944,49 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
             DateTime.tryParse(map['applied_at'] as String? ?? map['created_at'] as String? ?? '') ??
                 DateTime.now();
         final appliedDate = 'Applied ${createdAt.month}/${createdAt.day}/${createdAt.year}';
-        final status = (map['status'] as String? ?? 'Submitted').trim();
+        final status = (map['status'] as String? ?? 'Registration').trim();
+        // Backward compatibility: map old statuses to new
+        final normalizedStatus = switch (status) {
+          'Submitted' => 'Registration',
+          'Under Review' => 'Processing',
+          'Interview Scheduled' => 'Hired',
+          'Decision' => 'Processing',
+          _ => status,
+        };
 
         Color statusColor;
         IconData statusIcon;
-        switch (status) {
-          case 'Interview Scheduled':
-            statusColor = const Color(0xFF22C55E);
-            statusIcon = Icons.event_available_rounded;
+        switch (normalizedStatus) {
+          case 'Registration':
+            statusColor = const Color(0xFF3B82F6);
+            statusIcon = Icons.app_registration_rounded;
             break;
-          case 'Under Review':
+          case 'Processing':
             statusColor = const Color(0xFFF97316);
             statusIcon = Icons.hourglass_top_rounded;
             break;
+          case 'Accepted':
+            statusColor = const Color(0xFF22C55E);
+            statusIcon = Icons.check_circle_rounded;
+            break;
+          case 'Denied':
+            statusColor = const Color(0xFFEF4444);
+            statusIcon = Icons.cancel_rounded;
+            break;
+          case 'Hired':
+          case 'Placement':
+            statusColor = const Color(0xFF22C55E);
+            statusIcon = Icons.work_rounded;
+            break;
           default:
             statusColor = const Color(0xFF3B82F6);
-            statusIcon = Icons.send_rounded;
+            statusIcon = Icons.app_registration_rounded;
         }
 
         apps.add(_Application(
           job: job,
           appliedDate: appliedDate,
-          status: status,
+          status: normalizedStatus,
           statusColor: statusColor,
           statusIcon: statusIcon,
         ));
@@ -1353,6 +1374,29 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
   }
 
   Future<void> _applyToJob(String jobId, String jobTitle) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Application'),
+        content: Text(
+          'Apply for $jobTitle?',
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     final error = await _jobActionService.applyToJob(jobId, jobTitle);
     if (!mounted) return;
 
@@ -1752,12 +1796,14 @@ class _ApplicationStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = ['Submitted', 'Under Review', 'Interview', 'Decision'];
+    final steps = ['Registration', 'Processing', 'Placement/Hired'];
     final statusToStep = {
-      'Submitted': 0,
-      'Under Review': 1,
-      'Interview Scheduled': 2,
-      'Decision': 3,
+      'Registration': 0,
+      'Processing': 1,
+      'Accepted': 1,
+      'Denied': 1,
+      'Hired': 2,
+      'Placement': 2,
     };
     final currentStep = statusToStep[application.status] ?? 0;
 
@@ -1925,12 +1971,17 @@ class _ApplicationStatusBanner extends StatelessWidget {
 
   String _getNextStepAdvice(String status) {
     switch (status) {
-      case 'Interview Scheduled':
-        return 'Check your email for interview schedule details. Prepare your portfolio and dress professionally.';
-      case 'Under Review':
-        return 'Your application is being reviewed by the employer. This typically takes 3–5 business days.';
-      case 'Submitted':
-        return 'Your application was successfully submitted. The employer will review it soon.';
+      case 'Registration':
+        return 'Your application has been registered. It will be processed by the employer for acceptance or denial.';
+      case 'Processing':
+        return 'Your application is being reviewed. The employer will decide to accept or deny. This typically takes 3–5 business days.';
+      case 'Accepted':
+        return 'Congratulations! You have been accepted. Awaiting placement confirmation.';
+      case 'Denied':
+        return 'Your application was not accepted for this position. Keep applying to other opportunities.';
+      case 'Hired':
+      case 'Placement':
+        return 'Congratulations! You have been hired/placed. Follow up with the employer for onboarding details.';
       default:
         return 'You will be notified via email once there are updates to your application.';
     }

@@ -88,8 +88,8 @@ DateTime nowInPhilippines() {
 /// Evening: 18:00–4:59
 String getPhilippinesGreeting() {
   final hour = nowInPhilippines().hour;
-  if (hour >= 5 && hour < 12) return 'Good morning';
-  if (hour >= 12 && hour < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (hour >= 5 && hour < 12) return 'Good Morning';
+  if (hour >= 12 && hour < 18) return 'Good Afternoon';
+  return 'Good Evening';
 }
       

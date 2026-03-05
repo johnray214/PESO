@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'profile_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'job_models.dart';
+import 'event_models.dart';
 import 'user_session.dart';
 import 'api_service.dart';
 import 'job_action_service.dart';
@@ -219,6 +220,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
+  final Future<Map<String, dynamic>> _eventsFuture = ApiService.getEvents();
 
   final List<Widget> _pages = [
     const HomeTab(),
@@ -226,6 +228,122 @@ class _HomePageState extends State<HomePage> {
     const NotificationsTab(),
     const ProfileTab(),
   ];
+
+  void _showEventDetailModal(BuildContext context, PesoEvent e) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        e.typeLabel,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                      style: IconButton.styleFrom(
+                        backgroundColor: Colors.grey[100],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  e.title,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _detailRow(Icons.calendar_today_rounded, e.formattedDate),
+                if (e.eventTime != null) _detailRow(Icons.access_time_rounded, e.eventTime!),
+                _detailRow(Icons.location_on_rounded, e.location),
+                if (e.organizer != null) _detailRow(Icons.business_rounded, e.organizer!),
+                const SizedBox(height: 16),
+                Text(
+                  'Description',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  e.description,
+                  style: TextStyle(
+                    fontSize: 15,
+                    height: 1.5,
+                    color: Colors.grey[800],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Close'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _detailRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF2563EB)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 15, color: Colors.grey[800], height: 1.4),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showEventsSheet() {
     showModalBottomSheet(
@@ -235,7 +353,7 @@ class _HomePageState extends State<HomePage> {
       builder: (ctx) {
         return Container(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(ctx).size.height * 0.6,
+            maxHeight: MediaQuery.of(ctx).size.height * 0.75,
           ),
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -297,31 +415,176 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
               Flexible(
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.event_available_rounded, size: 64, color: Colors.grey[300]),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No upcoming events',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.grey[500],
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: _eventsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+                        ),
+                      );
+                    }
+                    final data = snapshot.data;
+                    if (data == null || data['success'] != true) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey[400]),
+                              const SizedBox(height: 16),
+                              Text(
+                                data?['message'] ?? 'Failed to load events',
+                                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Check back soon for job fairs and career events.',
-                          style: TextStyle(fontSize: 14, color: Colors.grey[400]),
-                          textAlign: TextAlign.center,
+                      );
+                    }
+                    final raw = data['data'] as List<dynamic>? ?? [];
+                    final events = raw
+                        .map((e) => PesoEvent.fromJson(e as Map<String, dynamic>))
+                        .toList();
+                    if (events.isEmpty) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.event_available_rounded, size: 64, color: Colors.grey[300]),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No upcoming events',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.grey[500],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Check back soon for job fairs and career events.',
+                                style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                  ),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      itemCount: events.length,
+                      itemBuilder: (context, index) {
+                        final e = events[index];
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey[200]!),
+                          ),
+                          child: Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => _showEventDetailModal(context, e),
+                              borderRadius: BorderRadius.circular(16),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF2563EB).withOpacity(0.12),
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            e.typeLabel,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF2563EB),
+                                            ),
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          e.formattedDate,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      e.title,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    if (e.eventTime != null) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        e.eventTime!,
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(height: 6),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.location_on_outlined, size: 14, color: Colors.grey[600]),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            e.location,
+                                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    if (e.organizer != null) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'by ${e.organizer}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[500],
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
             ],
@@ -342,34 +605,81 @@ class _HomePageState extends State<HomePage> {
             Positioned(
               right: 20,
               bottom: MediaQuery.of(context).padding.bottom + 10,
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: _showEventsSheet,
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                      ),
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _eventsFuture,
+                builder: (context, snapshot) {
+                  final count = snapshot.hasData &&
+                          snapshot.data!['success'] == true &&
+                          snapshot.data!['data'] != null
+                      ? (snapshot.data!['data'] as List).length
+                      : 0;
+                  return Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _showEventsSheet,
                       borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.4),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF2563EB).withOpacity(0.4),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.event_rounded,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                          if (count > 0)
+                            Positioned(
+                              top: -4,
+                              right: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.2),
+                                      blurRadius: 4,
+                                      offset: const Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
+                                constraints: const BoxConstraints(minWidth: 24),
+                                child: Text(
+                                  count > 99 ? '99+' : '$count',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.event_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
         ],
@@ -527,6 +837,29 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   Future<void> _applyToJob(Job job) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Application'),
+        content: Text(
+          'Apply for ${job.title} at ${job.company}?',
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     final error = await _jobActionService.applyToJob(job.id, job.title);
     if (!mounted) return;
 
@@ -596,7 +929,7 @@ class _HomeTabState extends State<HomeTab> {
     }
   }
 
-  String _getGreeting() => getPhilippinesGreeting();
+  String _getGreeting() => '${getPhilippinesGreeting()}, ${UserSession().displayName}.';
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -2493,26 +2826,75 @@ class _BusinessDetailSheet extends StatelessWidget {
   }
 
   void _showJobDetails(BuildContext context, Job job) {
-    showModalBottomSheet(
+    final jobActionService = JobActionService();
+    showJobDetailSheet(
+      context,
+      job,
+      isSaved: jobActionService.isSaved(job.id),
+      isApplied: jobActionService.isApplied(job.id),
+      onSave: () => jobActionService.toggleSave(job.id),
+      onApply: () => _applyFromBusinessDetail(context, job, jobActionService),
+    );
+  }
+
+  Future<void> _applyFromBusinessDetail(
+      BuildContext context, Job job, JobActionService jobActionService) async {
+    final confirmed = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return GestureDetector(
-          onTap: () => Navigator.of(context).pop(),
-          behavior: HitTestBehavior.opaque,
-          child: SafeArea(
-            child: Align(
-              alignment: Alignment.bottomCenter,
-              child: GestureDetector(
-                onTap: () {},
-                child: JobDetailSheet(job: job),
-              ),
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Application'),
+        content: Text(
+          'Apply for ${job.title} at ${job.company}?',
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await jobActionService.applyToJob(job.id, job.title);
+    if (context.mounted) {
+      if (error == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle_outline_rounded,
+                    color: Colors.white, size: 18),
+                const SizedBox(width: 8),
+                Text('Applied to ${job.title}!'),
+              ],
+            ),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         );
-      },
-    );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        );
+      }
+    }
   }
 }
 

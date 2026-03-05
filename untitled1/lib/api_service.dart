@@ -150,6 +150,20 @@ class ApiService {
     }
   }
 
+  // ─── Events ──────────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getEvents() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/events'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
   // ─── Job Listings ────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> getJobListings() async {
