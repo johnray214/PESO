@@ -1,7 +1,13 @@
+import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'api_service.dart';
 import 'home_pages.dart';
+import 'user_session.dart';
+import 'job_action_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
@@ -19,6 +25,7 @@ Future<void> main() async {
 
 // ─── Color Palette ───────────────────────────────────────────────────────────
 class AppColors {
+  // Light/app-wide
   static const blueAccent = Color(0xFF2563EB);
   static const blueLight = Color(0xFF3B82F6);
   static const textPrimary = Color(0xFF0F172A);
@@ -27,9 +34,22 @@ class AppColors {
   static const pageBackground = Color(0xFFF4F7FB);
   static const navyMid = Color(0xFF112240);
   static const navyLight = Color(0xFF1D3461);
+
+  // Welcome page gradient — white (top) → PESO blue (bottom)
+  static const darkBg1 = Color(0xFFFFFFFF);   // top: pure white
+  static const darkBg2 = Color(0xFFCFE5F7);   // mid: soft sky blue
+  static const darkBg3 = Color(0xFF1565C0);   // bottom: PESO royal blue
+  static const glassWhite = Color(0x99FFFFFF); // frosted white card (light bg)
+  static const glassBorder = Color(0x331565C0);// PESO blue card border
+  static const pesoBlue = Color(0xFF1565C0);  // PESO official royal blue
+  static const pesoRed = Color(0xFFCC2229);   // PESO official red
+  static const pesoGold = Color(0xFFF59E0B);  // PESO official gold/yellow
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
+final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
+    GlobalKey<ScaffoldMessengerState>();
+
 class PESOApp extends StatelessWidget {
   const PESOApp({super.key});
 
@@ -38,12 +58,17 @@ class PESOApp extends StatelessWidget {
     return MaterialApp(
       title: 'PESO Santiago City',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: scaffoldMessengerKey,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.blueAccent,
           brightness: Brightness.light,
         ),
         useMaterial3: true,
+        snackBarTheme: const SnackBarThemeData(
+          behavior: SnackBarBehavior.floating,
+          elevation: 6,
+        ),
       ),
       home: const WelcomePage(),
     );
@@ -59,42 +84,26 @@ class WelcomePage extends StatefulWidget {
 }
 
 class _WelcomePageState extends State<WelcomePage>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _fadeIn;
-  late Animation<Offset> _slideUp;
-  late Animation<double> _logoFade;
-  late Animation<double> _logoScale;
+    with TickerProviderStateMixin {
+  late AnimationController _glowCtrl;
+  late Animation<double> _glowAnim;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 900));
+    _glowCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2200),
+    )..repeat(reverse: true);
 
-    _fadeIn = CurvedAnimation(
-        parent: _ctrl, curve: const Interval(0.0, 0.7, curve: Curves.easeOut));
-
-    _slideUp = Tween<Offset>(
-      begin: const Offset(0, 0.18),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-        parent: _ctrl,
-        curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic)));
-
-    _logoFade = CurvedAnimation(
-        parent: _ctrl, curve: const Interval(0.1, 0.6, curve: Curves.easeOut));
-
-    _logoScale = Tween<double>(begin: 0.88, end: 1.0).animate(CurvedAnimation(
-        parent: _ctrl,
-        curve: const Interval(0.1, 0.65, curve: Curves.easeOutBack)));
-
-    _ctrl.forward();
+    _glowAnim = Tween<double>(begin: 0.55, end: 1.0).animate(
+      CurvedAnimation(parent: _glowCtrl, curve: Curves.easeInOut),
+    );
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    _glowCtrl.dispose();
     super.dispose();
   }
 
@@ -102,277 +111,388 @@ class _WelcomePageState extends State<WelcomePage>
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
 
-    return Scaffold(
-      backgroundColor: AppColors.pageBackground,
-      body: AnimatedBuilder(
-        animation: _ctrl,
-        builder: (context, _) {
-          return Stack(
-            children: [
-              Positioned(
-                top: -size.width * 0.35,
-                right: -size.width * 0.2,
-                child: Container(
-                  width: size.width * 0.85,
-                  height: size.width * 0.85,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFFDDE8F5),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark,
+      child: Scaffold(
+        backgroundColor: AppColors.darkBg1,
+        body: Stack(
+          children: [
+            // ── White → PESO blue gradient (top to bottom) ──
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [AppColors.darkBg1, AppColors.darkBg2, AppColors.darkBg3],
+                    stops: [0.0, 0.60, 1.0],
                   ),
                 ),
               ),
-              Positioned(
-                bottom: -size.width * 0.15,
-                left: -size.width * 0.1,
-                child: Container(
-                  width: size.width * 0.5,
-                  height: size.width * 0.5,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.blueAccent.withOpacity(0.06),
-                  ),
-                ),
-              ),
-              SafeArea(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return ConstrainedBox(
-                      constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 28.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            ),
+
+            // ── Floating orbs — trigger last with a late start ──
+            _FloatingOrb(
+              size: size.width * 0.72,
+              color: AppColors.pesoBlue.withOpacity(0.07),
+              top: -size.width * 0.28,
+              right: -size.width * 0.22,
+              moveY: -28,
+              duration: const Duration(seconds: 5),
+              delay: const Duration(milliseconds: 1200),
+            ),
+            _FloatingOrb(
+              size: size.width * 0.55,
+              color: AppColors.pesoBlue.withOpacity(0.09),
+              bottom: size.height * 0.22,
+              left: -size.width * 0.18,
+              moveY: 24,
+              duration: const Duration(seconds: 6),
+              delay: const Duration(milliseconds: 1350),
+            ),
+            _FloatingOrb(
+              size: size.width * 0.40,
+              color: Colors.white.withOpacity(0.18),
+              bottom: -size.width * 0.10,
+              right: size.width * 0.08,
+              moveY: -18,
+              duration: const Duration(seconds: 4),
+              delay: const Duration(milliseconds: 1500),
+            ),
+            _FloatingOrb(
+              size: size.width * 0.26,
+              color: Colors.white.withOpacity(0.14),
+              bottom: size.height * 0.10,
+              left: size.width * 0.05,
+              moveY: 20,
+              duration: const Duration(milliseconds: 3500),
+              delay: const Duration(milliseconds: 1650),
+            ),
+
+            // ── Content ──
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 28.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Badge (same visual position as before)
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(30),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.glassWhite,
+                            borderRadius: BorderRadius.circular(30),
+                            border: Border.all(color: AppColors.glassBorder, width: 1),
+                          ),
+                          child: Text(
+                            'PUBLIC EMPLOYMENT SERVICE OFFICE',
+                            style: GoogleFonts.poppins(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.pesoBlue,
+                              letterSpacing: 1.8,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    )
+                        // Visually on top, but animates slightly *after* the logo
+                        .animate()
+                        .fadeIn(delay: 150.ms, duration: 600.ms)
+                        .slideY(begin: 0.10, curve: Curves.easeOutCubic),
+
+                    // Logo row (same layout position as before, animates first)
+                    Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            FadeTransition(
-                              opacity: _logoFade,
-                              child: SlideTransition(
-                                position: _slideUp,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 14, vertical: 7),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.blueAccent.withOpacity(0.08),
-                                        borderRadius: BorderRadius.circular(30),
+                            // Glow ring + logo (slides in from the left)
+                            AnimatedBuilder(
+                              animation: _glowAnim,
+                              builder: (context, child) {
+                                return Container(
+                                  width: size.width * 0.27,
+                                  height: size.width * 0.27,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppColors.pesoBlue.withOpacity(0.60 * _glowAnim.value),
+                                        blurRadius: 28 + 14 * _glowAnim.value,
+                                        spreadRadius: 2,
                                       ),
-                                      child: const Text(
-                                        'PUBLIC EMPLOYMENT SERVICE OFFICE',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.blueAccent,
-                                          letterSpacing: 1.5,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 24),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      crossAxisAlignment: CrossAxisAlignment.center,
-                                      children: [
-                                        ScaleTransition(
-                                          scale: _logoScale,
-                                          child: Container(
-                                            width: size.width * 0.24,
-                                            height: size.width * 0.24,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.circle,
-                                              color: Colors.white,
-                                              border: Border.all(
-                                                color: AppColors.divider,
-                                                width: 1.5,
-                                              ),
-                                              boxShadow: [
-                                                BoxShadow(
-                                                  color: Colors.black.withOpacity(0.07),
-                                                  blurRadius: 16,
-                                                  offset: const Offset(0, 5),
-                                                ),
-                                              ],
-                                            ),
-                                            child: ClipOval(
-                                              child: Image.asset(
-                                                'assets/PESOLOGO.jpg',
-                                                fit: BoxFit.cover,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Container(
-                                          margin: const EdgeInsets.symmetric(horizontal: 20),
-                                          width: 1.5,
-                                          height: size.width * 0.16,
-                                          decoration: BoxDecoration(
-                                            color: AppColors.blueAccent.withOpacity(0.25),
-                                            borderRadius: BorderRadius.circular(2),
-                                          ),
-                                        ),
-                                        Text(
-                                          'PESO',
-                                          style: TextStyle(
-                                            fontSize: size.width * 0.15,
-                                            fontWeight: FontWeight.w900,
-                                            color: AppColors.textPrimary,
-                                            letterSpacing: size.width * 0.018,
-                                            height: 1.0,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            FadeTransition(
-                              opacity: _fadeIn,
-                              child: const Text(
-                                'SERBISYONG TAPAT  ·  SERBISYONG KABSAT',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.textMuted,
-                                  letterSpacing: 2.2,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                            FadeTransition(
-                              opacity: _fadeIn,
+                                    ],
+                                  ),
+                                  child: child,
+                                );
+                              },
                               child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20, vertical: 13),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(50),
-                                  border: Border.all(color: AppColors.divider, width: 1.2),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.04),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 3),
-                                    ),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: AppColors.pesoBlue.withOpacity(0.30),
+                                    width: 2.5,
+                                  ),
+                                  color: AppColors.pesoBlue.withOpacity(0.05),
+                                ),
+                                child: ClipOval(
+                                  child: Image.asset(
+                                    'assets/PESOLOGO.jpg',
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            // Divider
+                            Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 22),
+                              width: 1.5,
+                              height: size.width * 0.18,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    AppColors.pesoBlue.withOpacity(0.0),
+                                    AppColors.pesoBlue.withOpacity(0.35),
+                                    AppColors.pesoBlue.withOpacity(0.0),
                                   ],
                                 ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.location_on_outlined,
-                                        color: AppColors.blueAccent, size: 18),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      'City of Santiago, Isabela',
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textPrimary.withOpacity(0.8),
-                                        letterSpacing: 0.2,
-                                      ),
-                                    ),
-                                  ],
-                                ),
                               ),
                             ),
-                            FadeTransition(
-                              opacity: _fadeIn,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _buildFeaturePill(Icons.work_outline_rounded, 'Find Jobs'),
-                                  const SizedBox(width: 10),
-                                  _buildFeaturePill(Icons.people_outline_rounded, 'Connect'),
-                                  const SizedBox(width: 10),
-                                  _buildFeaturePill(Icons.trending_up_rounded, 'Grow'),
-                                ],
-                              ),
-                            ),
-                            SlideTransition(
-                              position: _slideUp,
-                              child: FadeTransition(
-                                opacity: _fadeIn,
-                                child: _GetStartedButton(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(builder: (_) => const AboutPage()),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                            FadeTransition(
-                              opacity: _fadeIn,
-                              child: Column(
-                                children: [
-                                  Text(
-                                    'POWERED BY DOLE  ·  EST. 1999',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.textMuted.withOpacity(0.5),
-                                      letterSpacing: 1.8,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'v1.0.0',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      color: AppColors.textMuted.withOpacity(0.35),
-                                      letterSpacing: 1.2,
-                                    ),
-                                  ),
-                                ],
+
+                            // PESO text
+                            Text(
+                              'PESO',
+                              style: GoogleFonts.poppins(
+                                fontSize: size.width * 0.145,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.navyMid,
+                                letterSpacing: size.width * 0.012,
+                                height: 1.0,
                               ),
                             ),
                           ],
                         ),
+                      ],
+                    )
+                        .animate()
+                        .fadeIn(delay: 0.ms, duration: 700.ms)
+                        .slideY(begin: 0.10, curve: Curves.easeOutCubic)
+                        .slideX(begin: -0.22, curve: Curves.easeOutCubic),
+
+                    // Tagline
+                    Text(
+                      'SERBISYONG TAPAT  ·  SERBISYONG KABSAT',
+                      style: GoogleFonts.poppins(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.pesoBlue.withOpacity(0.70),
+                        letterSpacing: 2.4,
                       ),
-                    );
-                  },
+                      textAlign: TextAlign.center,
+                    ).animate().fadeIn(delay: 450.ms, duration: 600.ms).slideY(begin: 0.12, curve: Curves.easeOutCubic),
+
+                    // Location pill
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(50),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                          decoration: BoxDecoration(
+                            color: AppColors.glassWhite,
+                            borderRadius: BorderRadius.circular(50),
+                            border: Border.all(color: AppColors.glassBorder, width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.location_on_rounded,
+                                  color: AppColors.pesoRed, size: 17),
+                              const SizedBox(width: 8),
+                              Text(
+                                'City of Santiago, Isabela',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.navyMid,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ).animate().fadeIn(delay: 600.ms, duration: 600.ms).slideY(begin: 0.12, curve: Curves.easeOutCubic),
+
+                    // Feature chips
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildFeatureChip(Icons.work_outline_rounded, 'Find Jobs',
+                            const [Color(0xFF1565C0), Color(0xFF0D47A1)]),
+                        const SizedBox(width: 10),
+                        _buildFeatureChip(Icons.people_outline_rounded, 'Connect',
+                            const [Color(0xFFCC2229), Color(0xFF991B1B)]),
+                        const SizedBox(width: 10),
+                        _buildFeatureChip(Icons.trending_up_rounded, 'Grow',
+                            const [Color(0xFFF59E0B), Color(0xFFD97706)]),
+                      ],
+                    ).animate().fadeIn(delay: 750.ms, duration: 600.ms).slideY(begin: 0.12, curve: Curves.easeOutCubic),
+
+                    // CTA button
+                    _GetStartedButton(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AboutPage()),
+                        );
+                      },
+                    ).animate().fadeIn(delay: 900.ms, duration: 600.ms).slideY(begin: 0.15, curve: Curves.easeOutCubic),
+
+                    // Footer
+                    Column(
+                      children: [
+                        Text(
+                          'POWERED BY DOLE  ·  EST. 1999',
+                          style: GoogleFonts.poppins(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white.withOpacity(0.28),
+                            letterSpacing: 1.8,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'v1.0.0',
+                          style: GoogleFonts.poppins(
+                            fontSize: 9,
+                            color: Colors.white.withOpacity(0.18),
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ],
+                    ).animate().fadeIn(delay: 1050.ms, duration: 600.ms),
+                  ],
                 ),
               ),
-            ],
-          );
-        },
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFeaturePill(IconData icon, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: AppColors.divider, width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+  Widget _buildFeatureChip(IconData icon, String label, List<Color> gradientColors) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.glassWhite,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.glassBorder, width: 1),
           ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: AppColors.blueAccent, size: 15),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-              letterSpacing: 0.3,
-            ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: gradientColors,
+                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: [
+                    BoxShadow(
+                      color: gradientColors[0].withOpacity(0.4),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Icon(icon, color: Colors.white, size: 18),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                label,
+                style: GoogleFonts.poppins(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.navyMid,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+// ─── Floating Orb ────────────────────────────────────────────────────────────
+class _FloatingOrb extends StatelessWidget {
+  final double size;
+  final Color color;
+  final double? top;
+  final double? bottom;
+  final double? left;
+  final double? right;
+  final double moveY;
+  final Duration duration;
+  final Duration delay;
+
+  const _FloatingOrb({
+    required this.size,
+    required this.color,
+    this.top,
+    this.bottom,
+    this.left,
+    this.right,
+    required this.moveY,
+    required this.duration,
+    this.delay = Duration.zero,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: top,
+      bottom: bottom,
+      left: left,
+      right: right,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color,
+        ),
+      )
+          .animate(onPlay: (c) => c.repeat(reverse: true))
+          .fadeIn(duration: 600.ms, delay: delay)
+          .moveY(
+            begin: 0,
+            end: moveY,
+            duration: duration,
+            curve: Curves.easeInOut,
+          ),
     );
   }
 }
@@ -386,8 +506,29 @@ class _GetStartedButton extends StatefulWidget {
   State<_GetStartedButton> createState() => _GetStartedButtonState();
 }
 
-class _GetStartedButtonState extends State<_GetStartedButton> {
+class _GetStartedButtonState extends State<_GetStartedButton>
+    with SingleTickerProviderStateMixin {
   bool _pressed = false;
+  late AnimationController _shimmerCtrl;
+  late Animation<double> _shimmerAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat();
+    _shimmerAnim = Tween<double>(begin: -1.5, end: 2.5).animate(
+      CurvedAnimation(parent: _shimmerCtrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _shimmerCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -399,45 +540,83 @@ class _GetStartedButtonState extends State<_GetStartedButton> {
       },
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedScale(
-        scale: _pressed ? 0.97 : 1.0,
+        scale: _pressed ? 0.96 : 1.0,
         duration: const Duration(milliseconds: 100),
         child: Container(
           width: double.infinity,
-          height: 58,
+          height: 60,
           decoration: BoxDecoration(
-            color: AppColors.blueAccent,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
+            ),
             boxShadow: [
               BoxShadow(
-                color: AppColors.blueAccent.withOpacity(_pressed ? 0.15 : 0.28),
-                blurRadius: _pressed ? 8 : 18,
-                offset: const Offset(0, 6),
+                color: const Color(0xFF1565C0).withOpacity(_pressed ? 0.20 : 0.55),
+                blurRadius: _pressed ? 10 : 28,
+                spreadRadius: _pressed ? 0 : 2,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'GET STARTED',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                  letterSpacing: 2.5,
-                ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: AnimatedBuilder(
+              animation: _shimmerAnim,
+              builder: (context, child) {
+                return ShaderMask(
+                  blendMode: BlendMode.srcATop,
+                  shaderCallback: (bounds) {
+                    final shimmerX = _shimmerAnim.value * bounds.width;
+                    return LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: const [
+                        Colors.transparent,
+                        Colors.transparent,
+                        Color(0x33FFFFFF),
+                        Colors.transparent,
+                        Colors.transparent,
+                      ],
+                      stops: [
+                        0.0,
+                        math.max(0.0, (shimmerX / bounds.width) - 0.15),
+                        (shimmerX / bounds.width).clamp(0.0, 1.0),
+                        math.min(1.0, (shimmerX / bounds.width) + 0.15),
+                        1.0,
+                      ],
+                    ).createShader(bounds);
+                  },
+                  child: child!,
+                );
+              },
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'GET STARTED',
+                    style: GoogleFonts.poppins(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 2.8,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.20),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.arrow_forward_rounded,
+                        color: Colors.white, size: 16),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.arrow_forward_rounded,
-                    color: Colors.white, size: 16),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -499,7 +678,7 @@ class _AboutPageState extends State<AboutPage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFFF5F7FA), Color(0xFFE8F0F8), Colors.white],
+            colors: [AppColors.darkBg1, AppColors.darkBg2, AppColors.darkBg3],
             stops: [0.0, 0.4, 1.0],
           ),
         ),
@@ -516,11 +695,11 @@ class _AboutPageState extends State<AboutPage> {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: AppColors.navyMid.withOpacity(0.08),
+                          color: AppColors.pesoBlue.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(Icons.arrow_back_rounded,
-                            color: AppColors.navyMid, size: 20),
+                            color: AppColors.pesoBlue, size: 20),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -542,12 +721,12 @@ class _AboutPageState extends State<AboutPage> {
                             horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
                           gradient: const LinearGradient(
-                            colors: [AppColors.navyMid, AppColors.navyLight],
+                            colors: [AppColors.pesoBlue, AppColors.navyLight],
                           ),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.navyMid.withOpacity(0.3),
+                              color: AppColors.pesoBlue.withOpacity(0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -644,10 +823,11 @@ class _AboutPageState extends State<AboutPage> {
       width: double.infinity,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.glassWhite,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.glassBorder, width: 1),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 15, offset: const Offset(0, 5))
+          BoxShadow(color: AppColors.pesoBlue.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 5))
         ],
       ),
       child: Column(
@@ -658,9 +838,9 @@ class _AboutPageState extends State<AboutPage> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                    color: AppColors.navyMid.withOpacity(0.1),
+                    color: AppColors.pesoBlue.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(12)),
-                child: Icon(icon, color: AppColors.navyMid, size: 24),
+                child: Icon(icon, color: AppColors.pesoBlue, size: 24),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -684,14 +864,14 @@ class _AboutPageState extends State<AboutPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: AppColors.navyLight, size: 20),
+        Icon(icon, color: AppColors.pesoBlue, size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Text(text,
               style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: Color(0xFF2C3E50),
+                  color: AppColors.navyMid,
                   height: 1.5)),
         ),
       ],
@@ -702,9 +882,9 @@ class _AboutPageState extends State<AboutPage> {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FA),
+        color: AppColors.darkBg2.withOpacity(0.25),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.navyMid.withOpacity(0.1), width: 1),
+        border: Border.all(color: AppColors.glassBorder, width: 1),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -712,16 +892,16 @@ class _AboutPageState extends State<AboutPage> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-                color: AppColors.navyLight.withOpacity(0.1),
+                color: AppColors.pesoBlue.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: AppColors.navyLight, size: 24),
+            child: Icon(icon, color: AppColors.pesoBlue, size: 24),
           ),
           const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.navyMid)),
+                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.pesoBlue)),
                 const SizedBox(height: 6),
                 Text(description, style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4)),
               ],
@@ -736,9 +916,9 @@ class _AboutPageState extends State<AboutPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.navyLight.withOpacity(0.08),
+        color: AppColors.pesoBlue.withOpacity(0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.navyLight.withOpacity(0.25)),
+        border: Border.all(color: AppColors.pesoBlue.withOpacity(0.35)),
       ),
       child: Text(text,
           style: const TextStyle(
@@ -772,6 +952,8 @@ class _LoginModalState extends State<LoginModal>
   bool _obscureConfirmPassword = true;
   bool _isSignUpMode = false;
   String? _selectedGender;
+  bool _isSubmitting = false;
+  String? _authError;
 
   @override
   void initState() {
@@ -801,6 +983,7 @@ class _LoginModalState extends State<LoginModal>
     setState(() {
       _isSignUpMode = !_isSignUpMode;
       _formKey.currentState?.reset();
+      _authError = null;
     });
   }
 
@@ -823,24 +1006,28 @@ class _LoginModalState extends State<LoginModal>
     Navigator.pop(context);
 
     if (result['success'] == true) {
+      // Store session — backend returns token + user on register too
+      UserSession().setFromApiData(result['data'] as Map<String, dynamic>);
+
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => const _RegistrationResultDialog(
           isSuccess: true,
-          message: 'Account created successfully!',
+          message: 'Account created! Welcome aboard.',
         ),
       );
 
-      _nameController.clear();
-      _emailController.clear();
-      _passwordController.clear();
-      _confirmPasswordController.clear();
-      _ageController.clear();
-      setState(() {
-        _selectedGender = null;
-        _isSignUpMode = false;
-      });
+      if (!mounted) return;
+      // Load job action state after login
+      await JobActionService().loadFromBackend();
+      if (!mounted) return;
+      // Navigate directly to home — no need to re-login
+      Navigator.pop(context); // close modal
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const HomePage()),
+      );
     } else {
       String errorMessage = 'Registration failed';
       if (result['message'] != null) {
@@ -1013,6 +1200,17 @@ class _LoginModalState extends State<LoginModal>
                           return null;
                         },
                       ),
+                      if (!_isSignUpMode && _authError != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          _authError!,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                       if (_isSignUpMode) ...[
                         const SizedBox(height: 20),
                         TextFormField(
@@ -1072,10 +1270,19 @@ class _LoginModalState extends State<LoginModal>
                       SizedBox(
                         height: 56,
                         child: ElevatedButton(
-                          onPressed: () async {
+                          onPressed: _isSubmitting
+                              ? null
+                              : () async {
                             if (_formKey.currentState!.validate()) {
+                                setState(() {
+                                  _authError = null;
+                                  _isSubmitting = true;
+                                });
                               if (_isSignUpMode) {
-                                await _handleRegistration();
+                                  await _handleRegistration();
+                                  if (mounted) {
+                                    setState(() => _isSubmitting = false);
+                                  }
                               } else {
                                 final result = await ApiService.login(
                                   email: _emailController.text,
@@ -1083,20 +1290,26 @@ class _LoginModalState extends State<LoginModal>
                                 );
 
                                 if (result['success'] == true) {
+                                  UserSession().setFromApiData(
+                                    result['data'] as Map<String, dynamic>,
+                                  );
+                                  if (!mounted) return;
+                                  // Load job action state after login
+                                  await JobActionService().loadFromBackend();
+                                  if (!mounted) return;
                                   Navigator.pop(context);
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(builder: (context) => const HomePage()),
                                   );
                                 } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(result['message'] ?? 'Login failed'),
-                                      backgroundColor: Colors.red,
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                  );
+                                    final msg = result['message'] as String? ??
+                                        'Login failed. Check your email and password.';
+                                    if (!mounted) return;
+                                    setState(() {
+                                      _authError = msg;
+                                      _isSubmitting = false;
+                                    });
                                 }
                               }
                             }
@@ -1107,7 +1320,27 @@ class _LoginModalState extends State<LoginModal>
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 0,
                           ),
-                          child: Text(
+                          child: _isSubmitting && !_isSignUpMode
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Signing in...',
+                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                    ),
+                                  ],
+                                )
+                              : Text(
                             _isSignUpMode ? 'Sign Up' : 'Sign In',
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                           ),
