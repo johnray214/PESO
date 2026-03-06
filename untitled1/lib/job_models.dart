@@ -9,6 +9,8 @@ class Job {
   final String companyInitial;
   final Color companyColor;
   final String location;
+  final double? latitude;
+  final double? longitude;
   final String description;
   final List<String> requirements;
   final List<String> skills;
@@ -28,6 +30,8 @@ class Job {
     required this.companyInitial,
     required this.companyColor,
     required this.location,
+    this.latitude,
+    this.longitude,
     required this.description,
     required this.requirements,
     required this.skills,
@@ -46,6 +50,11 @@ class Job {
     final colorHex = json['company_color'] as String? ?? '3B82F6';
     final color = Color(int.parse('0xFF$colorHex'));
 
+    final latValue = json['latitude'];
+    final lonValue = json['longitude'];
+    final double? latitude = latValue is num ? latValue.toDouble() : null;
+    final double? longitude = lonValue is num ? lonValue.toDouble() : null;
+
     return Job(
       id: json['id'].toString(),
       title: json['title'] as String,
@@ -53,6 +62,8 @@ class Job {
       companyInitial: json['company_initial'] as String? ?? '?',
       companyColor: color,
       location: json['location'] as String,
+      latitude: latitude,
+      longitude: longitude,
       description: json['description'] as String,
       requirements: (json['requirements'] as List<dynamic>? ?? [])
           .map((e) => e.toString())

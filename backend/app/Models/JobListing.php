@@ -12,6 +12,8 @@ class JobListing extends Model
         'company_initial',
         'company_color',
         'location',
+        'latitude',
+        'longitude',
         'description',
         'requirements',
         'skills',
@@ -31,6 +33,8 @@ class JobListing extends Model
         'is_urgent'        => 'boolean',
         'is_active'        => 'boolean',
         'match_percentage' => 'integer',
+        'latitude'         => 'float',
+        'longitude'        => 'float',
     ];
 
     public function applications()

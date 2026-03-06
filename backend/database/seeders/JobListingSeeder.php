@@ -4,14 +4,21 @@ namespace Database\Seeders;
 
 use App\Models\JobListing;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class JobListingSeeder extends Seeder
 {
     public function run(): void
     {
-        // Seed a rich mix of jobs (full-time, part-time, contract, freelance)
-        // that align with the categories used in the Flutter filter UI.
-        JobListing::truncate();
+              DB::table('job_applications')->delete();
+
+        // Delete parent table
+        DB::table('job_listings')->delete();
+
+        // Optional: reset auto-increment
+        DB::statement('ALTER TABLE job_applications AUTO_INCREMENT = 1');
+        DB::statement('ALTER TABLE job_listings AUTO_INCREMENT = 1');
+
 
         $jobs = [
             [
@@ -20,6 +27,8 @@ class JobListingSeeder extends Seeder
                 'company_initial'  => 'T',
                 'company_color'    => '3B82F6',
                 'location'         => 'Santiago City, Isabela',
+                'latitude'         => 16.6893151,
+                'longitude'        => 121.5558421,
                 'description'      => 'Looking for a skilled software developer with experience in mobile and web development. You will be working on cutting-edge projects and collaborating with a talented team.',
                 'requirements'     => [
                     "Bachelor's degree in Computer Science or related field",
@@ -44,6 +53,8 @@ class JobListingSeeder extends Seeder
                 'company_initial'  => 'C',
                 'company_color'    => '10B981',
                 'location'         => 'Santiago City, Isabela',
+                'latitude'         => 16.6905000,
+                'longitude'        => 121.5550000,
                 'description'      => 'The City Government is seeking a reliable Administrative Assistant to provide support to our department. Duties include managing schedules, handling correspondence, and maintaining office records.',
                 'requirements'     => [
                     "Bachelor's degree in any field",
@@ -68,6 +79,8 @@ class JobListingSeeder extends Seeder
                 'company_initial'  => 'P',
                 'company_color'    => 'F59E0B',
                 'location'         => 'Santiago City, Isabela',
+                'latitude'         => 16.6888000,
+                'longitude'        => 121.5565000,
                 'description'      => 'Join our dynamic sales team! We are looking for motivated individuals to promote and sell our products. Commission-based incentives available for top performers.',
                 'requirements'     => [
                     'High school diploma or equivalent',
@@ -92,6 +105,8 @@ class JobListingSeeder extends Seeder
                 'company_initial'  => 'S',
                 'company_color'    => 'EF4444',
                 'location'         => 'Santiago City, Isabela',
+                'latitude'         => 16.6900000,
+                'longitude'        => 121.5570000,
                 'description'      => 'We are hiring compassionate and skilled Registered Nurses to provide quality patient care. Must be willing to work in shifts and handle emergency situations.',
                 'requirements'     => [
                     "Bachelor's degree in Nursing",
@@ -116,6 +131,8 @@ class JobListingSeeder extends Seeder
                 'company_initial'  => 'L',
                 'company_color'    => '8B5CF6',
                 'location'         => 'Santiago City, Isabela',
+                'latitude'         => 16.6875000,
+                'longitude'        => 121.5545000,
                 'description'      => 'Looking for hardworking warehouse staff to handle inventory management, packing, and shipping operations. Physical fitness required.',
                 'requirements'     => [
                     'High school diploma',
@@ -140,6 +157,8 @@ class JobListingSeeder extends Seeder
                 'company_initial'  => 'S',
                 'company_color'    => '0EA5E9',
                 'location'         => 'Santiago City, Isabela',
+                'latitude'         => 16.6915638,
+                'longitude'        => 121.5550160,
                 'description'      => 'We are looking for a friendly and efficient Cashier to join our team. You will handle customer transactions, maintain accurate cash counts, and provide excellent service.',
                 'requirements'     => [
                     'High school diploma or equivalent',
@@ -164,6 +183,8 @@ class JobListingSeeder extends Seeder
                 'company_initial'  => 'R',
                 'company_color'    => 'EC4899',
                 'location'         => 'Santiago City, Isabela',
+                'latitude'         => 16.6922000,
+                'longitude'        => 121.5562000,
                 'description'      => 'Join our retail team as a Sales Associate! You will assist customers in finding products, manage merchandise displays, and process transactions with a smile.',
                 'requirements'     => [
                     'High school diploma or equivalent',

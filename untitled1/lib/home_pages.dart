@@ -1991,7 +1991,66 @@ class _MapTabState extends State<MapTab> {
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
   Business? _selectedBusiness;
-  List<Business> _filteredBusinesses = demoBusinesses;
+  List<Business> _allBusinesses = [];
+  List<Business> _filteredBusinesses = [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBusinessesFromApi();
+  }
+
+  Future<void> _loadBusinessesFromApi() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await ApiService.getJobListings();
+      if (response['success'] == true) {
+        final raw = response['data'] as List<dynamic>? ?? [];
+        final jobs = raw
+            .map((e) => Job.fromJson(e as Map<String, dynamic>))
+            .where((job) => job.latitude != null && job.longitude != null)
+            .toList();
+
+        // For now, treat each job as a "business" marker
+        final businesses = jobs
+            .map(
+              (job) => Business(
+                id: 'job_${job.id}',
+                name: job.company,
+                description: job.title,
+                imageUrl: '',
+                latitude: job.latitude!,
+                longitude: job.longitude!,
+                availableJobs: [job],
+              ),
+            )
+            .toList();
+
+        setState(() {
+          _allBusinesses = businesses;
+          _filteredBusinesses = businesses;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage =
+              response['message'] as String? ?? 'Failed to load jobs.';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to load jobs.';
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -2003,9 +2062,9 @@ class _MapTabState extends State<MapTab> {
   void _onSearch(String query) {
     setState(() {
       if (query.isEmpty) {
-        _filteredBusinesses = demoBusinesses;
+        _filteredBusinesses = _allBusinesses;
       } else {
-        _filteredBusinesses = demoBusinesses
+        _filteredBusinesses = _allBusinesses
             .where((b) => b.name.toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
@@ -2109,7 +2168,7 @@ class _MapTabState extends State<MapTab> {
                     ),
                   ),
                   // Business markers
-                  ...demoBusinesses.map((business) {
+                  ..._allBusinesses.map((business) {
                     final isSelected = _selectedBusiness?.id == business.id;
                     final color = business.id == 'sm_savemore'
                         ? const Color(0xFFE11D48)
