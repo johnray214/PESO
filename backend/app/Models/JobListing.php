@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class JobListing extends Model
 {
     protected $fillable = [
+        'employer_id',
         'title',
         'company',
         'company_initial',
@@ -36,6 +37,11 @@ class JobListing extends Model
         'latitude'         => 'float',
         'longitude'        => 'float',
     ];
+
+    public function employer()
+    {
+        return $this->belongsTo(Employer::class);
+    }
 
     public function applications()
     {

@@ -1,30 +1,6 @@
 <template>
-  <div class="dashboard-wrapper">
-    <AppSidebar @navigate="activePage = $event" :currentPage="activePage" />
-
-    <div class="main">
-      <!-- Topbar -->
-      <header class="topbar">
-        <div class="topbar-left">
-          <h1 class="page-title">{{ activePage }}</h1>
-          <span class="page-sub">Welcome back, Admin 👋</span>
-        </div>
-        <div class="topbar-right">
-          <button class="icon-btn bell-btn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
-            <span class="bell-dot">5</span>
-          </button>
-          <div class="user-pill">
-            <div class="avatar">A</div>
-            <div class="user-meta">
-              <span class="user-name">Admin</span>
-              <span class="user-role">PESO Staff</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <!-- Content -->
+  <div class="dashboard-page">
+    <!-- Content -->
       <div class="content">
 
         <!-- Stat Cards -->
@@ -141,19 +117,23 @@
             <div class="donut-wrapper">
               <svg width="150" height="150" viewBox="0 0 150 150">
                 <circle cx="75" cy="75" r="55" fill="none" stroke="#f1f5f9" stroke-width="18"/>
-                <!-- Placement: 62% -->
+                <!-- Placement: 52% -->
                 <circle cx="75" cy="75" r="55" fill="none" stroke="#2563eb" stroke-width="18"
-                  stroke-dasharray="214 332" stroke-dashoffset="0" stroke-linecap="round"
+                  stroke-dasharray="180 346" stroke-dashoffset="0" stroke-linecap="round"
                   transform="rotate(-90 75 75)"/>
-                <!-- Processing: 25% -->
+                <!-- Processing: 22% -->
                 <circle cx="75" cy="75" r="55" fill="none" stroke="#f97316" stroke-width="18"
-                  stroke-dasharray="86 460" stroke-dashoffset="-214" stroke-linecap="round"
+                  stroke-dasharray="76 346" stroke-dashoffset="-180" stroke-linecap="round"
                   transform="rotate(-90 75 75)"/>
                 <!-- Registration: 13% -->
                 <circle cx="75" cy="75" r="55" fill="none" stroke="#06b6d4" stroke-width="18"
-                  stroke-dasharray="45 501" stroke-dashoffset="-300" stroke-linecap="round"
+                  stroke-dasharray="45 346" stroke-dashoffset="-256" stroke-linecap="round"
                   transform="rotate(-90 75 75)"/>
-                <text x="75" y="68" text-anchor="middle" font-size="20" font-weight="800" fill="#1e293b">62%</text>
+                <!-- Rejection: 13% -->
+                <circle cx="75" cy="75" r="55" fill="none" stroke="#ef4444" stroke-width="18"
+                  stroke-dasharray="45 346" stroke-dashoffset="-301" stroke-linecap="round"
+                  transform="rotate(-90 75 75)"/>
+                <text x="75" y="68" text-anchor="middle" font-size="20" font-weight="800" fill="#1e293b">52%</text>
                 <text x="75" y="84" text-anchor="middle" font-size="10" fill="#94a3b8">Placed</text>
               </svg>
             </div>
@@ -164,6 +144,106 @@
                   <span>{{ item.label }}</span>
                 </div>
                 <span class="donut-pct" :style="{ color: item.color }">{{ item.pct }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Placement Metrics Row -->
+        <div class="placement-row">
+          <div class="card placement-chart-card">
+            <div class="card-header">
+              <div>
+                <h3>Placement Metrics</h3>
+                <p class="card-sub">Monthly placement status breakdown — {{ new Date().getFullYear() }}</p>
+              </div>
+              <div class="chart-controls">
+                <div class="legend">
+                  <span class="legend-item"><span class="legend-line placement-blue"></span> Placement</span>
+                  <span class="legend-item"><span class="legend-line processing-orange"></span> Processing</span>
+                  <span class="legend-item"><span class="legend-line registration-cyan"></span> Registration</span>
+                  <span class="legend-item"><span class="legend-line rejection-red"></span> Rejection</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="svg-chart-wrap">
+              <svg viewBox="0 0 620 180" preserveAspectRatio="xMidYMid meet" class="svg-chart">
+                <defs>
+                  <linearGradient id="gradPlacement" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#2563eb" stop-opacity="0.18"/>
+                    <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
+                  </linearGradient>
+                  <linearGradient id="gradProcessing" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#f97316" stop-opacity="0.15"/>
+                    <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
+                  </linearGradient>
+                  <linearGradient id="gradRegistration" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.15"/>
+                    <stop offset="100%" stop-color="#06b6d4" stop-opacity="0"/>
+                  </linearGradient>
+                  <linearGradient id="gradRejection" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#ef4444" stop-opacity="0.15"/>
+                    <stop offset="100%" stop-color="#ef4444" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+
+                <line v-for="(gl, i) in gridLines" :key="'g'+i"
+                  :x1="50" :y1="gl.y" :x2="610" :y2="gl.y"
+                  stroke="#f1f5f9" stroke-width="1"/>
+
+                <text v-for="(gl, i) in gridLines" :key="'yl'+i"
+                  :x="44" :y="gl.y + 4" text-anchor="end"
+                  font-size="9" fill="#cbd5e1" font-family="Plus Jakarta Sans, sans-serif">{{ gl.label }}</text>
+
+                <path :d="placementArea" fill="url(#gradPlacement)"/>
+                <path :d="processingArea" fill="url(#gradProcessing)"/>
+                <path :d="registrationArea" fill="url(#gradRegistration)"/>
+                <path :d="rejectionArea" fill="url(#gradRejection)"/>
+
+                <path :d="placementLine" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+                <path :d="processingLine" fill="none" stroke="#f97316" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+                <path :d="registrationLine" fill="none" stroke="#06b6d4" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+                <path :d="rejectionLine" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+                <circle v-for="(pt, i) in placementPoints" :key="'pd'+i"
+                  :cx="pt.x" :cy="pt.y" r="3.5" fill="#fff" stroke="#2563eb" stroke-width="2"/>
+                <circle v-for="(pt, i) in processingPoints" :key="'prd'+i"
+                  :cx="pt.x" :cy="pt.y" r="3.5" fill="#fff" stroke="#f97316" stroke-width="2"/>
+                <circle v-for="(pt, i) in registrationPoints" :key="'rd'+i"
+                  :cx="pt.x" :cy="pt.y" r="3.5" fill="#fff" stroke="#06b6d4" stroke-width="2"/>
+                <circle v-for="(pt, i) in rejectionPoints" :key="'red'+i"
+                  :cx="pt.x" :cy="pt.y" r="3.5" fill="#fff" stroke="#ef4444" stroke-width="2"/>
+
+                <text v-for="(month, i) in placementData" :key="'xl'+i"
+                  :x="getXPlacement(i)" :y="173" text-anchor="middle"
+                  font-size="9" fill="#94a3b8" font-family="Plus Jakarta Sans, sans-serif">{{ month.label }}</text>
+              </svg>
+            </div>
+
+            <div class="chart-summary">
+              <div class="summary-item">
+                <span class="summary-dot placement-dot"></span>
+                <span class="summary-label">Placement</span>
+                <span class="summary-val placement-val">{{ totalPlacement }}</span>
+              </div>
+              <div class="summary-divider"></div>
+              <div class="summary-item">
+                <span class="summary-dot processing-dot"></span>
+                <span class="summary-label">Processing</span>
+                <span class="summary-val processing-val">{{ totalProcessing }}</span>
+              </div>
+              <div class="summary-divider"></div>
+              <div class="summary-item">
+                <span class="summary-dot registration-dot"></span>
+                <span class="summary-label">Registration</span>
+                <span class="summary-val registration-val">{{ totalRegistration }}</span>
+              </div>
+              <div class="summary-divider"></div>
+              <div class="summary-item">
+                <span class="summary-dot rejection-dot"></span>
+                <span class="summary-label">Rejection</span>
+                <span class="summary-val rejection-val">{{ totalRejection }}</span>
               </div>
             </div>
           </div>
@@ -255,19 +335,14 @@
         </div>
 
       </div>
-    </div>
   </div>
 </template>
 
 <script>
-import AppSidebar from './AppSidebar.vue'
-
 export default {
   name: 'PESODashboard',
-  components: { AppSidebar },
   data() {
     return {
-      activePage: 'Dashboard',
       stats: [
         {
           label: 'Registered Jobseekers', value: '4,821', sub: '+124 this week',
@@ -305,9 +380,24 @@ export default {
         { label: 'Dec', jobseekers: 600, employers: 210 },
       ],
       donutItems: [
-        { label: 'Placement', pct: '62%', color: '#2563eb' },
-        { label: 'Processing', pct: '25%', color: '#f97316' },
+        { label: 'Placement', pct: '52%', color: '#2563eb' },
+        { label: 'Processing', pct: '22%', color: '#f97316' },
         { label: 'Registration', pct: '13%', color: '#06b6d4' },
+        { label: 'Rejection', pct: '13%', color: '#ef4444' },
+      ],
+      placementData: [
+        { label: 'Jan', placement: 280, processing: 180, registration: 110, rejection: 80 },
+        { label: 'Feb', placement: 320, processing: 200, registration: 130, rejection: 95 },
+        { label: 'Mar', placement: 360, processing: 190, registration: 145, rejection: 88 },
+        { label: 'Apr', placement: 310, processing: 210, registration: 120, rejection: 105 },
+        { label: 'May', placement: 410, processing: 220, registration: 155, rejection: 92 },
+        { label: 'Jun', placement: 380, processing: 195, registration: 140, rejection: 110 },
+        { label: 'Jul', placement: 430, processing: 230, registration: 165, rejection: 98 },
+        { label: 'Aug', placement: 390, processing: 205, registration: 135, rejection: 115 },
+        { label: 'Sep', placement: 400, processing: 215, registration: 150, rejection: 102 },
+        { label: 'Oct', placement: 450, processing: 240, registration: 170, rejection: 95 },
+        { label: 'Nov', placement: 475, processing: 250, registration: 180, rejection: 108 },
+        { label: 'Dec', placement: 510, processing: 265, registration: 195, rejection: 120 },
       ],
       gridLines: [
         { y: 14, label: '600' },
@@ -360,10 +450,56 @@ export default {
       const pts = this.employerPoints
       return this.buildSmoothPath(pts) + ` L${pts[pts.length-1].x},158 L${pts[0].x},158 Z`
     },
+    totalPlacement() {
+      return this.placementData.reduce((s, d) => s + d.placement, 0)
+    },
+    totalProcessing() {
+      return this.placementData.reduce((s, d) => s + d.processing, 0)
+    },
+    totalRegistration() {
+      return this.placementData.reduce((s, d) => s + d.registration, 0)
+    },
+    totalRejection() {
+      return this.placementData.reduce((s, d) => s + d.rejection, 0)
+    },
+    placementPoints() {
+      return this.placementData.map((d, i) => ({ x: this.getXPlacement(i), y: this.valToYPlacement(d.placement) }))
+    },
+    processingPoints() {
+      return this.placementData.map((d, i) => ({ x: this.getXPlacement(i), y: this.valToYPlacement(d.processing) }))
+    },
+    registrationPoints() {
+      return this.placementData.map((d, i) => ({ x: this.getXPlacement(i), y: this.valToYPlacement(d.registration) }))
+    },
+    rejectionPoints() {
+      return this.placementData.map((d, i) => ({ x: this.getXPlacement(i), y: this.valToYPlacement(d.rejection) }))
+    },
+    placementLine() { return this.buildSmoothPath(this.placementPoints) },
+    processingLine() { return this.buildSmoothPath(this.processingPoints) },
+    registrationLine() { return this.buildSmoothPath(this.registrationPoints) },
+    rejectionLine() { return this.buildSmoothPath(this.rejectionPoints) },
+    placementArea() {
+      const pts = this.placementPoints
+      return this.buildSmoothPath(pts) + ` L${pts[pts.length-1].x},158 L${pts[0].x},158 Z`
+    },
+    processingArea() {
+      const pts = this.processingPoints
+      return this.buildSmoothPath(pts) + ` L${pts[pts.length-1].x},158 L${pts[0].x},158 Z`
+    },
+    registrationArea() {
+      const pts = this.registrationPoints
+      return this.buildSmoothPath(pts) + ` L${pts[pts.length-1].x},158 L${pts[0].x},158 Z`
+    },
+    rejectionArea() {
+      const pts = this.rejectionPoints
+      return this.buildSmoothPath(pts) + ` L${pts[pts.length-1].x},158 L${pts[0].x},158 Z`
+    },
   },
   methods: {
     getX(i) { return 50 + i * (560 / (this.chartData.length - 1)) },
     valToY(val) { return 158 - ((val / 700) * 144) },
+    getXPlacement(i) { return 50 + i * (560 / (this.placementData.length - 1)) },
+    valToYPlacement(val) { return 158 - ((val / 600) * 144) },
     buildSmoothPath(pts) {
       if (!pts.length) return ''
       let d = `M${pts[0].x},${pts[0].y}`
@@ -383,19 +519,13 @@ export default {
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-.dashboard-wrapper {
+.dashboard-page {
   font-family: 'Plus Jakarta Sans', sans-serif;
   display: flex;
-  height: 100vh;
-  background: #f1eeff;
-  overflow: hidden;
-}
-
-.main {
-  flex: 1;
-  display: flex;
   flex-direction: column;
+  flex: 1;
   overflow: hidden;
+  background: #f1eeff;
 }
 
 /* TOPBAR */
@@ -533,6 +663,22 @@ export default {
   padding: 18px;
 }
 
+/* Match chart-card to table-card (Recent Applicants) */
+.chart-card,
+.table-card {
+  border: 1px solid #f1f5f9;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+/* Match donut-card to events-card (Upcoming Events) */
+.donut-card,
+.events-card {
+  border: 1px solid #f1f5f9;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
 .card-header {
   display: flex;
   align-items: flex-start;
@@ -565,6 +711,10 @@ export default {
 }
 .legend-line.blue { background: #2563eb; }
 .legend-line.cyan { background: #06b6d4; }
+.legend-line.placement-blue { background: #2563eb; }
+.legend-line.processing-orange { background: #f97316; }
+.legend-line.registration-cyan { background: #06b6d4; }
+.legend-line.rejection-red { background: #ef4444; }
 
 /* SVG LINE CHART */
 .svg-chart-wrap {
@@ -604,11 +754,19 @@ export default {
 
 .blue-dot { background: #2563eb; }
 .cyan-dot { background: #06b6d4; }
+.placement-dot { background: #2563eb; }
+.processing-dot { background: #f97316; }
+.registration-dot { background: #06b6d4; }
+.rejection-dot { background: #ef4444; }
 
 .summary-label { font-size: 11px; color: #94a3b8; }
 .summary-val { font-size: 13px; font-weight: 700; color: #1e293b; margin-left: 2px; }
 .blue-val { color: #2563eb; }
 .cyan-val { color: #06b6d4; }
+.placement-val { color: #2563eb; }
+.processing-val { color: #f97316; }
+.registration-val { color: #06b6d4; }
+.rejection-val { color: #ef4444; }
 
 .summary-divider {
   width: 1px;
@@ -632,6 +790,13 @@ export default {
 .donut-label-left { display: flex; align-items: center; gap: 8px; }
 
 .donut-pct { font-size: 12px; font-weight: 700; }
+
+/* PLACEMENT ROW */
+.placement-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
 
 /* BOTTOM ROW */
 .bottom-row {

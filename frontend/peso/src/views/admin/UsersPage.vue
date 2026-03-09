@@ -1,0 +1,534 @@
+<template>
+  <div class="layout-wrapper">
+
+    <div class="main-area">
+
+      <div class="page">
+
+        <!-- Page Header -->
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Users</h1>
+            <p class="page-sub">Manage system users and their roles</p>
+          </div>
+          <button class="btn-primary" @click="openModal(null)">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add User
+          </button>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-bar">
+          <div class="search-box">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input v-model="search" type="text" placeholder="Search by name, email, role…" class="search-input"/>
+          </div>
+          <div class="filter-group">
+            <select v-model="filterRole" class="filter-select">
+              <option value="">All Roles</option>
+              <option value="Admin">Admin</option>
+              <option value="Staff">Staff</option>
+            </select>
+            <select v-model="filterStatus" class="filter-select">
+              <option value="">All Status</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="table-card">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" class="check"/></th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Sex</th>
+                <th>Contact</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="u in filteredUsers" :key="u.id" class="table-row" @click="openModal(u)">
+                <td @click.stop><input type="checkbox" class="check"/></td>
+                <td>
+                  <div class="person-cell">
+                    <div class="avatar" :style="{ background: u.avatarBg }">{{ initials(u) }}</div>
+                    <div>
+                      <p class="person-name">{{ u.firstName }} {{ u.lastName }}</p>
+                      <p class="person-meta">{{ u.middleName || '—' }}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="email-cell">{{ u.email }}</td>
+                <td>
+                  <span class="role-badge" :class="u.role === 'Admin' ? 'role-admin' : 'role-staff'">{{ u.role }}</span>
+                </td>
+                <td class="meta-cell">{{ u.sex }}</td>
+                <td class="meta-cell">{{ u.number }}</td>
+                <td class="address-cell">{{ u.address }}</td>
+                <td @click.stop>
+                  <span class="status-badge" :class="u.status === 'Active' ? 'active-s' : 'inactive-s'">{{ u.status }}</span>
+                </td>
+                <td @click.stop>
+                  <div class="action-btns">
+                    <button class="act-btn edit" @click="openModal(u)" title="Edit">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button class="act-btn delete" @click.stop="deleteUser(u)" title="Delete">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="filteredUsers.length === 0">
+                <td colspan="9" class="empty-cell">
+                  <div class="empty-state">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    <p>No users found</p>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="pagination">
+            <span class="page-info">Showing {{ filteredUsers.length }} of {{ users.length }} users</span>
+            <div class="page-btns">
+              <button class="page-btn">‹</button>
+              <button class="page-btn active">1</button>
+              <button class="page-btn">›</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ADD / EDIT MODAL -->
+    <transition name="modal">
+      <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+        <div class="modal">
+          <div class="modal-header">
+            <div class="modal-title-wrap">
+              <div class="modal-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+              </div>
+              <div>
+                <h3 class="modal-title">{{ editingUser ? 'Edit User' : 'Create New User' }}</h3>
+                <p class="modal-sub">{{ editingUser ? 'Update account details' : 'Add a new staff account' }}</p>
+              </div>
+            </div>
+            <button class="modal-close" @click="showModal = false">✕</button>
+          </div>
+
+          <div class="modal-body">
+            <!-- Name Row -->
+            <div class="form-section-label">Personal Information</div>
+            <div class="form-row three">
+              <div class="form-group">
+                <label class="form-label">First Name <span class="req">*</span></label>
+                <input v-model="form.firstName" class="form-input" :class="{ error: errors.firstName }" placeholder="e.g. Maria"/>
+                <span v-if="errors.firstName" class="error-msg">Required</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Middle Name</label>
+                <input v-model="form.middleName" class="form-input" placeholder="e.g. Cruz (optional)"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Last Name <span class="req">*</span></label>
+                <input v-model="form.lastName" class="form-input" :class="{ error: errors.lastName }" placeholder="e.g. Santos"/>
+                <span v-if="errors.lastName" class="error-msg">Required</span>
+              </div>
+            </div>
+
+            <div class="form-row two">
+              <div class="form-group">
+                <label class="form-label">Sex <span class="req">*</span></label>
+                <select v-model="form.sex" class="form-input" :class="{ error: errors.sex }">
+                  <option value="">Select sex</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+                <span v-if="errors.sex" class="error-msg">Required</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Contact Number <span class="req">*</span></label>
+                <input v-model="form.number" class="form-input" :class="{ error: errors.number }" placeholder="e.g. 09171234567"/>
+                <span v-if="errors.number" class="error-msg">Required</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Address <span class="req">*</span></label>
+              <input v-model="form.address" class="form-input" :class="{ error: errors.address }" placeholder="e.g. 123 Rizal St., Quezon City"/>
+              <span v-if="errors.address" class="error-msg">Required</span>
+            </div>
+
+            <!-- Account Row -->
+            <div class="form-section-label" style="margin-top: 8px;">Account Details</div>
+            <div class="form-row two">
+              <div class="form-group">
+                <label class="form-label">Email <span class="req">*</span></label>
+                <input v-model="form.email" type="email" class="form-input" :class="{ error: errors.email }" placeholder="e.g. maria@peso.gov.ph"/>
+                <span v-if="errors.email" class="error-msg">Required</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Role <span class="req">*</span></label>
+                <select v-model="form.role" class="form-input" :class="{ error: errors.role }">
+                  <option value="">Select role</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Staff">Staff</option>
+                </select>
+                <span v-if="errors.role" class="error-msg">Required</span>
+              </div>
+            </div>
+
+            <div class="form-row two" v-if="!editingUser">
+              <div class="form-group">
+                <label class="form-label">Password <span class="req">*</span></label>
+                <div class="input-eye">
+                  <input v-model="form.password" :type="showPassword ? 'text' : 'password'" class="form-input" :class="{ error: errors.password }" placeholder="Create password"/>
+                  <button type="button" class="eye-btn" @click="showPassword = !showPassword">
+                    <svg v-if="!showPassword" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  </button>
+                </div>
+                <span v-if="errors.password" class="error-msg">Required</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Confirm Password <span class="req">*</span></label>
+                <div class="input-eye">
+                  <input v-model="form.confirmPassword" :type="showConfirm ? 'text' : 'password'" class="form-input" :class="{ error: errors.confirmPassword }" placeholder="Repeat password"/>
+                  <button type="button" class="eye-btn" @click="showConfirm = !showConfirm">
+                    <svg v-if="!showConfirm" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                  </button>
+                </div>
+                <span v-if="errors.confirmPassword" class="error-msg">{{ errors.confirmPassword }}</span>
+              </div>
+            </div>
+
+            <!-- Status toggle (edit only) -->
+            <div v-if="editingUser" class="form-group">
+              <label class="form-label">Status</label>
+              <div class="status-toggle">
+                <button :class="['toggle-opt', { active: form.status === 'Active' }]" @click="form.status = 'Active'">Active</button>
+                <button :class="['toggle-opt', { active: form.status === 'Inactive' }]" @click="form.status = 'Inactive'">Inactive</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn-ghost" @click="showModal = false">Cancel</button>
+            <button class="btn-primary" @click="saveUser">
+              {{ editingUser ? 'Save Changes' : 'Create Account' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- DELETE CONFIRM -->
+    <transition name="modal">
+      <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
+        <div class="modal confirm-modal">
+          <div class="confirm-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+          </div>
+          <h3 class="confirm-title">Delete User?</h3>
+          <p class="confirm-msg">Are you sure you want to delete <strong>{{ deletingUser?.firstName }} {{ deletingUser?.lastName }}</strong>? This action cannot be undone.</p>
+          <div class="confirm-btns">
+            <button class="btn-ghost" @click="showDeleteConfirm = false">Cancel</button>
+            <button class="btn-danger" @click="confirmDelete">Delete</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'UsersPage',
+
+  data() {
+    return {
+      search: '',
+      filterRole: '',
+      filterStatus: '',
+      showModal: false,
+      showDeleteConfirm: false,
+      editingUser: null,
+      deletingUser: null,
+      showPassword: false,
+      showConfirm: false,
+      errors: {},
+      form: {
+        firstName: '', middleName: '', lastName: '',
+        email: '', role: '', sex: '', address: '', number: '',
+        password: '', confirmPassword: '', status: 'Active'
+      },
+      avatarColors: ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b82f6','#14b8a6'],
+      users: [
+        {
+          id: 1, firstName: 'Maria', middleName: 'Cruz', lastName: 'Santos',
+          email: 'maria.santos@peso.gov.ph', role: 'Admin', sex: 'Female',
+          number: '09171234567', address: 'Quezon City', status: 'Active', avatarBg: '#2563eb'
+        },
+        {
+          id: 2, firstName: 'Juan', middleName: '', lastName: 'dela Cruz',
+          email: 'juan.delacruz@peso.gov.ph', role: 'Staff', sex: 'Male',
+          number: '09189876543', address: 'Marikina City', status: 'Active', avatarBg: '#f97316'
+        },
+        {
+          id: 3, firstName: 'Ana', middleName: 'Lopez', lastName: 'Reyes',
+          email: 'ana.reyes@peso.gov.ph', role: 'Staff', sex: 'Female',
+          number: '09201122334', address: 'Pasig City', status: 'Active', avatarBg: '#22c55e'
+        },
+        {
+          id: 4, firstName: 'Pedro', middleName: '', lastName: 'Lim',
+          email: 'pedro.lim@peso.gov.ph', role: 'Staff', sex: 'Male',
+          number: '09334455667', address: 'Caloocan City', status: 'Inactive', avatarBg: '#06b6d4'
+        },
+      ]
+    }
+  },
+  computed: {
+    filteredUsers() {
+      return this.users.filter(u => {
+        const fullName = `${u.firstName} ${u.lastName}`.toLowerCase()
+        const matchSearch = !this.search ||
+          fullName.includes(this.search.toLowerCase()) ||
+          u.email.toLowerCase().includes(this.search.toLowerCase()) ||
+          u.role.toLowerCase().includes(this.search.toLowerCase())
+        const matchRole   = !this.filterRole   || u.role   === this.filterRole
+        const matchStatus = !this.filterStatus || u.status === this.filterStatus
+        return matchSearch && matchRole && matchStatus
+      })
+    },
+    stripStats() {
+      return [
+        { label: 'Total Users',  value: this.users.length,                                    color: '#1e293b' },
+        { label: 'Admins',       value: this.users.filter(u => u.role === 'Admin').length,    color: '#2563eb' },
+        { label: 'Staff',        value: this.users.filter(u => u.role === 'Staff').length,    color: '#f97316' },
+        { label: 'Active',       value: this.users.filter(u => u.status === 'Active').length, color: '#22c55e' },
+        { label: 'Inactive',     value: this.users.filter(u => u.status === 'Inactive').length, color: '#94a3b8' },
+      ]
+    }
+  },
+  methods: {
+    initials(u) {
+      return `${u.firstName?.[0] ?? ''}${u.lastName?.[0] ?? ''}`.toUpperCase()
+    },
+    openModal(user) {
+      this.errors = {}
+      this.showPassword = false
+      this.showConfirm  = false
+      if (user) {
+        this.editingUser = user
+        this.form = { ...user, password: '', confirmPassword: '' }
+      } else {
+        this.editingUser = null
+        this.form = {
+          firstName: '', middleName: '', lastName: '',
+          email: '', role: '', sex: '', address: '', number: '',
+          password: '', confirmPassword: '', status: 'Active'
+        }
+      }
+      this.showModal = true
+    },
+    validate() {
+      const e = {}
+      if (!this.form.firstName.trim())  e.firstName  = true
+      if (!this.form.lastName.trim())   e.lastName   = true
+      if (!this.form.email.trim())      e.email      = true
+      if (!this.form.role)              e.role       = true
+      if (!this.form.sex)               e.sex        = true
+      if (!this.form.number.trim())     e.number     = true
+      if (!this.form.address.trim())    e.address    = true
+      if (!this.editingUser) {
+        if (!this.form.password)        e.password   = true
+        if (!this.form.confirmPassword) e.confirmPassword = 'Required'
+        else if (this.form.password !== this.form.confirmPassword)
+          e.confirmPassword = 'Passwords do not match'
+      }
+      this.errors = e
+      return Object.keys(e).length === 0
+    },
+    saveUser() {
+      if (!this.validate()) return
+      if (this.editingUser) {
+        const idx = this.users.findIndex(u => u.id === this.editingUser.id)
+        if (idx !== -1) this.users[idx] = { ...this.users[idx], ...this.form }
+      } else {
+        const color = this.avatarColors[this.users.length % this.avatarColors.length]
+        this.users.push({ id: Date.now(), ...this.form, avatarBg: color })
+      }
+      this.showModal = false
+    },
+    deleteUser(user) {
+      this.deletingUser = user
+      this.showDeleteConfirm = true
+    },
+    confirmDelete() {
+      this.users = this.users.filter(u => u.id !== this.deletingUser.id)
+      this.showDeleteConfirm = false
+      this.deletingUser = null
+    }
+  }
+}
+</script>
+
+<style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Shell ── */
+.layout-wrapper { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; }
+.main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.page { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
+.page-title { font-size: 20px; font-weight: 800; color: #1e293b; }
+.page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+
+/* STATS STRIP */
+.stats-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+}
+.strip-stat {
+  background: #fff;
+  border-radius: 0;
+  padding: 18px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid var(--accent, #94a3b8);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.strip-stat:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+.strip-val { font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
+.strip-label { font-size: 11.5px; color: #64748b; margin-top: 6px; font-weight: 500; }
+
+/* FILTERS */
+.filters-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.search-box { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; flex: 1; max-width: 360px; }
+.search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
+.search-input::placeholder { color: #cbd5e1; }
+.filter-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.filter-select { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; outline: none; font-family: inherit; }
+.btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+.btn-primary:hover { background: #1d4ed8; }
+
+/* TABLE */
+.table-card { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table thead tr { background: #f8fafc; }
+.data-table th { text-align: left; padding: 11px 14px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+.table-row { cursor: pointer; transition: background 0.12s; }
+.table-row:hover { background: #f8fafc; }
+.data-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+.check { accent-color: #2563eb; cursor: pointer; }
+
+.person-cell { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.person-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+.person-meta { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+
+.email-cell { font-size: 12px; color: #475569; }
+.meta-cell { font-size: 12.5px; color: #475569; }
+.address-cell { font-size: 12px; color: #64748b; max-width: 180px; }
+
+.role-badge { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 6px; white-space: nowrap; }
+.role-admin { background: #dbeafe; color: #2563eb; }
+.role-staff { background: #fff7ed; color: #f97316; }
+
+.status-badge { padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.active-s { background: #dcfce7; color: #22c55e; }
+.inactive-s { background: #f1f5f9; color: #94a3b8; }
+
+.action-btns { display: flex; gap: 4px; }
+.act-btn { width: 28px; height: 28px; border-radius: 7px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
+.act-btn.edit { background: #eff6ff; color: #2563eb; }
+.act-btn.edit:hover { background: #dbeafe; }
+.act-btn.delete { background: #fef2f2; color: #ef4444; }
+.act-btn.delete:hover { background: #fee2e2; }
+
+.empty-cell { padding: 40px !important; }
+.empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #cbd5e1; font-size: 13px; }
+
+/* PAGINATION */
+.pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-top: 1px solid #f1f5f9; }
+.page-info { font-size: 12px; color: #94a3b8; }
+.page-btns { display: flex; gap: 4px; }
+.page-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; color: #64748b; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+.page-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.page-btn:hover:not(.active) { background: #f8fafc; }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+.modal { background: #fff; border-radius: 16px; width: 580px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15); max-height: 90vh; display: flex; flex-direction: column; }
+.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
+.modal-title-wrap { display: flex; align-items: center; gap: 12px; }
+.modal-icon { width: 40px; height: 40px; background: #eff6ff; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.modal-title { font-size: 16px; font-weight: 800; color: #1e293b; }
+.modal-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+.modal-close { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 18px; padding: 4px; border-radius: 6px; line-height: 1; }
+.modal-close:hover { background: #f1f5f9; color: #1e293b; }
+
+.modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; flex: 1; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; border-top: 1px solid #f1f5f9; flex-shrink: 0; }
+
+.form-section-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 2px; border-bottom: 1px solid #f1f5f9; }
+.form-row { display: grid; gap: 12px; }
+.form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+.form-row.two   { grid-template-columns: 1fr 1fr; }
+.form-group { display: flex; flex-direction: column; gap: 5px; }
+.form-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+.req { color: #ef4444; }
+.form-input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; background: #f8fafc; transition: border 0.15s; }
+.form-input:focus { border-color: #93c5fd; background: #fff; }
+.form-input.error { border-color: #fca5a5; background: #fff5f5; }
+.error-msg { font-size: 11px; color: #ef4444; }
+
+.input-eye { position: relative; }
+.input-eye .form-input { width: 100%; padding-right: 36px; }
+.eye-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #94a3b8; display: flex; align-items: center; }
+.eye-btn:hover { color: #475569; }
+
+.status-toggle { display: flex; gap: 8px; }
+.toggle-opt { padding: 8px 20px; border-radius: 8px; border: 2px solid #e2e8f0; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; background: #f8fafc; color: #64748b; transition: all 0.15s; }
+.toggle-opt.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+
+.btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-ghost:hover { background: #e2e8f0; }
+.btn-danger { background: #ef4444; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-danger:hover { background: #dc2626; }
+
+/* CONFIRM MODAL */
+.confirm-modal { width: 380px; padding: 32px 28px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+.confirm-icon { width: 60px; height: 60px; background: #fef2f2; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.confirm-title { font-size: 18px; font-weight: 800; color: #1e293b; }
+.confirm-msg { font-size: 13px; color: #64748b; line-height: 1.6; }
+.confirm-btns { display: flex; gap: 10px; margin-top: 8px; }
+
+/* TRANSITIONS */
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s; }
+.modal-enter-active .modal, .modal-leave-active .modal { transition: transform 0.2s, opacity 0.2s; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
+.modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
+</style>

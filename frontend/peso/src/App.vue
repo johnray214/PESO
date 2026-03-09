@@ -1,30 +1,56 @@
 <template>
-  <nav>
-    <router-link to="/">Home</router-link> |
-    <router-link to="/about">About</router-link>
-  </nav>
-  <router-view/>
+  <router-view />
 </template>
 
 <style>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
 }
 
-nav {
-  padding: 30px;
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: #0f172a;
+  background: #f1f5f9;
 }
 
-nav a {
-  font-weight: bold;
-  color: #2c3e50;
+#app {
+  min-height: 100vh;
 }
 
-nav a.router-link-exact-active {
-  color: #42b983;
+.page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.page-desc {
+  font-size: 0.95rem;
+  color: #64748b;
+}
+
+.card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.error-message {
+  color: #b91c1c;
+  font-size: 0.9rem;
 }
 </style>

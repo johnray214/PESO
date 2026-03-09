@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Citizen's Feedback — City of Santiago PESO</title>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#0f1923;
+  --paper:#f4f7fb;
+  --cream:#eaf0f8;
+  --navy:#1a3a5c;
+  --navy2:#2a5285;
+  --navydk:#0e2540;
+  --line:#d0dbe8;
+  --muted:#7a90a8;
+  --white:#ffffff;
+  --green:#1a7a4a;
+  --greendk:#0f4f2e;
+}
+html{font-size:16px;background:var(--paper)}
+body{
+  font-family:'DM Sans',sans-serif;color:var(--ink);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;
+  padding:2rem 1rem 4rem;
+  background-color:var(--paper);
+  background-image:
+    radial-gradient(ellipse at 75% 5%, #dceaf8 0%, transparent 50%),
+    radial-gradient(ellipse at 10% 95%, #e8f0fa 0%, transparent 45%),
+    repeating-linear-gradient(0deg,transparent,transparent 27px,rgba(160,185,215,.18) 27px,rgba(160,185,215,.18) 28px);
+}
+
+/* Header */
+.header{text-align:center;max-width:560px;width:100%;margin-bottom:2rem;padding-top:1rem}
+.header__seal{width:80px;height:80px;border-radius:50%;border:2px solid var(--navy2);display:inline-flex;align-items:center;justify-content:center;margin-bottom:.9rem;background:var(--white);box-shadow:0 0 0 4px var(--cream),0 0 0 5px var(--line)}
+.header__seal img{width:100%;height:100%;object-fit:cover;border-radius:50%}
+.header__eyebrow{font-size:.66rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.2rem}
+.header__title{font-family:'Libre Baskerville',serif;font-size:clamp(1.4rem,5vw,1.9rem);font-weight:700;line-height:1.15;margin-bottom:.3rem}
+.header__title em{font-style:italic;color:var(--navy)}
+.header__sub{font-size:.78rem;font-weight:300;color:var(--muted)}
+.header__rule{margin:1rem auto 0;width:40px;height:2px;background:var(--navy);border:none}
+
+/* Steps */
+.steps{display:flex;align-items:flex-start;max-width:560px;width:100%;margin-bottom:1.8rem}
+.step{display:flex;flex-direction:column;align-items:center;gap:.3rem;flex:1;position:relative}
+.step:not(:last-child)::after{content:'';position:absolute;top:13px;left:calc(50% + 14px);right:calc(-50% + 14px);height:1px;background:var(--line);transition:background .4s}
+.step.done:not(:last-child)::after{background:var(--navy)}
+.step__dot{width:26px;height:26px;border-radius:50%;border:2px solid var(--line);background:var(--paper);display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:600;color:var(--muted);transition:all .25s;z-index:1}
+.step.active .step__dot{background:var(--navy);border-color:var(--navy);color:var(--white);box-shadow:0 0 0 3px rgba(26,58,92,.14)}
+.step.done .step__dot{background:var(--navy);border-color:var(--navy);color:var(--white)}
+.step__label{font-size:.6rem;font-weight:500;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.step.active .step__label,.step.done .step__label{color:var(--navy)}
+
+/* Card */
+.card{background:var(--white);border:1px solid var(--line);border-radius:6px;padding:1.8rem 1.6rem;max-width:560px;width:100%;box-shadow:0 2px 16px rgba(26,58,92,.07),0 1px 3px rgba(26,58,92,.05);position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--navy),var(--navy2));border-radius:6px 6px 0 0}
+
+/* Panels */
+.panel{display:none}
+.panel.active{display:block;animation:fadeIn .3s ease both}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+.panel__title{font-family:'Libre Baskerville',serif;font-size:.95rem;font-weight:700;margin-bottom:.2rem}
+.panel__hint{font-size:.73rem;color:var(--muted);margin-bottom:1.5rem}
+
+/* Fields */
+.field{margin-bottom:1.3rem}
+.field__label{display:block;font-size:.67rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.45rem}
+.field__label span{font-style:italic;font-weight:300;letter-spacing:0;text-transform:none;font-size:.66rem;color:#b0bfce;margin-left:.3rem}
+.field__input{width:100%;background:transparent;border:none;border-bottom:1.5px solid var(--line);padding:.5rem .1rem;font-family:'DM Sans',sans-serif;font-size:.93rem;color:var(--ink);outline:none;transition:border-color .2s;border-radius:0}
+.field__input::placeholder{color:#c0cdd9;font-weight:300}
+.field__input:focus{border-bottom-color:var(--navy)}
+.field__input.err{border-bottom-color:#c0392b}
+.field__err{font-size:.67rem;color:#c0392b;margin-top:.25rem;display:none}
+.field__err.show{display:block}
+input[type="date"]::-webkit-calendar-picker-indicator{opacity:.4;cursor:pointer}
+
+.row{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:400px){.row{grid-template-columns:1fr}}
+.divider{border:none;border-top:1px dashed var(--line);margin:1.4rem 0}
+
+/* Rating */
+.rating-section{margin-bottom:1.5rem}
+.rating-section__title{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--navy);margin-bottom:.9rem;display:flex;align-items:center;gap:.5rem}
+.rating-section__title::after{content:'';flex:1;height:1px;background:var(--cream)}
+.rating-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:.5rem;margin-bottom:.75rem}
+.rating-row__label{font-size:.8rem;color:var(--ink)}
+.rating-row__label small{display:block;font-size:.66rem;color:var(--muted);font-style:italic}
+.stars{display:flex;gap:.2rem}
+.star-btn{width:30px;height:30px;border-radius:2px;border:1.5px solid var(--line);background:transparent;cursor:pointer;font-size:.72rem;font-weight:700;color:var(--muted);transition:all .15s;display:flex;align-items:center;justify-content:center}
+.star-btn:hover{border-color:var(--navy2);background:rgba(42,82,133,.08);color:var(--navy)}
+.star-btn.sel{background:var(--navy);border-color:var(--navy);color:var(--white)}
+.overall-row{background:var(--paper);border:1px solid var(--line);border-radius:4px;padding:.9rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-top:.5rem}
+.overall-row__label{font-size:.82rem;font-weight:600;color:var(--ink)}
+.overall-row__label small{display:block;font-size:.66rem;color:var(--muted);font-style:italic;font-weight:300}
+
+/* Remarks */
+.field__textarea{width:100%;background:transparent;border:1.5px solid var(--line);border-radius:4px;padding:.65rem .75rem;font-family:'DM Sans',sans-serif;font-size:.88rem;color:var(--ink);outline:none;transition:border-color .2s;resize:vertical;min-height:100px}
+.field__textarea:focus{border-color:var(--navy)}
+.field__textarea::placeholder{color:#c0cdd9;font-weight:300}
+
+/* CTA */
+.cta{margin-top:1.8rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap}
+.cta__info{font-size:.7rem;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:.45rem;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;border:none;padding:.7rem 1.4rem;cursor:pointer;border-radius:3px;transition:all .15s;white-space:nowrap}
+.btn-back{background:transparent;border:1.5px solid var(--line);color:var(--muted)}
+.btn-back:hover{border-color:var(--navy);color:var(--navy)}
+.btn-next{background:var(--navy);color:var(--white);box-shadow:3px 3px 0 var(--navydk)}
+.btn-next:hover{background:#153151;transform:translateY(-1px);box-shadow:3px 4px 0 var(--navydk)}
+.btn-next:active{transform:translateY(1px);box-shadow:1px 1px 0 var(--navydk)}
+.btn svg{width:15px;height:15px}
+
+/* Success / Thank you */
+.thankyou-head{text-align:center;padding:.5rem 0 1rem}
+.thankyou-head__icon{width:56px;height:56px;border-radius:50%;background:var(--green);display:inline-flex;align-items:center;justify-content:center;margin-bottom:.9rem;box-shadow:0 0 0 6px rgba(26,122,74,.12)}
+.thankyou-head__icon svg{width:26px;height:26px;color:var(--white)}
+.thankyou-head__title{font-family:'Libre Baskerville',serif;font-size:1.4rem;font-weight:700;margin-bottom:.3rem}
+.thankyou-head__sub{font-size:.78rem;color:var(--muted)}
+
+/* Certificate preview */
+.cert-preview{margin:1.2rem 0;border:1px solid var(--line);border-radius:4px;padding:.5rem;background:var(--cream)}
+.cert-preview__inner{border:2px solid var(--line);border-radius:3px;padding:2rem 1.5rem;text-align:center;background:var(--white);position:relative}
+.cert-preview__inner::before,.cert-preview__inner::after{content:'';position:absolute;inset:6px;border:1px solid var(--line);border-radius:2px;pointer-events:none}
+.cert-preview__inner::after{inset:8px;border-color:#dce8f2}
+.cert-preview__seal{width:56px;height:56px;border-radius:50%;border:2px solid var(--navy);display:inline-flex;align-items:center;justify-content:center;margin-bottom:.75rem;background:var(--white);color:var(--navy);box-shadow:0 0 0 4px var(--cream)}
+.cert-preview__eyebrow{font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem}
+.cert-preview__title{font-family:'Libre Baskerville',serif;font-size:1.1rem;font-weight:700;color:var(--ink);margin-bottom:.8rem}
+.cert-preview__body{font-size:.75rem;color:var(--muted);line-height:1.7;margin-bottom:1rem}
+.cert-preview__line{width:120px;height:1px;background:var(--line);margin:.9rem auto}
+.cert-preview__office{font-size:.68rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--navy)}
+
+.btn-cert-dl{display:flex;align-items:center;gap:.6rem;width:100%;justify-content:center;font-family:'DM Sans',sans-serif;font-size:.82rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;border:1.5px dashed var(--line);background:var(--paper);color:var(--muted);padding:.85rem 1.5rem;border-radius:3px;cursor:not-allowed;opacity:.6;margin-top:.5rem}
+.cert-badge{font-size:.6rem;background:var(--line);color:var(--muted);padding:.15rem .5rem;border-radius:20px;letter-spacing:.06em;text-transform:uppercase;margin-left:.3rem}
+
+/* Footer */
+.footer{max-width:560px;width:100%;margin-top:1.4rem;text-align:center;font-size:.66rem;color:var(--muted)}
+
+/* Entrance */
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.header{animation:fadeUp .5s ease both}
+.steps{animation:fadeUp .5s ease .08s both}
+.card{animation:fadeUp .5s ease .16s both}
+.footer{animation:fadeUp .5s ease .24s both}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header__seal" aria-hidden="true">
+    <img src="PESOLOGO.jpg" alt="PESO Logo"/>
+  </div>
+  <p class="header__eyebrow">Republic of the Philippines · City of Santiago</p>
+  <h1 class="header__title">Citizen's <em>Feedback</em> Form</h1>
+  <p class="header__sub">Public Employment Service Office &nbsp;·&nbsp; WE INTEND TO SERVE YOU BETTER</p>
+  <hr class="header__rule"/>
+</header>
+
+<nav class="steps" id="steps-nav" aria-label="Form progress">
+  <div class="step active" data-step="1"><div class="step__dot">1</div><span class="step__label">Details</span></div>
+  <div class="step" data-step="2"><div class="step__dot">2</div><span class="step__label">Ratings</span></div>
+  <div class="step" data-step="3"><div class="step__dot">3</div><span class="step__label">Remarks</span></div>
+  <div class="step" data-step="4"><div class="step__dot">4</div><span class="step__label">Download</span></div>
+</nav>
+
+<main>
+<div class="card">
+
+  <!-- STEP 1 -->
+  <div class="panel active" id="panel-1">
+    <h2 class="panel__title">Activity Information</h2>
+    <p class="panel__hint">Tell us who you are and which activity you attended.</p>
+    <div class="row">
+      <div class="field">
+        <label class="field__label" for="fn">First Name <span>(Pangalan)</span></label>
+        <input class="field__input" type="text" id="fn" placeholder="Juan" autocomplete="given-name"/>
+        <p class="field__err" id="fn-err">Please enter your first name.</p>
+      </div>
+      <div class="field">
+        <label class="field__label" for="ln">Last Name <span>(Apelyido)</span></label>
+        <input class="field__input" type="text" id="ln" placeholder="dela Cruz" autocomplete="family-name"/>
+        <p class="field__err" id="ln-err">Please enter your last name.</p>
+      </div>
+    </div>
+    <div class="field" style="margin-top:-.2rem">
+      <label class="field__label" for="mi">Middle Initial <span>(Gitnang Pangalan)</span></label>
+      <input class="field__input" type="text" id="mi" placeholder="M." maxlength="3" style="max-width:80px"/>
+    </div>
+    <div class="field">
+      <label class="field__label" for="prog">Program / Activity <span>(Programa o Aktibidad)</span></label>
+      <input class="field__input" type="text" id="prog" placeholder="e.g. Job Fair, Skills Training…"/>
+      <p class="field__err" id="prog-err">Please enter the program or activity.</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="venue">Venue / School <span>(Lugar o Paaralan)</span></label>
+      <input class="field__input" type="text" id="venue" placeholder="e.g. City Hall Auditorium"/>
+      <p class="field__err" id="venue-err">Please enter the venue.</p>
+    </div>
+    <div class="field">
+      <label class="field__label" for="adate">Date of Activity <span>(Petsa ng Aktibidad)</span></label>
+      <input class="field__input" type="date" id="adate"/>
+      <p class="field__err" id="adate-err">Please select the date.</p>
+    </div>
+    <div class="cta">
+      <span class="cta__info">Step 1 of 4</span>
+      <button class="btn btn-next" id="s1-next" type="button">
+        Next — Ratings
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="panel" id="panel-2">
+    <h2 class="panel__title">Areas</h2>
+    <p class="panel__hint">Rate the following: 1 = Poor &nbsp;·&nbsp; 3 = Satisfactory &nbsp;·&nbsp; 5 = Excellent</p>
+    <div class="rating-section">
+      <p class="rating-section__title">Areas</p>
+      <div class="rating-row"><div class="rating-row__label">Program Content<small>Nilalaman ng Programa</small></div><div class="stars" data-group="prog-content"><button class="star-btn" type="button" data-val="1">1</button><button class="star-btn" type="button" data-val="2">2</button><button class="star-btn" type="button" data-val="3">3</button><button class="star-btn" type="button" data-val="4">4</button><button class="star-btn" type="button" data-val="5">5</button></div></div>
+      <div class="rating-row"><div class="rating-row__label">Level of Interaction<small>Pakikipag-ugnayan</small></div><div class="stars" data-group="interact"><button class="star-btn" type="button" data-val="1">1</button><button class="star-btn" type="button" data-val="2">2</button><button class="star-btn" type="button" data-val="3">3</button><button class="star-btn" type="button" data-val="4">4</button><button class="star-btn" type="button" data-val="5">5</button></div></div>
+      <div class="rating-row"><div class="rating-row__label">Mastery of Topic<small>Kasanayan sa paksa</small></div><div class="stars" data-group="mastery"><button class="star-btn" type="button" data-val="1">1</button><button class="star-btn" type="button" data-val="2">2</button><button class="star-btn" type="button" data-val="3">3</button><button class="star-btn" type="button" data-val="4">4</button><button class="star-btn" type="button" data-val="5">5</button></div></div>
+    </div>
+    <div class="overall-row">
+      <div class="overall-row__label">Overall Activity Rating<small>Sa pangkalahatan, ano ang iyong rating sa activity</small></div>
+      <div class="stars" data-group="overall"><button class="star-btn" type="button" data-val="1">1</button><button class="star-btn" type="button" data-val="2">2</button><button class="star-btn" type="button" data-val="3">3</button><button class="star-btn" type="button" data-val="4">4</button><button class="star-btn" type="button" data-val="5">5</button></div>
+    </div>
+    <div class="cta">
+      <button class="btn btn-back" id="s2-back" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+        Back
+      </button>
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <span class="cta__info">Step 2 of 4</span>
+        <button class="btn btn-next" id="s2-next" type="button">
+          Next — Remarks
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="panel" id="panel-3">
+    <h2 class="panel__title">Suggestions &amp; Remarks</h2>
+    <p class="panel__hint">Share any suggestions or recommendations to help us improve.</p>
+    <div class="field">
+      <label class="field__label" for="remarks">Suggestion / Recommendation <span>(Mungkahi o Rekomendasyon)</span></label>
+      <textarea class="field__textarea" id="remarks" placeholder="Write your suggestions here…" rows="5"></textarea>
+    </div>
+    <div class="cta">
+      <button class="btn btn-back" id="s3-back" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 6l-6 6 6 6"/></svg>
+        Back
+      </button>
+      <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
+        <span class="cta__info">Step 3 of 4</span>
+        <button class="btn btn-next" id="s3-submit" type="button">
+          Submit &amp; Continue
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="panel" id="panel-4">
+    <div class="thankyou-head">
+      <div class="thankyou-head__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2 class="thankyou-head__title">Thank You!</h2>
+      <p class="thankyou-head__sub">Your feedback has been submitted successfully.</p>
+    </div>
+    <hr class="divider"/>
+    <h3 class="panel__title">Download Certification</h3>
+    <p class="panel__hint">You may download your certificate of participation below.</p>
+    <div class="cert-preview">
+      <div class="cert-preview__inner">
+        <div class="cert-preview__seal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="32" height="32"><circle cx="12" cy="8" r="4"/><path d="M9 12l-4 9 7-3 7 3-4-9"/></svg>
+        </div>
+        <p class="cert-preview__eyebrow">Republic of the Philippines · City of Santiago</p>
+        <h3 class="cert-preview__title">Certificate of Participation</h3>
+        <p class="cert-preview__body">This is to certify that the participant has<br/>successfully completed the activity and<br/>submitted the required feedback form.</p>
+        <div class="cert-preview__line"></div>
+        <p class="cert-preview__office">Public Employment Service Office</p>
+      </div>
+    </div>
+    <button class="btn-cert-dl" type="button" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      Download Certificate
+      <span class="cert-badge">Coming Soon</span>
+    </button>
+    <div class="cta" style="margin-top:1.5rem">
+      <span class="cta__info">Step 4 of 4 &nbsp;·&nbsp; Thank you!</span>
+    </div>
+  </div>
+
+</div>
+</main>
+
+<footer class="footer">
+  Public Employment Service Office &nbsp;·&nbsp; Landline: (078) 305-2758
+</footer>
+
+<script>
+(function(){
+  function showPanel(n) {
+    document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+    document.getElementById('panel-' + n).classList.add('active');
+    document.querySelectorAll('.step').forEach(function(s){
+      var sn = parseInt(s.dataset.step, 10);
+      s.classList.remove('active','done');
+      if (sn === n)  s.classList.add('active');
+      if (sn < n)    s.classList.add('done');
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function validateStep1() {
+    var fields = ['fn','ln','prog','venue','adate'];
+    var ok = true;
+    fields.forEach(function(id){
+      var el  = document.getElementById(id);
+      var err = document.getElementById(id + '-err');
+      if (!el.value.trim()) {
+        el.classList.add('err');
+        err.classList.add('show');
+        ok = false;
+      } else {
+        el.classList.remove('err');
+        err.classList.remove('show');
+      }
+    });
+    return ok;
+  }
+
+  ['fn','ln','prog','venue','adate'].forEach(function(id){
+    document.getElementById(id).addEventListener('input', function(){
+      if (this.value.trim()) {
+        this.classList.remove('err');
+        var err = document.getElementById(id + '-err');
+        if (err) err.classList.remove('show');
+      }
+    });
+  });
+
+  document.querySelectorAll('.stars').forEach(function(group){
+    group.querySelectorAll('.star-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var val = parseInt(btn.dataset.val, 10);
+        group.querySelectorAll('.star-btn').forEach(function(b){
+          b.classList.toggle('sel', parseInt(b.dataset.val, 10) === val);
+        });
+        group.dataset.selected = val;
+      });
+    });
+  });
+
+  document.getElementById('s1-next').addEventListener('click', function(){
+    if (validateStep1()) showPanel(2);
+  });
+  document.getElementById('s2-back').addEventListener('click', function(){ showPanel(1); });
+  document.getElementById('s2-next').addEventListener('click', function(){ showPanel(3); });
+  document.getElementById('s3-back').addEventListener('click', function(){ showPanel(2); });
+  document.getElementById('s3-submit').addEventListener('click', function(){ showPanel(4); });
+})();
+</script>
+</body>
+</html>
