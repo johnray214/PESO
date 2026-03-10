@@ -14,6 +14,7 @@ class UserSession {
   String? phone;
   String? address;
   List<String> skills = [];
+  String? avatarPath;
 
   bool get isLoggedIn => token != null && token!.isNotEmpty;
 
@@ -54,6 +55,7 @@ class UserSession {
     age = user['age'] as int?;
     phone = user['phone'] as String?;
     address = user['address'] as String?;
+    avatarPath = user['avatar_path'] as String?;
     final rawSkills = user['skills'];
     if (rawSkills is List) {
       skills = rawSkills.map((e) => e.toString()).toList();
@@ -71,6 +73,7 @@ class UserSession {
     age = null;
     phone = null;
     address = null;
+    avatarPath = null;
     skills = [];
   }
 }

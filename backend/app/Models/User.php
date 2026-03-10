@@ -25,6 +25,8 @@ class User extends Authenticatable
         'phone',
         'address',
         'skills',
+        'resume_path',
+        'avatar_path',
     ];
 
     /**

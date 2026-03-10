@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.1.144:8000/api';
+  static const String baseUrl = 'http://127.0.0.1:8000/api';
 
   static Future<Map<String, dynamic>> register({
     required String name,
@@ -267,6 +267,193 @@ class ApiService {
   }
 
   // ─── Profile ─────────────────────────────────────────────────────────────────
+
+  /// Get current user's avatar image bytes. Returns null if none or error.
+  static Future<List<int>?> getAvatarBytes(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/avatar'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode != 200) return null;
+      final bytes = response.bodyBytes;
+      return bytes.isEmpty ? null : bytes;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Upload avatar from file path (mobile/desktop).
+  static Future<Map<String, dynamic>> uploadAvatar({
+    required String token,
+    required String filePath,
+    required String fileName,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/user/avatar'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        await http.MultipartFile.fromPath('avatar', filePath, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      final body = response.body.trim();
+      if (response.statusCode != 200) {
+        return {'success': false, 'message': response.statusCode == 422 ? 'Invalid image' : 'Upload failed'};
+      }
+      try {
+        return jsonDecode(body) as Map<String, dynamic>;
+      } catch (_) {
+        return {'success': false, 'message': 'Invalid response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  /// Upload avatar from bytes (web).
+  static Future<Map<String, dynamic>> uploadAvatarBytes({
+    required String token,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/user/avatar'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        http.MultipartFile.fromBytes('avatar', fileBytes, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      final body = response.body.trim();
+      if (response.statusCode != 200) {
+        return {'success': false, 'message': response.statusCode == 422 ? 'Invalid image' : 'Upload failed'};
+      }
+      try {
+        return jsonDecode(body) as Map<String, dynamic>;
+      } catch (_) {
+        return {'success': false, 'message': 'Invalid response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Map<String, dynamic> _parseResumeResponse(http.Response response) {
+    final body = response.body.trim();
+    if (body.isEmpty) {
+      return {
+        'success': false,
+        'message': 'Server returned empty response (${response.statusCode})',
+      };
+    }
+    if (body.startsWith('<')) {
+      return {
+        'success': false,
+        'message': response.statusCode >= 500
+            ? 'Server error (${response.statusCode}). Check that the backend is running and the database is migrated.'
+            : 'Server returned an error page (${response.statusCode}). Check the API URL and backend.',
+      };
+    }
+    try {
+      return jsonDecode(body) as Map<String, dynamic>;
+    } catch (_) {
+      return {
+        'success': false,
+        'message': 'Invalid server response (${response.statusCode})',
+      };
+    }
+  }
+
+  /// Upload resume from a file path (mobile/desktop).
+  static Future<Map<String, dynamic>> uploadResume({
+    required String token,
+    required String filePath,
+    required String fileName,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/user/resume'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        await http.MultipartFile.fromPath('resume', filePath, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      return _parseResumeResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  /// Get a one-time URL to view the resume. Returns map with 'url' (if success) or 'error'.
+  static Future<Map<String, dynamic>> getResumeViewUrl(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/resume/view-url'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+      final body = response.body.trim();
+      if (body.isEmpty) {
+        return {'error': 'Empty response (${response.statusCode})'};
+      }
+      if (response.statusCode != 200) {
+        String msg = 'Server error (${response.statusCode})';
+        if (body.startsWith('{')) {
+          try {
+            final data = jsonDecode(body) as Map<String, dynamic>?;
+            if (data != null && data['message'] != null) {
+              msg = data['message'] as String;
+            }
+          } catch (_) {}
+        }
+        return {'error': msg};
+      }
+      final data = jsonDecode(body) as Map<String, dynamic>?;
+      if (data == null || data['success'] != true) {
+        return {'error': data?['message'] as String? ?? 'Could not get view link'};
+      }
+      final url = data['url'] as String?;
+      if (url == null || url.isEmpty) return {'error': 'No URL in response'};
+      return {'url': url};
+    } catch (e) {
+      return {'error': 'Connection error: $e'};
+    }
+  }
+
+  /// Upload resume from bytes (used on web where file path is not available).
+  static Future<Map<String, dynamic>> uploadResumeBytes({
+    required String token,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/user/resume'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        http.MultipartFile.fromBytes('resume', fileBytes, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      return _parseResumeResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
 
   static Future<Map<String, dynamic>> updateProfile({
     required String token,

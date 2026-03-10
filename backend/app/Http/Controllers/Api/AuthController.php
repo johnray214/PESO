@@ -6,8 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -156,5 +159,171 @@ class AuthController extends Controller
             'message' => 'Skills updated successfully',
             'data'    => $user->fresh(),
         ], 200);
+    }
+
+    public function uploadResume(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'resume' => 'required|file|mimes:pdf|max:5120',
+        ], [
+            'resume.required' => 'Please select a PDF file.',
+            'resume.mimes'    => 'The resume must be a PDF file.',
+            'resume.max'      => 'The resume must not exceed 5MB.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $user = $request->user();
+        $file = $request->file('resume');
+
+        // Delete previous resume if any
+        if ($user->resume_path && Storage::disk('local')->exists($user->resume_path)) {
+            Storage::disk('local')->delete($user->resume_path);
+        }
+
+        $path = $file->store('resumes/' . $user->id, 'local');
+        $user->update(['resume_path' => $path]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Resume uploaded successfully',
+            'data'    => ['resume_path' => $path],
+        ], 200);
+    }
+
+    public function uploadAvatar(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'avatar' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ], [
+            'avatar.required' => 'Please select an image.',
+            'avatar.image'    => 'The file must be an image.',
+            'avatar.mimes'    => 'The image must be JPEG, PNG, JPG, or GIF.',
+            'avatar.max'      => 'The image must not exceed 2MB.',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors'  => $validator->errors(),
+            ], 422);
+        }
+
+        $user = $request->user();
+        $file = $request->file('avatar');
+
+        if ($user->avatar_path && Storage::disk('local')->exists($user->avatar_path)) {
+            Storage::disk('local')->delete($user->avatar_path);
+        }
+
+        $path = $file->store('avatars/' . $user->id, 'local');
+        $user->update(['avatar_path' => $path]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Profile picture updated',
+            'data'    => ['avatar_path' => $path],
+        ], 200);
+    }
+
+    public function getAvatar(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->avatar_path) {
+            return response()->json(['message' => 'No avatar'], 404);
+        }
+        if (!Storage::disk('local')->exists($user->avatar_path)) {
+            return response()->json(['message' => 'Avatar not found'], 404);
+        }
+        $path = Storage::disk('local')->path($user->avatar_path);
+        $contents = file_get_contents($path);
+        $ext = strtolower(pathinfo($user->avatar_path, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'png' => 'image/png',
+            'gif' => 'image/gif',
+            default => 'image/jpeg',
+        };
+        return response()->make($contents, 200, [
+            'Content-Type'   => $mime,
+            'Content-Length' => (string) strlen($contents),
+        ]);
+    }
+
+    public function downloadResume(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->resume_path) {
+            return response()->json(['success' => false, 'message' => 'No resume on file'], 404);
+        }
+        if (!Storage::disk('local')->exists($user->resume_path)) {
+            return response()->json(['success' => false, 'message' => 'Resume file not found'], 404);
+        }
+        $path = Storage::disk('local')->path($user->resume_path);
+        $contents = file_get_contents($path);
+        $filename = basename($user->resume_path);
+        return response()->make($contents, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Content-Length'      => (string) strlen($contents),
+        ]);
+    }
+
+    /**
+     * Generate a one-time URL to view the resume (opens in browser, no auth in request).
+     */
+    public function resumeViewUrl(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->resume_path) {
+            return response()->json(['success' => false, 'message' => 'No resume on file'], 404);
+        }
+        if (!Storage::disk('local')->exists($user->resume_path)) {
+            return response()->json(['success' => false, 'message' => 'Resume file not found'], 404);
+        }
+        $token = Str::random(64);
+        Cache::put('resume_view:' . $token, $user->id, now()->addMinutes(10));
+        $url = $request->getSchemeAndHttpHost() . '/api/resume/view?t=' . $token;
+        return response()->json([
+            'success' => true,
+            'url'     => $url,
+        ], 200);
+    }
+
+    /**
+     * Serve resume PDF by one-time token (public route, no auth).
+     */
+    public function viewResumeByToken(Request $request)
+    {
+        $token = $request->query('t');
+        if (!$token) {
+            return response()->json(['message' => 'Missing token'], 400);
+        }
+        $userId = Cache::get('resume_view:' . $token);
+        if (!$userId) {
+            return response()->json(['message' => 'Invalid or expired link'], 404);
+        }
+        Cache::forget('resume_view:' . $token);
+        $user = User::find($userId);
+        if (!$user || !$user->resume_path) {
+            return response()->json(['message' => 'Resume not found'], 404);
+        }
+        if (!Storage::disk('local')->exists($user->resume_path)) {
+            return response()->json(['message' => 'File not found'], 404);
+        }
+        $path = Storage::disk('local')->path($user->resume_path);
+        $contents = file_get_contents($path);
+        $filename = basename($user->resume_path);
+        return response()->make($contents, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+            'Content-Length'      => (string) strlen($contents),
+        ]);
     }
 }

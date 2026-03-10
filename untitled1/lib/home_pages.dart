@@ -1,7 +1,9 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'dart:math' as math;
 import 'profile_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'job_models.dart';
@@ -772,6 +774,7 @@ class _HomeTabState extends State<HomeTab> {
   bool _isLoading = true;
   String? _errorMessage;
   final _jobActionService = JobActionService();
+  List<int>? _avatarBytes;
 
   static const List<String> _sortOptions = [
     'Latest',
@@ -799,7 +802,15 @@ class _HomeTabState extends State<HomeTab> {
   void initState() {
     super.initState();
     _fetchJobs();
+    _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
+  }
+
+  Future<void> _loadAvatar() async {
+    final token = UserSession().token;
+    if (token == null || UserSession().avatarPath == null) return;
+    final bytes = await ApiService.getAvatarBytes(token);
+    if (mounted) setState(() => _avatarBytes = bytes);
   }
 
   void _onJobActionsChanged() {
@@ -1362,6 +1373,13 @@ class _HomeTabState extends State<HomeTab> {
       );
     }
 
+    // Reload avatar when user has one but we haven't loaded it yet (e.g. after updating profile)
+    if (UserSession().avatarPath != null && _avatarBytes == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadAvatar();
+      });
+    }
+
     final jobs = _filteredJobs;
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -1414,17 +1432,33 @@ class _HomeTabState extends State<HomeTab> {
                         height: 48,
                         decoration: BoxDecoration(
                           color: const Color(0xFF2563EB),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Center(
-                          child: Text(
-                            UserSession().initials,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
                             ),
-                          ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: _avatarBytes != null && _avatarBytes!.isNotEmpty
+                              ? Image.memory(
+                                  Uint8List.fromList(_avatarBytes!),
+                                  width: 48,
+                                  height: 48,
+                                  fit: BoxFit.cover,
+                                )
+                              : Center(
+                                  child: Text(
+                                    UserSession().initials,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
                         ),
                       ),
                     ],

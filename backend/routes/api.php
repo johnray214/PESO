@@ -35,6 +35,9 @@ Route::get('/locations/cities/{provinceId}', [LocationController::class, 'getCit
 Route::get('/locations/barangays/{cityId}', [LocationController::class, 'getBarangays']);
 Route::get('/locations/all', [LocationController::class, 'getAllLocations']);
 
+// One-time resume view (public; token in query string)
+Route::get('/resume/view', [AuthController::class, 'viewResumeByToken']);
+
 // Job listings — public (no auth required to browse jobs)
 Route::get('/jobs', [JobListingController::class, 'index']);
 Route::get('/jobs/{id}', [JobListingController::class, 'show']);
@@ -55,6 +58,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::put('/user/profile', [AuthController::class, 'updateProfile']);
     Route::put('/user/skills', [AuthController::class, 'updateSkills']);
+    Route::post('/user/resume', [AuthController::class, 'uploadResume']);
+    Route::get('/user/resume', [AuthController::class, 'downloadResume']);
+    Route::get('/user/resume/view-url', [AuthController::class, 'resumeViewUrl']);
+    Route::post('/user/avatar', [AuthController::class, 'uploadAvatar']);
+    Route::get('/user/avatar', [AuthController::class, 'getAvatar']);
     Route::post('/logout', [AuthController::class, 'logout']);
 
     // Job applications

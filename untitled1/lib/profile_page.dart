@@ -1,10 +1,16 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'job_models.dart';
 import 'user_session.dart';
 import 'api_service.dart';
 import '_error_state_widget.dart';
 import 'job_action_service.dart';
 import 'skills_profile_page.dart';
+import 'resume_upload_page.dart';
 
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 class ProfileTab extends StatefulWidget {
@@ -18,11 +24,20 @@ class _ProfileTabState extends State<ProfileTab> {
   int _appliedCount = 0;
   int _interviewCount = 0;
   int _savedCount = 0;
+  List<int>? _avatarBytes;
 
   @override
   void initState() {
     super.initState();
     _loadStats();
+    _loadAvatar();
+  }
+
+  Future<void> _loadAvatar() async {
+    final token = UserSession().token;
+    if (token == null || UserSession().avatarPath == null) return;
+    final bytes = await ApiService.getAvatarBytes(token);
+    if (mounted) setState(() => _avatarBytes = bytes);
   }
 
   String _getGreeting() => '${getPhilippinesGreeting()}, ${UserSession().displayName}.';
@@ -146,15 +161,24 @@ class _ProfileTabState extends State<ProfileTab> {
                               ),
                             ],
                           ),
-                          child: Center(
-                            child: Text(
-                              UserSession().initials,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 36,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                          child: ClipOval(
+                            child: _avatarBytes != null && _avatarBytes!.isNotEmpty
+                                ? Image.memory(
+                                    Uint8List.fromList(_avatarBytes!),
+                                    width: 100,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  )
+                                : Center(
+                                    child: Text(
+                                      UserSession().initials,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
                           ),
                         ),
                         // Edit button
@@ -306,6 +330,17 @@ class _ProfileTabState extends State<ProfileTab> {
                       },
                     ),
                     _buildMenuItem(
+                      icon: Icons.upload_file_rounded,
+                      title: 'My Resume',
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const ResumeUploadPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildMenuItem(
                       icon: Icons.settings_outlined,
                       title: 'Settings',
                       onTap: () {},
@@ -344,8 +379,10 @@ class _ProfileTabState extends State<ProfileTab> {
       backgroundColor: Colors.transparent,
       builder: (context) => const EditProfileSheet(),
     ).then((_) {
-      // Refresh UI after profile edit
-      if (mounted) setState(() {});
+      if (mounted) {
+        _loadAvatar();
+        setState(() {});
+      }
     });
   }
 
@@ -508,6 +545,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   late final TextEditingController _phoneController;
   late final TextEditingController _addressController;
   bool _isSaving = false;
+  List<int>? _avatarBytes;
+  Uint8List? _pickedImageBytes;
 
   @override
   void initState() {
@@ -516,6 +555,52 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     _emailController = TextEditingController(text: UserSession().email ?? '');
     _phoneController = TextEditingController(text: UserSession().phone ?? '');
     _addressController = TextEditingController(text: UserSession().address ?? '');
+    _loadAvatar();
+  }
+
+  Future<void> _loadAvatar() async {
+    final token = UserSession().token;
+    if (token == null || UserSession().avatarPath == null) return;
+    final bytes = await ApiService.getAvatarBytes(token);
+    if (mounted) setState(() => _avatarBytes = bytes);
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      Uint8List? bytes;
+      if (kIsWeb) {
+        // On web, image_picker throws MissingPluginException; use file_picker instead
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          withData: true,
+          withReadStream: false,
+        );
+        if (result == null || result.files.isEmpty || !mounted) return;
+        final file = result.files.single;
+        if (file.bytes != null && file.bytes!.isNotEmpty) {
+          bytes = file.bytes;
+        }
+      } else {
+        final picker = ImagePicker();
+        final xFile = await picker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 512,
+          maxHeight: 512,
+          imageQuality: 85,
+        );
+        if (xFile == null || !mounted) return;
+        bytes = await xFile.readAsBytes();
+      }
+      if (bytes != null && bytes.isNotEmpty && mounted) {
+        setState(() => _pickedImageBytes = bytes);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not pick image: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -621,54 +706,73 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Avatar edit
+                        // Avatar edit (tap to change photo)
                         Center(
-                          child: Stack(
-                            children: [
-                              Container(
-                                width: 100,
-                                height: 100,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF2563EB),
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF2563EB).withOpacity(0.3),
-                                      blurRadius: 20,
-                                      offset: const Offset(0, 8),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    UserSession().initials,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Positioned(
-                                right: 0,
-                                bottom: 0,
-                                child: Container(
-                                  width: 34,
-                                  height: 34,
+                          child: GestureDetector(
+                            onTap: _isSaving ? null : _pickImage,
+                            child: Stack(
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 100,
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF2563EB),
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 2),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF2563EB).withOpacity(0.3),
+                                        blurRadius: 20,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                    ],
                                   ),
-                                  child: const Icon(
-                                    Icons.camera_alt_rounded,
-                                    size: 16,
-                                    color: Colors.white,
+                                  child: ClipOval(
+                                    child: _pickedImageBytes != null
+                                        ? Image.memory(
+                                            _pickedImageBytes!,
+                                            width: 100,
+                                            height: 100,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : _avatarBytes != null && _avatarBytes!.isNotEmpty
+                                            ? Image.memory(
+                                                Uint8List.fromList(_avatarBytes!),
+                                                width: 100,
+                                                height: 100,
+                                                fit: BoxFit.cover,
+                                              )
+                                            : Center(
+                                                child: Text(
+                                                  UserSession().initials,
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 36,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
                                   ),
                                 ),
-                              ),
-                            ],
+                                Positioned(
+                                  right: 0,
+                                  bottom: 0,
+                                  child: Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF2563EB),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Colors.white, width: 2),
+                                    ),
+                                    child: const Icon(
+                                      Icons.camera_alt_rounded,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
 
@@ -734,6 +838,25 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                     setState(() => _isSaving = true);
 
                                     final token = UserSession().token ?? '';
+                                    if (_pickedImageBytes != null) {
+                                      final uploadResult = await ApiService.uploadAvatarBytes(
+                                        token: token,
+                                        fileBytes: _pickedImageBytes!,
+                                        fileName: 'avatar.jpg',
+                                      );
+                                      if (uploadResult['success'] != true && mounted) {
+                                        setState(() => _isSaving = false);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              uploadResult['message'] as String? ?? 'Failed to upload photo',
+                                            ),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                    }
+
                                     final result = await ApiService.updateProfile(
                                       token: token,
                                       name: _nameController.text.trim(),
@@ -749,6 +872,12 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                       final updatedUser =
                                           result['data'] as Map<String, dynamic>? ?? {};
                                       UserSession().updateFromUser(updatedUser);
+                                      if (_pickedImageBytes != null) {
+                                        final userResult = await ApiService.getUser(token);
+                                        if (userResult['success'] == true && userResult['data'] != null) {
+                                          UserSession().updateFromUser(userResult['data'] as Map<String, dynamic>);
+                                        }
+                                      }
                                       if (!mounted) return;
                                       Navigator.pop(context);
                                       ScaffoldMessenger.of(context).showSnackBar(
