@@ -40,8 +40,6 @@ class _ProfileTabState extends State<ProfileTab> {
     if (mounted) setState(() => _avatarBytes = bytes);
   }
 
-  String _getGreeting() => '${getPhilippinesGreeting()}, ${UserSession().displayName}.';
-
   Future<void> _loadStats() async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
@@ -89,286 +87,269 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
+    const coverHeight = 170.0;
+    const avatarSize = 90.0;
+    const avatarTop = coverHeight - avatarSize / 2;
+    const headerHeight = coverHeight + avatarSize / 2 + 72.0;
+
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-              child: Row(
-                children: [
-                  // Greeting and title
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              _getGreeting(),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF64748B),
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Text('👋', style: TextStyle(fontSize: 13)),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Discover Opportunities',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                      ],
+      body: Column(
+        children: [
+          // ── Cover + Avatar + Name/Stats side by side ────────────────────────
+          SizedBox(
+            height: headerHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Cover gradient (full bleed to top)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: coverHeight,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF60A5FA)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Scrollable content
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    // Profile Avatar with Edit Button
-                    Stack(
-                      children: [
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB),
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF2563EB).withOpacity(0.3),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: ClipOval(
-                            child: _avatarBytes != null && _avatarBytes!.isNotEmpty
-                                ? Image.memory(
-                                    Uint8List.fromList(_avatarBytes!),
-                                    width: 100,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Center(
-                                    child: Text(
-                                      UserSession().initials,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 36,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        // Edit button
-                        Positioned(
-                          right: 0,
-                          bottom: 0,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Align(
+                        alignment: Alignment.topRight,
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
                           child: GestureDetector(
                             onTap: () => _showEditProfileSheet(context),
                             child: Container(
-                              width: 34,
-                              height: 34,
+                              width: 36,
+                              height: 36,
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: Colors.white.withOpacity(0.18),
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: const Color(0xFFE2E8F0),
-                                  width: 2,
+                                  color: Colors.white.withOpacity(0.35),
+                                  width: 1,
                                 ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
                               ),
                               child: const Icon(
                                 Icons.edit_rounded,
-                                size: 16,
-                                color: Color(0xFF2563EB),
+                                color: Colors.white,
+                                size: 17,
                               ),
                             ),
                           ),
                         ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // White background beneath cover
+                Positioned(
+                  top: coverHeight,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(color: Colors.white),
+                ),
+
+                // Avatar straddling the cover boundary
+                Positioned(
+                  top: avatarTop,
+                  left: 20,
+                  child: Container(
+                    width: avatarSize,
+                    height: avatarSize,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.35),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
                       ],
                     ),
-
-                    const SizedBox(height: 16),
-
-                    // User name
-                    Text(
-                      UserSession().displayName,
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                      ),
+                    child: ClipOval(
+                      child: _avatarBytes != null && _avatarBytes!.isNotEmpty
+                          ? Image.memory(
+                              Uint8List.fromList(_avatarBytes!),
+                              width: avatarSize,
+                              height: avatarSize,
+                              fit: BoxFit.cover,
+                            )
+                          : Center(
+                              child: Text(
+                                UserSession().initials,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
                     ),
-
-                    const SizedBox(height: 2),
-
-                    // Email
-                    Text(
-                      UserSession().email ?? '',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF64748B),
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    // Status chip
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: const Color(0xFFBFDBFE)),
-                      ),
-                      child: Text(
-                        UserSession().gender != null
-                            ? 'Registered Job Seeker · ${UserSession().gender}'
-                            : 'Registered Job Seeker',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF2563EB),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Stats row
-                    Container(
-                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _buildStatItem(
-                            '$_appliedCount',
-                            'Applied',
-                          ),
-                          Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
-                          _buildStatItem(
-                            '$_interviewCount',
-                            'Processing',
-                          ),
-                          Container(width: 1, height: 40, color: const Color(0xFFE2E8F0)),
-                          _buildStatItem(
-                            '$_savedCount',
-                            'Saved',
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
-
-                    // Menu items
-                    _buildMenuItem(
-                      icon: Icons.folder_outlined,
-                      title: 'My Applications',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const MyApplicationsPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildMenuItem(
-                      icon: Icons.bookmark_outline_rounded,
-                      title: 'Saved Jobs',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const SavedJobsPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildMenuItem(
-                      icon: Icons.psychology_outlined,
-                      title: 'Skills Profile',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const SkillsProfilePage(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildMenuItem(
-                      icon: Icons.upload_file_rounded,
-                      title: 'My Resume',
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const ResumeUploadPage(),
-                          ),
-                        );
-                      },
-                    ),
-                    _buildMenuItem(
-                      icon: Icons.settings_outlined,
-                      title: 'Settings',
-                      onTap: () {},
-                    ),
-                    _buildMenuItem(
-                      icon: Icons.help_outline_rounded,
-                      title: 'Help & Support',
-                      onTap: () {},
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Sign Out button
-                    _buildMenuItem(
-                      icon: Icons.logout_rounded,
-                      title: 'Sign Out',
-                      isSignOut: true,
-                      onTap: () => _confirmSignOut(context),
-                    ),
-
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ),
+
+                // Name + email centered under avatar
+                Positioned(
+                  top: coverHeight + avatarSize / 2 + 8,
+                  left: 20,
+                  right: 16,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        UserSession().displayName,
+                        style: const TextStyle(
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                        textAlign: TextAlign.left,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        UserSession().email ?? '',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: Color(0xFF64748B),
+                        ),
+                        textAlign: TextAlign.left,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Scrollable content ──────────────────────────────────────────────
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                bottom: MediaQuery.of(context).padding.bottom + 96,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
+
+                  // Status counts centered under the header
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 20,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildCompactStat('$_appliedCount', 'Applied'),
+                        _buildCompactStat('$_interviewCount', 'Processing'),
+                        _buildCompactStat('$_savedCount', 'Saved'),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  // Menu items
+                  _buildMenuItem(
+                    icon: Icons.folder_outlined,
+                    title: 'My Applications',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.bookmark_outline_rounded,
+                    title: 'Saved Jobs',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SavedJobsPage()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.psychology_outlined,
+                    title: 'Skills Profile',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SkillsProfilePage()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.upload_file_rounded,
+                    title: 'My Resume',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ResumeUploadPage()),
+                    ),
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.settings_outlined,
+                    title: 'Settings',
+                    onTap: () {},
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.help_outline_rounded,
+                    title: 'Help & Support',
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  _buildMenuItem(
+                    icon: Icons.logout_rounded,
+                    title: 'Sign Out',
+                    isSignOut: true,
+                    onTap: () => _confirmSignOut(context),
+                  ),
+
+                  const SizedBox(height: 24),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildCompactStat(String value, String label) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF0F172A),
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 10.5,
+            color: Color(0xFF64748B),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 
@@ -444,30 +425,6 @@ class _ProfileTabState extends State<ProfileTab> {
     Navigator.pop(context); // close loading
     // Return all the way to the initial landing page
     Navigator.of(context).popUntil((route) => route.isFirst);
-  }
-
-  Widget _buildStatItem(String value, String label) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
   }
 
   Widget _buildMenuItem({
@@ -1329,12 +1286,16 @@ class _ApplicationCard extends StatelessWidget {
                     Icon(Icons.payments_outlined,
                         size: 14, color: Colors.grey[500]),
                     const SizedBox(width: 4),
-                    Text(
-                      '${job.salaryMin} – ${job.salaryMax}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+                    Expanded(
+                      child: Text(
+                        '${job.salaryMin} – ${job.salaryMax}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1806,12 +1767,16 @@ class _SavedJobCard extends StatelessWidget {
                     Icon(Icons.payments_outlined,
                         size: 14, color: Colors.grey[500]),
                     const SizedBox(width: 4),
-                    Text(
-                      '${job.salaryMin} – ${job.salaryMax}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
+                    Expanded(
+                      child: Text(
+                        '${job.salaryMin} – ${job.salaryMax}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),

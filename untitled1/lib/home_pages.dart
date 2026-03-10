@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -227,7 +228,6 @@ class _HomePageState extends State<HomePage> {
   final List<Widget> _pages = [
     const HomeTab(),
     const MapTab(),
-    const NotificationsTab(),
     const ProfileTab(),
   ];
 
@@ -243,9 +243,9 @@ class _HomePageState extends State<HomePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Container(
+                    Row(
+                      children: [
+                          Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
                         color: const Color(0xFF2563EB).withOpacity(0.12),
@@ -598,15 +598,17 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Scaffold(
+      extendBody: true,
       body: Stack(
         children: [
           _pages[_selectedIndex],
-          // Floating Events button on homepage (bottom right, above Profile in nav)
+          // Floating Events button on homepage (bottom right, above nav bar)
           if (_selectedIndex == 0)
             Positioned(
               right: 20,
-              bottom: MediaQuery.of(context).padding.bottom + 10,
+              bottom: bottomPadding + 92,
               child: FutureBuilder<Map<String, dynamic>>(
                 future: _eventsFuture,
                 builder: (context, snapshot) {
@@ -684,33 +686,81 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
             ),
+          // Floating pill navigation bar
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: bottomPadding + 12,
+            child: _buildFloatingNavBar(context),
+          ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+    );
+  }
+
+  Widget _buildFloatingNavBar(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2563EB),
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 24,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          const pillWidth = 108.0;
+          final width = constraints.maxWidth;
+          final itemWidth = width / 3;
+          final pillLeft = itemWidth * _selectedIndex + (itemWidth - pillWidth) / 2;
+
+          return SizedBox(
+            height: 52,
+            child: Stack(
+              clipBehavior: Clip.none,
               children: [
-                _buildNavItem(0, Icons.home_rounded, Icons.home_outlined, 'Home'),
-                _buildNavItem(1, Icons.map_rounded, Icons.map_outlined, 'Map'),
-                _buildNavItem(2, Icons.notifications_rounded, Icons.notifications_outlined, 'Notifications'),
-                _buildNavItem(3, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
+                AnimatedPositioned(
+                  left: pillLeft,
+                  top: 4,
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.elasticOut,
+                  child: Container(
+                    height: 44,
+                    width: pillWidth,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.92),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Center(
+                        child: _buildNavItem(0, Icons.home_rounded, Icons.home_outlined, 'Home'),
+                      ),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: _buildNavItem(1, Icons.map_rounded, Icons.map_outlined, 'Map'),
+                      ),
+                    ),
+                    Expanded(
+                      child: Center(
+                        child: _buildNavItem(2, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -719,26 +769,20 @@ class _HomePageState extends State<HomePage> {
     final isSelected = _selectedIndex == index;
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: EdgeInsets.symmetric(
-          horizontal: isSelected ? 20 : 12,
-          vertical: 10,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF2563EB).withOpacity(0.1) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
+      child: AnimatedScale(
+        scale: isSelected ? 1.05 : 1.0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.elasticOut,
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               isSelected ? activeIcon : inactiveIcon,
-              color: isSelected ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
-              size: 24,
+              color: isSelected ? const Color(0xFF2563EB) : Colors.white.withOpacity(0.7),
+              size: 22,
             ),
             if (isSelected) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Text(
                 label,
                 style: const TextStyle(
@@ -823,6 +867,14 @@ class _HomeTabState extends State<HomeTab> {
     _searchController.dispose();
     super.dispose();
   }
+
+  void _openNotifications() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const NotificationsTab()),
+    );
+  }
+
+  String _getPhilippinesGreeting() => '${getPhilippinesGreeting()},';
 
   Future<void> _fetchJobs() async {
     setState(() {
@@ -939,8 +991,6 @@ class _HomeTabState extends State<HomeTab> {
       );
     }
   }
-
-  String _getGreeting() => '${getPhilippinesGreeting()}, ${UserSession().displayName}.';
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
@@ -1386,9 +1436,9 @@ class _HomeTabState extends State<HomeTab> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Header: avatar + greeting + name + notifications bell
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
@@ -1397,39 +1447,10 @@ class _HomeTabState extends State<HomeTab> {
                 children: [
                   Row(
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  _getGreeting(),
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    color: Color(0xFF64748B),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Text('👋', style: TextStyle(fontSize: 14)),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            const Text(
-                              'Find Your Dream Job',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      // Avatar
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: const Color(0xFF2563EB),
                           shape: BoxShape.circle,
@@ -1445,8 +1466,8 @@ class _HomeTabState extends State<HomeTab> {
                           child: _avatarBytes != null && _avatarBytes!.isNotEmpty
                               ? Image.memory(
                                   Uint8List.fromList(_avatarBytes!),
-                                  width: 48,
-                                  height: 48,
+                                  width: 44,
+                                  height: 44,
                                   fit: BoxFit.cover,
                                 )
                               : Center(
@@ -1461,9 +1482,60 @@ class _HomeTabState extends State<HomeTab> {
                                 ),
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      // Greeting + name
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _getPhilippinesGreeting(),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF94A3B8),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              UserSession().displayName,
+                              style: const TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Notifications bell
+                      IconButton(
+                        onPressed: _openNotifications,
+                        icon: const Icon(
+                          Icons.notifications_none_rounded,
+                          color: Color(0xFF0F172A),
+                          size: 26,
+                        ),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 22),
+                  // Big title above search bar
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Find a job',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   // Search bar
                   Row(
                     children: [
@@ -1609,7 +1681,9 @@ class _HomeTabState extends State<HomeTab> {
 
             // Job listings
             Expanded(
-              child: RefreshIndicator(
+              child: Stack(
+                children: [
+                  RefreshIndicator(
                 onRefresh: _fetchJobs,
                 color: const Color(0xFF2563EB),
                 child: jobs.isEmpty
@@ -1653,7 +1727,11 @@ class _HomeTabState extends State<HomeTab> {
                         physics: const AlwaysScrollableScrollPhysics(
                           parent: BouncingScrollPhysics(),
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: EdgeInsets.only(
+                          left: 20,
+                          right: 20,
+                          bottom: MediaQuery.of(context).padding.bottom + 96,
+                        ),
                         itemCount: jobs.length,
                         itemBuilder: (context, index) {
                           final job = jobs[index];
@@ -1670,6 +1748,31 @@ class _HomeTabState extends State<HomeTab> {
                           );
                         },
                       ),
+              ),
+                  // Gradient fade overlay at bottom of list
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    height: 100,
+                    child: IgnorePointer(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              const Color(0xFFF8FAFC).withOpacity(0.0),
+                              const Color(0xFFF8FAFC).withOpacity(0.85),
+                              const Color(0xFFF8FAFC),
+                            ],
+                            stops: const [0.0, 0.5, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1716,15 +1819,31 @@ class _JobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
+          // ambient shadow
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 20,
+            spreadRadius: 0,
+            offset: const Offset(0, 4),
+          ),
+          // key light shadow
+          BoxShadow(
+            color: const Color(0xFF2563EB).withOpacity(0.06),
+            blurRadius: 16,
+            spreadRadius: 0,
+            offset: const Offset(0, 8),
+          ),
+          // top highlight
+          const BoxShadow(
+            color: Colors.white,
+            blurRadius: 0,
+            spreadRadius: 0,
+            offset: Offset(0, -1),
           ),
         ],
       ),
@@ -1733,253 +1852,337 @@ class _JobCard extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
-          child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header row
-                Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top accent bar
+              Container(
+                height: 4,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      job.companyColor,
+                      job.companyColor.withOpacity(0.4),
+                    ],
+                  ),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Company icon
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: job.companyColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: Text(
-                          job.companyInitial,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
+                    // Header row
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Company icon with glow
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                job.companyColor,
+                                job.companyColor.withOpacity(0.75),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: job.companyColor.withOpacity(0.35),
+                                blurRadius: 12,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    // Job title and company
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            job.title,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF0F172A),
+                          child: Center(
+                            child: Text(
+                              job.companyInitial,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 3),
+                        ),
+                        const SizedBox(width: 14),
+                        // Job title and company
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                job.title,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A),
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                job.company,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Match percentage badge
+                        if (job.matchPercentage > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF10B981), Color(0xFF059669)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFF10B981).withOpacity(0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 3),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.star_rounded, size: 13, color: Colors.white),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${job.matchPercentage}%',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Location and type chips
+                    Row(
+                      children: [
+                        _buildChip(Icons.location_on_outlined, job.location),
+                        const SizedBox(width: 8),
+                        _buildChip(Icons.work_outline_rounded, job.employmentType),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // Salary and date row
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.payments_outlined,
+                              size: 15,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '${job.salaryMin} - ${job.salaryMax}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Text(
-                            job.company,
+                            formattedDate,
                             style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF64748B),
+                              fontSize: 12,
+                              color: Color(0xFF94A3B8),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    // Match percentage
-                    if (job.matchPercentage > 0)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF10B981),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.star_rounded, size: 14, color: Colors.white),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${job.matchPercentage}%',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
 
-                const SizedBox(height: 16),
+                    const SizedBox(height: 12),
 
-                // Location and type chips
-                Row(
-                  children: [
-                    _buildChip(Icons.location_on_outlined, job.location),
-                    const SizedBox(width: 10),
-                    _buildChip(Icons.work_outline_rounded, job.employmentType),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-
-                // Salary and date
-                Row(
-                  children: [
-                    Icon(Icons.payments_outlined, size: 16, color: Colors.grey[500]),
-                    const SizedBox(width: 6),
+                    // Description
                     Text(
-                      '${job.salaryMin} - ${job.salaryMax}',
+                      job.description,
                       style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF0F172A),
+                        fontSize: 13,
+                        color: Color(0xFF64748B),
+                        height: 1.55,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const Spacer(),
-                    Text(
-                      formattedDate,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[500],
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
 
-                const SizedBox(height: 14),
+                    const SizedBox(height: 12),
 
-                // Description
-                Text(
-                  job.description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    height: 1.5,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-
-                const SizedBox(height: 14),
-
-                // Skills tags
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: job.skills.map((skill) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF1F5F9),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Text(
-                        skill,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF475569),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Action buttons
-                Row(
-                  children: [
-                    // Save button
-                    GestureDetector(
-                      onTap: onSave,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: isSaved
-                              ? const Color(0xFF2563EB).withOpacity(0.08)
-                              : const Color(0xFFF1F5F9),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isSaved
-                                ? const Color(0xFF2563EB)
-                                : const Color(0xFFE2E8F0),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              isSaved
-                                  ? Icons.bookmark_rounded
-                                  : Icons.bookmark_outline_rounded,
-                              size: 18,
-                              color:
-                                  isSaved ? const Color(0xFF2563EB) : Colors.grey[700],
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isSaved ? 'Saved' : 'Save',
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color:
-                                    isSaved ? const Color(0xFF2563EB) : Colors.grey[700],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Apply button
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: isApplied ? null : onApply,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                    // Skills tags
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: job.skills.map((skill) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                           decoration: BoxDecoration(
-                            color: isApplied
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFF2563EB),
-                            borderRadius: BorderRadius.circular(12),
+                            color: const Color(0xFF2563EB).withOpacity(0.07),
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                isApplied ? 'Applied' : 'Apply Now',
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
+                          child: Text(
+                            skill,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        // Save button
+                        GestureDetector(
+                          onTap: onSave,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: isSaved
+                                  ? const Color(0xFF2563EB).withOpacity(0.08)
+                                  : const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSaved
+                                    ? const Color(0xFF2563EB)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isSaved
+                                      ? Icons.bookmark_rounded
+                                      : Icons.bookmark_outline_rounded,
+                                  size: 18,
+                                  color: isSaved
+                                      ? const Color(0xFF2563EB)
+                                      : const Color(0xFF64748B),
                                 ),
-                              ),
-                              const SizedBox(width: 6),
-                              Icon(
-                                isApplied
-                                    ? Icons.check_circle_outline_rounded
-                                    : Icons.arrow_forward_rounded,
-                                size: 18,
-                                color: Colors.white,
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  isSaved ? 'Saved' : 'Save',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSaved
+                                        ? const Color(0xFF2563EB)
+                                        : const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 10),
+                        // Apply button
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: isApplied ? null : onApply,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: isApplied
+                                      ? [const Color(0xFF10B981), const Color(0xFF059669)]
+                                      : [const Color(0xFF2563EB), const Color(0xFF1D4ED8)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: (isApplied
+                                            ? const Color(0xFF10B981)
+                                            : const Color(0xFF2563EB))
+                                        .withOpacity(0.35),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    isApplied ? 'Applied' : 'Apply Now',
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Icon(
+                                    isApplied
+                                        ? Icons.check_circle_outline_rounded
+                                        : Icons.arrow_forward_rounded,
+                                    size: 17,
+                                    color: Colors.white,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1990,14 +2193,14 @@ class _JobCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
-        borderRadius: BorderRadius.circular(8),
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: const Color(0xFF64748B)),
+          Icon(icon, size: 13, color: const Color(0xFF2563EB)),
           const SizedBox(width: 5),
           Text(
             text,
@@ -2369,12 +2572,14 @@ class _MapTabState extends State<MapTab> {
                 const Spacer(),
 
                 // Business Cards List
-                SizedBox(
-                  height: 160,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: demoBusinesses.length,
+                Padding(
+                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 80),
+                  child: SizedBox(
+                    height: 160,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      itemCount: demoBusinesses.length,
                     itemBuilder: (context, index) {
                       final business = demoBusinesses[index];
                       final distance = business.getDistanceFromUser();
@@ -2528,6 +2733,7 @@ class _MapTabState extends State<MapTab> {
                     },
                   ),
                 ),
+                ),
               ],
             ),
           ),
@@ -2535,7 +2741,7 @@ class _MapTabState extends State<MapTab> {
           // Center on user button
           Positioned(
             right: 16,
-            bottom: 190,
+            bottom: MediaQuery.of(context).padding.bottom + 260,
             child: FloatingActionButton(
               mini: true,
               backgroundColor: Colors.white,
@@ -2549,7 +2755,7 @@ class _MapTabState extends State<MapTab> {
             Positioned(
               left: 16,
               right: 16,
-              bottom: 180,
+              bottom: MediaQuery.of(context).padding.bottom + 250,
               child: _BusinessPopupCard(
                 business: _selectedBusiness!,
                 onClose: () => setState(() => _selectedBusiness = null),
