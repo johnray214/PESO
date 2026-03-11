@@ -10,11 +10,25 @@ const routes = [
     component: () => import(/* webpackChunkName: "login" */ '@/views/LoginView.vue'),
     meta: { guest: true },
   },
-  {
+  { 
     path: '/employer/login',
-    name: 'employer-login',
-    component: () => import(/* webpackChunkName: "employer-login" */ '@/views/employer/LoginView.vue'),
-    meta: { guest: true },
+    name: 'employer-login', 
+    component: () => import('@/views/EmployerLogin.vue') 
+  },
+  { 
+    path: '/employer/register', 
+    name: 'employer-register',
+    component: () => import('@/views/EmployerRegister.vue') 
+  },
+  {
+    path: '/employer/page', 
+    name: 'employer-page',
+    component: () => import('@/views/EmployerLanding.vue') 
+  },
+  { 
+    path: '/employer/forgot-password',
+    name: 'employer-forgot-password',
+    component: () => import('@/views/EmployerForgot.vue')
   },
   {
     path: '/',
@@ -29,61 +43,91 @@ const routes = [
         path: '',
         name: 'dashboard',
         component: () => import(/* webpackChunkName: "dashboard" */ '@/views/admin/DashboardPage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER],
+          subtitle: 'Welcome back, Admin 👋',
+        },
       },
       {
         path: 'applicants',
         name: 'applicants',
         component: () => import(/* webpackChunkName: "applicants" */ '@/views/admin/ApplicantsPage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF],
+          subtitle: 'Manage and monitor all registered jobseekers',
+        },
       },
       {
         path: 'employers',
         name: 'employers',
         component: () => import(/* webpackChunkName: "employers" */ '@/views/admin/EmployerPage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF],
+          subtitle: 'Manage companies and their job listings',
+        },
       },
       {
         path: 'events',
         name: 'events',
         component: () => import(/* webpackChunkName: "events" */ '@/views/admin/EventsPage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF],
+          subtitle: 'Manage job fairs, seminars, and programs',
+        },
       },
       {
         path: 'map',
         name: 'map',
         component: () => import(/* webpackChunkName: "map" */ '@/views/admin/MapPage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER],
+          subtitle: 'View and manage job posting locations across the area',
+        },
       },
       {
         path: 'notifications',
         name: 'notifications',
         component: () => import(/* webpackChunkName: "notifications" */ '@/views/admin/NotificationsPage.vue'),
-        meta: { roles: [ROLES.ADMIN] },
+        meta: {
+          roles: [ROLES.ADMIN],
+          subtitle: 'System alerts and messaging to jobseekers & employers',
+        },
       },
       {
         path: 'reporting',
         name: 'reporting',
         component: () => import(/* webpackChunkName: "reporting" */ '@/views/admin/ReportingPage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF],
+          subtitle: 'Build, preview, and export custom reports',
+        },
       },
       {
         path: 'archive',
         name: 'archive',
         component: () => import(/* webpackChunkName: "archive" */ '@/views/admin/ArchivePage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF],
+          subtitle: 'Soft-deleted records — restore or permanently remove',
+        },
       },
       {
         path: 'audit-logs',
         name: 'audit-logs',
         component: () => import(/* webpackChunkName: "audit" */ '@/views/admin/AuditLogsPage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF],
+          subtitle: 'Read-only activity trail of all system actions',
+        },
       },
       {
         path: 'profile',
         name: 'profile',
         component: () => import(/* webpackChunkName: "profile" */ '@/views/admin/ProfilePage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER],
+          subtitle: 'Manage your account settings and preferences',
+        },
       },
       {
         path: 'jobs',
@@ -95,7 +139,19 @@ const routes = [
         path: 'users',
         name: 'users',
         component: () => import(/* webpackChunkName: "profile" */ '@/views/admin/UsersPage.vue'),
-        meta: { roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER] },
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER],
+          subtitle: 'Manage internal staff accounts and roles',
+        },
+      },
+      {
+        path: 'verified-employer',
+        name: 'verified-employer',
+        component: () => import(/* webpackChunkName: "profile" */ '@/views/admin/EmployerUser.vue'),
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER],
+          subtitle: 'Review and verify employer registrations',
+        },
       },
       {
         path: 'hired',
@@ -113,22 +169,27 @@ const routes = [
       {
         path: 'dashboard',
         name: 'employer-dashboard',
-        component: () => import(/* webpackChunkName: "employer-dashboard" */ '@/views/employer/DashboardPage.vue'),
+        component: () => import(/* webpackChunkName: "employer-dashboard" */ '@/views/employer/EmployerDashboard.vue'),
       },
       {
         path: 'applicants',
         name: 'employer-applicants',
-        component: () => import(/* webpackChunkName: "employer-applicants" */ '@/views/employer/ApplicantsPage.vue'),
+        component: () => import(/* webpackChunkName: "employer-applicants" */ '@/views/employer/EmployerApplicants.vue'),
       },
       {
         path: 'job-listings',
         name: 'employer-job-listings',
-        component: () => import(/* webpackChunkName: "employer-jobs" */ '@/views/employer/JobListingsPage.vue'),
+        component: () => import(/* webpackChunkName: "employer-jobs" */ '@/views/employer/EmployerJoblisting.vue'),
       },
       {
         path: 'profile',
         name: 'employer-profile',
-        component: () => import(/* webpackChunkName: "employer-profile" */ '@/views/employer/ProfilePage.vue'),
+        component: () => import(/* webpackChunkName: "employer-profile" */ '@/views/employer/EmployerPorfile.vue'),
+      },
+       {
+        path: 'notifications',
+        name: 'employer-notificaitons',
+        component: () => import(/* webpackChunkName: "employer-profile" */ '@/views/employer/EmployerNotifications.vue'),
       },
     ],
   },

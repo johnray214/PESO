@@ -1,11 +1,6 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Events</h1>
-        <p class="page-sub">Manage job fairs, seminars, and programs</p>
-      </div>
-      <div class="header-actions">
+    <div class="header-actions">
         <div class="view-toggle">
           <button :class="['toggle-btn', { active: view === 'list' }]" @click="view = 'list'">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -20,7 +15,7 @@
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Create Event
         </button>
-      </div>
+     
     </div>
 
     <!-- Filters -->
@@ -196,8 +191,13 @@
 </template>
 
 <script>
+import api from '@/services/api'
+
 export default {
   name: 'EventsPage',
+  async mounted() {
+    await this.fetchEvents()
+  },
   data() {
     const now = new Date()
     return {
@@ -266,6 +266,28 @@ export default {
     }
   },
   methods: {
+    async fetchEvents() {
+      try {
+        const params = {}
+        if (this.search)       params.search = this.search
+        if (this.filterType)   params.type   = this.filterType
+        if (this.filterStatus) params.status = this.filterStatus
+        const { data } = await api.get('/admin/events', { params })
+        this.events = (data.data || data).map(e => ({
+          ...e,
+          day:   String(new Date(e.date).getDate()).padStart(2, '0'),
+          month: new Date(e.date).toLocaleString('default', { month: 'short' }).toUpperCase(),
+          year:  String(new Date(e.date).getFullYear()),
+        }))
+        this.updateTabCounts()
+      } catch (err) { console.error(err) }
+    },
+    updateTabCounts() {
+      this.statusTabs[0].count = this.events.length
+      this.statusTabs[1].count = this.events.filter(e => e.status === 'Upcoming').length
+      this.statusTabs[2].count = this.events.filter(e => e.status === 'Ongoing').length
+      this.statusTabs[3].count = this.events.filter(e => e.status === 'Completed').length
+    },
     typeColor(type) {
       const map = {
         'Job Fair': { bg: '#dbeafe', text: '#2563eb' },
@@ -290,15 +312,32 @@ export default {
       this.showModal = true
     },
     openViewModal(event) { alert(`Viewing registrants for: ${event.title}`) },
-    saveEvent() {
-      if (this.editingEvent) {
-        Object.assign(this.editingEvent, this.form)
-      } else {
-        this.events.push({ id: Date.now(), ...this.form, registered: 0, day: this.form.date.split('-')[2], month: new Date(this.form.date).toLocaleString('default', { month: 'short' }).toUpperCase(), year: this.form.date.split('-')[0], status: 'Upcoming' })
-      }
-      this.showModal = false
+    async saveEvent() {
+      try {
+        if (this.editingEvent) {
+          const { data } = await api.put(`/admin/events/${this.editingEvent.id}`, this.form)
+          Object.assign(this.editingEvent, data.data || data)
+        } else {
+          const { data } = await api.post('/admin/events', this.form)
+          const e = data.data || data
+          this.events.push({
+            ...e,
+            day:   String(new Date(e.date).getDate()).padStart(2, '0'),
+            month: new Date(e.date).toLocaleString('default', { month: 'short' }).toUpperCase(),
+            year:  String(new Date(e.date).getFullYear()),
+          })
+        }
+        this.updateTabCounts()
+        this.showModal = false
+      } catch (e) { console.error(e) }
     },
-    archiveEvent(event) { this.events = this.events.filter(e => e.id !== event.id) },
+    async archiveEvent(event) {
+      try {
+        await api.delete(`/admin/events/${event.id}`)
+        this.events = this.events.filter(e => e.id !== event.id)
+        this.updateTabCounts()
+      } catch (e) { console.error(e) }
+    },
     prevMonth() { if (this.calMonth === 0) { this.calMonth = 11; this.calYear-- } else this.calMonth-- },
     nextMonth() { if (this.calMonth === 11) { this.calMonth = 0; this.calYear++ } else this.calMonth++ },
   }
@@ -310,9 +349,6 @@ export default {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 .page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 800; color: #1e293b; }
-.page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 .header-actions { display: flex; align-items: center; gap: 10px; }
 
 .view-toggle { display: flex; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }

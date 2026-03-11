@@ -10,14 +10,8 @@ class JobListingSeeder extends Seeder
 {
     public function run(): void
     {
-              DB::table('job_applications')->delete();
-
-        // Delete parent table
+        DB::table('job_applications')->delete();
         DB::table('job_listings')->delete();
-
-        // Optional: reset auto-increment
-        DB::statement('ALTER TABLE job_applications AUTO_INCREMENT = 1');
-        DB::statement('ALTER TABLE job_listings AUTO_INCREMENT = 1');
 
 
         $jobs = [
@@ -409,7 +403,29 @@ class JobListingSeeder extends Seeder
             ],
         ];
 
+        // Extra fields added per job type
+        $extras = [
+            'Software Developer'                   => ['slots' => 3,  'hired_count' => 1, 'status' => 'open',   'closes_at' => now()->addDays(30)->toDateString()],
+            'Administrative Assistant'             => ['slots' => 2,  'hired_count' => 0, 'status' => 'open',   'closes_at' => now()->addDays(20)->toDateString()],
+            'Sales Representative'                 => ['slots' => 5,  'hired_count' => 2, 'status' => 'open',   'closes_at' => now()->addDays(14)->toDateString()],
+            'Registered Nurse'                     => ['slots' => 4,  'hired_count' => 1, 'status' => 'open',   'closes_at' => now()->addDays(45)->toDateString()],
+            'Warehouse Staff'                      => ['slots' => 10, 'hired_count' => 3, 'status' => 'open',   'closes_at' => now()->addDays(7)->toDateString()],
+            'Cashier'                              => ['slots' => 6,  'hired_count' => 2, 'status' => 'open',   'closes_at' => now()->addDays(21)->toDateString()],
+            'Sales Associate'                      => ['slots' => 8,  'hired_count' => 4, 'status' => 'open',   'closes_at' => now()->addDays(28)->toDateString()],
+            'Part-time Tutor'                      => ['slots' => 5,  'hired_count' => 2, 'status' => 'open',   'closes_at' => now()->addDays(10)->toDateString()],
+            'Part-time Clinic Assistant'           => ['slots' => 2,  'hired_count' => 0, 'status' => 'open',   'closes_at' => now()->addDays(15)->toDateString()],
+            'Part-time Sales Promoter'             => ['slots' => 3,  'hired_count' => 1, 'status' => 'open',   'closes_at' => now()->addDays(5)->toDateString()],
+            'IT Support Technician (Contract)'     => ['slots' => 2,  'hired_count' => 1, 'status' => 'open',   'closes_at' => now()->addDays(12)->toDateString()],
+            'Construction Site Engineer (Contract)'=> ['slots' => 1,  'hired_count' => 0, 'status' => 'open',   'closes_at' => now()->addDays(60)->toDateString()],
+            'Data Encoder (Contract)'              => ['slots' => 4,  'hired_count' => 2, 'status' => 'open',   'closes_at' => now()->addDays(8)->toDateString()],
+            'Freelance Graphic Designer'           => ['slots' => 1,  'hired_count' => 0, 'status' => 'draft',  'closes_at' => null],
+            'Freelance Web Developer'              => ['slots' => 2,  'hired_count' => 0, 'status' => 'open',   'closes_at' => now()->addDays(30)->toDateString()],
+            'Freelance Content Writer'             => ['slots' => 3,  'hired_count' => 1, 'status' => 'open',   'closes_at' => now()->addDays(20)->toDateString()],
+        ];
+
         foreach ($jobs as $job) {
+            $title = $job['title'];
+            $job   = array_merge($job, $extras[$title] ?? ['slots' => 1, 'hired_count' => 0, 'status' => 'open', 'closes_at' => null]);
             JobListing::create($job);
         }
     }

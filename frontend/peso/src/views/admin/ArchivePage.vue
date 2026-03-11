@@ -1,10 +1,6 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Archive</h1>
-        <p class="page-sub">Soft-deleted records — restore or permanently remove</p>
-      </div>
+    <div class="archive-header">
       <button class="btn-danger" @click="confirmClearAll">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
         Clear All
@@ -97,8 +93,13 @@
 </template>
 
 <script>
+import api from '@/services/api'
+
 export default {
   name: 'ArchivePage',
+  async mounted() {
+    await this.fetchArchived()
+  },
   data() {
     return {
       activeTab: 'all',
@@ -141,6 +142,23 @@ export default {
     }
   },
   methods: {
+    async fetchArchived() {
+      try {
+        const params = {}
+        if (this.search)    params.search = this.search
+        if (this.activeTab !== 'all') params.type = this.activeTab
+        const { data } = await api.get('/admin/archive', { params })
+        this.records = data.data || data
+        this.updateTabCounts()
+      } catch (e) { console.error(e) }
+    },
+    updateTabCounts() {
+      this.typeTabs[0].count = this.records.length
+      this.typeTabs[1].count = this.records.filter(r => r.type === 'Event').length
+      this.typeTabs[2].count = this.records.filter(r => r.type === 'Job Listing').length
+      this.typeTabs[3].count = this.records.filter(r => r.type === 'Applicant').length
+      this.typeTabs[4].count = this.records.filter(r => r.type === 'Employer').length
+    },
     typeColor(type) {
       return { Event: { bg: '#fff7ed', text: '#f97316' }, 'Job Listing': { bg: '#dbeafe', text: '#2563eb' }, Applicant: { bg: '#dcfce7', text: '#22c55e' }, Employer: { bg: '#eff6ff', text: '#3b82f6' } }[type] || { bg: '#f1f5f9', text: '#64748b' }
     },
@@ -153,9 +171,30 @@ export default {
       }
       return icons[type] || ''
     },
-    restoreRecord(r) { this.records = this.records.filter(rec => rec.id !== r.id) },
-    permanentDelete(r) { this.records = this.records.filter(rec => rec.id !== r.id) },
-    confirmClearAll() { if (confirm('Permanently delete all archived records?')) this.records = [] }
+    async restoreRecord(r) {
+      const typeMap = { 'Event': 'event', 'Job Listing': 'job', 'Applicant': 'applicant', 'Employer': 'employer' }
+      try {
+        await api.post(`/admin/archive/${typeMap[r.type] || r.type}/${r.id}/restore`)
+        this.records = this.records.filter(rec => rec.id !== r.id)
+        this.updateTabCounts()
+      } catch (e) { console.error(e) }
+    },
+    async permanentDelete(r) {
+      const typeMap = { 'Event': 'event', 'Job Listing': 'job', 'Applicant': 'applicant', 'Employer': 'employer' }
+      try {
+        await api.delete(`/admin/archive/${typeMap[r.type] || r.type}/${r.id}`)
+        this.records = this.records.filter(rec => rec.id !== r.id)
+        this.updateTabCounts()
+      } catch (e) { console.error(e) }
+    },
+    async confirmClearAll() {
+      if (!confirm('Permanently delete all archived records?')) return
+      try {
+        await api.delete('/admin/archive')
+        this.records = []
+        this.updateTabCounts()
+      } catch (e) { console.error(e) }
+    }
   }
 }
 </script>
@@ -165,9 +204,6 @@ export default {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 .page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 800; color: #1e293b; }
-.page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 .btn-danger { display: flex; align-items: center; gap: 6px; background: #fef2f2; color: #ef4444; border: 1px solid #fecaca; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-danger:hover { background: #fee2e2; }
 

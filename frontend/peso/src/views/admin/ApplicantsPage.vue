@@ -1,13 +1,5 @@
 <template>
   <div class="page">
-    <!-- Page Header -->
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Applicants</h1>
-        <p class="page-sub">Manage and monitor all registered jobseekers</p>
-      </div>
-    </div>
-
     <!-- Filters -->
     <div class="filters-bar">
       <div class="search-box">
@@ -220,8 +212,13 @@
 </template>
 
 <script>
+import api from '@/services/api'
+
 export default {
   name: 'ApplicantsPage',
+  async mounted() {
+    await this.fetchApplicants()
+  },
   data() {
     return {
       search: '',
@@ -233,6 +230,7 @@ export default {
       drawerTab: 'Profile',
       selected: null,
       showAddModal: false,
+      loading: false,
       drawerTabList: ['Profile', 'Files', 'Status'],
       fileList: [
         { label: 'Resume / CV', key: 'resume' },
@@ -320,20 +318,71 @@ export default {
     }
   },
   methods: {
+    async fetchApplicants() {
+      this.loading = true
+      try {
+        const params = {}
+        if (this.search)       params.search = this.search
+        if (this.filterStatus) params.status = this.filterStatus
+        if (this.filterSkill)  params.skill  = this.filterSkill
+        if (this.filterDate)   params.date_from = this.filterDate
+        const { data } = await api.get('/admin/applicants', { params })
+        const colors = ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b82f6','#14b8a6']
+        this.applicants = (data.data?.data || data.data || []).map((a, i) => ({
+          ...a,
+          avatarBg: a.avatarBg || colors[i % colors.length],
+        }))
+        this.updateTabCounts()
+      } catch (e) { console.error(e) } finally { this.loading = false }
+    },
+    updateTabCounts() {
+      this.statusTabs[0].count = this.applicants.length
+      this.statusTabs[1].count = this.applicants.filter(a => a.status === 'processing').length
+      this.statusTabs[2].count = this.applicants.filter(a => a.status === 'placed').length
+      this.statusTabs[3].count = this.applicants.filter(a => a.status === 'hired').length
+      this.statusTabs[4].count = this.applicants.filter(a => a.status === 'rejected').length
+    },
     initials(name) {
       return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     },
     statusClass(status) {
-      return { 'Hired': 'hired', 'Placed': 'placed', 'Processing': 'processing', 'Rejected': 'rejected' }[status] || ''
+      return { 'hired': 'hired', 'placed': 'placed', 'processing': 'processing', 'rejected': 'rejected' }[status] || ''
     },
     openDrawer(applicant) {
       this.selected = { ...applicant }
       this.drawerTab = 'Profile'
       this.drawerOpen = true
     },
-    archiveApplicant(a) {
-      this.applicants = this.applicants.filter(ap => ap.id !== a.id)
-    }
+    async updateStatus(applicant, status) {
+      try {
+        await api.patch(`/admin/applicants/${applicant.id}/status`, {
+          status,
+          notes: applicant.notes,
+        })
+        const idx = this.applicants.findIndex(a => a.id === applicant.id)
+        if (idx !== -1) this.applicants[idx].status = status
+        if (this.selected?.id === applicant.id) this.selected.status = status
+        this.updateTabCounts()
+      } catch (e) { console.error(e) }
+    },
+    async archiveApplicant(a) {
+      try {
+        await api.post(`/admin/applicants/${a.id}/archive`)
+        this.applicants = this.applicants.filter(ap => ap.id !== a.id)
+        this.drawerOpen = false
+        this.updateTabCounts()
+      } catch (e) { console.error(e) }
+    },
+    async uploadFile(applicantId, type, file) {
+      const fd = new FormData()
+      fd.append('file', file)
+      try {
+        await api.post(`/admin/applicants/${applicantId}/files/${type}`, fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        await this.fetchApplicants()
+      } catch (e) { console.error(e) }
+    },
   }
 }
 </script>
@@ -353,10 +402,6 @@ export default {
 }
 
 /* HEADER */
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 800; color: #1e293b; }
-.page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
-
 .btn-primary {
   display: flex; align-items: center; gap: 6px;
   background: #2563eb; color: #fff;

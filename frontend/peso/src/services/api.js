@@ -1,36 +1,38 @@
-// src/services/api.js
-import axios from "axios";
+import axios from 'axios'
 
-// Create axios instance
 const api = axios.create({
-   baseURL: 'http://127.0.0.1:8000/api',
-   timeout: 60000,
-   headers: {
-      Accept: 'application/json',
-   },
-});
+  baseURL: 'http://127.0.0.1:8000/api',
+  timeout: 60000,
+  headers: { Accept: 'application/json' },
+})
 
-// Request interceptor → attach PESO employee token (dashboard) or regular auth token
+// Attach the correct bearer token based on who is logged in
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('peso_auth_token') || localStorage.getItem('auth_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+    const token =
+      localStorage.getItem('employer_token') ||
+      localStorage.getItem('peso_auth_token') ||
+      localStorage.getItem('auth_token')
+    if (token) config.headers.Authorization = `Bearer ${token}`
     return config
   },
   (error) => Promise.reject(error)
 )
 
-// Response interceptor → clear auth on 401
+// On 401 clear auth and redirect to the correct login page
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const isEmployer = !!localStorage.getItem('employer_token')
+      localStorage.removeItem('employer_token')
+      localStorage.removeItem('employer_user')
       localStorage.removeItem('peso_auth_token')
       localStorage.removeItem('auth_token')
       localStorage.removeItem('peso-auth')
-      if (window.location.hash !== '#/login') {
+      if (isEmployer) {
+        window.location.hash = '#/employer/login'
+      } else if (window.location.hash !== '#/login') {
         window.location.hash = '#/login'
       }
     }

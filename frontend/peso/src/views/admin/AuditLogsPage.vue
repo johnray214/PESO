@@ -1,10 +1,6 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Audit Logs</h1>
-        <p class="page-sub">Read-only activity trail of all system actions</p>
-      </div>
+    <div class="audit-header">
       <button class="btn-export">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Export CSV
@@ -95,8 +91,13 @@
 </template>
 
 <script>
+import api from '@/services/api'
+
 export default {
   name: 'AuditLogsPage',
+  async mounted() {
+    await this.fetchLogs()
+  },
   data() {
     return {
       search: '',
@@ -157,9 +158,28 @@ export default {
     }
   },
   methods: {
+    async fetchLogs() {
+      try {
+        const params = {}
+        if (this.search)         params.search     = this.search
+        if (this.filterUser)     params.user       = this.filterUser
+        if (this.filterModule)   params.module     = this.filterModule
+        if (this.filterAction)   params.action     = this.filterAction
+        if (this.filterDateFrom) params.date_from  = this.filterDateFrom
+        if (this.filterDateTo)   params.date_to    = this.filterDateTo
+        params.page     = this.currentPage
+        params.per_page = this.perPage
+        const { data } = await api.get('/admin/audit-logs', { params })
+        this.logs = data.data?.data || data.data || data
+      } catch (e) { console.error(e) }
+    },
     roleClass(role) { return { Admin: 'role-admin', Staff: 'role-staff', Employer: 'role-employer' }[role] || '' },
     actionClass(action) { return { Created: 'act-created', Updated: 'act-updated', Deleted: 'act-deleted', 'Logged In': 'act-login', 'Status Changed': 'act-status', Exported: 'act-export' }[action] || '' },
-    clearFilters() { this.search = ''; this.filterUser = ''; this.filterModule = ''; this.filterAction = ''; this.filterDateFrom = ''; this.filterDateTo = ''; this.currentPage = 1 }
+    clearFilters() {
+      this.search = ''; this.filterUser = ''; this.filterModule = ''; this.filterAction = ''
+      this.filterDateFrom = ''; this.filterDateTo = ''; this.currentPage = 1
+      this.fetchLogs()
+    }
   }
 }
 </script>
@@ -169,9 +189,7 @@ export default {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 .page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 800; color: #1e293b; }
-.page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+.audit-header { display: flex; align-items: flex-start; justify-content: space-between; }
 .btn-export { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; color: #475569; cursor: pointer; font-family: inherit; }
 .btn-export:hover { background: #f8fafc; }
 
