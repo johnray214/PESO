@@ -70,7 +70,414 @@ class PESOApp extends StatelessWidget {
           elevation: 6,
         ),
       ),
-      home: const WelcomePage(),
+      home: const SplashScreen(),
+    );
+  }
+}
+
+// ─── Splash Screen ────────────────────────────────────────────────────────────
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+  late AnimationController _mascotCtrl;
+  late AnimationController _floatCtrl;
+  late AnimationController _shimmerCtrl;
+
+  late Animation<double> _mascotScale;
+  late Animation<double> _mascotY;
+  late Animation<double> _float;
+  late Animation<double> _shimmer;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _mascotCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _floatCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+    _shimmerCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1600),
+    )..repeat();
+
+    _mascotScale = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _mascotCtrl, curve: Curves.elasticOut),
+    );
+    _mascotY = Tween<double>(begin: 60.0, end: 0.0).animate(
+      CurvedAnimation(parent: _mascotCtrl, curve: Curves.easeOutCubic),
+    );
+    _float = Tween<double>(begin: -7.0, end: 7.0).animate(
+      CurvedAnimation(parent: _floatCtrl, curve: Curves.easeInOut),
+    );
+    _shimmer = Tween<double>(begin: -2.0, end: 3.0).animate(
+      CurvedAnimation(parent: _shimmerCtrl, curve: Curves.easeInOut),
+    );
+
+    _mascotCtrl.forward();
+
+    // Auto-navigate to WelcomePage
+    Future.delayed(const Duration(milliseconds: 3400), () {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 700),
+          pageBuilder: (_, __, ___) => const WelcomePage(),
+          transitionsBuilder: (_, animation, __, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _mascotCtrl.dispose();
+    _floatCtrl.dispose();
+    _shimmerCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        systemNavigationBarColor: Colors.transparent,
+      ),
+      child: Scaffold(
+        body: Container(
+          width: double.infinity,
+          height: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFFFFFFFF),
+                  Color(0xFFE8F4FD),
+                  Color(0xFFB3D4FC),
+                  Color(0xFF5B9BD5),
+                ],
+                stops: [0.0, 0.35, 0.7, 1.0],
+              ),
+            ),
+            child: Stack(
+              children: [
+                // ── Decorative orbs ──────────────────────────────────────────
+                Positioned(
+                  top: -size.width * 0.3,
+                  left: -size.width * 0.25,
+                  child: Container(
+                    width: size.width * 0.80,
+                    height: size.width * 0.80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF1565C0).withOpacity(0.08),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: -size.width * 0.22,
+                  right: -size.width * 0.18,
+                  child: Container(
+                    width: size.width * 0.65,
+                    height: size.width * 0.65,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF5B9BD5).withOpacity(0.12),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  top: size.height * 0.08,
+                  right: size.width * 0.06,
+                  child: Container(
+                  width: 110,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFFB3D4FC).withOpacity(0.5),
+                  ),
+                ),
+                ),
+                Positioned(
+                  bottom: size.height * 0.18,
+                  left: size.width * 0.04,
+                  child: Container(
+                    width: 70,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF5B9BD5).withOpacity(0.15),
+                    ),
+                  ),
+                ),
+
+                // ── Horizontal accent line ────────────────────────────────────
+                Positioned(
+                  bottom: size.height * 0.32,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                  child: Container(
+                    width: size.width * 0.55,
+                    height: 1,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          const Color(0xFF1565C0).withOpacity(0.15),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                ),
+
+                // ── Main content ─────────────────────────────────────────────
+                Positioned.fill(
+                  child: SafeArea(
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                    // Top spacer (positions mascot + text block toward vertical center)
+                    SizedBox(height: size.height * 0.16),
+
+                    // ── Mascot + shadow ──────────────────────────────────────
+                    AnimatedBuilder(
+                      animation: Listenable.merge([_mascotCtrl, _floatCtrl]),
+                      builder: (context, child) {
+                        return Transform.translate(
+                          offset: Offset(0, _mascotY.value + _float.value),
+                          child: Transform.scale(
+                            scale: _mascotScale.value,
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: Stack(
+                        alignment: Alignment.bottomCenter,
+                        children: [
+                          // Shadow ellipse under mascot
+                          Container(
+                            width: size.width * 0.28,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.35),
+                                  blurRadius: 28,
+                                  spreadRadius: 4,
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(
+                            width: size.width * 0.30,
+                            height: size.width * 0.30,
+                            child: Image.asset(
+                              'assets/EMPOY 3.png',
+                              fit: BoxFit.contain,
+                              errorBuilder: (_, __, ___) => Icon(
+                                Icons.person,
+                                size: size.width * 0.22,
+                                color: const Color(0xFF1565C0).withOpacity(0.5),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    SizedBox(height: size.height * 0.035),
+
+                    // ── PESO + city text ─────────────────────────────────────
+                    Column(
+                      children: [
+                        // PESO text with shimmer
+                        AnimatedBuilder(
+                          animation: _shimmerCtrl,
+                          builder: (context, child) {
+                            return ShaderMask(
+                              blendMode: BlendMode.srcIn,
+                              shaderCallback: (bounds) {
+                                final shimmerX = _shimmer.value * bounds.width;
+                                return LinearGradient(
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                  colors: const [
+                                    Color(0xFF0F2250),
+                                    Color(0xFF0F2250),
+                                    Color(0xFF3B82F6),
+                                    Color(0xFF0F2250),
+                                    Color(0xFF0F2250),
+                                  ],
+                                  stops: [
+                                    0.0,
+                                    math.max(0.0, (shimmerX / bounds.width) - 0.18),
+                                    (shimmerX / bounds.width).clamp(0.0, 1.0),
+                                    math.min(1.0, (shimmerX / bounds.width) + 0.18),
+                                    1.0,
+                                  ],
+                                ).createShader(bounds);
+                              },
+                              child: child!,
+                            );
+                          },
+                              child: Text(
+                            'PESO',
+                            style: GoogleFonts.poppins(
+                              fontSize: 60,
+                              fontWeight: FontWeight.w900,
+                              color: const Color(0xFF0F2250),
+                              letterSpacing: 12,
+                              height: 1.0,
+                            ),
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 500.ms, duration: 600.ms)
+                            .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+
+                        const SizedBox(height: 4),
+
+                        Text(
+                          'Santiago City',
+                          style: GoogleFonts.poppins(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w500,
+                            color: const Color(0xFF1565C0),
+                            letterSpacing: 5,
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 700.ms, duration: 600.ms)
+                            .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+
+                        const SizedBox(height: 10),
+
+                        // Gold accent label
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFF1565C0).withOpacity(0.4),
+                            ),
+                            color: const Color(0xFF1565C0).withOpacity(0.08),
+                          ),
+                            child: Text(
+                              'PUBLIC EMPLOYMENT SERVICE OFFICE',
+                              style: GoogleFonts.poppins(
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF1565C0),
+                                letterSpacing: 2.2,
+                              ),
+                            ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 900.ms, duration: 600.ms),
+                      ],
+                    ),
+
+                    const Spacer(),
+
+                    // ── Loading indicator ────────────────────────────────────
+                    Column(
+                      children: [
+                        const _SplashDots()
+                            .animate()
+                            .fadeIn(delay: 1200.ms, duration: 500.ms),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Connecting you to opportunities...',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            color: const Color(0xFF1565C0).withOpacity(0.6),
+                            letterSpacing: 0.5,
+                          ),
+                        ).animate().fadeIn(delay: 1400.ms, duration: 500.ms),
+                        const SizedBox(height: 28),
+                      ],
+                    ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Animated loading dots ────────────────────────────────────────────────────────
+class _SplashDots extends StatefulWidget {
+  const _SplashDots();
+  @override
+  State<_SplashDots> createState() => _SplashDotsState();
+}
+
+class _SplashDotsState extends State<_SplashDots> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            // Each dot's brightness peaks one-third of the cycle apart
+            final phase = (_ctrl.value * 3 - i) % 3;
+            final brightness = math.sin(phase * math.pi / 1.5).clamp(0.0, 1.0).toDouble();
+            final scale = 0.55 + 0.45 * brightness;
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: 8 * scale,
+              height: 8 * scale,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF1565C0).withOpacity(0.35 + 0.55 * brightness),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

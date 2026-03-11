@@ -604,7 +604,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                 const SizedBox(height: 22),
 
                                 _buildSection(
-                                  title: 'Job Overview',
+                                  title: 'Job Description',
                                   icon: Icons.description_outlined,
                                   child: Text(
                                     job.description,
@@ -735,6 +735,47 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                         ),
                                       );
                                     }).toList(),
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+
+                                // Additional job details sections
+                                _buildSection(
+                                  title: 'Job Type & Schedule',
+                                  icon: Icons.schedule_outlined,
+                                  child: Column(
+                                    children: [
+                                      _buildDetailRow('Employment Type', job.employmentType),
+                                      _buildDetailRow('Schedule', 'Monday to Friday, 8:00 AM - 5:00 PM'),
+                                      _buildDetailRow('Benefits', 'Health Insurance, 13th Month Pay, SSS, Pag-IBIG, PhilHealth'),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+
+                                _buildSection(
+                                  title: 'Compensation',
+                                  icon: Icons.payments_outlined,
+                                  child: Column(
+                                    children: [
+                                      _buildDetailRow('Salary Range', '${job.salaryMin} - ${job.salaryMax}'),
+                                      _buildDetailRow('Pay Frequency', 'Monthly'),
+                                      _buildDetailRow('Additional Benefits', 'Performance Bonus, Transportation Allowance'),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+
+                                _buildSection(
+                                  title: 'Company Information',
+                                  icon: Icons.business_outlined,
+                                  child: Column(
+                                    children: [
+                                      _buildDetailRow('Company', job.company),
+                                      _buildDetailRow('Industry', job.category ?? 'Various'),
+                                      _buildDetailRow('Company Size', '50-200 employees'),
+                                      _buildDetailRow('Location', job.location),
+                                    ],
                                   ),
                                 ),
 
@@ -1001,6 +1042,40 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: Color(0xFF334155),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF0F172A),
+                height: 1.5,
               ),
             ),
           ),

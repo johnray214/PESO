@@ -35,5 +35,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/Empoy.png
+    - assets/EMPOY 3.png
     - assets/PESOLOGO.jpg
     - .env
