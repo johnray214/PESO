@@ -1,14 +1,18 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Notifications</h1>
-        <p class="page-sub">System alerts and send messages to jobseekers & employers</p>
-      </div>
+    <div class="notifications-header">
       <button class="btn-primary" @click="openCompose">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         Send Notification
       </button>
+    </div>
+
+    <!-- Stats Strip -->
+    <div class="stats-strip">
+      <div v-for="s in stripStats" :key="s.label" class="strip-stat" :style="{ '--accent': s.color }">
+        <span class="strip-val" :style="{ color: s.color }">{{ s.value }}</span>
+        <span class="strip-label">{{ s.label }}</span>
+      </div>
     </div>
 
     <!-- Main Tabs -->
@@ -257,9 +261,6 @@ export default {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 .page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 800; color: #1e293b; }
-.page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 .btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-primary:hover { background: #1d4ed8; }
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }

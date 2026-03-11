@@ -1,10 +1,6 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Profile</h1>
-        <p class="page-sub">Manage your account settings and preferences</p>
-      </div>
+    <div class="profile-header">
       <button class="btn-primary" @click="saveProfile">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Save Changes
@@ -119,19 +115,38 @@
 </template>
 
 <script>
+import api from '@/services/api'
+
 export default {
   name: 'ProfilePage',
+  async mounted() {
+    try {
+      const { data } = await api.get('/admin/profile')
+      const p = data.data || data
+      this.user = {
+        firstName:  p.first_name  || p.firstName  || '',
+        middleName: p.middle_name || p.middleName || '',
+        lastName:   p.last_name   || p.lastName   || '',
+        email:      p.email       || '',
+        role:       p.role        || '',
+        sex:        p.sex         || '',
+        number:     p.contact     || p.number     || '',
+        address:    p.address     || '',
+        status:     p.status      || 'Active',
+      }
+    } catch (e) { console.error(e) }
+  },
   data() {
     return {
       user: {
-        firstName: 'Maria',
-        middleName: 'Cruz',
-        lastName: 'Santos',
-        email: 'maria.santos@peso.gov.ph',
-        role: 'Admin',
-        sex: 'Female',
-        number: '09171234567',
-        address: 'Quezon City',
+        firstName: '',
+        middleName: '',
+        lastName: '',
+        email: '',
+        role: '',
+        sex: '',
+        number: '',
+        address: '',
         status: 'Active',
       },
       password: {
@@ -139,23 +154,49 @@ export default {
         new: '',
         confirm: '',
       },
+      saveMsg: '',
+      pwMsg: '',
     }
   },
   methods: {
-    saveProfile() {
-      alert('Profile updated successfully!')
+    async saveProfile() {
+      try {
+        await api.put('/admin/profile', {
+          first_name:  this.user.firstName,
+          middle_name: this.user.middleName,
+          last_name:   this.user.lastName,
+          email:       this.user.email,
+          sex:         this.user.sex,
+          contact:     this.user.number,
+          address:     this.user.address,
+        })
+        this.saveMsg = 'Profile updated successfully!'
+        setTimeout(() => { this.saveMsg = '' }, 3000)
+      } catch (e) {
+        this.saveMsg = e.response?.data?.message || 'Failed to update profile.'
+      }
     },
-    updatePassword() {
+    async updatePassword() {
       if (!this.password.current || !this.password.new || !this.password.confirm) {
-        alert('Please fill all password fields')
+        this.pwMsg = 'Please fill all password fields.'
         return
       }
       if (this.password.new !== this.password.confirm) {
-        alert('Passwords do not match')
+        this.pwMsg = 'Passwords do not match.'
         return
       }
-      alert('Password updated successfully!')
-      this.password = { current: '', new: '', confirm: '' }
+      try {
+        await api.post('/admin/profile/password', {
+          current_password:      this.password.current,
+          password:              this.password.new,
+          password_confirmation: this.password.confirm,
+        })
+        this.pwMsg = 'Password updated successfully!'
+        this.password = { current: '', new: '', confirm: '' }
+        setTimeout(() => { this.pwMsg = '' }, 3000)
+      } catch (e) {
+        this.pwMsg = e.response?.data?.message || 'Failed to update password.'
+      }
     },
   },
 }
@@ -173,24 +214,6 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 20px;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.page-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: #1e293b;
-}
-
-.page-sub {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-top: 2px;
 }
 
 .btn-primary {

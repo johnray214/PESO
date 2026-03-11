@@ -13,14 +13,22 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+
         $middleware->api(prepend: [
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
         ]);
+
         $middleware->api(append: [
             \Illuminate\Http\Middleware\HandleCors::class,
         ]);
+
         $middleware->web(append: [
             \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
+
+        $middleware->alias([
+            'peso.employee' => \App\Http\Middleware\EnsurePesoEmployee::class,
+            'employer.auth' => \App\Http\Middleware\EnsureEmployer::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

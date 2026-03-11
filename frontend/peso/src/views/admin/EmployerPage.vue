@@ -1,12 +1,5 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Employers</h1>
-        <p class="page-sub">Manage companies and their job listings</p>
-      </div>
-    </div>
-
     <!-- Filters -->
     <div class="filters-bar">
       <div class="search-box">
@@ -301,10 +294,6 @@ export default {
   padding: 24px; background: #f8fafc;
   min-height: 0; display: flex; flex-direction: column; gap: 16px;
 }
-
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
-.page-title { font-size: 20px; font-weight: 800; color: #1e293b; }
-.page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 
 .btn-primary {
   display: flex; align-items: center; gap: 6px;

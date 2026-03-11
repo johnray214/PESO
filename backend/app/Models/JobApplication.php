@@ -7,14 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 class JobApplication extends Model
 {
     protected $fillable = [
-        'user_id',
-        'job_listing_id',
-        'status',
-        'applied_at',
+        'user_id', 'job_listing_id', 'status', 'applied_at',
+        'employer_status', 'employer_notes', 'match_score',
     ];
 
     protected $casts = [
-        'applied_at' => 'datetime',
+        'applied_at'  => 'datetime',
+        'match_score' => 'integer',
     ];
 
     public function user()

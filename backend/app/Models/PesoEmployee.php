@@ -19,13 +19,8 @@ class PesoEmployee extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'first_name',
-        'middle_name',
-        'last_name',
-        'role',
-        'email',
-        'password',
-        'sex',
+        'first_name', 'middle_name', 'last_name', 'role', 'email', 'password',
+        'sex', 'contact', 'address', 'status',
     ];
 
     /**

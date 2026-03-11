@@ -6,26 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class JobListing extends Model
 {
+    use \Illuminate\Database\Eloquent\SoftDeletes;
+
     protected $fillable = [
-        'employer_id',
-        'title',
-        'company',
-        'company_initial',
-        'company_color',
-        'location',
-        'latitude',
-        'longitude',
-        'description',
-        'requirements',
-        'skills',
-        'experience_level',
-        'salary_min',
-        'salary_max',
-        'employment_type',
-        'category',
-        'match_percentage',
-        'is_urgent',
-        'is_active',
+        'employer_id', 'title', 'company', 'company_initial', 'company_color',
+        'location', 'latitude', 'longitude', 'description', 'requirements', 'skills',
+        'experience_level', 'salary_min', 'salary_max', 'employment_type', 'category',
+        'match_percentage', 'is_urgent', 'is_active',
+        'slots', 'hired_count', 'status', 'closes_at',
     ];
 
     protected $casts = [
@@ -36,6 +24,9 @@ class JobListing extends Model
         'match_percentage' => 'integer',
         'latitude'         => 'float',
         'longitude'        => 'float',
+        'slots'            => 'integer',
+        'hired_count'      => 'integer',
+        'closes_at'        => 'date',
     ];
 
     public function employer()

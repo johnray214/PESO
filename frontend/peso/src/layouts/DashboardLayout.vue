@@ -6,7 +6,7 @@
       <header class="topbar">
         <div class="topbar-left">
           <h1 class="page-title">{{ pageTitle }}</h1>
-          <span class="page-sub">Welcome back, Admin 👋</span>
+          <span class="page-sub">{{ pageSubtitle }}</span>
         </div>
         <div class="topbar-right">
           <div class="notif-wrapper">
@@ -120,7 +120,11 @@ export default {
         .join(' ')
     })
 
-    return { handleLogout, pageTitle }
+    const pageSubtitle = computed(() => {
+      return route.meta.subtitle || 'Welcome back, Admin 👋'
+    })
+
+    return { handleLogout, pageTitle, pageSubtitle }
   },
   data() {
     return {
@@ -312,8 +316,8 @@ export default {
 
 .notif-badge {
   position: absolute;
-  top: -6px;
-  right: -8px;
+  top: 2px;
+  right: 4px;
   background: #ef4444;
   color: #fff;
   font-size: 9px;
