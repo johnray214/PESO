@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'profile_page.dart';
@@ -1392,7 +1393,7 @@ class _HomeTabState extends State<HomeTab> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const Scaffold(
-        backgroundColor: Color(0xFFF8FAFC),
+        backgroundColor: Color(0xFFF1F5F9),
         body: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1415,7 +1416,7 @@ class _HomeTabState extends State<HomeTab> {
 
     if (_errorMessage != null) {
       return Scaffold(
-        backgroundColor: const Color(0xFFF8FAFC),
+        backgroundColor: const Color(0xFFF1F5F9),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(32),
@@ -1468,111 +1469,144 @@ class _HomeTabState extends State<HomeTab> {
     }
 
     final jobs = _filteredJobs;
+    final topPadding = MediaQuery.of(context).padding.top;
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFF1F5F9),
       body: SafeArea(
+        top: false,
+        left: false,
+        right: false,
         child: Column(
           children: [
-            // Header: avatar + greeting + name + notifications bell
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+            // Greeting banner: full-width blue card with mascot peeking from left
+          Container(
+            width: double.infinity,
+            height: 155 + topPadding,
+            padding: EdgeInsets.fromLTRB(20, 12 + topPadding, 16, 32),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF2563EB),
+                  Color(0xFF1D4ED8),
+                ],
               ),
-              child: Column(
-                children: [
-                  Row(
+              borderRadius: BorderRadius.zero,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF2563EB).withOpacity(0.35),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Robot mascot – adjust position via left, bottom, width, height
+                Positioned(
+                  left: -30,
+                  bottom: -62.4,
+                  child: Image.asset(
+                    'assets/empoy_homescreen.png',
+                    width: 150,
+                    height: 160,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('Image load error: $error');
+                      return Icon(
+                        Icons.smart_toy_rounded,
+                        size: 72,
+                        color: Colors.white.withOpacity(0.9),
+                      );
+                    },
+                  ),
+                ),
+                // Greeting text + notifications
+                // Vertical position: Alignment(x, y) — y: -1=top, 0=center, 1=bottom
+                Align(
+                  alignment: const Alignment(0, 0.3),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      // Avatar
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.08),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: _avatarBytes != null && _avatarBytes!.isNotEmpty
-                              ? Image.memory(
-                                  Uint8List.fromList(_avatarBytes!),
-                                  width: 44,
-                                  height: 44,
-                                  fit: BoxFit.cover,
-                                )
-                              : Center(
-                                  child: Text(
-                                    UserSession().initials,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Greeting + name
+                      const SizedBox(width: 120),
                       Expanded(
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _getPhilippinesGreeting(),
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF94A3B8),
-                                fontWeight: FontWeight.w500,
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                        children: [
+                          Text(
+                            _getPhilippinesGreeting(),
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white.withOpacity(0.98),
+                              height: 1.2,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              UserSession().displayName,
-                              style: const TextStyle(
-                                fontSize: 19,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
-                              ),
-                              overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            UserSession().displayName,
+                            style: GoogleFonts.poppins(
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.2,
+                              height: 1.2,
                             ),
-                          ],
-                        ),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 2,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      // Notifications bell
+                    ),
                       IconButton(
                         onPressed: _openNotifications,
                         icon: const Icon(
                           Icons.notifications_none_rounded,
-                          color: Color(0xFF0F172A),
+                          color: Colors.white,
                           size: 26,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 22),
-                  // Big title above search bar
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Find a job',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                      ),
+                ),
+              ],
+            ),
+          ),
+            // Search section: punchy white card
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+              margin: const EdgeInsets.only(top: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Find a job',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   // Search bar
                   Row(
                     children: [
@@ -1580,8 +1614,15 @@ class _HomeTabState extends State<HomeTab> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFF1F5F9),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.04),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
                           child: TextField(
                             controller: _searchController,
@@ -1627,10 +1668,15 @@ class _HomeTabState extends State<HomeTab> {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: _hasActiveFilters
-                                ? const Color(0xFF2563EB)
-                                : const Color(0xFF2563EB),
+                            color: const Color(0xFF2563EB),
                             borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2563EB).withOpacity(0.4),
+                                blurRadius: 8,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
                           child: Stack(
                             alignment: Alignment.center,
@@ -1687,7 +1733,13 @@ class _HomeTabState extends State<HomeTab> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1861,26 +1913,15 @@ class _JobCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          // ambient shadow
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 20,
-            spreadRadius: 0,
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
             offset: const Offset(0, 4),
           ),
-          // key light shadow
           BoxShadow(
-            color: const Color(0xFF2563EB).withOpacity(0.06),
-            blurRadius: 16,
-            spreadRadius: 0,
-            offset: const Offset(0, 8),
-          ),
-          // top highlight
-          const BoxShadow(
-            color: Colors.white,
-            blurRadius: 0,
-            spreadRadius: 0,
-            offset: Offset(0, -1),
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),

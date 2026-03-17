@@ -93,7 +93,7 @@ class _ProfileTabState extends State<ProfileTab> {
     const headerHeight = coverHeight + avatarSize / 2 + 72.0;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF1F5F9),
       body: Column(
         children: [
           // ── Cover + Avatar + Name/Stats side by side ────────────────────────
@@ -148,20 +148,22 @@ class _ProfileTabState extends State<ProfileTab> {
                   ),
                 ),
 
-                // White background beneath cover
+                // Light grey background beneath cover (matches page)
                 Positioned(
                   top: coverHeight,
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  child: Container(color: Colors.white),
+                  child: Container(color: const Color(0xFFF1F5F9)),
                 ),
 
-                // Avatar straddling the cover boundary
+                // Avatar straddling the cover boundary, centered
                 Positioned(
                   top: avatarTop,
-                  left: 20,
-                  child: Container(
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Container(
                     width: avatarSize,
                     height: avatarSize,
                     decoration: BoxDecoration(
@@ -197,35 +199,38 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                   ),
                 ),
+              ),
 
                 // Name + email centered under avatar
                 Positioned(
                   top: coverHeight + avatarSize / 2 + 8,
                   left: 20,
-                  right: 16,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        UserSession().displayName,
-                        style: const TextStyle(
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
+                  right: 20,
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          UserSession().displayName,
+                          style: const TextStyle(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.left,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        UserSession().email ?? '',
-                        style: const TextStyle(
-                          fontSize: 12.5,
-                          color: Color(0xFF64748B),
+                        const SizedBox(height: 4),
+                        Text(
+                          UserSession().email ?? '',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF64748B),
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                        textAlign: TextAlign.left,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -246,16 +251,22 @@ class _ProfileTabState extends State<ProfileTab> {
                 children: [
                   const SizedBox(height: 16),
 
-                  // Status counts centered under the header
+                  // Status counts - punchy white card
                   Container(
                     padding: const EdgeInsets.symmetric(
                       vertical: 16,
                       horizontal: 20,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -436,11 +447,15 @@ class _ProfileTabState extends State<ProfileTab> {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isSignOut ? const Color(0xFFFEF2F2) : const Color(0xFFF8FAFC),
+        color: isSignOut ? const Color(0xFFFEF2F2) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isSignOut ? const Color(0xFFFECACA) : const Color(0xFFE2E8F0),
-        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
