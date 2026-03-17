@@ -1,31 +1,37 @@
 <?php
 
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\PesoEmployeeAuthController;
-use App\Http\Controllers\Api\EmployerAuthController;
-use App\Http\Controllers\Api\LocationController;
-use App\Http\Controllers\Api\JobListingController;
-use App\Http\Controllers\Api\EventController;
-use App\Http\Controllers\Api\ApplicationController;
-use App\Http\Controllers\Api\SavedJobController;
-use App\Http\Controllers\Api\EmployerController;
+use Illuminate\Support\Facades\Route;
 
+// Auth Controllers
+use App\Http\Controllers\Api\Auth\AdminAuthController;
+use App\Http\Controllers\Api\Auth\EmployerAuthController;
+use App\Http\Controllers\Api\Auth\JobseekerAuthController;
+
+// Admin Controllers
 use App\Http\Controllers\Api\Admin\AdminDashboardController;
-use App\Http\Controllers\Api\Admin\AdminApplicantController;
-use App\Http\Controllers\Api\Admin\AdminEventController;
 use App\Http\Controllers\Api\Admin\AdminUserController;
-use App\Http\Controllers\Api\Admin\AdminProfileController;
-use App\Http\Controllers\Api\Admin\AdminEmployerVerificationController;
+use App\Http\Controllers\Api\Admin\AdminEmployerController;
+use App\Http\Controllers\Api\Admin\AdminJobseekerController;
+use App\Http\Controllers\Api\Admin\AdminJobListingController;
+use App\Http\Controllers\Api\Admin\AdminApplicationController;
+use App\Http\Controllers\Api\Admin\AdminEventController;
+use App\Http\Controllers\Api\Admin\AdminNotificationController;
 use App\Http\Controllers\Api\Admin\AdminReportController;
 use App\Http\Controllers\Api\Admin\AdminArchiveController;
-use App\Http\Controllers\Api\Admin\AdminAuditLogController;
+use App\Http\Controllers\Api\Admin\AdminActivityFeedController;
 
+// Employer Controllers
 use App\Http\Controllers\Api\Employer\EmployerDashboardController;
-use App\Http\Controllers\Api\Employer\EmployerJobController;
-use App\Http\Controllers\Api\Employer\EmployerApplicantController;
+use App\Http\Controllers\Api\Employer\EmployerJobListingController;
+use App\Http\Controllers\Api\Employer\EmployerApplicationController;
 use App\Http\Controllers\Api\Employer\EmployerProfileController;
+use App\Http\Controllers\Api\Employer\EmployerNotificationController;
 
-use Illuminate\Support\Facades\Route;
+// Jobseeker Controllers
+use App\Http\Controllers\Api\Jobseeker\JobseekerProfileController;
+use App\Http\Controllers\Api\Jobseeker\JobseekerJobListingController;
+use App\Http\Controllers\Api\Jobseeker\JobseekerApplicationController;
+use App\Http\Controllers\Api\Jobseeker\JobseekerNotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -33,172 +39,164 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-// Applicant auth
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+// Admin Auth
+Route::post('/admin/login', [AdminAuthController::class, 'login']);
+Route::post('/peso-employee/login', [AdminAuthController::class, 'login']); // Alias for frontend
 
-// PESO employee login
-Route::post('/peso-employee/login', [PesoEmployeeAuthController::class, 'login']);
-
-// Employer auth
+// Employer Auth
 Route::post('/employer/login', [EmployerAuthController::class, 'login']);
 Route::post('/employer/register', [EmployerAuthController::class, 'register']);
-Route::post('/employer/forgot-password', [EmployerAuthController::class, 'forgotPassword']);
-Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPassword']);
 
-// Resume public viewing
-Route::get('/resume/view', [AuthController::class, 'viewResumeByToken']);
+// Jobseeker Auth
+Route::post('/jobseeker/login', [JobseekerAuthController::class, 'login']);
+Route::post('/jobseeker/register', [JobseekerAuthController::class, 'register']);
+Route::post('/jobseeker/verify-email/{id}/{hash}', [JobseekerAuthController::class, 'verifyEmail']);
 
-// Locations
-Route::get('/locations/provinces', [LocationController::class, 'getProvinces']);
-Route::get('/locations/cities/{provinceId}', [LocationController::class, 'getCities']);
-Route::get('/locations/barangays/{cityId}', [LocationController::class, 'getBarangays']);
-Route::get('/locations/all', [LocationController::class, 'getAllLocations']);
+// Public Job Listings
+Route::get('/public/jobs', [JobseekerJobListingController::class, 'index']);
+Route::get('/public/jobs/{id}', [JobseekerJobListingController::class, 'show']);
 
-// Jobs
-Route::get('/jobs', [JobListingController::class, 'index']);
-Route::get('/jobs/{id}', [JobListingController::class, 'show']);
-Route::get('/jobs-skills/catalog', [JobListingController::class, 'skillCatalog']);
-
-// Events
-Route::get('/events', [EventController::class, 'index']);
-
-// Employers
-Route::get('/employers', [EmployerController::class, 'index']);
-Route::get('/employers/{id}', [EmployerController::class, 'show']);
-
+// Public Employers
+Route::get('/public/employers', [AdminEmployerController::class, 'index']);
+Route::get('/public/employers/{id}', [AdminEmployerController::class, 'show']);
 
 /*
 |--------------------------------------------------------------------------
-| APPLICANT ROUTES
+| ADMIN ROUTES
 |--------------------------------------------------------------------------
 */
-
-Route::middleware('auth:sanctum')->group(function () {
-
-    Route::get('/user', [AuthController::class, 'user']);
-    Route::put('/user/profile', [AuthController::class, 'updateProfile']);
-    Route::put('/user/skills', [AuthController::class, 'updateSkills']);
-
-    // Resume
-    Route::post('/user/resume', [AuthController::class, 'uploadResume']);
-    Route::get('/user/resume', [AuthController::class, 'downloadResume']);
-    Route::get('/user/resume/view-url', [AuthController::class, 'resumeViewUrl']);
-
-    // Avatar
-    Route::post('/user/avatar', [AuthController::class, 'uploadAvatar']);
-    Route::get('/user/avatar', [AuthController::class, 'getAvatar']);
-
-    Route::post('/logout', [AuthController::class, 'logout']);
-
-    // Applications
-    Route::get('/applications', [ApplicationController::class, 'index']);
-    Route::post('/applications', [ApplicationController::class, 'store']);
-
-    // Saved jobs
-    Route::get('/saved-jobs', [SavedJobController::class, 'index']);
-    Route::post('/saved-jobs', [SavedJobController::class, 'store']);
-    Route::delete('/saved-jobs/{jobListing}', [SavedJobController::class, 'destroy']);
-
-    // Job matching
-    Route::get('/jobs-matched', [JobListingController::class, 'matched']);
-});
-
-
-/*
-|--------------------------------------------------------------------------
-| ADMIN / PESO EMPLOYEE ROUTES
-|--------------------------------------------------------------------------
-*/
-
-Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsurePesoEmployee::class])->group(function () {
-
-    Route::post('/peso-employee/logout', [PesoEmployeeAuthController::class, 'logout']);
-    Route::get('/peso-employee/me', [PesoEmployeeAuthController::class, 'user']);
-
-    // Dashboard
-    Route::get('/admin/dashboard', [AdminDashboardController::class, 'index']);
-
-    // Applicants
-    Route::get('/admin/applicants', [AdminApplicantController::class, 'index']);
-    Route::get('/admin/applicants/{id}', [AdminApplicantController::class, 'show']);
-    Route::patch('/admin/applicants/{id}/status', [AdminApplicantController::class, 'updateStatus']);
-    Route::post('/admin/applicants/{id}/archive', [AdminApplicantController::class, 'archive']);
-    Route::post('/admin/applicants/{id}/files/{type}', [AdminApplicantController::class, 'uploadFile']);
-
-    // Events
-    Route::get('/admin/events', [AdminEventController::class, 'index']);
-    Route::post('/admin/events', [AdminEventController::class, 'store']);
-    Route::get('/admin/events/{id}', [AdminEventController::class, 'show']);
-    Route::put('/admin/events/{id}', [AdminEventController::class, 'update']);
-    Route::delete('/admin/events/{id}', [AdminEventController::class, 'destroy']);
-
-    // Staff users
-    Route::get('/admin/users', [AdminUserController::class, 'index']);
-    Route::post('/admin/users', [AdminUserController::class, 'store']);
-    Route::get('/admin/users/{id}', [AdminUserController::class, 'show']);
-    Route::put('/admin/users/{id}', [AdminUserController::class, 'update']);
-    Route::delete('/admin/users/{id}', [AdminUserController::class, 'destroy']);
+Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->prefix('admin')->group(function () {
+    
+    // Auth
+    Route::post('/logout', [AdminAuthController::class, 'logout']);
+    Route::get('/me', [AdminAuthController::class, 'me']);
 
     // Profile
-    Route::get('/admin/profile', [AdminProfileController::class, 'show']);
-    Route::put('/admin/profile', [AdminProfileController::class, 'update']);
-    Route::post('/admin/profile/password', [AdminProfileController::class, 'changePassword']);
-
+    Route::get('/profile', [AdminAuthController::class, 'profile']);
+    Route::put('/profile', [AdminAuthController::class, 'updateProfile']);
+    Route::post('/profile/password', [AdminAuthController::class, 'changePassword']);
+    Route::post('/profile/photo', [AdminAuthController::class, 'uploadPhoto']);
+    
+    // Dashboard
+    Route::get('/dashboard', [AdminDashboardController::class, 'index']);
+    
+    // Users
+    Route::apiResource('users', AdminUserController::class);
+    
     // Employers
-    Route::post('/employers', [EmployerController::class, 'store']);
-    Route::put('/employers/{id}', [EmployerController::class, 'update']);
-    Route::delete('/employers/{id}', [EmployerController::class, 'destroy']);
-    Route::post('/employers/{id}/verify-email', [EmployerController::class, 'verifyEmail']);
-
-    // Employer verification
-    Route::get('/admin/employer-verifications', [AdminEmployerVerificationController::class, 'index']);
-    Route::get('/admin/employer-verifications/{id}', [AdminEmployerVerificationController::class, 'show']);
-    Route::patch('/admin/employer-verifications/{id}/verify', [AdminEmployerVerificationController::class, 'verify']);
-    Route::patch('/admin/employer-verifications/{id}/reject', [AdminEmployerVerificationController::class, 'reject']);
-    Route::patch('/admin/employer-verifications/{id}/revoke', [AdminEmployerVerificationController::class, 'revoke']);
-
+    Route::get('/employers', [AdminEmployerController::class, 'index']);
+    Route::get('/employers/{id}', [AdminEmployerController::class, 'show']);
+    Route::put('/employers/{id}', [AdminEmployerController::class, 'update']);
+    Route::patch('/employers/{id}/status', [AdminEmployerController::class, 'updateStatus']);
+    Route::delete('/employers/{id}', [AdminEmployerController::class, 'destroy']);
+    
+    // Jobseekers
+    Route::get('/jobseekers', [AdminJobseekerController::class, 'index']);
+    Route::get('/jobseekers/{id}', [AdminJobseekerController::class, 'show']);
+    Route::patch('/jobseekers/{id}/status', [AdminJobseekerController::class, 'updateStatus']);
+    Route::delete('/jobseekers/{id}', [AdminJobseekerController::class, 'destroy']);
+    
+    // Job Listings
+    Route::get('/job-listings', [AdminJobListingController::class, 'index']);
+    Route::get('/job-listings/{id}', [AdminJobListingController::class, 'show']);
+    Route::patch('/job-listings/{id}/status', [AdminJobListingController::class, 'updateStatus']);
+    Route::delete('/job-listings/{id}', [AdminJobListingController::class, 'destroy']);
+    
+    // Applications
+    Route::get('/applications', [AdminApplicationController::class, 'index']);
+    Route::get('/applications/{id}', [AdminApplicationController::class, 'show']);
+    Route::patch('/applications/{id}/status', [AdminApplicationController::class, 'updateStatus']);
+    Route::delete('/applications/{id}', [AdminApplicationController::class, 'destroy']);
+    
+    // Events
+    Route::apiResource('events', AdminEventController::class);
+    
+    // Notifications
+    Route::apiResource('notifications', AdminNotificationController::class);
+    Route::post('/notifications/{id}/send', [AdminNotificationController::class, 'send']);
+    
     // Reports
-    Route::post('/admin/reports/generate', [AdminReportController::class, 'generate']);
-
+    Route::apiResource('reports', AdminReportController::class);
+    Route::get('/reports/{type}/data', [AdminReportController::class, 'data']);
+    
     // Archive
-    Route::get('/admin/archive', [AdminArchiveController::class, 'index']);
-    Route::post('/admin/archive/{type}/{id}/restore', [AdminArchiveController::class, 'restore']);
-    Route::delete('/admin/archive/{type}/{id}', [AdminArchiveController::class, 'forceDelete']);
-    Route::delete('/admin/archive', [AdminArchiveController::class, 'clearAll']);
-    Route::delete('/admin/archive/{type}', [AdminArchiveController::class, 'clearAll']);
+    Route::get('/archive', [AdminArchiveController::class, 'index']);
+    Route::post('/archive/{type}/{id}/restore', [AdminArchiveController::class, 'restore']);
+    Route::delete('/archive/{type}/{id}', [AdminArchiveController::class, 'destroy']);
 
-    // Audit logs
-    Route::get('/admin/audit-logs', [AdminAuditLogController::class, 'index']);
+    // Activity Feed (topbar notifications)
+    Route::get('/activity-feed', [AdminActivityFeedController::class, 'index']);
+    Route::patch('/activity-feed/{id}/read', [AdminActivityFeedController::class, 'markRead']);
+    Route::post('/activity-feed/read-all', [AdminActivityFeedController::class, 'markAllRead']);
 });
-
 
 /*
 |--------------------------------------------------------------------------
 | EMPLOYER ROUTES
 |--------------------------------------------------------------------------
 */
+Route::middleware(['auth:employer', \App\Http\Middleware\EnsureEmployer::class])->prefix('employer')->group(function () {
+    
+    // Auth
+    Route::post('/logout', [EmployerAuthController::class, 'logout']);
+    Route::get('/me', [EmployerAuthController::class, 'me']);
+    
+    // Dashboard
+    Route::get('/dashboard', [EmployerDashboardController::class, 'index']);
+    
+    // Job Listings
+    Route::apiResource('jobs', EmployerJobListingController::class);
+    
+    // Applications
+    Route::get('/applications', [EmployerApplicationController::class, 'index']);
+    Route::get('/applications/{id}', [EmployerApplicationController::class, 'show']);
+    Route::patch('/applications/{id}/status', [EmployerApplicationController::class, 'updateStatus']);
+    Route::get('/potential-applicants', [EmployerApplicationController::class, 'potentialApplicants']);
+    
+    // Profile
+    Route::get('/profile', [EmployerProfileController::class, 'show']);
+    Route::put('/profile', [EmployerProfileController::class, 'update']);
+    Route::post('/profile/password', [EmployerProfileController::class, 'changePassword']);
+    Route::post('/profile/documents', [EmployerProfileController::class, 'uploadDocuments']);
+    
+    // Notifications (specific routes MUST come before {id} wildcard)
+    Route::get('/notifications', [EmployerNotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [EmployerNotificationController::class, 'unreadCount']);
+    Route::post('/notifications/mark-all-read', [EmployerNotificationController::class, 'markAllAsRead']);
+    Route::post('/notifications/{id}/mark-read', [EmployerNotificationController::class, 'markRead']);
+    Route::get('/notifications/{id}', [EmployerNotificationController::class, 'show']);
+});
 
-Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureEmployer::class])->group(function () {
-
-    Route::post('/employer/logout', [EmployerAuthController::class, 'logout']);
-    Route::get('/employer/me', [EmployerAuthController::class, 'user']);
-
-    Route::get('/employer/dashboard', [EmployerDashboardController::class, 'index']);
-
-    Route::get('/employer/jobs', [EmployerJobController::class, 'index']);
-    Route::post('/employer/jobs', [EmployerJobController::class, 'store']);
-    Route::get('/employer/jobs/{id}', [EmployerJobController::class, 'show']);
-    Route::put('/employer/jobs/{id}', [EmployerJobController::class, 'update']);
-    Route::patch('/employer/jobs/{id}/close', [EmployerJobController::class, 'close']);
-    Route::delete('/employer/jobs/{id}', [EmployerJobController::class, 'destroy']);
-
-    Route::get('/employer/applicants', [EmployerApplicantController::class, 'index']);
-    Route::get('/employer/applicants/{id}', [EmployerApplicantController::class, 'show']);
-    Route::patch('/employer/applicants/{id}/status', [EmployerApplicantController::class, 'updateStatus']);
-
-    Route::get('/employer/profile', [EmployerProfileController::class, 'show']);
-    Route::put('/employer/profile', [EmployerProfileController::class, 'update']);
-    Route::put('/employer/profile/company', [EmployerProfileController::class, 'updateCompany']);
-    Route::post('/employer/profile/password', [EmployerProfileController::class, 'changePassword']);
+/*
+|--------------------------------------------------------------------------
+| JOBSEEKER ROUTES
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth:jobseeker', \App\Http\Middleware\EnsureJobseeker::class])->prefix('jobseeker')->group(function () {
+    
+    // Auth
+    Route::post('/logout', [JobseekerAuthController::class, 'logout']);
+    Route::get('/me', [JobseekerAuthController::class, 'me']);
+    
+    // Job Listings
+    Route::get('/jobs', [JobseekerJobListingController::class, 'index']);
+    Route::get('/jobs/{id}', [JobseekerJobListingController::class, 'show']);
+    
+    // Applications
+    Route::get('/applications', [JobseekerApplicationController::class, 'index']);
+    Route::get('/applications/{id}', [JobseekerApplicationController::class, 'show']);
+    Route::post('/applications', [JobseekerApplicationController::class, 'store']);
+    Route::delete('/applications/{id}', [JobseekerApplicationController::class, 'withdraw']);
+    
+    // Profile
+    Route::get('/profile', [JobseekerProfileController::class, 'show']);
+    Route::put('/profile', [JobseekerProfileController::class, 'update']);
+    Route::post('/profile/password', [JobseekerProfileController::class, 'changePassword']);
+    Route::post('/profile/resume', [JobseekerProfileController::class, 'uploadResume']);
+    
+    // Notifications (specific routes MUST come before {id} wildcard)
+    Route::get('/notifications', [JobseekerNotificationController::class, 'index']);
+    Route::get('/notifications/unread-count', [JobseekerNotificationController::class, 'unreadCount']);
+    Route::post('/notifications/mark-all-read', [JobseekerNotificationController::class, 'markAllAsRead']);
+    Route::get('/notifications/{id}', [JobseekerNotificationController::class, 'show']);
 });

@@ -5,14 +5,6 @@
       <EmployerTopbar title="Job Listings" subtitle="Create and manage your open positions" />
       <div class="page">
 
-        <!-- Stats Strip -->
-        <div class="stats-strip">
-          <div v-for="s in stripStats" :key="s.label" class="strip-stat">
-            <span class="strip-val" :style="{ color: s.color }">{{ s.value }}</span>
-            <span class="strip-label">{{ s.label }}</span>
-          </div>
-        </div>
-
         <!-- Filters + Add -->
         <div class="filters-bar">
           <div class="search-box">
@@ -242,15 +234,7 @@ export default {
       drawerOpen: false, selected: null,
       showModal: false, editingJob: null,
       form: { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', skillsRaw:'', status:'Open' },
-      jobs: [
-        { id:1, title:'Frontend Developer',  type:'Full-time',  location:'Quezon City',  salary:'₱30,000–₱45,000/mo', slots:5,  applicants:38, hired:2, status:'Open',   daysLeft:12, postedDate:'Dec 01', description:'Looking for an experienced frontend developer skilled in Vue.js to join our growing product team. You will build and maintain user-facing features.', skills:['Vue.js','JavaScript','CSS','Tailwind'], bg:'#eff6ff', color:'#2563eb' },
-        { id:2, title:'Backend Developer',   type:'Full-time',  location:'Remote',       salary:'₱35,000–₱50,000/mo', slots:4,  applicants:29, hired:1, status:'Open',   daysLeft:18, postedDate:'Dec 02', description:'Experienced Laravel developer to build and maintain our REST APIs, optimize database performance, and collaborate with frontend teams.', skills:['Laravel','PHP','MySQL','REST API'], bg:'#faf5ff', color:'#8b5cf6' },
-        { id:3, title:'UI/UX Designer',      type:'Full-time',  location:'Hybrid',       salary:'₱25,000–₱40,000/mo', slots:3,  applicants:22, hired:0, status:'Open',   daysLeft:7,  postedDate:'Dec 03', description:'We need a creative UI/UX designer who can translate business requirements into beautiful, user-friendly interfaces.', skills:['Figma','Adobe XD','UI/UX','Prototyping'], bg:'#fdf4ff', color:'#d946ef' },
-        { id:4, title:'DevOps Engineer',     type:'Contract',   location:'Remote',       salary:'₱50,000–₱70,000/mo', slots:2,  applicants:14, hired:1, status:'Open',   daysLeft:25, postedDate:'Nov 28', description:'Manage our cloud infrastructure, CI/CD pipelines, and ensure high availability of our production systems.', skills:['AWS','Docker','Kubernetes','Terraform'], bg:'#f0fdf4', color:'#22c55e' },
-        { id:5, title:'Project Manager',     type:'Full-time',  location:'Quezon City',  salary:'₱45,000–₱60,000/mo', slots:2,  applicants:18, hired:2, status:'Open',   daysLeft:3,  postedDate:'Nov 25', description:'Lead cross-functional teams to deliver software projects on time. Requires strong Agile/Scrum methodology experience.', skills:['Agile','Scrum','JIRA','Confluence'], bg:'#eff8ff', color:'#2872A1' },
-        { id:6, title:'QA Engineer',         type:'Part-time',  location:'Hybrid',       salary:'₱20,000–₱30,000/mo', slots:2,  applicants:11, hired:2, status:'Closed', daysLeft:0,  postedDate:'Nov 15', description:'Test our web applications thoroughly, identify bugs, and ensure quality standards are met across all releases.', skills:['Selenium','JIRA','Test Plans','Bug Tracking'], bg:'#f0fdf4', color:'#16a34a' },
-        { id:7, title:'Data Analyst',        type:'Internship', location:'Quezon City',  salary:'₱15,000–₱18,000/mo', slots:3,  applicants:0,  hired:0, status:'Draft',  daysLeft:30, postedDate:'—',       description:'Draft listing for data analyst intern position. Will require proficiency in Excel, basic SQL, and data visualization tools.', skills:['Excel','SQL','Power BI','Python'], bg:'#f8fafc', color:'#94a3b8' },
-      ]
+      jobs: []
     }
   },
   computed: {
@@ -266,9 +250,9 @@ export default {
       const j = this.jobs
       return [
         { label: 'Total Listings', value: j.length,                                    color: '#1e293b' },
-        { label: 'Open',           value: j.filter(x => x.status === 'Open').length,   color: '#22c55e' },
-        { label: 'Closed',         value: j.filter(x => x.status === 'Closed').length, color: '#94a3b8' },
-        { label: 'Draft',          value: j.filter(x => x.status === 'Draft').length,  color: '#2872A1' },
+        { label: 'Open',           value: j.filter(x => x.status === 'open').length,   color: '#22c55e' },
+        { label: 'Closed',         value: j.filter(x => x.status === 'closed').length, color: '#94a3b8' },
+        { label: 'Draft',          value: j.filter(x => x.status === 'draft').length,  color: '#2872A1' },
         { label: 'Total Slots',    value: j.reduce((s,x) => s + x.slots, 0),           color: '#2563eb' },
       ]
     }
@@ -282,13 +266,42 @@ export default {
         if (this.filterType)   params.type   = this.filterType
         const { data } = await api.get('/employer/jobs', { params })
         const colors = [['#eff6ff','#2563eb'],['#faf5ff','#8b5cf6'],['#fdf4ff','#d946ef'],['#f0fdf4','#22c55e'],['#eff8ff','#2872A1']]
-        this.jobs = (data.data || data).map((j, idx) => ({
-          ...j,
-          skills: Array.isArray(j.skills) ? j.skills : (j.skills || '').split(',').map(s => s.trim()).filter(Boolean),
-          bg:    colors[idx % colors.length][0],
-          color: colors[idx % colors.length][1],
-        }))
-      } catch (e) { console.error(e) }
+        
+        // Handle paginated response
+        const jobsData = data.data?.data || data.data || data || []
+        const jobsArray = Array.isArray(jobsData) ? jobsData : []
+        
+        this.jobs = jobsArray.map((j, idx) => {
+          // Handle skills - could be array of strings or array of objects
+          let skills = []
+          if (Array.isArray(j.skills)) {
+            skills = j.skills.map(s => typeof s === 'string' ? s : s.skill || s).filter(Boolean)
+          } else if (j.skills) {
+            skills = (j.skills || '').split(',').map(s => s.trim()).filter(Boolean)
+          }
+          
+          return {
+            id: j.id,
+            title: j.title,
+            type: j.type,
+            location: j.location,
+            salary: j.salary_range || j.salary,
+            slots: j.slots || 0,
+            applicants: j.applications_count || 0,
+            hired: 0, // Can be calculated later if needed
+            status: j.status,
+            daysLeft: j.deadline ? Math.max(0, Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))) : 30,
+            postedDate: j.posted_date ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) : '—',
+            description: j.description,
+            skills: skills,
+            bg: colors[idx % colors.length][0],
+            color: colors[idx % colors.length][1],
+          }
+        })
+      } catch (e) { 
+        console.error('Failed to fetch jobs:', e) 
+        this.jobs = []
+      }
     },
     jobStatusClass(s) {
       return { Open:'status-open', Closed:'status-closed', Draft:'status-draft' }[s] || ''
@@ -343,12 +356,6 @@ export default {
 .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .page { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
 
-.stats-strip { display: flex; background: #fff; border-radius: 12px; overflow: hidden; border: 1px solid #f1f5f9; }
-.strip-stat { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 14px 12px; border-right: 1px solid #f1f5f9; }
-.strip-stat:last-child { border-right: none; }
-.strip-val { font-size: 22px; font-weight: 800; line-height: 1; }
-.strip-label { font-size: 11px; color: #94a3b8; margin-top: 4px; font-weight: 500; }
-
 .filters-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .search-box { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; flex: 1; max-width: 360px; }
 .search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
@@ -372,7 +379,7 @@ export default {
 .job-tag { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; }
 .type-tag { background: #eff6ff; color: #2563eb; }
 .job-salary { font-size: 13px; font-weight: 700; color: #2872A1; }
-.job-desc { font-size: 12px; color: #64748b; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.job-desc { font-size: 12px; color: #64748b; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .job-skills { display: flex; gap: 5px; flex-wrap: wrap; }
 .skill-chip { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: #f8fafc; color: #64748b; border: 1px solid #f1f5f9; }
 .skill-more { font-size: 11px; color: #94a3b8; }

@@ -2,31 +2,31 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class JobListing extends Model
 {
-    use \Illuminate\Database\Eloquent\SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'employer_id', 'title', 'company', 'company_initial', 'company_color',
-        'location', 'latitude', 'longitude', 'description', 'requirements', 'skills',
-        'experience_level', 'salary_min', 'salary_max', 'employment_type', 'category',
-        'match_percentage', 'is_urgent', 'is_active',
-        'slots', 'hired_count', 'status', 'closes_at',
+        'employer_id',
+        'title',
+        'type',
+        'location',
+        'salary_range',
+        'description',
+        'slots',
+        'status',
+        'posted_date',
+        'deadline',
     ];
 
     protected $casts = [
-        'requirements'     => 'array',
-        'skills'           => 'array',
-        'is_urgent'        => 'boolean',
-        'is_active'        => 'boolean',
-        'match_percentage' => 'integer',
-        'latitude'         => 'float',
-        'longitude'        => 'float',
-        'slots'            => 'integer',
-        'hired_count'      => 'integer',
-        'closes_at'        => 'date',
+        'posted_date' => 'date',
+        'deadline' => 'date',
+        'slots' => 'integer',
     ];
 
     public function employer()
@@ -34,13 +34,23 @@ class JobListing extends Model
         return $this->belongsTo(Employer::class);
     }
 
-    public function applications()
+    public function skills()
     {
-        return $this->hasMany(JobApplication::class);
+        return $this->hasMany(JobSkill::class);
     }
 
-    public function savedJobs()
+    public function applications()
     {
-        return $this->hasMany(SavedJob::class);
+        return $this->hasMany(Application::class);
+    }
+
+    public function isOpen(): bool
+    {
+        return $this->status === 'open';
+    }
+
+    public function scopeOpen($query)
+    {
+        return $query->where('status', 'open');
     }
 }

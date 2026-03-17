@@ -9,9 +9,10 @@
       <div class="filter-group">
         <select v-model="filterStatus" class="filter-select">
           <option value="">All Status</option>
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
-          <option value="Pending">Pending Verification</option>
+          <option value="Verified">Verified</option>
+          <option value="Pending">Pending</option>
+          <option value="Suspended">Suspended</option>
+          <option value="Rejected">Rejected</option>
         </select>
         <select v-model="filterIndustry" class="filter-select">
           <option value="">All Industries</option>
@@ -84,8 +85,8 @@
             </td>
             <td @click.stop>
               <div class="action-btns">
-                <button class="act-btn edit" @click="openDrawer(emp)">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <button class="act-btn edit" @click="openDrawer(emp)" title="View">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                 </button>
                 <button class="act-btn delete" @click.stop>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -95,13 +96,22 @@
           </tr>
         </tbody>
       </table>
-      <div class="pagination">
-        <span class="page-info">Showing {{ filteredEmployers.length }} of {{ employers.length }} employers</span>
+      <div v-if="lastPage > 1" class="pagination">
+        <span class="page-info">Showing {{ employers.length }} of {{ totalEmployers }} employers</span>
         <div class="page-btns">
-          <button class="page-btn">‹</button>
-          <button class="page-btn active">1</button>
-          <button class="page-btn">2</button>
-          <button class="page-btn">›</button>
+          <button class="page-btn" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">‹</button>
+          
+          <button 
+            v-for="p in paginationPages" 
+            :key="p"
+            class="page-btn" 
+            :class="{ active: currentPage === p }"
+            @click="changePage(p)"
+          >
+            {{ p }}
+          </button>
+
+          <button class="page-btn" :disabled="currentPage === lastPage" @click="changePage(currentPage + 1)">›</button>
         </div>
       </div>
     </div>
@@ -205,12 +215,16 @@ export default {
       industryOptions: ['Information Technology', 'Food & Beverage', 'Retail', 'Real Estate', 'Healthcare', 'Manufacturing', 'Banking & Finance', 'Telecommunications', 'Utilities', 'Aviation'],
       statusTabs: [
         { label: 'All', value: 'all', count: 0, cls: '' },
-        { label: 'Active', value: 'active', count: 0, cls: 'active-cls' },
+        { label: 'Verified', value: 'verified', count: 0, cls: 'active-cls' },
         { label: 'Pending', value: 'pending', count: 0, cls: 'pending-cls' },
-        { label: 'Inactive', value: 'inactive', count: 0, cls: 'inactive-cls' },
+        { label: 'Suspended', value: 'suspended', count: 0, cls: 'inactive-cls' },
+        { label: 'Rejected', value: 'rejected', count: 0, cls: 'inactive-cls' },
       ],
       employers: [],
       loading: true,
+      currentPage: 1,
+      lastPage: 1,
+      totalEmployers: 0,
     }
   },
   async mounted() {
@@ -219,22 +233,41 @@ export default {
   computed: {
     filteredEmployers() {
       return this.employers.filter(e => {
-        const matchTab = this.activeTab === 'all' || e.status === this.activeTab
+        const matchTab = this.activeTab === 'all' || e.status.toLowerCase() === this.activeTab.toLowerCase()
         const matchSearch = !this.search || e.name.toLowerCase().includes(this.search.toLowerCase()) || (e.industry || '').toLowerCase().includes(this.search.toLowerCase()) || (e.contactPerson || '').toLowerCase().includes(this.search.toLowerCase())
-        const matchStatus = !this.filterStatus || e.status === this.filterStatus
+        const matchStatus = !this.filterStatus || e.status.toLowerCase() === this.filterStatus.toLowerCase()
         const matchIndustry = !this.filterIndustry || e.industry === this.filterIndustry
         return matchTab && matchSearch && matchStatus && matchIndustry
       })
+    },
+    paginationPages() {
+      const pages = []
+      const start = Math.max(1, this.currentPage - 2)
+      const end = Math.min(this.lastPage, this.currentPage + 2)
+      for (let i = start; i <= end; i++) pages.push(i)
+      return pages
     },
   },
   methods: {
     async fetchEmployers() {
       try {
         this.loading = true
-        const response = await api.get('/employers')
-        const data = response.data.data || response.data
+        const params = { page: this.currentPage }
+        if (this.search) params.search = this.search
+        if (this.filterStatus) params.status = this.filterStatus.toLowerCase()
+        if (this.activeTab !== 'all') params.status = this.activeTab.toLowerCase()
+        // filterIndustry doesn't seem supported by the backend yet, leaving it out for API requests
+
+        const response = await api.get('/admin/employers', { params })
+        const payload = response.data.data || response.data
         
-        this.employers = data.map(emp => ({
+        this.currentPage = payload.current_page || 1
+        this.lastPage = payload.last_page || 1
+        this.totalEmployers = payload.total || 0
+
+        const dataList = payload.data || payload
+
+        this.employers = dataList.map(emp => ({
           id: emp.id,
           name: emp.company_name,
           industry: emp.industry || 'Not specified',
@@ -244,14 +277,30 @@ export default {
           email: emp.email,
           phone: emp.contact || 'N/A',
           dateJoined: new Date(emp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          status: emp.status.charAt(0).toUpperCase() + emp.status.slice(1),
+          status: (emp.status || 'pending').charAt(0).toUpperCase() + (emp.status || 'pending').slice(1),
           logoBg: this.getRandomColor(),
           totalHired: emp.total_hired || 0,
-          listings: [],
-          hiredApplicants: [],
+          listings: (emp.job_listings || []).map(jl => ({
+            title: jl.title,
+            type: jl.type,
+            slots: jl.slots,
+            posted: new Date(jl.posted_date || jl.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            status: jl.status ? jl.status.charAt(0).toUpperCase() + jl.status.slice(1) : 'Open',
+            applicants: jl.applications_count || 0,
+            hired: (jl.applications || []).filter(a => a.status === 'hired').length,
+            skills: (jl.skills || []).map(s => s.skill)
+          })),
+          hiredApplicants: (emp.hired_applicants || []).map((h, i) => {
+            const colors = ['#2563eb', '#22c55e', '#f97316', '#8b5cf6', '#ef4444'];
+            const hcolor = colors[i % colors.length];
+            return { ...h, color: hcolor };
+          }),
           emailVerified: emp.email_verified_at ? true : false,
         }))
 
+        // Note: the backend handles pagination but does not guarantee accurate absolute tab counts globally, 
+        // since we only have the current page. However, we'll extract counts from the current page 
+        // as a visual indicator, or leave it as total Employers.
         this.updateStatusTabCounts()
         this.loading = false
       } catch (error) {
@@ -260,18 +309,21 @@ export default {
       }
     },
     updateStatusTabCounts() {
-      this.statusTabs[0].count = this.employers.length
-      this.statusTabs[1].count = this.employers.filter(e => e.status === 'Active').length
-      this.statusTabs[2].count = this.employers.filter(e => e.status === 'Pending').length
-      this.statusTabs[3].count = this.employers.filter(e => e.status === 'Inactive').length
+      // NOTE: Because this is paginated data, we only know counts for the employers fetched so far.
+      // So these tab counts are estimates or apply only to the current page.
+      this.statusTabs[0].count = this.totalEmployers
+      this.statusTabs[1].count = this.employers.filter(e => e.status.toLowerCase() === 'verified').length
+      this.statusTabs[2].count = this.employers.filter(e => e.status.toLowerCase() === 'pending').length
+      this.statusTabs[3].count = this.employers.filter(e => e.status.toLowerCase() === 'suspended').length
+      this.statusTabs[4].count = this.employers.filter(e => e.status.toLowerCase() === 'rejected').length
     },
     getRandomColor() {
-      const colors = ['#dbeafe', '#fff7ed', '#eff6ff', '#f0fdf4', '#fdf4ff', '#fef3c7']
+      const colors = ['#2563eb', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6']
       return colors[Math.floor(Math.random() * colors.length)]
     },
     statusClass(s) {
       const normalized = s?.toLowerCase()
-      return { 'active': 'active-s', 'inactive': 'inactive-s', 'pending': 'pending-s' }[normalized] || ''
+      return { 'verified': 'verified', 'rejected': 'rejected', 'suspended': 'rejected', 'pending': 'pending-s' }[normalized] || ''
     },
     listingStatusClass(s) {
       return { 'Open': 'placed', 'Filled': 'hired', 'Expired': 'rejected' }[s] || ''
@@ -280,6 +332,12 @@ export default {
       this.selected = { ...emp, listings: [...emp.listings], hiredApplicants: [...emp.hiredApplicants] }
       this.drawerTab = 'Info'
       this.drawerOpen = true
+    },
+    changePage(page) {
+      if (page >= 1 && page <= this.lastPage) {
+        this.currentPage = page
+        this.fetchEmployers()
+      }
     }
   }
 }
@@ -352,8 +410,8 @@ export default {
 .check { accent-color: #2563eb; cursor: pointer; }
 
 .company-cell { display: flex; align-items: center; gap: 10px; }
-.company-logo { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 800; color: #2563eb; flex-shrink: 0; }
-.company-logo.lg { width: 46px; height: 46px; border-radius: 12px; font-size: 20px; }
+.company-logo { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #fff; flex-shrink: 0; }
+.company-logo.lg { width: 44px; height: 44px; border-radius: 12px; font-size: 18px; }
 .company-name { font-size: 13px; font-weight: 700; color: #1e293b; }
 .company-loc { font-size: 11px; color: #94a3b8; margin-top: 1px; }
 
@@ -369,7 +427,7 @@ export default {
 .date-cell { color: #94a3b8; font-size: 12px; white-space: nowrap; }
 
 .status-badge { padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.active-s { background: #dcfce7; color: #22c55e; }
+.verified { background: #dcfce7; color: #22c55e; }
 .inactive-s { background: #f1f5f9; color: #94a3b8; }
 .pending-s { background: #fff7ed; color: #f97316; }
 .hired { background: #dbeafe; color: #2563eb; }

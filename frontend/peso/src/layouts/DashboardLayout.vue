@@ -16,23 +16,27 @@
                   <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
                   <path d="M13.73 21a2 2 0 01-3.46 0" />
                 </svg>
-                <span class="notif-badge">{{ unreadCount }}</span>
+                <span class="notif-badge">{{ appStore.unreadCount }}</span>
               </div>
               <div class="notif-text">
                 <span class="notif-label">Notifications</span>
-                <span class="notif-count">{{ unreadCount }} new</span>
+                <span class="notif-count">{{ appStore.unreadCount }} new</span>
               </div>
             </button>
             <transition name="dropdown">
               <div v-if="showNotifications" class="notif-dropdown">
                 <div class="notif-dropdown-header">
                   <h3 class="notif-dropdown-title">Notifications</h3>
-                  <button class="mark-all-btn" @click="markAllRead">Mark all as read</button>
+                  <button class="mark-all-btn" @click="appStore.markAllRead()">Mark all as read</button>
                 </div>
                 <div class="notif-dropdown-list">
-                  <div v-for="notif in notifications" :key="notif.id"
+                <div v-if="appStore.notifications.length === 0" class="notif-empty">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                    <p>No notifications yet</p>
+                  </div>
+                  <div v-for="notif in appStore.notifications" :key="notif.id"
                     :class="['notif-item', { unread: !notif.read }]"
-                    @click="markAsRead(notif)">
+                    @click="appStore.markRead(notif.id)">
                     <div class="notif-icon-wrap" :style="{ background: notifTypeColor(notif.type).bg }">
                       <span v-html="notifTypeIcon(notif.type)" :style="{ color: notifTypeColor(notif.type).text }"></span>
                     </div>
@@ -55,10 +59,13 @@
           </div>
           <div class="user-wrapper">
             <div class="user-pill" @click="showUserMenu = !showUserMenu">
-              <div class="avatar">A</div>
+              <div class="avatar">
+                <img v-if="authStore.photo" :src="authStore.photo" class="avatar-photo" alt="profile"/>
+                <span v-else>{{ userInitial }}</span>
+              </div>
               <div class="user-meta">
-                <span class="user-name">Admin</span>
-                <span class="user-role">PESO Staff</span>
+                <span class="user-name">{{ userName }}</span>
+                <span class="user-role">{{ userRole }}</span>
               </div>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <polyline points="6 9 12 15 18 9"/>
@@ -95,6 +102,7 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useAdminAppStore } from '@/stores/adminAppStore'
 import AppSidebar from '@/components/AppSidebar.vue'
 
 export default {
@@ -104,6 +112,7 @@ export default {
     const router = useRouter()
     const route = useRoute()
     const authStore = useAuthStore()
+    const appStore = useAdminAppStore()
 
     function handleLogout() {
       authStore.logout()
@@ -121,71 +130,42 @@ export default {
     })
 
     const pageSubtitle = computed(() => {
-      return route.meta.subtitle || 'Welcome back, Admin 👋'
+      return route.meta.subtitle || 'Welcome back 👋'
     })
 
-    return { handleLogout, pageTitle, pageSubtitle }
+    const userName = computed(() => {
+      const u = authStore.user
+      if (!u) return 'Admin'
+      return u.first_name ? `${u.first_name} ${u.last_name || ''}`.trim() : u.name || 'Admin'
+    })
+
+    const userInitial = computed(() => (userName.value[0] || 'A').toUpperCase())
+
+    const userRole = computed(() => {
+      const r = authStore.role
+      if (!r) return 'PESO Staff'
+      return r.charAt(0).toUpperCase() + r.slice(1)
+    })
+
+    return { handleLogout, pageTitle, pageSubtitle, authStore, appStore, userName, userInitial, userRole }
+  },
+  async mounted() {
+    await this.appStore.fetchNotifications()
+    await this.appStore.fetchApplicantsCount()
   },
   data() {
     return {
       showUserMenu: false,
       showNotifications: false,
-      notifications: [
-        {
-          id: 1,
-          type: 'Registration',
-          title: 'New Jobseeker Registered',
-          message: 'Carlo Dacuista has registered as a new jobseeker. Skills: Driving, Delivery.',
-          time: '5m ago',
-          read: false,
-        },
-        {
-          id: 2,
-          type: 'Event',
-          title: 'Event Reminder',
-          message: 'Job Fair 2024 — Quezon City is happening in 3 days. 156/200 slots filled.',
-          time: '1h ago',
-          read: false,
-        },
-        {
-          id: 3,
-          type: 'Status',
-          title: 'Applicant Status Updated',
-          message: 'Ana Reyes has been marked as Placed at Makati Medical Center.',
-          time: '3h ago',
-          read: false,
-        },
-        {
-          id: 4,
-          type: 'Registration',
-          title: 'New Employer Registered',
-          message: 'Nexus Tech has registered as a new employer. Pending verification.',
-          time: '5h ago',
-          read: false,
-        },
-        {
-          id: 5,
-          type: 'System',
-          title: 'System Backup Complete',
-          message: 'Monthly data backup completed successfully. All records archived.',
-          time: '1d ago',
-          read: false,
-        },
-      ],
     }
   },
   computed: {
-    unreadCount() {
-      return this.notifications.filter(n => !n.read).length
-    },
+    unreadCount() { return this.appStore.unreadCount },
+    notifications() { return this.appStore.notifications },
   },
   methods: {
-    markAsRead(notif) {
-      notif.read = true
-    },
-    markAllRead() {
-      this.notifications.forEach(n => n.read = true)
-    },
+    markAsRead(notif) { this.appStore.markRead(notif.id) },
+    markAllRead() { this.appStore.markAllRead() },
     notifTypeIcon(type) {
       const typeKey = type.toLowerCase()
       const icons = {
@@ -375,6 +355,14 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.avatar-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .user-meta {
@@ -547,6 +535,17 @@ export default {
 
 .view-all-btn:hover {
   background: #f8fafc;
+}
+
+.notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  gap: 10px;
+  color: #94a3b8;
+  font-size: 13px;
 }
 
 /* USER DROPDOWN */

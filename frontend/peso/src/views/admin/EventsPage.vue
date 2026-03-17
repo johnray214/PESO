@@ -1,5 +1,12 @@
 <template>
   <div class="page">
+    <!-- Toast -->
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <span class="toast-icon" v-html="toast.icon"></span>
+        <span class="toast-msg">{{ toast.text }}</span>
+      </div>
+    </transition>
     <div class="header-actions">
         <div class="view-toggle">
           <button :class="['toggle-btn', { active: view === 'list' }]" @click="view = 'list'">
@@ -80,7 +87,7 @@
             </span>
             <span class="meta-item">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              {{ event.registered }}/{{ event.slots }} registered
+              {{ event.registered }}/{{ event.slots }} Registered
             </span>
           </div>
           <div class="slots-bar-wrap">
@@ -102,6 +109,23 @@
           </button>
         </div>
       </div>
+      
+      <div v-if="lastPage > 1" class="pagination">
+        <span class="page-info">Showing {{ events.length }} of {{ totalEvents }} events</span>
+        <div class="page-btns">
+          <button class="page-btn" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">‹</button>
+          <button 
+            v-for="p in paginationPages" 
+            :key="p"
+            class="page-btn" 
+            :class="{ active: currentPage === p }"
+            @click="changePage(p)"
+          >
+            {{ p }}
+          </button>
+          <button class="page-btn" :disabled="currentPage === lastPage" @click="changePage(currentPage + 1)">›</button>
+        </div>
+      </div>
     </div>
 
     <!-- CALENDAR VIEW -->
@@ -119,9 +143,10 @@
           <div class="cal-events">
             <div v-for="ev in cell.events.slice(0,2)" :key="ev.id"
               class="cal-event-dot"
-              :style="{ background: typeColor(ev.type).text }"
-              :title="ev.title">
-              {{ ev.title.slice(0,14) }}{{ ev.title.length > 14 ? '…' : '' }}
+              :style="{ background: statusColor(ev.status).bg, color: statusColor(ev.status).text }"
+              :title="ev.title + ' (' + ev.time + ')'">
+              <span class="cal-event-time">{{ ev._start_time ? ev._start_time.substring(0, 5) : '' }}</span>
+              <span class="cal-event-title">{{ ev.title }}</span>
             </div>
             <div v-if="cell.events.length > 2" class="cal-more">+{{ cell.events.length - 2 }} more</div>
           </div>
@@ -159,9 +184,15 @@
                 <label class="form-label">Date</label>
                 <input v-model="form.date" type="date" class="form-input"/>
               </div>
-              <div class="form-group">
-                <label class="form-label">Time</label>
-                <input v-model="form.time" type="time" class="form-input"/>
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                <div class="form-group">
+                  <label class="form-label">Start Time</label>
+                  <input v-model="form.time" type="time" class="form-input"/>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">End Time</label>
+                  <input v-model="form.endTime" type="time" class="form-input"/>
+                </div>
               </div>
             </div>
             <div class="form-row">
@@ -181,8 +212,47 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn-ghost" @click="showModal = false">Cancel</button>
-            <button class="btn-primary" @click="saveEvent">{{ editingEvent ? 'Save Changes' : 'Create Event' }}</button>
+            <button class="btn-ghost" @click="showModal = false" :disabled="savingEvent">Cancel</button>
+            <button class="btn-primary" @click="saveEvent" :disabled="savingEvent">
+              <span v-if="savingEvent" class="spinner-sm" style="margin-right:4px;"></span>
+              {{ editingEvent ? 'Save Changes' : 'Create Event' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- VIEW EVENT MODAL -->
+    <transition name="modal">
+      <div v-if="showViewModal" class="modal-overlay" @click.self="showViewModal = false">
+        <div class="modal">
+          <div class="modal-header">
+            <h3>Registrants - {{ viewingEvent?.title }}</h3>
+            <button class="drawer-close" @click="showViewModal = false">✕</button>
+          </div>
+          <div class="modal-body" style="text-align: center; padding: 40px 20px;">
+            <p style="color: #64748b; font-size: 14px;">No registrants yet for this event.</p>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- ARCHIVE EVENT MODAL -->
+    <transition name="modal">
+      <div v-if="showArchiveModal" class="modal-overlay" @click.self="showArchiveModal = false">
+        <div class="modal archive-modal" style="width: 400px;">
+          <div class="modal-body" style="text-align: center; padding: 40px 20px 30px;">
+            <div style="background: #fef2f2; width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            </div>
+            <h3 style="font-size: 18px; font-weight: 800; color: #1e293b; margin-bottom: 8px;">Archive Event</h3>
+            <p style="color: #64748b; font-size: 14px; margin-bottom: 24px; line-height: 1.5;">
+              Are you sure you want to archive <strong>"{{ eventToArchive?.title }}"</strong>? This action cannot be undone.
+            </p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+              <button class="btn-ghost" @click="showArchiveModal = false" style="flex: 1;">Cancel</button>
+              <button class="btn-primary" style="background: #ef4444; flex: 1;" @click="confirmArchive">Yes, Archive</button>
+            </div>
           </div>
         </div>
       </div>
@@ -207,24 +277,27 @@ export default {
       filterStatus: '',
       activeTab: 'all',
       showModal: false,
+      showViewModal: false,
+      showArchiveModal: false,
       editingEvent: null,
+      viewingEvent: null,
+      eventToArchive: null,
+      toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
       calYear: now.getFullYear(),
       calMonth: now.getMonth(),
-      form: { title: '', type: 'Job Fair', description: '', date: '', time: '', venue: '', slots: '', notifyJobseekers: true, notifyEmployers: false },
+      form: { title: '', type: 'Job Fair', description: '', date: '', time: '', endTime: '', venue: '', slots: '', notifyJobseekers: true, notifyEmployers: false },
+      savingEvent: false,
       eventTypes: ['Job Fair', 'Seminar', 'Training', 'Livelihood Program', 'Workshop'],
       statusTabs: [
-        { label: 'All', value: 'all', count: 5, cls: '' },
-        { label: 'Upcoming', value: 'Upcoming', count: 3, cls: 'upcoming-cls' },
-        { label: 'Ongoing', value: 'Ongoing', count: 1, cls: 'ongoing-cls' },
-        { label: 'Completed', value: 'Completed', count: 1, cls: 'completed-cls' },
+        { label: 'All', value: 'all', count: 0, cls: '' },
+        { label: 'Upcoming', value: 'Upcoming', count: 0, cls: 'upcoming-cls' },
+        { label: 'Ongoing', value: 'Ongoing', count: 0, cls: 'ongoing-cls' },
+        { label: 'Completed', value: 'Completed', count: 0, cls: 'completed-cls' },
       ],
-      events: [
-        { id: 1, title: 'Job Fair 2024 — Quezon City', type: 'Job Fair', description: 'Annual job fair connecting top employers with qualified jobseekers.', day: '12', month: 'DEC', year: '2024', date: '2024-12-12', time: '8:00 AM – 5:00 PM', venue: 'QC Sports Club, Quezon City', slots: 200, registered: 158, status: 'Upcoming' },
-        { id: 2, title: 'Livelihood Seminar Series', type: 'Seminar', description: 'A series of livelihood seminars for unemployed residents.', day: '18', month: 'DEC', year: '2024', date: '2024-12-18', time: '9:00 AM – 12:00 PM', venue: 'City Hall Annex, Manila', slots: 80, registered: 45, status: 'Upcoming' },
-        { id: 3, title: 'BPO Skills Training', type: 'Training', description: 'Hands-on BPO and call center readiness training program.', day: '22', month: 'DEC', year: '2024', date: '2024-12-22', time: '1:00 PM – 5:00 PM', venue: 'TESDA Center, Marikina', slots: 50, registered: 50, status: 'Ongoing' },
-        { id: 4, title: 'Carpentry & Welding Workshop', type: 'Workshop', description: 'Practical skills workshop for NCII certification.', day: '01', month: 'DEC', year: '2024', date: '2024-12-01', time: '8:00 AM – 4:00 PM', venue: 'PESO Training Hall', slots: 30, registered: 30, status: 'Completed' },
-        { id: 5, title: 'Negosyo sa Barangay Program', type: 'Livelihood Program', description: 'Micro-enterprise training for barangay residents.', day: '28', month: 'DEC', year: '2024', date: '2024-12-28', time: '9:00 AM – 3:00 PM', venue: 'Brgy. Hall, Caloocan', slots: 60, registered: 12, status: 'Upcoming' },
-      ]
+      events: [],
+      currentPage: 1,
+      lastPage: 1,
+      totalEvents: 0,
     }
   },
   computed: {
@@ -263,30 +336,60 @@ export default {
         cells.push({ day: d, isToday, events: dayEvents })
       }
       return cells
-    }
+    },
+    paginationPages() {
+      const pages = []
+      const start = Math.max(1, this.currentPage - 2)
+      const end = Math.min(this.lastPage, this.currentPage + 2)
+      for (let i = start; i <= end; i++) pages.push(i)
+      return pages
+    },
   },
   methods: {
     async fetchEvents() {
       try {
-        const params = {}
+        const params = { page: this.currentPage }
         if (this.search)       params.search = this.search
         if (this.filterType)   params.type   = this.filterType
-        if (this.filterStatus) params.status = this.filterStatus
-        const { data } = await api.get('/admin/events', { params })
-        this.events = (data.data || data).map(e => ({
-          ...e,
-          day:   String(new Date(e.date).getDate()).padStart(2, '0'),
-          month: new Date(e.date).toLocaleString('default', { month: 'short' }).toUpperCase(),
-          year:  String(new Date(e.date).getFullYear()),
+        if (this.activeTab !== 'all') params.status = this.activeTab.toLowerCase()
+        else if (this.filterStatus)   params.status = this.filterStatus.toLowerCase()
+
+        const response = await api.get('/admin/events', { params })
+        const payload = response.data?.data || response.data
+        
+        this.currentPage = payload.current_page || 1
+        this.lastPage = payload.last_page || 1
+        this.totalEvents = payload.total || 0
+
+        const dataList = payload.data || payload
+
+        const timeFormat = (time) => time ? new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
+
+        this.events = dataList.map(e => ({
+          id: e.id,
+          title: e.title,
+          type: e.type,
+          description: e.description,
+          date: e.event_date ? e.event_date.split('T')[0] : '',
+          day: String(new Date(e.event_date).getDate()).padStart(2, '0'),
+          month: new Date(e.event_date).toLocaleString('default', { month: 'short' }).toUpperCase(),
+          year: String(new Date(e.event_date).getFullYear()),
+          time: e.end_time ? `${timeFormat(e.start_time)} - ${timeFormat(e.end_time)}` : timeFormat(e.start_time),
+          venue: e.location,
+          slots: e.max_participants || 0,
+          registered: e.participants_count || 0,
+          status: e.status ? e.status.charAt(0).toUpperCase() + e.status.slice(1) : 'Upcoming',
+          _start_time: e.start_time,
+          _end_time: e.end_time
         }))
         this.updateTabCounts()
-      } catch (err) { console.error(err) }
+      } catch (err) { console.error('Error fetching events:', err) }
     },
     updateTabCounts() {
-      this.statusTabs[0].count = this.events.length
-      this.statusTabs[1].count = this.events.filter(e => e.status === 'Upcoming').length
-      this.statusTabs[2].count = this.events.filter(e => e.status === 'Ongoing').length
-      this.statusTabs[3].count = this.events.filter(e => e.status === 'Completed').length
+      this.statusTabs[0].count = this.totalEvents
+      this.statusTabs[1].count = this.events.filter(e => e.status.toLowerCase() === 'upcoming').length
+      this.statusTabs[2].count = this.events.filter(e => e.status.toLowerCase() === 'ongoing').length
+      this.statusTabs[3].count = this.events.filter(e => e.status.toLowerCase() === 'completed').length
     },
     typeColor(type) {
       const map = {
@@ -298,48 +401,107 @@ export default {
       }
       return map[type] || { bg: '#f1f5f9', text: '#64748b' }
     },
+    statusColor(status) {
+      const map = {
+        'Upcoming': { bg: '#dbeafe', text: '#2563eb' },
+        'Ongoing': { bg: '#fff7ed', text: '#f97316' },
+        'Completed': { bg: '#dcfce7', text: '#16a34a' },
+        'Cancelled': { bg: '#fef2f2', text: '#ef4444' },
+      }
+      return map[status] || { bg: '#f1f5f9', text: '#64748b' }
+    },
     eventStatusClass(s) {
       return { 'Upcoming': 'upcoming-s', 'Ongoing': 'ongoing-s', 'Completed': 'completed-s', 'Cancelled': 'cancelled-s' }[s] || ''
     },
     openCreateModal() {
       this.editingEvent = null
-      this.form = { title: '', type: 'Job Fair', description: '', date: '', time: '', venue: '', slots: '', notifyJobseekers: true, notifyEmployers: false }
+      this.form = { title: '', type: 'Job Fair', description: '', date: '', time: '', endTime: '', venue: '', slots: '', notifyJobseekers: true, notifyEmployers: false }
       this.showModal = true
     },
     openEditModal(event) {
       this.editingEvent = event
-      this.form = { ...event, notifyJobseekers: false, notifyEmployers: false }
+      this.form = { 
+        title: event.title, 
+        type: event.type, 
+        description: event.description, 
+        date: event.date, 
+        time: event._start_time ? event._start_time.substring(0, 5) : '', 
+        endTime: event._end_time ? event._end_time.substring(0, 5) : '',
+        venue: event.venue, 
+        slots: event.slots, 
+        notifyJobseekers: false, 
+        notifyEmployers: false 
+      }
       this.showModal = true
     },
-    openViewModal(event) { alert(`Viewing registrants for: ${event.title}`) },
-    async saveEvent() {
-      try {
-        if (this.editingEvent) {
-          const { data } = await api.put(`/admin/events/${this.editingEvent.id}`, this.form)
-          Object.assign(this.editingEvent, data.data || data)
-        } else {
-          const { data } = await api.post('/admin/events', this.form)
-          const e = data.data || data
-          this.events.push({
-            ...e,
-            day:   String(new Date(e.date).getDate()).padStart(2, '0'),
-            month: new Date(e.date).toLocaleString('default', { month: 'short' }).toUpperCase(),
-            year:  String(new Date(e.date).getFullYear()),
-          })
-        }
-        this.updateTabCounts()
-        this.showModal = false
-      } catch (e) { console.error(e) }
+    openViewModal(event) { 
+      this.viewingEvent = event;
+      this.showViewModal = true;
     },
-    async archiveEvent(event) {
+    async saveEvent() {
+      if (this.savingEvent) return;
+      this.savingEvent = true;
       try {
-        await api.delete(`/admin/events/${event.id}`)
-        this.events = this.events.filter(e => e.id !== event.id)
+        const payload = {
+          title: this.form.title,
+          description: this.form.description,
+          type: this.form.type,
+          location: this.form.venue,
+          event_date: this.form.date,
+          start_time: this.form.time,
+          end_time: this.form.endTime,
+          max_participants: this.form.slots,
+          status: 'upcoming'
+        }
+
+        if (this.editingEvent) {
+          await api.put(`/admin/events/${this.editingEvent.id}`, payload)
+        } else {
+          await api.post('/admin/events', payload)
+        }
+        
+        await this.fetchEvents()
+        this.showModal = false
+        this.showToastMsg('Event saved successfully!', 'success')
+      } catch (e) { 
+        console.error(e)
+        this.showToastMsg('Failed to save event', 'error')
+      } finally {
+        this.savingEvent = false;
+      }
+    },
+    archiveEvent(event) {
+      this.eventToArchive = event;
+      this.showArchiveModal = true;
+    },
+    async confirmArchive() {
+      if (!this.eventToArchive) return;
+      try {
+        await api.delete(`/admin/events/${this.eventToArchive.id}`)
+        this.events = this.events.filter(e => e.id !== this.eventToArchive.id)
         this.updateTabCounts()
-      } catch (e) { console.error(e) }
+        this.showArchiveModal = false;
+        this.eventToArchive = null;
+        this.showToastMsg('Event archived successfully', 'success')
+      } catch (e) { 
+        console.error(e)
+        this.showToastMsg('Failed to archive event', 'error')
+      }
+    },
+    showToastMsg(text, type = 'success') {
+      const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+      const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK : X, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
     },
     prevMonth() { if (this.calMonth === 0) { this.calMonth = 11; this.calYear-- } else this.calMonth-- },
     nextMonth() { if (this.calMonth === 11) { this.calMonth = 0; this.calYear++ } else this.calMonth++ },
+    changePage(page) {
+      if (page >= 1 && page <= this.lastPage) {
+        this.currentPage = page
+        this.fetchEvents()
+      }
+    }
   }
 }
 </script>
@@ -358,6 +520,21 @@ export default {
 .btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-primary:hover { background: #1d4ed8; }
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 20px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.toast-icon { display: flex; align-items: center; flex-shrink: 0; }
+.toast-msg { word-break: break-word; line-height: 1.4; }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
 
 .stats-strip {
   display: grid;
@@ -449,9 +626,22 @@ export default {
 .cal-cell.has { background: #fafafa; }
 .cal-date { font-size: 12px; font-weight: 600; color: #1e293b; display: block; margin-bottom: 4px; }
 .cal-cell.today .cal-date { color: #2563eb; }
-.cal-events { display: flex; flex-direction: column; gap: 2px; }
-.cal-event-dot { font-size: 9px; font-weight: 600; color: #fff; padding: 2px 5px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cal-more { font-size: 9px; color: #94a3b8; padding: 1px 4px; }
+.cal-events { display: flex; flex-direction: column; gap: 3px; }
+.cal-event-dot { 
+  display: flex; 
+  align-items: center; 
+  gap: 4px; 
+  font-size: 10px; 
+  font-weight: 600; 
+  padding: 3px 6px; 
+  border-radius: 4px; 
+  white-space: nowrap; 
+  overflow: hidden; 
+  border-left: 2px solid currentColor;
+}
+.cal-event-time { font-size: 9px; opacity: 0.8; font-weight: 700; flex-shrink: 0; }
+.cal-event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cal-more { font-size: 10px; font-weight: 600; color: #64748b; padding: 2px 4px; text-align: center; cursor: pointer; }
 
 /* MODAL */
 .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
@@ -475,4 +665,17 @@ export default {
 .modal-enter-active .modal, .modal-leave-active .modal { transition: transform 0.2s, opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
+
+.spinner-sm {
+  width: 14px; height: 14px; flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; background: #fff; border-radius: 14px; margin-top: 12px; border: 1px solid #f1f5f9; }
+.page-info { font-size: 12px; color: #94a3b8; }
+.page-btns { display: flex; gap: 4px; }
+.page-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; color: #64748b; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+.page-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 </style>
