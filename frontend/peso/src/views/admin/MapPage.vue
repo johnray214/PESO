@@ -1,5 +1,13 @@
 <template>
   <div class="page">
+    <!-- Toast -->
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <span class="toast-icon" v-html="toast.icon"></span>
+        <span class="toast-msg">{{ toast.text }}</span>
+      </div>
+    </transition>
+
     <div class="map-header">
       <div class="header-left">
         <h2 class="page-title">Job Location Map</h2>
@@ -192,9 +200,10 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn-ghost" @click="cancelConfirm">{{ isEditing ? 'Cancel' : 'Re-place Pin' }}</button>
-            <button class="btn-primary" @click="confirmPin">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <button class="btn-ghost" @click="cancelConfirm" :disabled="savingPin">{{ isEditing ? 'Cancel' : 'Re-place Pin' }}</button>
+            <button class="btn-primary" @click="confirmPin" :disabled="savingPin">
+              <span v-if="savingPin" class="spinner-sm" style="margin-right:4px;"></span>
+              <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
               {{ isEditing ? 'Save Changes' : 'Confirm Pin' }}
             </button>
           </div>
@@ -266,6 +275,8 @@
 </template>
 
 <script>
+import api from '@/services/api'
+
 export default {
   name: 'MapPage',
   data() {
@@ -284,22 +295,15 @@ export default {
       showConfirmModal: false,
       isEditing: false,
       confirmForm: {},
+      toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
+      savingPin: false,
 
       showAddModal: false,
       addForm: { jobTitle: '', company: '', category: 'IT / Dev', type: 'Full-time', slots: '', status: 'Open' },
 
       categories: ['IT / Dev', 'BPO', 'Healthcare', 'Retail', 'Food & Beverage', 'Manufacturing', 'Education', 'Construction'],
 
-      employers: [
-        // Unpinned (no lat/lng)
-        { id: 1, jobTitle: 'Web Developer', company: 'Accenture PH', category: 'IT / Dev', type: 'Full-time', address: '', lat: null, lng: null, slots: 5, status: 'Open', logoBg: '#dbeafe' },
-        { id: 2, jobTitle: 'Store Crew', company: 'Jollibee Foods', category: 'Food & Beverage', type: 'Part-time', address: '', lat: null, lng: null, slots: 20, status: 'Open', logoBg: '#fff7ed' },
-        { id: 3, jobTitle: 'Electrician', company: 'SM Supermalls', category: 'Retail', type: 'Full-time', address: '', lat: null, lng: null, slots: 4, status: 'Open', logoBg: '#eff6ff' },
-        { id: 4, jobTitle: 'Staff Nurse', company: 'Makati Medical', category: 'Healthcare', type: 'Full-time', address: '', lat: null, lng: null, slots: 3, status: 'Filled', logoBg: '#fdf4ff' },
-        { id: 5, jobTitle: 'Customer Support', company: 'TechBridge BPO', category: 'BPO', type: 'Full-time', address: '', lat: null, lng: null, slots: 10, status: 'Open', logoBg: '#ecfdf5' },
-        // Pre-pinned example
-        { id: 6, jobTitle: 'HR Manager', company: 'Globe Telecom', category: 'IT / Dev', type: 'Full-time', address: 'Pioneer St, Mandaluyong', lat: 14.5794, lng: 121.0359, slots: 2, status: 'Open', logoBg: '#f0fdf4' },
-      ]
+      employers: []
     }
   },
   computed: {
@@ -324,13 +328,43 @@ export default {
       })
     }
   },
-  mounted() {
+  async mounted() {
+    await this.fetchEmployers()
     this.loadMapbox()
   },
   beforeUnmount() {
     if (this.map) this.map.remove()
   },
   methods: {
+    async fetchEmployers() {
+      try {
+        // Fetch a high amount to ensure they all load on the map without complicated pagination logic initially
+        const res = await api.get('/admin/employers', { params: { per_page: 500 } })
+        const rawData = res.data.data?.data || res.data.data || res.data
+        const colors = ['#2563eb', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6']
+        
+        this.employers = rawData.map(e => ({
+          id: e.id,
+          company: e.company_name,
+          jobTitle: 'Hiring Employer',
+          category: e.industry || 'Other',
+          type: 'Full-time',
+          address: e.address_full || e.city || '',
+          lat: parseFloat(e.latitude) || null,
+          lng: parseFloat(e.longitude) || null,
+          slots: 1,
+          status: 'Open',
+          logoBg: colors[e.id % colors.length]
+        }))
+
+        // Load map markers for already pinned places
+        if (this.map && this.map.loaded()) {
+            this.pinned.forEach(emp => this.addMarker(emp))
+        }
+      } catch (err) {
+        console.error('Error fetching employers for map:', err)
+      }
+    },
     loadMapbox() {
       // Load Mapbox GL JS dynamically
       if (window.mapboxgl) { this.initMap(); return }
@@ -348,12 +382,12 @@ export default {
 
     initMap() {
       // ⚠️ REPLACE with your actual Mapbox public token
-      window.mapboxgl.accessToken = import.meta.env.MAPBOX_ACCESS_TOKEN
+      window.mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
       this.map = new window.mapboxgl.Map({
         container: this.$refs.mapRef,
-        style: 'mapbox://styles/mapbox/light-v11',
-        center: [121.0244, 14.5547], // Manila
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',  // colorful streets style
+        center: [121.55585897821551, 16.689288062554454],  // Cagayan Valley
         zoom: 12
       })
 
@@ -380,21 +414,25 @@ export default {
 
       const el = document.createElement('div')
       el.className = 'custom-marker'
-      el.style.cssText = `
+      el.style.cssText = `width: 36px; height: 36px; cursor: pointer;`
+
+      const inner = document.createElement('div')
+      inner.style.cssText = `
         width: 36px; height: 36px;
         background: ${emp.status === 'Open' ? '#2563eb' : '#94a3b8'};
         border-radius: 50% 50% 50% 0;
         transform: rotate(-45deg);
         display: flex; align-items: center; justify-content: center;
-        cursor: pointer;
         box-shadow: 0 4px 14px rgba(0,0,0,0.25);
         border: 3px solid white;
-        transition: transform 0.15s;
+        transition: transform 0.15s, box-shadow 0.15s;
       `
-      el.innerHTML = `<span style="transform:rotate(45deg);font-size:14px;font-weight:800;color:white;">${emp.company[0]}</span>`
-      el.addEventListener('mouseenter', () => { el.style.transform = 'rotate(-45deg) scale(1.15)' })
-      el.addEventListener('mouseleave', () => { el.style.transform = 'rotate(-45deg)' })
-      el.addEventListener('click', () => { this.openEditForPin(emp) })
+      inner.innerHTML = `<span style="transform:rotate(45deg);font-size:14px;font-weight:800;color:white;">${emp.company[0]}</span>`
+      el.appendChild(inner)
+
+      el.addEventListener('mouseenter', () => { inner.style.transform = 'rotate(-45deg) scale(1.15)' })
+      el.addEventListener('mouseleave', () => { inner.style.transform = 'rotate(-45deg)' })
+      el.addEventListener('click', (e) => { e.stopPropagation(); this.openEditForPin(emp) })
 
       const popup = new window.mapboxgl.Popup({ offset: 25, closeButton: false })
         .setHTML(`
@@ -454,7 +492,8 @@ export default {
         box-shadow: 0 4px 14px rgba(249,115,22,0.4);
         animation: pulse 1s infinite;
       `
-      el.innerHTML = `<span style="transform:rotate(45deg);font-size:14px;font-weight:800;color:white;">?</span>`
+      const firstLetter = this.pinningEmp.company ? this.pinningEmp.company[0].toUpperCase() : '?';
+      el.innerHTML = `<span style="transform:rotate(45deg);font-size:14px;font-weight:800;color:white;">${firstLetter}</span>`
 
       this.tempMarker = new window.mapboxgl.Marker(el)
         .setLngLat([lng, lat])
@@ -470,18 +509,36 @@ export default {
       this.showConfirmModal = true
     },
 
-    confirmPin() {
+    async confirmPin() {
+      if (this.savingPin) return;
+      this.savingPin = true;
       const idx = this.employers.findIndex(e => e.id === this.confirmForm.id)
       if (idx !== -1) {
-        Object.assign(this.employers[idx], { ...this.confirmForm })
-        this.$nextTick(() => {
-          this.addMarker(this.employers[idx])
-        })
+        this.employers[idx] = { ...this.employers[idx], ...this.confirmForm }
+        const emp = this.employers[idx]
+        
+        try {
+          // Send to backend
+          await api.put(`/admin/employers/${emp.id}`, {
+            latitude: emp.lat,
+            longitude: emp.lng,
+          })
+          
+          // Remove temp marker first
+          if (this.tempMarker) { this.tempMarker.remove(); this.tempMarker = null }
+          // Add permanent marker immediately
+          this.$nextTick(() => {
+            this.addMarker(emp)
+          })
+          this.showToastMsg('Pin saved successfully!', 'success')
+        } catch (e) {
+          console.error('Failed to save employer location', e)
+          this.showToastMsg('Failed to save pin', 'error')
+        }
       }
-      // Cleanup
-      if (this.tempMarker) { this.tempMarker.remove(); this.tempMarker = null }
       this.pinningEmp = null
       this.showConfirmModal = false
+      this.savingPin = false
     },
 
     cancelConfirm() {
@@ -514,16 +571,15 @@ export default {
     },
 
     saveNewEmployer() {
-      const colors = ['#dbeafe','#fff7ed','#fdf4ff','#ecfdf5','#fef9c3','#ffe4e6']
-      this.employers.push({
-        id: Date.now(),
-        ...this.addForm,
-        address: '',
-        lat: null,
-        lng: null,
-        logoBg: colors[Math.floor(Math.random() * colors.length)]
-      })
+      alert('Adding new employers should be done via the Employers page or Jobseeker Portals.');
       this.showAddModal = false
+    },
+
+    showToastMsg(text, type = 'success') {
+      const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+      const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK : X, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
     }
   }
 }
@@ -542,6 +598,28 @@ export default {
 .btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-primary:hover { background: #1d4ed8; }
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+
+/* Toast & Loaders */
+.toast {
+  position: fixed; top: 20px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.toast-icon { display: flex; align-items: center; flex-shrink: 0; }
+.toast-msg { word-break: break-word; line-height: 1.4; }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
+
+.spinner-sm {
+  width: 14px; height: 14px; flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .map-layout { display: flex; gap: 16px; flex: 1; overflow: hidden; }
 
@@ -571,7 +649,7 @@ export default {
 .listing-item.pinned-item { opacity: 0.85; }
 
 .listing-item-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-.listing-logo { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; color: #2563eb; flex-shrink: 0; }
+.listing-logo { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #fff; flex-shrink: 0; }
 .listing-item-info { flex: 1; min-width: 0; }
 .listing-item-title { font-size: 12.5px; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .listing-item-company { font-size: 11px; color: #94a3b8; margin-top: 1px; }

@@ -24,15 +24,25 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      const currentHash = window.location.hash
       const isEmployer = !!localStorage.getItem('employer_token')
+      
+      // Don't redirect if already on login page to prevent loops
+      if (currentHash.includes('/employer/login') || currentHash.includes('/login')) {
+        return Promise.reject(error)
+      }
+      
+      // Clear auth data
       localStorage.removeItem('employer_token')
       localStorage.removeItem('employer_user')
       localStorage.removeItem('peso_auth_token')
       localStorage.removeItem('auth_token')
       localStorage.removeItem('peso-auth')
+      
+      // Redirect to appropriate login
       if (isEmployer) {
         window.location.hash = '#/employer/login'
-      } else if (window.location.hash !== '#/login') {
+      } else {
         window.location.hash = '#/login'
       }
     }

@@ -1,23 +1,5 @@
 <template>
   <div class="page">
-
-    <div class="reporting-header">
-      <div class="header-actions">
-        <button class="btn-secondary" @click="resetForm">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
-          Reset
-        </button>
-        <button class="btn-primary" :disabled="!canGenerate" @click="generateReport">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
-          Generate Report
-        </button>
-        <button class="btn-export" :disabled="!reportGenerated" @click="exportReport">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export
-        </button>
-      </div>
-    </div>
-
     <div class="builder-layout">
 
       <!-- LEFT: Report Builder Panel -->
@@ -234,6 +216,24 @@
               @click="form.exportFormat = fmt.value">
               <span v-html="fmt.icon"></span>
               {{ fmt.label }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Actions bottom of options -->
+        <div class="builder-section" style="border-top: 1px solid #f1f5f9; background: #fafaf9; border-bottom: none;">
+          <div class="header-actions" style="justify-content: flex-end;">
+            <button class="btn-secondary" @click="resetForm">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+              Reset
+            </button>
+            <button class="btn-primary" :disabled="!canGenerate" @click="generateReport">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+              Generate Report
+            </button>
+            <button class="btn-export" :disabled="!reportGenerated" @click="exportReport">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
             </button>
           </div>
         </div>
@@ -572,7 +572,7 @@ export default {
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
 .page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 100%; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; }
-.reporting-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.reporting-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; }
 .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
 .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
@@ -584,16 +584,16 @@ export default {
 .btn-export:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* LAYOUT */
-.builder-layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
+.builder-layout { display: flex; flex-direction: column; gap: 20px; align-items: stretch; }
 
 /* BUILDER PANEL */
-.builder-panel { background: #fff; border: 1px solid #f1f5f9; border-radius: 14px; overflow: hidden; }
+.builder-panel { background: #fff; border: 1px solid #f1f5f9; border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
 .builder-section { padding: 18px 20px; border-bottom: 1px solid #f1f5f9; }
 .builder-section:last-child { border-bottom: none; }
 .builder-section-title { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
 
 /* REPORT TYPE GRID */
-.report-type-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.report-type-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
 .report-type-btn { display: flex; flex-direction: column; align-items: center; gap: 7px; padding: 12px 8px; border: 1.5px solid #f1f5f9; border-radius: 10px; background: #f8fafc; cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .report-type-btn:hover { border-color: #e2e8f0; background: #fff; }
 .report-type-btn.active { border-color: #2563eb; background: #eff6ff; }
@@ -623,7 +623,7 @@ export default {
 .range-val { font-size: 12px; font-weight: 700; color: #2563eb; min-width: 32px; }
 
 /* COLUMNS */
-.columns-list { display: flex; flex-direction: column; gap: 7px; }
+.columns-list { display: flex; gap: 12px; flex-wrap: wrap; }
 .col-checkbox { display: flex; align-items: center; gap: 8px; cursor: pointer; }
 .col-checkbox input[type="checkbox"] { accent-color: #2563eb; width: 14px; height: 14px; }
 .col-label { font-size: 12.5px; color: #475569; font-weight: 500; }
@@ -641,7 +641,7 @@ export default {
 .format-btn.active { background: #eff6ff; border-color: #2563eb; color: #2563eb; }
 
 /* PREVIEW PANEL */
-.preview-panel { background: #fff; border: 1px solid #f1f5f9; border-radius: 14px; min-height: 500px; overflow: hidden; }
+.preview-panel { background: #fff; border: 1px solid #f1f5f9; border-radius: 14px; min-height: 400px; overflow: hidden; }
 
 .preview-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 40px; text-align: center; gap: 12px; }
 .empty-icon { width: 72px; height: 72px; background: #f8fafc; border-radius: 16px; display: flex; align-items: center; justify-content: center; }

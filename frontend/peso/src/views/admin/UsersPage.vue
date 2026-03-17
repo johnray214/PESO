@@ -85,6 +85,14 @@
       </div>
     </div>
 
+    <!-- Toast -->
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <span class="toast-icon" v-html="toast.icon"></span>
+        <span class="toast-msg">{{ toast.text }}</span>
+      </div>
+    </transition>
+
     <!-- ADD / EDIT MODAL -->
     <transition name="modal">
       <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
@@ -186,8 +194,11 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn-ghost" @click="showModal = false">Cancel</button>
-            <button class="btn-primary" @click="saveUser">{{ editingUser ? 'Save Changes' : 'Create Account' }}</button>
+            <button type="button" class="btn-ghost" @click="showModal = false">Cancel</button>
+            <button type="button" class="btn-primary" @click="saveUser" :disabled="savingUser">
+              <span v-if="savingUser" class="spinner-sm"></span>
+              {{ savingUser ? 'Saving…' : (editingUser ? 'Save Changes' : 'Create Account') }}
+            </button>
           </div>
         </div>
       </div>
@@ -200,9 +211,12 @@
           <div class="confirm-icon"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></div>
           <h3 class="confirm-title">Delete Staff?</h3>
           <p class="confirm-msg">Are you sure you want to delete <strong>{{ deletingUser?.firstName }} {{ deletingUser?.lastName }}</strong>? This cannot be undone.</p>
-          <div class="confirm-btns">
+          <div class="delete-actions">
             <button class="btn-ghost" @click="showDeleteConfirm = false">Cancel</button>
-            <button class="btn-danger" @click="confirmDelete">Delete</button>
+            <button class="btn-danger" @click="confirmDelete" :disabled="deletingUserLoading">
+              <span v-if="deletingUserLoading" class="spinner-sm"></span>
+              {{ deletingUserLoading ? 'Deleting…' : 'Delete User' }}
+            </button>
           </div>
         </div>
       </div>
@@ -213,8 +227,11 @@
 <script>
 import api from '@/services/api'
 
+const CHECK_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+const X_SVG     = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+
 export default {
-  name: 'StaffPage',
+  name: 'UsersPage',
   async mounted() {
     await this.fetchUsers()
   },
@@ -226,13 +243,10 @@ export default {
       showPassword: false, showConfirm: false,
       errors: {},
       form: { firstName:'',middleName:'',lastName:'',email:'',role:'',sex:'',address:'',number:'',password:'',confirmPassword:'',status:'Active' },
-      avatarColors: ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b82f6','#14b8a6'],
-      users: [
-        { id:1, firstName:'Maria', middleName:'Cruz',  lastName:'Santos',    email:'maria.santos@peso.gov.ph',  role:'Admin', sex:'Female', number:'09171234567', address:'Quezon City',   status:'Active',   avatarBg:'#2563eb' },
-        { id:2, firstName:'Juan',  middleName:'',      lastName:'dela Cruz', email:'juan.delacruz@peso.gov.ph', role:'Staff', sex:'Male',   number:'09189876543', address:'Marikina City', status:'Active',   avatarBg:'#f97316' },
-        { id:3, firstName:'Ana',   middleName:'Lopez', lastName:'Reyes',     email:'ana.reyes@peso.gov.ph',     role:'Staff', sex:'Female', number:'09201122334', address:'Pasig City',    status:'Active',   avatarBg:'#22c55e' },
-        { id:4, firstName:'Pedro', middleName:'',      lastName:'Lim',       email:'pedro.lim@peso.gov.ph',     role:'Staff', sex:'Male',   number:'09334455667', address:'Caloocan City', status:'Inactive', avatarBg:'#06b6d4' },
-      ]
+      savingUser: false, deletingUserLoading: false,
+      toast: { show: false, text: '', type: 'success', icon: CHECK_SVG, _timer: null },
+      avatarColors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'],
+      users: []
     }
   },
   computed: {
@@ -248,12 +262,17 @@ export default {
     async fetchUsers() {
       try {
         const { data } = await api.get('/admin/users')
-        this.users = (data.data || data).map(u => ({
+        const list = data.data?.data || data.data || data || []
+        this.users = (Array.isArray(list) ? list : []).map((u, i) => ({
           ...u,
           firstName:  u.first_name  || u.firstName  || '',
           middleName: u.middle_name || u.middleName || '',
           lastName:   u.last_name   || u.lastName   || '',
-          avatarBg:   this.avatarColors[Math.floor(Math.random() * this.avatarColors.length)],
+          number:     u.contact     || u.number      || '',
+          sex:        u.sex    ? (u.sex.charAt(0).toUpperCase()    + u.sex.slice(1))    : '',
+          role:       u.role   ? (u.role.charAt(0).toUpperCase()   + u.role.slice(1))   : '',
+          status:     u.status ? (u.status.charAt(0).toUpperCase() + u.status.slice(1)) : 'Active',
+          avatarBg:   this.avatarColors[i % this.avatarColors.length],
         }))
       } catch (e) { console.error(e) }
     },
@@ -261,18 +280,26 @@ export default {
     openModal(user) {
       this.errors = {}; this.showPassword = false; this.showConfirm = false
       this.editingUser = user
-      this.form = user ? { ...user, password:'', confirmPassword:'' } : { firstName:'',middleName:'',lastName:'',email:'',role:'',sex:'',address:'',number:'',password:'',confirmPassword:'',status:'Active' }
+      this.form = user ? { ...user, password:'', confirmPassword:'', number: user.number||user.contact } : { firstName:'',middleName:'',lastName:'',email:'',role:'',sex:'',address:'',number:'',password:'',confirmPassword:'',status:'Active' }
       this.showModal = true
+    },
+    showToastMsg(text, type = 'success') {
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = {
+        show: true, text, type,
+        icon: type === 'success' ? CHECK_SVG : X_SVG,
+        _timer: setTimeout(() => { this.toast.show = false }, 3500)
+      }
     },
     validate() {
       const e = {}
-      if (!this.form.firstName.trim()) e.firstName = true
-      if (!this.form.lastName.trim())  e.lastName  = true
-      if (!this.form.email.trim())     e.email     = true
-      if (!this.form.role)             e.role      = true
-      if (!this.form.sex)              e.sex       = true
-      if (!this.form.number.trim())    e.number    = true
-      if (!this.form.address.trim())   e.address   = true
+      if (!(this.form.firstName||'').trim()) e.firstName = true
+      if (!(this.form.lastName||'').trim())  e.lastName  = true
+      if (!(this.form.email||'').trim())     e.email     = true
+      if (!this.form.role)                   e.role       = true
+      if (!this.form.sex)                    e.sex       = true
+      if (!(this.form.number||'').trim())    e.number    = true
+      if (!(this.form.address||'').trim())   e.address   = true
       if (!this.editingUser) {
         if (!this.form.password) e.password = true
         if (!this.form.confirmPassword) e.confirmPassword = 'Required'
@@ -282,17 +309,18 @@ export default {
     },
     async saveUser() {
       if (!this.validate()) return
+      this.savingUser = true
       try {
         const payload = {
           first_name:  this.form.firstName,
           middle_name: this.form.middleName,
           last_name:   this.form.lastName,
           email:       this.form.email,
-          role:        this.form.role,
-          sex:         this.form.sex,
+          role:        (this.form.role   || '').toLowerCase(),
+          sex:         (this.form.sex    || '').toLowerCase(),
           contact:     this.form.number,
           address:     this.form.address,
-          status:      this.form.status,
+          status:      (this.form.status || 'active').toLowerCase(),
         }
         if (!this.editingUser) {
           payload.password = this.form.password
@@ -300,27 +328,57 @@ export default {
         }
         if (this.editingUser) {
           const { data } = await api.put(`/admin/users/${this.editingUser.id}`, payload)
-          const updated = { ...(data.data || data), firstName: this.form.firstName, lastName: this.form.lastName, middleName: this.form.middleName, avatarBg: this.editingUser.avatarBg }
+          const updated = {
+            ...(data.data || data),
+            firstName:  this.form.firstName,
+            lastName:   this.form.lastName,
+            middleName: this.form.middleName,
+            number:     this.form.number,
+            sex:        this.form.sex    ? (this.form.sex.charAt(0).toUpperCase()    + this.form.sex.slice(1))    : '',
+            role:       this.form.role   ? (this.form.role.charAt(0).toUpperCase()   + this.form.role.slice(1))   : '',
+            status:     this.form.status ? (this.form.status.charAt(0).toUpperCase() + this.form.status.slice(1)) : 'Active',
+            avatarBg:   this.editingUser.avatarBg
+          }
           const i = this.users.findIndex(u => u.id === this.editingUser.id)
           if (i !== -1) this.users[i] = updated
+          this.showToastMsg('User updated successfully', 'success')
         } else {
           const { data } = await api.post('/admin/users', payload)
           const nu = data.data || data
-          this.users.push({ ...nu, firstName: this.form.firstName, lastName: this.form.lastName, middleName: this.form.middleName, avatarBg: this.avatarColors[this.users.length % this.avatarColors.length] })
+          this.users.unshift({
+            ...nu,
+            firstName:  this.form.firstName,
+            lastName:   this.form.lastName,
+            middleName: this.form.middleName,
+            number:     this.form.number,
+            sex:        this.form.sex    ? (this.form.sex.charAt(0).toUpperCase()    + this.form.sex.slice(1))    : '',
+            role:       this.form.role   ? (this.form.role.charAt(0).toUpperCase()   + this.form.role.slice(1))   : '',
+            status:     this.form.status ? (this.form.status.charAt(0).toUpperCase() + this.form.status.slice(1)) : 'Active',
+            avatarBg:   this.avatarColors[this.users.length % this.avatarColors.length]
+          })
+          this.showToastMsg('User added successfully', 'success')
         }
         this.showModal = false
       } catch (e) {
         const errs = e.response?.data?.errors
         if (errs) Object.keys(errs).forEach(k => { this.errors[k] = errs[k][0] })
+        this.showToastMsg(e.response?.data?.message || 'Failed to save user.', 'error')
+      } finally {
+        this.savingUser = false
       }
     },
     deleteUser(u) { this.deletingUser = u; this.showDeleteConfirm = true },
     async confirmDelete() {
+      this.deletingUserLoading = true
       try {
         await api.delete(`/admin/users/${this.deletingUser.id}`)
         this.users = this.users.filter(u => u.id !== this.deletingUser.id)
-      } catch (e) { console.error(e) } finally {
-        this.showDeleteConfirm = false; this.deletingUser = null
+        this.showToastMsg('User deleted successfully', 'success')
+      } catch (e) { 
+        console.error(e)
+        this.showToastMsg('Failed to delete user', 'error')
+      } finally {
+        this.showDeleteConfirm = false; this.deletingUser = null; this.deletingUserLoading = false
       }
     }
   }
@@ -339,8 +397,9 @@ export default {
 .search-input::placeholder { color: #cbd5e1; }
 .filter-group { display: flex; gap: 8px; }
 .filter-select { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; outline: none; font-family: inherit; }
-.btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
-.btn-primary:hover { background: #1d4ed8; }
+.btn-primary { display: flex; align-items: center; justify-content: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; min-width: 130px; }
+.btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+.btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
 .table-card { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .data-table thead tr { background: #f8fafc; }
@@ -402,20 +461,52 @@ export default {
 .input-eye .form-input { width: 100%; padding-right: 36px; }
 .eye-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #94a3b8; display: flex; align-items: center; }
 .eye-btn:hover { color: #475569; }
+
 .status-toggle { display: flex; gap: 8px; }
 .toggle-opt { padding: 8px 20px; border-radius: 8px; border: 2px solid #e2e8f0; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; background: #f8fafc; color: #64748b; transition: all 0.15s; }
 .toggle-opt.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-ghost:hover { background: #e2e8f0; }
-.btn-danger { background: #ef4444; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-danger:hover { background: #dc2626; }
+.btn-danger { display: flex; align-items: center; justify-content: center; gap: 6px; background: #ef4444; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; min-width: 120px; }
+.btn-danger:hover:not(:disabled) { background: #dc2626; }
+.btn-danger:disabled { opacity: 0.7; cursor: not-allowed; }
 .confirm-modal { width: 380px; padding: 32px 28px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
 .confirm-icon { width: 60px; height: 60px; background: #fef2f2; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .confirm-title { font-size: 18px; font-weight: 800; color: #1e293b; }
 .confirm-msg { font-size: 13px; color: #64748b; line-height: 1.6; }
-.confirm-btns { display: flex; gap: 10px; margin-top: 8px; }
+.delete-actions { display: flex; gap: 10px; margin-top: 8px; }
 .modal-enter-active, .modal-leave-active { transition: opacity 0.2s; }
 .modal-enter-active .modal, .modal-leave-active .modal { transition: transform 0.2s, opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 20px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  min-width: 240px; max-width: 380px;
+}
+.toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.toast-icon { display: flex; align-items: center; flex-shrink: 0; }
+.toast-msg { word-break: break-word; line-height: 1.4; }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
+
+/* Spinners */
+.spinner-sm {
+  width: 15px; height: 15px; flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 768px) {
+  .page { padding: 16px; }
+  .filters-bar { flex-direction: column; align-items: stretch; }
+  .search-box { max-width: none; }
+  .toast { top: 16px; right: 16px; left: 16px; min-width: auto; max-width: none; }
+}
 </style>

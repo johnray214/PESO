@@ -26,7 +26,7 @@
           <router-link :to="item.path" class="nav-item" exact-active-class="active" :active-class="item.exact ? '' : 'active'">
             <span class="nav-icon" v-html="item.icon"></span>
             <span class="nav-text">{{ item.name }}</span>
-            <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+            <span v-if="navBadge(item)" class="nav-badge">{{ navBadge(item) }}</span>
           </router-link>
         </li>
       </ul>
@@ -60,13 +60,17 @@
             <ul v-if="usersOpen" class="sub-nav">
               <li class="nav-li">
                 <router-link to="/dashboard/users" class="nav-item sub-item" exact-active-class="active">
-                  <span class="sub-dot"></span>
+                  <span class="sub-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </span>
                   <span class="nav-text">Staff</span>
                 </router-link>
               </li>
               <li class="nav-li">
                 <router-link to="/dashboard/verified-employer" class="nav-item sub-item" exact-active-class="active">
-                  <span class="sub-dot"></span>
+                  <span class="sub-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+                  </span>
                   <span class="nav-text">Employers</span>
                 </router-link>
               </li>
@@ -80,9 +84,14 @@
 
 <script>
 import pesoLogo from '@/assets/PESOLOGO.jpg'
+import { useAdminAppStore } from '@/stores/adminAppStore'
 
 export default {
   name: 'AppSidebar',
+  setup() {
+    const appStore = useAdminAppStore()
+    return { appStore }
+  },
   data() {
     return {
       pesoLogo,
@@ -91,11 +100,11 @@ export default {
         { name: 'Dashboard', path: '/dashboard', exact: true, icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>` },
       ],
       mainNavItems: [
-        { name: 'Applicants',     path: '/dashboard/applicants',    badge: 24, icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>` },
+        { name: 'Applicants',     path: '/dashboard/applicants',    badge: null, icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>` },
         { name: 'Employers',      path: '/dashboard/employers',     icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
         { name: 'Events',         path: '/dashboard/events',        icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
         { name: 'Map',            path: '/dashboard/map',           icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>` },
-        { name: 'Notifications',  path: '/dashboard/notifications', badge: 5,  icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
+        { name: 'Notifications',  path: '/dashboard/notifications', badge: null, icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
         { name: 'Reporting',      path: '/dashboard/reporting',     icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
         { name: 'Archive',        path: '/dashboard/archive',       icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>` },
         { name: 'Audit Logs',     path: '/dashboard/audit-logs',    icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>` },
@@ -105,6 +114,19 @@ export default {
   computed: {
     isUsersActive() {
       return this.$route?.path?.startsWith('/dashboard/users')
+    },
+    navBadge() {
+      return (item) => {
+        if (item.name === 'Applicants') {
+          const c = this.appStore.applicantsCount
+          return c !== null ? c : null
+        }
+        if (item.name === 'Notifications') {
+          const u = this.appStore.unreadCount
+          return u > 0 ? u : null
+        }
+        return item.badge || null
+      }
     }
   },
   watch: {
@@ -220,6 +242,10 @@ export default {
 }
 .sub-item.active .sub-dot,
 .sub-item:hover .sub-dot { background: #2563eb; }
+
+.sub-icon { display: flex; align-items: center; flex-shrink: 0; color: #94a3b8; transition: color 0.15s; }
+.sub-item.active .sub-icon,
+.sub-item:hover .sub-icon { color: #2563eb; }
 
 .nav-icon { display: flex; align-items: center; flex-shrink: 0; }
 .nav-text { flex: 1; }

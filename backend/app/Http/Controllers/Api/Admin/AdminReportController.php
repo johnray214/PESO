@@ -3,215 +3,152 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\AuditLog;
-use App\Models\Employer;
-use App\Models\Event;
-use App\Models\JobListing;
-use App\Models\User;
+use App\Models\Report;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class AdminReportController extends Controller
 {
-    public function generate(Request $request)
+    public function index()
     {
-        $validator = Validator::make($request->all(), [
-            'reportType' => 'required|in:placement,registration,skills,events,employers,skill_match',
-            'dateFrom'   => 'nullable|date',
-            'dateTo'     => 'nullable|date|after_or_equal:dateFrom',
+        $reports = Report::with('generator:id,first_name,last_name')
+            ->orderByDesc('created_at')
+            ->paginate(15);
+
+        return response()->json([
+            'success' => true,
+            'data' => $reports,
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'type' => ['required', Rule::in(['placement', 'registration', 'skills', 'events', 'employer', 'skillmatch'])],
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+            'group_by' => 'nullable|string|max:50',
+            'columns' => 'nullable|array',
+            'export_format' => ['nullable', Rule::in(['pdf', 'csv', 'xlsx'])],
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
+        $validated['generated_by'] = $request->user()->id;
+        
+        $report = Report::create($validated);
 
-        $data = match ($request->reportType) {
-            'placement'   => $this->placementReport($request),
-            'registration'=> $this->registrationReport($request),
-            'skills'      => $this->skillsReport($request),
-            'events'      => $this->eventsReport($request),
-            'employers'   => $this->employersReport($request),
-            'skill_match' => $this->skillMatchReport($request),
-            default       => [],
-        };
-
-        AuditLog::record('Exported', 'Reports', "Generated {$request->reportType} report", $request, $request->user());
-
-        return response()->json(['success' => true, 'data' => $data]);
+        return response()->json([
+            'success' => true,
+            'data' => $report,
+            'message' => 'Report generated successfully',
+        ], 201);
     }
 
-    private function applyDateFilter($query, Request $request, string $column = 'created_at')
+    public function show($id)
     {
-        if ($request->filled('dateFrom')) {
-            $query->whereDate($column, '>=', $request->dateFrom);
-        }
-        if ($request->filled('dateTo')) {
-            $query->whereDate($column, '<=', $request->dateTo);
-        }
-        return $query;
+        $report = Report::with('generator')->findOrFail($id);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $report,
+        ]);
     }
 
-    private function placementReport(Request $request): array
+    public function destroy($id)
     {
-        $query = User::query();
-        $this->applyDateFilter($query, $request);
+        $report = Report::findOrFail($id);
+        $report->delete();
 
-        if ($request->filled('filters.status')) {
-            $query->where('peso_status', $request->input('filters.status'));
+        return response()->json([
+            'success' => true,
+            'message' => 'Report deleted successfully',
+        ]);
+    }
+
+    public function data(Request $request, $type)
+    {
+        $validated = $request->validate([
+            'date_from' => 'required|date',
+            'date_to' => 'required|date|after_or_equal:date_from',
+        ]);
+
+        $data = [];
+
+        switch ($type) {
+            case 'placement':
+                $data = $this->getPlacementData($validated['date_from'], $validated['date_to']);
+                break;
+            case 'registration':
+                $data = $this->getRegistrationData($validated['date_from'], $validated['date_to']);
+                break;
+            case 'skills':
+                $data = $this->getSkillsData($validated['date_from'], $validated['date_to']);
+                break;
+            case 'events':
+                $data = $this->getEventsData($validated['date_from'], $validated['date_to']);
+                break;
+            case 'employer':
+                $data = $this->getEmployerData($validated['date_from'], $validated['date_to']);
+                break;
+            case 'skillmatch':
+                $data = $this->getSkillMatchData($validated['date_from'], $validated['date_to']);
+                break;
         }
 
-        $users = $query->get();
+        return response()->json([
+            'success' => true,
+            'data' => $data,
+        ]);
+    }
 
-        $summary = [
-            'total'      => $users->count(),
-            'processing' => $users->where('peso_status', 'processing')->count(),
-            'placed'     => $users->where('peso_status', 'placed')->count(),
-            'hired'      => $users->where('peso_status', 'hired')->count(),
-            'rejected'   => $users->where('peso_status', 'rejected')->count(),
+    private function getPlacementData($from, $to)
+    {
+        return [
+            'hired_count' => \App\Models\Application::where('status', 'hired')
+                ->whereBetween('applied_at', [$from, $to])->count(),
+            'by_job_type' => \App\Models\JobListing::selectRaw('type, COUNT(*) as count')
+                ->whereHas('applications', function ($q) use ($from, $to) {
+                    $q->where('status', 'hired')->whereBetween('applied_at', [$from, $to]);
+                })->groupBy('type')->pluck('count', 'type'),
         ];
-
-        $rows = $users->map(fn($u) => [
-            'name'       => $u->name,
-            'email'      => $u->email,
-            'location'   => $u->address,
-            'skills'     => is_array($u->skills) ? implode(', ', $u->skills) : '',
-            'status'     => $u->peso_status ?? 'processing',
-            'registered' => $u->created_at->format('Y-m-d'),
-        ])->values()->toArray();
-
-        return compact('summary', 'rows');
     }
 
-    private function registrationReport(Request $request): array
+    private function getRegistrationData($from, $to)
     {
-        $query = User::query();
-        $this->applyDateFilter($query, $request);
-
-        $users = $query->get();
-        $summary = ['total' => $users->count()];
-
-        $rows = $users->map(fn($u) => [
-            'name'     => $u->name,
-            'email'    => $u->email,
-            'gender'   => $u->gender,
-            'location' => $u->address,
-            'date'     => $u->created_at->format('Y-m-d'),
-        ])->values()->toArray();
-
-        return compact('summary', 'rows');
-    }
-
-    private function skillsReport(Request $request): array
-    {
-        $users = User::whereNotNull('skills')->get();
-        $counts = [];
-        foreach ($users as $u) {
-            if (!is_array($u->skills)) continue;
-            foreach ($u->skills as $skill) {
-                $counts[$skill] = ($counts[$skill] ?? 0) + 1;
-            }
-        }
-        arsort($counts);
-
-        $rows = [];
-        foreach ($counts as $skill => $count) {
-            $rows[] = ['skill' => $skill, 'count' => $count];
-        }
-
-        return ['summary' => ['totalSkills' => count($counts)], 'rows' => $rows];
-    }
-
-    private function eventsReport(Request $request): array
-    {
-        $query = Event::query();
-        $this->applyDateFilter($query, $request, 'event_date');
-
-        if ($request->filled('filters.type')) {
-            $query->where('event_type', $request->input('filters.type'));
-        }
-        if ($request->filled('filters.status')) {
-            $query->where('status', $request->input('filters.status'));
-        }
-
-        $events = $query->get();
-        $summary = [
-            'total'     => $events->count(),
-            'upcoming'  => $events->where('status', 'upcoming')->count(),
-            'completed' => $events->where('status', 'completed')->count(),
+        return [
+            'jobseekers' => \App\Models\Jobseeker::whereBetween('created_at', [$from, $to])->count(),
+            'employers' => \App\Models\Employer::whereBetween('created_at', [$from, $to])->count(),
         ];
-
-        $rows = $events->map(fn($e) => [
-            'title'      => $e->title,
-            'type'       => $e->event_type,
-            'date'       => $e->event_date?->format('Y-m-d'),
-            'venue'      => $e->location,
-            'slots'      => $e->slots,
-            'registered' => $e->registered,
-            'status'     => $e->status,
-        ])->values()->toArray();
-
-        return compact('summary', 'rows');
     }
 
-    private function employersReport(Request $request): array
+    private function getSkillsData($from, $to)
     {
-        $query = Employer::withCount('jobListings');
-        $this->applyDateFilter($query, $request);
+        return \App\Models\JobseekerSkill::selectRaw('skill, COUNT(*) as count')
+            ->whereHas('jobseeker', function ($q) use ($from, $to) {
+                $q->whereBetween('created_at', [$from, $to]);
+            })->groupBy('skill')->orderByDesc('count')->limit(20)->get();
+    }
 
-        if ($request->filled('filters.status')) {
-            $query->where('status', $request->input('filters.status'));
-        }
+    private function getEventsData($from, $to)
+    {
+        return \App\Models\Event::whereBetween('event_date', [$from, $to])
+            ->select('id', 'title', 'event_date', 'status')
+            ->get();
+    }
 
-        $employers = $query->get();
-        $summary = [
-            'total'    => $employers->count(),
-            'active'   => $employers->where('status', 'active')->count(),
-            'pending'  => $employers->where('status', 'pending')->count(),
-            'inactive' => $employers->where('status', 'inactive')->count(),
+    private function getEmployerData($from, $to)
+    {
+        return [
+            'new_employers' => \App\Models\Employer::whereBetween('created_at', [$from, $to])->count(),
+            'by_status' => \App\Models\Employer::selectRaw('status, COUNT(*) as count')
+                ->whereBetween('created_at', [$from, $to])
+                ->groupBy('status')->pluck('count', 'status'),
         ];
-
-        $rows = $employers->map(fn($e) => [
-            'company'    => $e->company_name,
-            'industry'   => $e->industry,
-            'contact'    => $e->contact_person,
-            'email'      => $e->email,
-            'listings'   => $e->job_listings_count,
-            'hired'      => $e->total_hired,
-            'status'     => $e->status,
-            'joined'     => $e->created_at->format('Y-m-d'),
-        ])->values()->toArray();
-
-        return compact('summary', 'rows');
     }
 
-    private function skillMatchReport(Request $request): array
+    private function getSkillMatchData($from, $to)
     {
-        $jobSkills = [];
-        JobListing::where('status', 'open')->get()->each(function ($job) use (&$jobSkills) {
-            if (!is_array($job->skills)) return;
-            foreach ($job->skills as $skill) {
-                $jobSkills[$skill] = ($jobSkills[$skill] ?? 0) + 1;
-            }
-        });
-
-        $userSkills = [];
-        User::whereNotNull('skills')->get()->each(function ($u) use (&$userSkills) {
-            if (!is_array($u->skills)) return;
-            foreach ($u->skills as $skill) {
-                $userSkills[$skill] = ($userSkills[$skill] ?? 0) + 1;
-            }
-        });
-
-        $allSkills = array_unique(array_merge(array_keys($jobSkills), array_keys($userSkills)));
-        sort($allSkills);
-
-        $rows = array_map(fn($skill) => [
-            'skill'     => $skill,
-            'demand'    => $jobSkills[$skill] ?? 0,
-            'available' => $userSkills[$skill] ?? 0,
-            'gap'       => ($jobSkills[$skill] ?? 0) - ($userSkills[$skill] ?? 0),
-        ], $allSkills);
-
-        return ['summary' => ['totalSkills' => count($allSkills)], 'rows' => $rows];
+        return \App\Models\Application::whereBetween('applied_at', [$from, $to])
+            ->selectRaw('AVG(match_score) as avg_score, COUNT(*) as total')
+            ->first();
     }
 }

@@ -1,77 +1,40 @@
 <template>
   <div class="page">
-    <div class="notifications-header">
+    <div class="notifications-header" style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="main-tabs">
+        <button class="main-tab" :class="{ active: activeTab === 'feed' }" @click="activeTab = 'feed'">Activity Feed</button>
+        <button class="main-tab" :class="{ active: activeTab === 'sent' }" @click="activeTab = 'sent'">Sent Notifications</button>
+      </div>
       <button class="btn-primary" @click="openCompose">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         Send Notification
       </button>
     </div>
 
-    <!-- Stats Strip -->
-    <div class="stats-strip">
-      <div v-for="s in stripStats" :key="s.label" class="strip-stat" :style="{ '--accent': s.color }">
-        <span class="strip-val" :style="{ color: s.color }">{{ s.value }}</span>
-        <span class="strip-label">{{ s.label }}</span>
-      </div>
-    </div>
-
-    <!-- Main Tabs -->
-    <div class="main-tabs">
-      <button v-for="tab in mainTabs" :key="tab.value" :class="['main-tab', { active: activeMainTab === tab.value }]" @click="activeMainTab = tab.value">
-        <span v-html="tab.icon" class="tab-icon"></span>
-        {{ tab.label }}
-        <span v-if="tab.badge" class="tab-badge">{{ tab.badge }}</span>
-      </button>
-    </div>
-
-    <!-- RECEIVED TAB -->
-    <div v-if="activeMainTab === 'received'" class="tab-content">
-      <div class="filters-bar">
-        <div class="search-box">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input v-model="search" type="text" placeholder="Search notifications…" class="search-input"/>
-        </div>
-        <div class="filter-group">
-          <select v-model="filterNotifType" class="filter-select">
-            <option value="">All Types</option>
-            <option value="match">Job Match</option>
-            <option value="registration">New Registration</option>
-            <option value="event">Event</option>
-            <option value="status">Status Change</option>
-            <option value="system">System</option>
-          </select>
-          <button class="btn-ghost-sm" @click="markAllRead">Mark all read</button>
-        </div>
-      </div>
-
-      <div class="notif-list">
-        <div
-          v-for="notif in filteredNotifs"
-          :key="notif.id"
-          :class="['notif-row', { unread: !notif.read }]"
-          @click="markRead(notif)"
-        >
-          <div class="notif-icon-wrap" :style="{ background: notifTypeColor(notif.type).bg }">
-            <span v-html="notifTypeIcon(notif.type)" :style="{ color: notifTypeColor(notif.type).text }"></span>
-          </div>
+    <!-- NOTIFICATIONS LIST -->
+    <div class="tab-content" style="margin-top: 12px;">
+      
+      <!-- ACTIVITY FEED -->
+      <div v-if="activeTab === 'feed'" class="notif-list">
+        <div v-if="feedNotifs.length === 0" style="padding: 30px; text-align: center; color: #94a3b8; font-size: 13px;">No recent activity found.</div>
+        <div v-for="notif in feedNotifs" :key="notif.id" :class="['notif-row', { unread: !notif.read }]" @click="markAsRead(notif)">
+          <div class="notif-icon-wrap" :style="getIconStyle(notif.type)" v-html="getIconPath(notif.type)"></div>
           <div class="notif-body">
             <div class="notif-top">
-              <p class="notif-title">{{ notif.title }}</p>
+              <span class="notif-title">{{ notif.title }}</span>
               <span class="notif-time">{{ notif.time }}</span>
             </div>
             <p class="notif-message">{{ notif.message }}</p>
             <div class="notif-tags">
-              <span class="notif-type-tag" :style="{ background: notifTypeColor(notif.type).bg, color: notifTypeColor(notif.type).text }">{{ notif.type }}</span>
+              <span class="notif-type-tag" :style="getTagStyle(notif.type)">{{ notif.type }}</span>
             </div>
           </div>
           <div v-if="!notif.read" class="unread-dot"></div>
         </div>
       </div>
-    </div>
 
-    <!-- SENT TAB -->
-    <div v-if="activeMainTab === 'sent'" class="tab-content">
-      <div class="sent-list">
+      <!-- SENT NOTIFICATIONS -->
+      <div v-if="activeTab === 'sent'" class="sent-list">
         <div v-for="sent in sentNotifs" :key="sent.id" class="sent-card">
           <div class="sent-header">
             <div class="sent-title-row">
@@ -112,7 +75,7 @@
             <div class="form-group">
               <label class="form-label">Recipients</label>
               <div class="recipient-options">
-                <label v-for="opt in recipientOptions" :key="opt.value" class="recip-option" :class="{ selected: form.recipients.includes(opt.value) }" @click="toggleRecipient(opt.value)">
+                <label v-for="opt in recipientOptions" :key="opt.value" class="recip-option" :class="{ selected: form.recipients === opt.value }" @click="form.recipients = opt.value">
                   <span v-html="opt.icon" class="recip-icon"></span>
                   {{ opt.label }}
                 </label>
@@ -172,85 +135,93 @@
 </template>
 
 <script>
+import api from '@/services/api'
+import { useAdminAppStore } from '@/stores/adminAppStore'
+
 export default {
   name: 'NotificationsPage',
+  async mounted() {
+    await this.fetchNotifications()
+    const store = useAdminAppStore()
+    await store.fetchNotifications()
+  },
+  computed: {
+    feedNotifs() {
+      return useAdminAppStore().notifications
+    }
+  },
   data() {
     return {
-      activeMainTab: 'received',
-      search: '',
-      filterNotifType: '',
+      activeTab: 'feed',
       showModal: false,
-      form: { recipients: ['jobseekers'], filterSkill: '', filterLocation: '', subject: '', message: '', schedule: 'now', scheduleDate: '' },
+      form: { recipients: 'jobseekers', filterSkill: '', filterLocation: '', subject: '', message: '', schedule: 'now', scheduleDate: '' },
       recipientOptions: [
         { value: 'jobseekers', label: 'All Jobseekers', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
         { value: 'employers', label: 'All Employers', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
         { value: 'specific', label: 'Specific Users', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>` },
       ],
-      mainTabs: [
-        { label: 'Received', value: 'received', badge: 3, icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
-        { label: 'Sent', value: 'sent', badge: null, icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>` },
-      ],
-      notifications: [
-        { id: 1, type: 'match', title: 'New Job Match Found', message: 'Maria Santos matches the Web Developer posting at Accenture PH (92% match score).', time: '2 min ago', read: false },
-        { id: 2, type: 'registration', title: 'New Jobseeker Registered', message: 'Carlo Bautista has registered as a new jobseeker. Skills: Driving, Delivery.', time: '15 min ago', read: false },
-        { id: 3, type: 'event', title: 'Event Reminder', message: 'Job Fair 2024 — Quezon City is happening in 3 days. 158/200 slots filled.', time: '1 hour ago', read: false },
-        { id: 4, type: 'status', title: 'Applicant Status Updated', message: 'Ana Reyes has been marked as Placed at Makati Medical Center.', time: '3 hours ago', read: true },
-        { id: 5, type: 'registration', title: 'New Employer Registered', message: 'Nexus Tech has registered as a new employer. Pending verification.', time: '5 hours ago', read: true },
-        { id: 6, type: 'system', title: 'System Backup Complete', message: 'Monthly data backup completed successfully. All records archived.', time: 'Yesterday', read: true },
-        { id: 7, type: 'match', title: '3 New Job Matches', message: 'Pedro Lim matches 3 new job listings posted today in Caloocan and Valenzuela.', time: 'Yesterday', read: true },
-      ],
-      sentNotifs: [
-        { id: 1, subject: 'Job Fair This December!', message: 'We are excited to invite you to the annual Job Fair 2024 happening on December 12 at QC Sports Club.', recipients: ['All Jobseekers', 'All Employers'], time: 'Dec 05, 2023 — 9:00 AM', delivered: 4821, read: 2140, status: 'Sent' },
-        { id: 2, subject: 'New IT Job Vacancies Available', message: 'Several IT companies have posted new job openings this week. Check the listings now and apply!', recipients: ['IT / Dev Jobseekers'], time: 'Dec 03, 2023 — 2:00 PM', delivered: 342, read: 198, status: 'Sent' },
-        { id: 3, subject: 'Livelihood Seminar on Dec 18', message: 'Join our Livelihood Seminar Series on December 18 at City Hall Annex. Free registration!', recipients: ['All Jobseekers'], time: 'Dec 10, 2023 — 8:00 AM', delivered: 0, read: 0, status: 'Scheduled' },
-      ]
-    }
-  },
-  computed: {
-    filteredNotifs() {
-      return this.notifications.filter(n => {
-        const matchSearch = !this.search || n.title.toLowerCase().includes(this.search.toLowerCase()) || n.message.toLowerCase().includes(this.search.toLowerCase())
-        const matchType = !this.filterNotifType || n.type === this.filterNotifType
-        return matchSearch && matchType
-      })
-    },
-    stripStats() {
-      const n = this.notifications
-      return [
-        { label: 'Total', value: n.length, color: '#1e293b' },
-        { label: 'Unread', value: n.filter(x => !x.read).length, color: '#2563eb' },
-        { label: 'Job Matches', value: n.filter(x => x.type === 'match').length, color: '#22c55e' },
-        { label: 'Registrations', value: n.filter(x => x.type === 'registration').length, color: '#f97316' },
-        { label: 'Sent Today', value: 2, color: '#06b6d4' },
-      ]
+      sentNotifs: []
     }
   },
   methods: {
-    notifTypeColor(type) {
-      return { match: { bg: '#dcfce7', text: '#22c55e' }, registration: { bg: '#dbeafe', text: '#2563eb' }, event: { bg: '#fff7ed', text: '#f97316' }, status: { bg: '#fdf4ff', text: '#a21caf' }, system: { bg: '#f1f5f9', text: '#64748b' } }[type] || { bg: '#f1f5f9', text: '#64748b' }
-    },
-    notifTypeIcon(type) {
-      const icons = {
-        match: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
-        registration: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>`,
-        event: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
-        status: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
-        system: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    async fetchNotifications() {
+      try {
+        const res = await api.get('/admin/notifications')
+        const items = res.data.data?.data || res.data.data || res.data
+        this.sentNotifs = items.map(n => ({
+          id: n.id,
+          subject: n.subject,
+          message: n.message,
+          recipients: [n.recipients === 'jobseekers' ? 'All Jobseekers' : n.recipients === 'employers' ? 'All Employers' : 'Specific Users'],
+          time: new Date(n.created_at).toLocaleString(),
+          delivered: 0,
+          read: 0,
+          status: n.status ? n.status.charAt(0).toUpperCase() + n.status.slice(1) : 'Sent'
+        }))
+      } catch (err) {
+        console.error('Error fetching notifications:', err)
       }
-      return icons[type] || icons.system
     },
-    markRead(notif) { notif.read = true },
-    markAllRead() { this.notifications.forEach(n => n.read = true) },
-    toggleRecipient(val) {
-      const idx = this.form.recipients.indexOf(val)
-      if (idx > -1) this.form.recipients.splice(idx, 1)
-      else this.form.recipients.push(val)
+    openCompose() { 
+      this.form = { recipients: 'jobseekers', filterSkill: '', filterLocation: '', subject: '', message: '', schedule: 'now', scheduleDate: '' }; 
+      this.showModal = true 
     },
-    openCompose() { this.form = { recipients: ['jobseekers'], filterSkill: '', filterLocation: '', subject: '', message: '', schedule: 'now', scheduleDate: '' }; this.showModal = true },
-    sendNotification() {
-      this.sentNotifs.unshift({ id: Date.now(), subject: this.form.subject, message: this.form.message, recipients: this.form.recipients.map(r => r === 'jobseekers' ? 'All Jobseekers' : r === 'employers' ? 'All Employers' : 'Specific Users'), time: 'Just now', delivered: this.form.schedule === 'now' ? 4821 : 0, read: 0, status: this.form.schedule === 'now' ? 'Sent' : 'Scheduled' })
-      this.showModal = false
-      this.activeMainTab = 'sent'
+    async sendNotification() {
+      try {
+        await api.post('/admin/notifications', {
+          subject: this.form.subject,
+          message: this.form.message,
+          recipients: this.form.recipients,
+          scheduled_at: this.form.schedule === 'later' && this.form.scheduleDate ? this.form.scheduleDate : null
+        })
+        await this.fetchNotifications()
+        this.showModal = false
+      } catch (e) {
+        console.error('Failed to send notification:', e)
+      }
+    },
+    async markAsRead(notif) {
+      if (notif.read) return;
+      const store = useAdminAppStore()
+      store.markRead(notif.id)
+    },
+    getIconStyle(type) {
+      if (type === 'Registration') return { background: '#dbeafe', color: '#2563eb' }
+      if (type === 'Status') return { background: '#fef9c3', color: '#ca8a04' }
+      if (type === 'Event') return { background: '#dcfce7', color: '#16a34a' }
+      return { background: '#f8fafc', color: '#64748b' }
+    },
+    getTagStyle(type) {
+      if (type === 'Registration') return { background: '#eff6ff', color: '#2563eb' }
+      if (type === 'Status') return { background: '#fefce8', color: '#ca8a04' }
+      if (type === 'Event') return { background: '#f0fdf4', color: '#16a34a' }
+      return { background: '#f8fafc', color: '#64748b' }
+    },
+    getIconPath(type) {
+      if (type === 'Registration') return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
+      if (type === 'Status') return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>`
+      if (type === 'Event') return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`
+      return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
     }
   }
 }

@@ -3,6 +3,14 @@
     <div class="main-area">
       <div class="page">
 
+        <!-- Toast -->
+        <transition name="toast">
+          <div v-if="toast.show" class="toast" :class="toast.type">
+            <span class="toast-icon" v-html="toast.icon"></span>
+            <span class="toast-msg">{{ toast.text }}</span>
+          </div>
+        </transition>
+
         <!-- Filters -->
         <div class="filters-bar">
           <div class="search-box">
@@ -241,22 +249,30 @@
 
           <!-- Footer actions -->
           <div class="modal-footer">
-            <button class="btn-ghost" @click="showModal = false">Close</button>
+            <button class="btn-ghost" @click="showModal = false" :disabled="actionLoading">Close</button>
             <template v-if="selectedEmployer?.verificationStatus === 'Pending'">
-              <button class="btn-reject" @click="verifyEmployer('Rejected')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <button class="btn-reject" @click="verifyEmployer('Rejected')" :disabled="actionLoading">
+                <span v-if="actionLoading" class="spinner-sm"></span>
+                <span v-else style="display:flex;align-items:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>
                 Reject
               </button>
-              <button class="btn-verify" @click="verifyEmployer('Verified')">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              <button class="btn-verify" @click="verifyEmployer('Verified')" :disabled="actionLoading">
+                <span v-if="actionLoading" class="spinner-sm"></span>
+                <span v-else style="display:flex;align-items:center"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>
                 Verify & Approve
               </button>
             </template>
             <template v-else-if="selectedEmployer?.verificationStatus === 'Verified'">
-              <button class="btn-reject" @click="verifyEmployer('Rejected')">Revoke Verification</button>
+              <button class="btn-reject" @click="verifyEmployer('Suspended')" :disabled="actionLoading">
+                <span v-if="actionLoading" class="spinner-sm"></span>
+                Revoke Verification
+              </button>
             </template>
-            <template v-else-if="selectedEmployer?.verificationStatus === 'Rejected'">
-              <button class="btn-verify" @click="verifyEmployer('Verified')">Re-approve</button>
+            <template v-else-if="['Rejected', 'Suspended'].includes(selectedEmployer?.verificationStatus)">
+              <button class="btn-verify" @click="verifyEmployer('Verified')" :disabled="actionLoading">
+                <span v-if="actionLoading" class="spinner-sm"></span>
+                Re-approve
+              </button>
             </template>
           </div>
         </div>
@@ -321,6 +337,9 @@
 <script>
 import api from '@/services/api'
 
+const CHECK_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+const X_SVG     = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+
 export default {
   name: 'EmployersPage',
   async mounted() {
@@ -336,48 +355,9 @@ export default {
       selectedEmployer: null,
       verifyRemarks: '',
       loading: false,
-      employers: [
-        {
-          id: 1, companyName: 'Nexus Tech Solutions Inc.', industry: 'IT / Software',
-          companySize: '50–100', city: 'Quezon City', tin: '123-456-789-000',
-          website: 'www.nexustech.com.ph', firstName: 'Carlo', lastName: 'Reyes',
-          email: 'carlo.reyes@nexustech.com.ph', number: '+63 917 123 4567',
-          registeredDate: 'Mar 5, 2025', verificationStatus: 'Pending',
-          hasBizPermit: true, hasBirCert: true, remarks: '', avatarBg: '#2563eb'
-        },
-        {
-          id: 2, companyName: 'BrightPath BPO Corp.', industry: 'BPO / Call Center',
-          companySize: '500+', city: 'Pasig City', tin: '987-654-321-000',
-          website: 'www.brightpathbpo.ph', firstName: 'Ana', lastName: 'Villanueva',
-          email: 'ana.villanueva@brightpath.ph', number: '+63 918 987 6543',
-          registeredDate: 'Feb 28, 2025', verificationStatus: 'Verified',
-          hasBizPermit: true, hasBirCert: true, remarks: 'All documents verified and complete.', avatarBg: '#22c55e'
-        },
-        {
-          id: 3, companyName: 'FreshMart Retail Group', industry: 'Retail / Commerce',
-          companySize: '100–500', city: 'Marikina City', tin: '456-789-123-000',
-          website: '', firstName: 'Roberto', lastName: 'Lim',
-          email: 'roberto.lim@freshmart.ph', number: '+63 920 456 7890',
-          registeredDate: 'Mar 1, 2025', verificationStatus: 'Pending',
-          hasBizPermit: true, hasBirCert: false, remarks: '', avatarBg: '#f97316'
-        },
-        {
-          id: 4, companyName: 'MediCare Diagnostics Inc.', industry: 'Healthcare',
-          companySize: '11–50', city: 'Caloocan City', tin: '321-654-987-000',
-          website: 'www.medicarediag.ph', firstName: 'Grace', lastName: 'Mendoza',
-          email: 'grace.mendoza@medicare.ph', number: '+63 932 321 0987',
-          registeredDate: 'Feb 20, 2025', verificationStatus: 'Rejected',
-          hasBizPermit: false, hasBirCert: false, remarks: 'Business permit missing. Please resubmit with complete documents.', avatarBg: '#ef4444'
-        },
-        {
-          id: 5, companyName: 'BuildRight Construction Co.', industry: 'Construction',
-          companySize: '50–100', city: 'Valenzuela City', tin: '654-321-000-987',
-          website: '', firstName: 'Mark', lastName: 'Santos',
-          email: 'mark.santos@buildright.ph', number: '+63 915 654 3210',
-          registeredDate: 'Mar 7, 2025', verificationStatus: 'Pending',
-          hasBizPermit: true, hasBirCert: true, remarks: '', avatarBg: '#8b5cf6'
-        },
-      ]
+      actionLoading: false,
+      toast: { show: false, text: '', type: 'success', icon: CHECK_SVG, _timer: null },
+      employers: []
     }
   },
   computed: {
@@ -399,9 +379,31 @@ export default {
       try {
         const params = {}
         if (this.search)       params.search = this.search
-        if (this.filterStatus) params.status = this.filterStatus
-        const { data } = await api.get('/admin/employer-verifications', { params })
-        this.employers = data.data || data
+        if (this.filterStatus) params.status = this.filterStatus.toLowerCase()
+        const { data } = await api.get('/admin/employers', { params })
+        const avatarColors = ['#2563eb', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6']
+        const list = data.data?.data || data.data || data || []
+        this.employers = (Array.isArray(list) ? list : []).map((e, i) => ({
+          id: e.id,
+          companyName:        e.company_name        || e.companyName        || 'Unknown',
+          industry:           e.industry            || '—',
+          companySize:        e.company_size        || e.companySize        || '—',
+          city:               e.city                || '—',
+          tin:                e.tin                 || '—',
+          website:            e.website             || '',
+          firstName:          e.first_name          || e.firstName          || '',
+          lastName:           e.last_name           || e.lastName           || '',
+          email:              e.email               || '',
+          number:             e.contact_number      || e.number             || '',
+          registeredDate:     e.created_at ? new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+          verificationStatus: e.status ? (e.status.charAt(0).toUpperCase() + e.status.slice(1)) : 'Pending',
+          hasBizPermit:       !!(e.business_permit  || e.hasBizPermit),
+          hasBirCert:         !!(e.bir_certificate  || e.hasBirCert),
+          bizPermitUrl:       e.business_permit     || null,
+          birCertUrl:         e.bir_certificate     || null,
+          remarks:            e.remarks             || '',
+          avatarBg:           avatarColors[i % avatarColors.length],
+        }))
       } catch (e) { console.error(e) } finally { this.loading = false }
     },
     openDocViewer(employer, docType) {
@@ -424,18 +426,37 @@ export default {
       this.verifyRemarks = ''
       this.showModal = true
     },
+    showToastMsg(text, type = 'success') {
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = {
+        show: true, text, type,
+        icon: type === 'success' ? CHECK_SVG : X_SVG,
+        _timer: setTimeout(() => { this.toast.show = false }, 3500)
+      }
+    },
     async quickVerify(employer, status) {
+      if (this.actionLoading) return
+      this.actionLoading = true
       try {
-        const action = status === 'Verified' ? 'verify' : status === 'Rejected' ? 'reject' : 'revoke'
-        await api.patch(`/admin/employer-verifications/${employer.id}/${action}`, {})
+        const mappedStatus = status.toLowerCase()
+        await api.patch(`/admin/employers/${employer.id}/status`, { status: mappedStatus })
         const idx = this.employers.findIndex(e => e.id === employer.id)
         if (idx !== -1) this.employers[idx].verificationStatus = status
-      } catch (e) { console.error(e) }
+        this.showToastMsg(`Employer ${mappedStatus} successfully`, 'success')
+      } catch (e) { 
+        console.error(e) 
+        this.showToastMsg('Failed to update status', 'error')
+      } finally {
+        this.actionLoading = false
+      }
     },
     async verifyEmployer(status) {
+      if (this.actionLoading) return
+      this.actionLoading = true
       try {
-        const action = status === 'Verified' ? 'verify' : status === 'Rejected' ? 'reject' : 'revoke'
-        await api.patch(`/admin/employer-verifications/${this.selectedEmployer.id}/${action}`, {
+        const mappedStatus = status.toLowerCase()
+        await api.patch(`/admin/employers/${this.selectedEmployer.id}/status`, {
+          status: mappedStatus,
           remarks: this.verifyRemarks,
         })
         const idx = this.employers.findIndex(e => e.id === this.selectedEmployer.id)
@@ -444,8 +465,13 @@ export default {
           if (this.verifyRemarks) this.employers[idx].remarks = this.verifyRemarks
           this.selectedEmployer = { ...this.employers[idx] }
         }
-      } catch (e) { console.error(e) } finally {
+        this.showToastMsg(`Employer ${mappedStatus} successfully`, 'success')
+      } catch (e) { 
+        console.error(e) 
+        this.showToastMsg('Failed to verify employer', 'error')
+      } finally {
         this.verifyRemarks = ''
+        this.actionLoading = false
         this.showModal = false
       }
     }
@@ -497,6 +523,8 @@ export default {
 .vstatus-verified .vstatus-dot { background: #22c55e; }
 .vstatus-rejected { background: #fef2f2; color: #dc2626; }
 .vstatus-rejected .vstatus-dot { background: #ef4444; }
+.vstatus-suspended { background: #fef2f2; color: #dc2626; }
+.vstatus-suspended .vstatus-dot { background: #ef4444; }
 
 .action-btns { display: flex; gap: 4px; }
 .act-btn { width: 28px; height: 28px; border-radius: 7px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
@@ -645,15 +673,48 @@ export default {
 
 /* footer action buttons */
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-ghost:hover { background: #e2e8f0; }
-.btn-verify { display: flex; align-items: center; gap: 6px; background: #22c55e; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
-.btn-verify:hover { background: #16a34a; }
-.btn-reject { display: flex; align-items: center; gap: 6px; background: #fef2f2; color: #ef4444; border: 1.5px solid #fecaca; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
-.btn-reject:hover { background: #fee2e2; }
+.btn-ghost:hover:not(:disabled) { background: #e2e8f0; }
+.btn-ghost:disabled { opacity: 0.7; cursor: not-allowed; }
+.btn-verify { display: flex; align-items: center; justify-content: center; gap: 6px; background: #22c55e; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; min-width: 130px; }
+.btn-verify:hover:not(:disabled) { background: #16a34a; }
+.btn-verify:disabled { opacity: 0.7; cursor: not-allowed; }
+.btn-reject { display: flex; align-items: center; justify-content: center; gap: 6px; background: #fef2f2; color: #ef4444; border: 1.5px solid #fecaca; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; min-width: 130px; }
+.btn-reject:hover:not(:disabled) { background: #fee2e2; }
+.btn-reject:disabled { opacity: 0.7; cursor: not-allowed; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 20px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  min-width: 240px; max-width: 380px;
+}
+.toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.toast-icon { display: flex; align-items: center; flex-shrink: 0; }
+.toast-msg { word-break: break-word; line-height: 1.4; }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
+
+/* Spinners */
+.spinner-sm {
+  width: 15px; height: 15px; flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-reject .spinner-sm {
+  border: 2px solid rgba(239, 68, 68, 0.4); border-top-color: #ef4444;
+}
 
 /* transitions */
 .modal-enter-active, .modal-leave-active { transition: opacity 0.2s; }
 .modal-enter-active .modal, .modal-leave-active .modal { transition: transform 0.2s, opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
+
+@media (max-width: 768px) {
+  .toast { top: 16px; right: 16px; left: 16px; min-width: auto; max-width: none; }
+}
 </style>

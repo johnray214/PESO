@@ -15,6 +15,7 @@ export const useAuthStore = defineStore('auth', {
     user: null,
     role: null,
     token: null,
+    photo: null,
   }),
 
   getters: {
@@ -28,10 +29,11 @@ export const useAuthStore = defineStore('auth', {
       const saved = localStorage.getItem('peso-auth')
       if (token && saved) {
         try {
-          const { user, role } = JSON.parse(saved)
+          const { user, role, photo } = JSON.parse(saved)
           this.token = token
           this.user = user
           this.role = role
+          this.photo = photo ?? null
         } catch (_) { /* ignore invalid saved auth */ }
       }
       this.initialized = true
@@ -40,17 +42,18 @@ export const useAuthStore = defineStore('auth', {
     async login(email, password) {
       const { data } = await api.post('/peso-employee/login', { email, password })
       if (!data.success || !data.data) throw new Error(data.message || 'Login failed')
-      const { employee, token } = data.data
+      const { user, token } = data.data
       this.user = {
-        name: employee.full_name,
-        email: employee.email,
-        first_name: employee.first_name,
-        last_name: employee.last_name,
+        name: user.full_name,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
       }
-      this.role = employee.role
+      this.role = user.role
       this.token = token
+      this.photo = user.photo ?? null
       localStorage.setItem(TOKEN_KEY, token)
-      localStorage.setItem('peso-auth', JSON.stringify({ user: this.user, role: this.role }))
+      localStorage.setItem('peso-auth', JSON.stringify({ user: this.user, role: this.role, photo: this.photo }))
     },
 
     async logout() {
@@ -60,6 +63,7 @@ export const useAuthStore = defineStore('auth', {
       this.user = null
       this.role = null
       this.token = null
+      this.photo = null
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem('peso-auth')
     },

@@ -161,66 +161,74 @@
 
 <script>
 import EmployerSidebar from '@/components/EmployerSidebar.vue'
-import EmployerTopbar from '@/components/EmployerTopbar.vue'
+import EmployerTopbar  from '@/components/EmployerTopbar.vue'
+import { useEmployerNotificationStore } from '@/stores/employerNotificationStore'
 
 export default {
   name: 'EmployerNotifications',
   components: { EmployerSidebar, EmployerTopbar },
+
+  setup() {
+    const notifStore = useEmployerNotificationStore()
+    return { notifStore }
+  },
+
   data() {
     return {
-      activeTab: 'received',
-      search: '',
-      filterType: '',
+      activeTab:   'received',
+      search:      '',
+      filterType:  '',
       showCompose: false,
       composeForm: { recipients: 'all', subject: '', message: '', schedule: 'now' },
       notifTabs: [
-        { label: 'Received', value: 'received', unread: 3, icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
-        { label: 'Sent',     value: 'sent',     unread: 0,  icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>` },
+        { label: 'Received', value: 'received', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
+        { label: 'Sent',     value: 'sent',     icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>` },
       ],
+      sentNotifications: [],
       typeConfig: {
         applicant: { bg: '#eff8ff', color: '#2872A1', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
         job:       { bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
         system:    { bg: '#f8fafc', color: '#64748b', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` },
         match:     { bg: '#faf5ff', color: '#8b5cf6', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
       },
-      notifications: [
-        { id:1, type:'match',     title:'New High-Match Applicant',          message:'Carlo Reyes applied for Frontend Developer with a 94% match score. Consider reviewing his profile.',           time:'2 min ago',  read:false, action:'View Profile' },
-        { id:2, type:'applicant', title:'New Application Received',           message:'Ana Santos submitted her application for UI/UX Designer. She has 5 years of Figma experience.',               time:'18 min ago', read:false, action:'Review' },
-        { id:3, type:'applicant', title:'Applicant Withdrew Application',     message:'Pedro Cruz has withdrawn his application for Backend Developer. The slot is now open.',                       time:'1 hour ago', read:false, action:null },
-        { id:4, type:'job',       title:'Job Listing Expiring Soon',          message:'Your "DevOps Engineer" listing expires in 3 days. Renew it to keep receiving applications.',                  time:'3 hours ago',read:true,  action:'Renew Listing' },
-        { id:5, type:'system',    title:'Profile Verification Complete',      message:'Your employer profile has been verified by PESO. Your listings are now marked as Verified.',                  time:'Yesterday',  read:true,  action:null },
-        { id:6, type:'job',       title:'Job Listing Closed Automatically',   message:'Your "QA Engineer" listing reached its deadline and has been automatically closed.',                          time:'2 days ago', read:true,  action:null },
-        { id:7, type:'match',     title:'5 New Matches for Frontend Dev',     message:'PESO found 5 new jobseekers matching your Frontend Developer requirements. Review them now.',                  time:'3 days ago', read:true,  action:'View Matches' },
-      ],
-      sentNotifications: [
-        { id:1, subject:'Interview Schedule — Frontend Developer', message:'Dear applicants, your interview is scheduled for December 15 at 10AM via Google Meet. Please confirm your attendance.', time:'Dec 08', recipients:12, delivered:12, read_count:9 },
-        { id:2, subject:'Application Status Update',               message:'Thank you for your application. After careful review, we are moving forward with other candidates at this time.',        time:'Dec 05', recipients:8,  delivered:8,  read_count:6 },
-        { id:3, subject:'Job Fair Invitation',                     message:'We are participating in the PESO Job Fair on December 12. We would love to meet you in person at our booth.',            time:'Dec 01', recipients:45, delivered:44, read_count:30 },
-      ],
     }
   },
+
   computed: {
+    unreadCount() { return this.notifStore.unreadCount },
+
     filteredNotifications() {
-      return this.notifications.filter(n => {
+      return this.notifStore.notifications.filter((n) => {
         const matchSearch = !this.search || n.title.toLowerCase().includes(this.search.toLowerCase()) || n.message.toLowerCase().includes(this.search.toLowerCase())
         const matchType   = !this.filterType || n.type === this.filterType
         return matchSearch && matchType
       })
     },
+
+    tabBadge() { return this.notifStore.unreadCount },
+
     stripStats() {
+      const ns = this.notifStore.notifications
       return [
-        { label: 'Total',    value: this.notifications.length,                        color: '#1e293b' },
-        { label: 'Unread',   value: this.notifications.filter(n => !n.read).length,   color: '#2872A1' },
-        { label: 'Matches',  value: this.notifications.filter(n => n.type==='match').length,    color: '#8b5cf6' },
-        { label: 'Applicant',value: this.notifications.filter(n => n.type==='applicant').length, color: '#08BDDE' },
-        { label: 'System',   value: this.notifications.filter(n => n.type==='system').length,   color: '#64748b' },
+        { label: 'Total',     value: ns.length,                                color: '#1e293b' },
+        { label: 'Unread',    value: ns.filter((n) => !n.read).length,          color: '#2872A1' },
+        { label: 'Matches',   value: ns.filter((n) => n.type === 'match').length,    color: '#8b5cf6' },
+        { label: 'Applicant', value: ns.filter((n) => n.type === 'applicant').length, color: '#08BDDE' },
+        { label: 'System',    value: ns.filter((n) => n.type === 'system').length,   color: '#64748b' },
       ]
-    }
+    },
   },
+
   methods: {
-    markRead(n)    { n.read = true },
-    markAllRead()  { this.notifications.forEach(n => n.read = true) },
-  }
+    async markRead(n)  { await this.notifStore.markRead(n) },
+    async markAllRead(){ await this.notifStore.markAllRead() },
+    typeColor(type)    { return this.typeConfig[type] || this.typeConfig.system },
+  },
+
+  mounted() {
+    // Store is cache-first: no-op if topbar already loaded it
+    this.notifStore.fetch()
+  },
 }
 </script>
 
@@ -250,7 +258,8 @@ export default {
 .btn-ghost-sm { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; font-family: inherit; }
 .btn-ghost-sm:hover { background: #f8fafc; }
 
-.notif-list-card { background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; overflow: hidden; }
+.notif-list-card { background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; overflow: hidden; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.notif-list-card > div { flex: 1; overflow-y: auto; min-height: 0; }
 .notif-list { display: flex; flex-direction: column; }
 .notif-card { display: flex; gap: 14px; background: #fff; border-radius: 0; padding: 16px 20px; border: none; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.12s; }
 .notif-card:last-child { border-bottom: none; }

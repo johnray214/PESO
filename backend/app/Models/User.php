@@ -3,30 +3,28 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasApiTokens, SoftDeletes;
+    use HasApiTokens, HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
-        'name',
+        'first_name',
+        'middle_name',
+        'last_name',
         'email',
         'password',
-        'age',
-        'gender',
-        'phone',
+        'role',
+        'sex',
+        'contact',
         'address',
-        'skills',
-        'peso_status',
-        'education',
-        'experience',
-        'notes',
-        'resume_path',
-        'avatar_path',
+        'status',
+        'photo',
     ];
 
     protected $hidden = [
@@ -34,27 +32,27 @@ class User extends Authenticatable
         'remember_token',
     ];
 
-    protected function casts(): array
+    protected $casts = [
+        'password' => 'hashed',
+    ];
+
+    public function events()
     {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-            'skills' => 'array',
-        ];
+        return $this->hasMany(Event::class, 'created_by');
     }
 
-    public function documents()
+    public function notifications()
     {
-        return $this->hasOne(ApplicantDocument::class);
+        return $this->hasMany(Notification::class, 'created_by');
     }
 
-    public function applications()
+    public function reports()
     {
-        return $this->hasMany(JobApplication::class);
+        return $this->hasMany(Report::class, 'generated_by');
     }
 
-    public function savedJobs()
+    public function fullName(): string
     {
-        return $this->hasMany(SavedJob::class);
+        return $this->first_name . ' ' . ($this->middle_name ? $this->middle_name . ' ' : '') . $this->last_name;
     }
 }

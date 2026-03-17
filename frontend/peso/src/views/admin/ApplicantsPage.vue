@@ -9,10 +9,11 @@
       <div class="filter-group">
         <select v-model="filterStatus" class="filter-select">
           <option value="">All Status</option>
-          <option value="Hired">Hired</option>
-          <option value="Placed">Placed</option>
-          <option value="Processing">Processing</option>
-          <option value="Rejected">Rejected</option>
+          <option value="reviewing">Reviewing</option>
+          <option value="shortlisted">Shortlisted</option>
+          <option value="interview">Interview</option>
+          <option value="hired">Hired</option>
+          <option value="rejected">Rejected</option>
         </select>
         <select v-model="filterSkill" class="filter-select">
           <option value="">All Skills</option>
@@ -104,8 +105,8 @@
             </td>
             <td @click.stop>
               <div class="action-btns">
-                <button class="act-btn edit" @click="openDrawer(a)" title="View / Edit">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <button class="act-btn edit" @click="openDrawer(a)" title="View">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                 </button>
                 <button class="act-btn delete" @click.stop="archiveApplicant(a)" title="Archive">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
@@ -117,14 +118,22 @@
       </table>
 
       <!-- Pagination -->
-      <div class="pagination">
-        <span class="page-info">Showing {{ filteredApplicants.length }} of {{ applicants.length }} applicants</span>
+      <div v-if="lastPage > 1" class="pagination">
+        <span class="page-info">Showing {{ applicants.length }} of {{ totalApplicants }} applicants</span>
         <div class="page-btns">
-          <button class="page-btn">‹</button>
-          <button class="page-btn active">1</button>
-          <button class="page-btn">2</button>
-          <button class="page-btn">3</button>
-          <button class="page-btn">›</button>
+          <button class="page-btn" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">‹</button>
+          
+          <button 
+            v-for="p in paginationPages" 
+            :key="p"
+            class="page-btn" 
+            :class="{ active: currentPage === p }"
+            @click="changePage(p)"
+          >
+            {{ p }}
+          </button>
+
+          <button class="page-btn" :disabled="currentPage === lastPage" @click="changePage(currentPage + 1)">›</button>
         </div>
       </div>
     </div>
@@ -184,25 +193,8 @@
                     <p class="file-status">{{ selected?.files[file.key] ? 'Uploaded' : 'Not uploaded' }}</p>
                   </div>
                   <button v-if="selected?.files[file.key]" class="btn-view">View</button>
-                  <button v-else class="btn-upload">Upload</button>
                 </div>
               </div>
-            </div>
-
-            <!-- Status Tab -->
-            <div v-if="drawerTab === 'Status'">
-              <div class="section-label">Update Status</div>
-              <div class="status-options">
-                <button
-                  v-for="st in ['Processing', 'Placed', 'Hired', 'Rejected']"
-                  :key="st"
-                  :class="['status-option', statusClass(st), { active: selected?.status === st }]"
-                  @click="selected.status = st"
-                >{{ st }}</button>
-              </div>
-              <div class="section-label" style="margin-top:18px">Internal Notes</div>
-              <textarea class="notes-area" placeholder="Add notes about this applicant…" rows="4" v-model="selected.notes"></textarea>
-              <button class="btn-primary full-w mt12">Save Changes</button>
             </div>
           </div>
         </div>
@@ -231,73 +223,35 @@ export default {
       selected: null,
       showAddModal: false,
       loading: false,
-      drawerTabList: ['Profile', 'Files', 'Status'],
+      drawerTabList: ['Profile', 'Files'],
       fileList: [
         { label: 'Resume / CV', key: 'resume' },
         { label: 'Certificate / Diploma', key: 'cert' },
         { label: 'Barangay Clearance', key: 'clearance' },
       ],
       statusTabs: [
-        { label: 'All', value: 'all', count: 6 },
-        { label: 'Processing', value: 'Processing', count: 2 },
-        { label: 'Placed', value: 'Placed', count: 1 },
-        { label: 'Hired', value: 'Hired', count: 2 },
-        { label: 'Rejected', value: 'Rejected', count: 1 },
+        { label: 'All', value: 'all', count: 0 },
+        { label: 'Reviewing', value: 'reviewing', count: 0 },
+        { label: 'Shortlisted', value: 'shortlisted', count: 0 },
+        { label: 'Interview', value: 'interview', count: 0 },
+        { label: 'Hired', value: 'hired', count: 0 },
+        { label: 'Rejected', value: 'rejected', count: 0 },
       ],
       skillOptions: ['Accounting', 'IT / Dev', 'Nursing', 'Electrical', 'Teaching', 'BPO', 'Welding', 'Driving'],
-      applicants: [
-        {
-          id: 1, name: 'Maria Santos', location: 'Quezon City', contact: '09171234567',
-          email: 'maria.santos@email.com', education: 'BS Accountancy', experience: '3 years',
-          skills: ['Accounting', 'Bookkeeping', 'MS Excel'], jobApplied: 'Bookkeeper',
-          employer: 'Accenture PH', date: 'Dec 06, 2023', status: 'Hired',
-          avatarBg: '#2563eb', notes: '',
-          files: { resume: true, cert: true, clearance: false }
-        },
-        {
-          id: 2, name: 'Juan dela Cruz', location: 'Marikina', contact: '09189876543',
-          email: 'juan.delacruz@email.com', education: 'BS Computer Science', experience: '2 years',
-          skills: ['IT / Dev', 'Vue.js', 'Laravel'], jobApplied: 'Web Developer',
-          employer: 'Nexus Tech', date: 'Dec 06, 2023', status: 'Processing',
-          avatarBg: '#f97316', notes: '',
-          files: { resume: true, cert: false, clearance: true }
-        },
-        {
-          id: 3, name: 'Ana Reyes', location: 'Pasig', contact: '09201122334',
-          email: 'ana.reyes@email.com', education: 'BS Nursing', experience: '5 years',
-          skills: ['Nursing', 'Patient Care', 'BLS'], jobApplied: 'Staff Nurse',
-          employer: 'Makati Medical Center', date: 'Dec 05, 2023', status: 'Placed',
-          avatarBg: '#22c55e', notes: '',
-          files: { resume: true, cert: true, clearance: true }
-        },
-        {
-          id: 4, name: 'Pedro Lim', location: 'Caloocan', contact: '09334455667',
-          email: 'pedro.lim@email.com', education: 'Vocational — Electrical', experience: '4 years',
-          skills: ['Electrical', 'Wiring', 'PEC Standards'], jobApplied: 'Electrician',
-          employer: 'SM Supermalls', date: 'Dec 05, 2023', status: 'Processing',
-          avatarBg: '#3b82f6', notes: '',
-          files: { resume: false, cert: true, clearance: false }
-        },
-        {
-          id: 5, name: 'Rosa Garcia', location: 'Taguig', contact: '09455566778',
-          email: 'rosa.garcia@email.com', education: 'BS Education', experience: '6 years',
-          skills: ['Teaching', 'Curriculum Design', 'Mentoring'], jobApplied: 'Instructor',
-          employer: 'TESDA Center', date: 'Dec 04, 2023', status: 'Hired',
-          avatarBg: '#06b6d4', notes: '',
-          files: { resume: true, cert: true, clearance: true }
-        },
-        {
-          id: 6, name: 'Carlo Bautista', location: 'Valenzuela', contact: '09566677889',
-          email: 'carlo.bautista@email.com', education: 'HS Graduate', experience: '1 year',
-          skills: ['Driving', 'Delivery', 'Navigation'], jobApplied: 'Delivery Driver',
-          employer: 'Jollibee Foods', date: 'Dec 03, 2023', status: 'Rejected',
-          avatarBg: '#ef4444', notes: 'No valid license submitted.',
-          files: { resume: false, cert: false, clearance: true }
-        },
-      ]
+      applicants: [],
+      currentPage: 1,
+      lastPage: 1,
+      totalApplicants: 0,
     }
   },
   computed: {
+    paginationPages() {
+      const pages = []
+      const start = Math.max(1, this.currentPage - 2)
+      const end = Math.min(this.lastPage, this.currentPage + 2)
+      for (let i = start; i <= end; i++) pages.push(i)
+      return pages
+    },
     filteredApplicants() {
       return this.applicants.filter(a => {
         const matchTab = this.activeTab === 'all' || a.status === this.activeTab
@@ -321,32 +275,66 @@ export default {
     async fetchApplicants() {
       this.loading = true
       try {
-        const params = {}
+        const params = { page: this.currentPage }
         if (this.search)       params.search = this.search
         if (this.filterStatus) params.status = this.filterStatus
         if (this.filterSkill)  params.skill  = this.filterSkill
         if (this.filterDate)   params.date_from = this.filterDate
-        const { data } = await api.get('/admin/applicants', { params })
+        if (this.activeTab !== 'all') params.status = this.activeTab
+
+        const { data } = await api.get('/admin/applications', { params })
         const colors = ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b82f6','#14b8a6']
-        this.applicants = (data.data?.data || data.data || []).map((a, i) => ({
-          ...a,
-          avatarBg: a.avatarBg || colors[i % colors.length],
-        }))
+        
+        const payload = data.data || {}
+        this.currentPage = payload.current_page || 1
+        this.lastPage = payload.last_page || 1
+        this.totalApplicants = payload.total || 0
+
+        this.applicants = (payload.data || []).map((a, i) => {
+          const js = a.jobseeker || {}
+          const jl = a.job_listing || {}
+          return {
+            id: a.id,
+            name: `${js.first_name || ''} ${js.last_name || ''}`.trim() || 'Unknown',
+            location: js.address || 'N/A',
+            contact: js.contact || 'N/A',
+            email: js.email || 'N/A',
+            education: js.education_level || 'N/A',
+            experience: js.experience_years ? `${js.experience_years} years` : 'N/A',
+            skills: js.skills?.map(s => s.skill) || [],
+            jobApplied: jl.title || 'Unknown',
+            employer: jl.employer?.company_name || 'Unknown',
+            date: new Date(a.created_at || a.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            status: a.status || 'reviewing',
+            avatarBg: colors[i % colors.length],
+            notes: a.notes || '',
+            files: { resume: !!js.resume_path, cert: false, clearance: false }
+          }
+        })
         this.updateTabCounts()
       } catch (e) { console.error(e) } finally { this.loading = false }
     },
     updateTabCounts() {
       this.statusTabs[0].count = this.applicants.length
-      this.statusTabs[1].count = this.applicants.filter(a => a.status === 'processing').length
-      this.statusTabs[2].count = this.applicants.filter(a => a.status === 'placed').length
-      this.statusTabs[3].count = this.applicants.filter(a => a.status === 'hired').length
-      this.statusTabs[4].count = this.applicants.filter(a => a.status === 'rejected').length
+      this.statusTabs[1].count = this.applicants.filter(a => a.status === 'reviewing').length
+      this.statusTabs[2].count = this.applicants.filter(a => a.status === 'shortlisted').length
+      this.statusTabs[3].count = this.applicants.filter(a => a.status === 'interview').length
+      this.statusTabs[4].count = this.applicants.filter(a => a.status === 'hired').length
+      this.statusTabs[5].count = this.applicants.filter(a => a.status === 'rejected').length
+    },
+    changePage(page) {
+      if (page >= 1 && page <= this.lastPage) {
+        this.currentPage = page
+        this.fetchApplicants()
+      }
     },
     initials(name) {
       return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     },
     statusClass(status) {
-      return { 'hired': 'hired', 'placed': 'placed', 'processing': 'processing', 'rejected': 'rejected' }[status] || ''
+      if (!status) return ''
+      const stat = status.toLowerCase()
+      return { 'hired': 'hired', 'shortlisted': 'placed', 'interview': 'placed', 'reviewing': 'processing', 'rejected': 'rejected' }[stat] || stat
     },
     openDrawer(applicant) {
       this.selected = { ...applicant }
@@ -355,19 +343,25 @@ export default {
     },
     async updateStatus(applicant, status) {
       try {
-        await api.patch(`/admin/applicants/${applicant.id}/status`, {
+        await api.patch(`/admin/applications/${applicant.id}/status`, {
           status,
           notes: applicant.notes,
         })
         const idx = this.applicants.findIndex(a => a.id === applicant.id)
-        if (idx !== -1) this.applicants[idx].status = status
-        if (this.selected?.id === applicant.id) this.selected.status = status
+        if (idx !== -1) {
+          this.applicants[idx].status = status
+          this.applicants[idx].notes = applicant.notes
+        }
+        if (this.selected?.id === applicant.id) {
+          this.selected.status = status
+          this.selected.notes = applicant.notes
+        }
         this.updateTabCounts()
       } catch (e) { console.error(e) }
     },
     async archiveApplicant(a) {
       try {
-        await api.post(`/admin/applicants/${a.id}/archive`)
+        await api.delete(`/admin/applications/${a.id}`)
         this.applicants = this.applicants.filter(ap => ap.id !== a.id)
         this.drawerOpen = false
         this.updateTabCounts()
@@ -523,6 +517,7 @@ export default {
 
 .status-badge {
   padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  text-transform: capitalize;
 }
 .status-badge.lg { padding: 5px 14px; font-size: 12px; }
 .hired { background: #dbeafe; color: #2563eb; }
