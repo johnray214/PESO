@@ -12,7 +12,7 @@
             <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
             <path d="M13.73 21a2 2 0 01-3.46 0"/>
           </svg>
-          <span v-if="unreadCount > 0" class="bell-dot">{{ unreadCount }}</span>
+          <span v-if="notifStore.unreadCount > 0" class="bell-dot">{{ notifStore.unreadCount }}</span>
         </button>
 
         <!-- Notification Dropdown -->
@@ -23,11 +23,18 @@
               <button class="panel-mark-all" @click="markAllRead">Mark all read</button>
             </div>
             <div class="panel-list">
-              <div v-for="n in recentNotifs" :key="n.id"
+              <div v-if="notifStore.loading" class="panel-loading">
+                <span class="spin"></span> Loading…
+              </div>
+              <div v-else-if="notifStore.recentNotifs.length === 0" class="panel-empty">
+                No notifications yet
+              </div>
+              <div v-for="n in notifStore.recentNotifs" :key="n.id"
                 :class="['panel-item', { unread: !n.read }]"
                 @click="markRead(n)">
-                <div class="panel-icon" :style="{ background: typeColors[n.type].bg }">
-                  <span v-html="typeColors[n.type].icon" :style="{ color: typeColors[n.type].color }"></span>
+                <div class="panel-icon" :style="{ background: typeColors[n.type]?.bg || typeColors.system.bg }">
+                  <span v-html="typeColors[n.type]?.icon || typeColors.system.icon"
+                        :style="{ color: typeColors[n.type]?.color || typeColors.system.color }"></span>
                 </div>
                 <div class="panel-item-body">
                   <p class="panel-item-title">{{ n.title }}</p>
@@ -49,9 +56,9 @@
       <!-- User Pill with dropdown -->
       <div class="user-wrap" ref="userWrap">
         <button class="user-pill" @click="toggleUserMenu">
-          <div class="avatar-t">N</div>
+          <div class="avatar-t">{{ companyInitial }}</div>
           <div class="user-meta-t">
-            <span class="uname-t">Nexus Tech</span>
+            <span class="uname-t">{{ companyName }}</span>
             <span class="urole-t">Employer</span>
           </div>
           <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
@@ -61,9 +68,9 @@
         <transition name="panel">
           <div v-if="showUserMenu" class="user-dropdown">
             <div class="user-dropdown-header">
-              <div class="dropdown-avatar">N</div>
+              <div class="dropdown-avatar">{{ companyInitial }}</div>
               <div>
-                <p class="dropdown-name">Nexus Tech Solutions</p>
+                <p class="dropdown-name">{{ companyName }}</p>
                 <p class="dropdown-role">Employer Account</p>
               </div>
             </div>
@@ -75,6 +82,7 @@
             <router-link to="/employer/notifications" class="dropdown-item" @click="showUserMenu = false">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
               Notifications
+              <span v-if="notifStore.unreadCount > 0" class="dropdown-notif-badge">{{ notifStore.unreadCount }}</span>
             </router-link>
             <div class="dropdown-divider"></div>
             <button class="dropdown-item logout-item" @click="handleLogout">
@@ -89,7 +97,8 @@
 </template>
 
 <script>
-import api from '@/services/api'
+import { useEmployerNotificationStore } from '@/stores/employerNotificationStore'
+import { useEmployerAuthStore }         from '@/stores/employerAuth'
 
 export default {
   name: 'EmployerTopbar',
@@ -97,9 +106,14 @@ export default {
     title:    { type: String, default: 'Dashboard' },
     subtitle: { type: String, default: '' },
   },
+  setup() {
+    const notifStore  = useEmployerNotificationStore()
+    const authStore   = useEmployerAuthStore()
+    return { notifStore, authStore }
+  },
   data() {
     return {
-      showPanel: false,
+      showPanel:   false,
       showUserMenu: false,
       typeColors: {
         applicant: { bg: '#eff8ff', color: '#2872A1', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
@@ -107,37 +121,45 @@ export default {
         system:    { bg: '#f8fafc', color: '#64748b', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` },
         match:     { bg: '#faf5ff', color: '#8b5cf6', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
       },
-      notifications: [
-        { id:1, type:'match',     title:'New High-Match Applicant',     message:'Carlo Reyes applied for Frontend Developer (94% match).',      time:'2 min ago',  read:false },
-        { id:2, type:'applicant', title:'New Application Received',      message:'Ana Santos applied for UI/UX Designer.',                      time:'18 min ago', read:false },
-        { id:3, type:'applicant', title:'Applicant Withdrew',            message:'Pedro Cruz withdrew from Backend Developer.',                 time:'1 hour ago', read:false },
-        { id:4, type:'job',       title:'Job Listing Expiring Soon',     message:'"DevOps Engineer" expires in 3 days.',                       time:'3 hours ago',read:true  },
-        { id:5, type:'system',    title:'Profile Verification Complete', message:'Your employer profile has been verified by PESO.',            time:'Yesterday',  read:true  },
-      ],
     }
   },
   computed: {
-    recentNotifs() { return this.notifications.slice(0, 5) },
-    unreadCount()  { return this.notifications.filter(n => !n.read).length },
+    companyName() {
+      return this.authStore.user?.company_name || 'Employer'
+    },
+    companyInitial() {
+      return (this.authStore.user?.company_name || 'E')[0].toUpperCase()
+    },
   },
   methods: {
-    toggleNotifPanel() { this.showPanel = !this.showPanel; this.showUserMenu = false },
-    toggleUserMenu()   { this.showUserMenu = !this.showUserMenu; this.showPanel = false },
-    markRead(n) { n.read = true },
-    markAllRead() { this.notifications.forEach(n => n.read = true) },
+    toggleNotifPanel() {
+      this.showPanel    = !this.showPanel
+      this.showUserMenu = false
+      if (this.showPanel) this.notifStore.fetch()
+    },
+    toggleUserMenu() {
+      this.showUserMenu = !this.showUserMenu
+      this.showPanel    = false
+    },
+    async markRead(n)  { await this.notifStore.markRead(n) },
+    async markAllRead(){ await this.notifStore.markAllRead() },
     async handleLogout() {
-      try { await api.post('/employer/logout') } catch (_) { /* silent */ }
-      localStorage.removeItem('employer_token')
-      localStorage.removeItem('employer_user')
+      await this.authStore.logout()
       this.$router.push('/employer/login')
     },
     handleOutsideClick(e) {
-      if (this.$refs.bellWrap && !this.$refs.bellWrap.contains(e.target)) this.showPanel = false
+      if (this.$refs.bellWrap && !this.$refs.bellWrap.contains(e.target)) this.showPanel    = false
       if (this.$refs.userWrap && !this.$refs.userWrap.contains(e.target)) this.showUserMenu = false
     },
   },
-  mounted()   { document.addEventListener('click', this.handleOutsideClick) },
-  beforeUnmount() { document.removeEventListener('click', this.handleOutsideClick) },
+  mounted() {
+    document.addEventListener('click', this.handleOutsideClick)
+    // Kick off background fetch so badge is ready
+    this.notifStore.fetch()
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleOutsideClick)
+  },
 }
 </script>
 
@@ -163,6 +185,8 @@ export default {
 .panel-mark-all { background: none; border: none; font-size: 12px; color: #2872A1; font-weight: 600; cursor: pointer; font-family: inherit; }
 .panel-mark-all:hover { text-decoration: underline; }
 .panel-list { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
+.panel-loading { display: flex; align-items: center; gap: 8px; padding: 20px 16px; font-size: 12.5px; color: #94a3b8; }
+.panel-empty { padding: 28px 16px; text-align: center; font-size: 12.5px; color: #94a3b8; }
 .panel-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; cursor: pointer; transition: background 0.12s; border-bottom: 1px solid #f8fafc; position: relative; }
 .panel-item:hover { background: #f8fafc; }
 .panel-item.unread { background: #fafcff; }
@@ -176,16 +200,20 @@ export default {
 .panel-see-all { font-size: 12.5px; font-weight: 600; color: #2872A1; text-decoration: none; }
 .panel-see-all:hover { text-decoration: underline; }
 
+/* Spinner */
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid #e2e8f0; border-top-color: #2872A1; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* User pill + dropdown */
 .user-wrap { position: relative; }
 .user-pill { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; background: #eff8ff; border-radius: 99px; border: none; cursor: pointer; font-family: inherit; transition: background 0.15s; }
 .user-pill:hover { background: #dbeafe; }
 .avatar-t { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .user-meta-t { display: flex; flex-direction: column; text-align: left; }
-.uname-t { font-size: 12px; font-weight: 600; color: #1e293b; line-height: 1.2; }
+.uname-t { font-size: 12px; font-weight: 600; color: #1e293b; line-height: 1.2; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .urole-t { font-size: 10px; color: #94a3b8; }
 .caret { color: #94a3b8; flex-shrink: 0; }
-.user-dropdown { position: absolute; top: calc(100% + 10px); right: 0; width: 220px; background: #fff; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.14); border: 1px solid #f1f5f9; z-index: 200; overflow: hidden; }
+.user-dropdown { position: absolute; top: calc(100% + 10px); right: 0; width: 230px; background: #fff; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.14); border: 1px solid #f1f5f9; z-index: 200; overflow: hidden; }
 .user-dropdown-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: #f8fafc; }
 .dropdown-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .dropdown-name { font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.2; }
@@ -195,8 +223,7 @@ export default {
 .dropdown-item:hover { background: #f8fafc; color: #1e293b; }
 .logout-item { color: #ef4444; }
 .logout-item:hover { background: #fef2f2; color: #dc2626; }
-.logout-btn { background: none; border: none; cursor: pointer; color: #94a3b8; display: flex; align-items: center; padding: 8px; border-radius: 8px; transition: all 0.15s; }
-.logout-btn:hover { background: #fee2e2; color: #ef4444; }
+.dropdown-notif-badge { margin-left: auto; background: #2872A1; color: #fff; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 99px; }
 
 /* Transition */
 .panel-enter-active, .panel-leave-active { transition: opacity 0.15s, transform 0.15s; }

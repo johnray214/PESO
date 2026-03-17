@@ -71,22 +71,7 @@
 
         <!-- ── STEP 1: Account Setup ── -->
         <div v-if="currentStep === 1" class="step-body">
-          <div class="form-row-2">
-            <div class="form-group">
-              <label class="form-label">First Name</label>
-              <div class="input-wrap">
-                <span class="input-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-                <input class="form-input" type="text" v-model="form.firstName" placeholder="Juan"/>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Last Name</label>
-              <div class="input-wrap">
-                <span class="input-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
-                <input class="form-input" type="text" v-model="form.lastName" placeholder="Dela Cruz"/>
-              </div>
-            </div>
-          </div>
+         
 
           <div class="form-group">
             <label class="form-label">Work Email Address</label>
@@ -246,7 +231,7 @@
 
         <p class="switch-link">
           Already have an account?
-          <router-link to="/login">Sign in →</router-link>
+          <router-link to="/employer/login">Sign in →</router-link>
         </p>
 
       </div>

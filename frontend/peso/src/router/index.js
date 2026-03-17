@@ -206,13 +206,16 @@ const router = createRouter({
 
 router.beforeEach(async (to, _from, next) => {
   const employerToken = localStorage.getItem('employer_token')
-  const isEmployerRoute = to.path.startsWith('/employer') && to.path !== '/employer/login'
+  
+  // Check if this is an employer-only route (check current or any parent)
+  const isEmployerRoute = to.matched.some(record => record.meta.employerOnly)
+  const isEmployerLoginPage = to.name === 'employer-login' || to.name === 'employer-register'
 
-  if (to.meta.employerOnly && !employerToken) {
+  if (isEmployerRoute && !employerToken) {
     return next({ name: 'employer-login', query: { redirect: to.fullPath } })
   }
 
-  if (to.name === 'employer-login' && employerToken) {
+  if (isEmployerLoginPage && employerToken) {
     return next({ name: 'employer-dashboard' })
   }
 
@@ -222,7 +225,7 @@ router.beforeEach(async (to, _from, next) => {
   }
 
   const authenticated = authStore.isAuthenticated
-  if (to.meta.guest && authenticated && to.name !== 'employer-login') {
+  if (to.meta.guest && authenticated && !isEmployerLoginPage) {
     return next({ name: 'dashboard' })
   }
   if (to.meta.requiresAuth && !authenticated && !isEmployerRoute) {

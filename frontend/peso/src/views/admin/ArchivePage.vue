@@ -1,5 +1,12 @@
 <template>
   <div class="page">
+    <!-- Toast -->
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <span class="toast-icon" v-html="toast.icon"></span>
+        <span class="toast-msg">{{ toast.text }}</span>
+      </div>
+    </transition>
     <div class="archive-header">
       <button class="btn-danger" @click="confirmClearAll">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
@@ -14,7 +21,7 @@
         @click="activeTab = tab.value">
         <span v-html="tab.icon" class="tab-icon"></span>
         {{ tab.label }}
-        <span class="tab-count">{{ tab.count }}</span>
+        <span class="tab-count">{{ tab.value === 'all' && activeTab !== 'all' ? typeTabs[0].count : (tab.count || 0) }}</span>
       </button>
     </div>
 
@@ -58,7 +65,7 @@
                 </div>
               </div>
             </td>
-            <td><span class="type-badge" :style="{ background: typeColor(record.type).bg, color: typeColor(record.type).text }">{{ record.type }}</span></td>
+            <td><span class="type-badge" :style="{ background: typeColor(record.type).bg, color: typeColor(record.type).text }">{{ typeLabel(record.type) }}</span></td>
             <td>
               <div class="deleted-by">
                 <div class="mini-avatar">{{ record.deletedBy[0] }}</div>
@@ -69,11 +76,11 @@
             <td class="reason-cell">{{ record.reason }}</td>
             <td>
               <div class="action-btns">
-                <button class="act-btn restore" @click="restoreRecord(record)" title="Restore">
+                <button class="act-btn restore" @click="openRestoreModal(record)" title="Restore">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
                 </button>
-                <button class="act-btn delete" @click="permanentDelete(record)" title="Permanently Delete">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                <button class="act-btn view" @click="viewRecord(record)" title="View Record">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                 </button>
               </div>
             </td>
@@ -89,6 +96,78 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Restore Confirmation Modal -->
+    <transition name="modal">
+      <div v-if="showRestoreModal" class="modal-overlay" @click.self="showRestoreModal = false">
+        <div class="modal-box">
+          <div class="modal-icon restore-icon">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+          </div>
+          <h3 class="modal-title">Restore Record?</h3>
+          <p class="modal-desc">Are you sure you want to restore <strong>"{{ recordToRestore?.name }}"</strong>? It will be moved back to the <strong>{{ typeLabel(recordToRestore?.type) }}</strong> section.</p>
+          <div class="modal-actions">
+            <button class="modal-btn ghost" @click="showRestoreModal = false">Cancel</button>
+            <button class="modal-btn confirm-restore" :disabled="restoring" @click="doRestore">
+              <span v-if="restoring" class="modal-spinner"></span>
+              <span v-else>Yes, Restore</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- View Record Modal -->
+    <transition name="modal">
+      <div v-if="viewingRecord" class="modal-overlay" @click.self="viewingRecord = null">
+        <div class="modal-box view-modal">
+          <div class="view-modal-header">
+            <div class="view-modal-icon" :style="{ background: typeColor(viewingRecord.type).bg, color: typeColor(viewingRecord.type).text }">
+              <span v-html="typeIcon(viewingRecord.type)"></span>
+            </div>
+            <div>
+              <h3 class="modal-title" style="margin-bottom:2px">{{ viewingRecord.name }}</h3>
+              <span class="type-badge" :style="{ background: typeColor(viewingRecord.type).bg, color: typeColor(viewingRecord.type).text }">{{ viewingRecord.type }}</span>
+            </div>
+            <button class="modal-close-btn" @click="viewingRecord = null">✕</button>
+          </div>
+          <div class="view-fields">
+            <div class="view-field">
+              <span class="view-label">Name</span>
+              <span class="view-val">{{ viewingRecord.name }}</span>
+            </div>
+            <div class="view-field">
+              <span class="view-label">Detail</span>
+              <span class="view-val">{{ viewingRecord.detail || '—' }}</span>
+            </div>
+            <div class="view-field">
+              <span class="view-label">Type</span>
+              <span class="view-val">{{ viewingRecord.type }}</span>
+            </div>
+            <div class="view-field">
+              <span class="view-label">Deleted At</span>
+              <span class="view-val">{{ viewingRecord.deletedAt }}</span>
+            </div>
+            <div class="view-field">
+              <span class="view-label">Deleted By</span>
+              <span class="view-val">{{ viewingRecord.deletedBy }}</span>
+            </div>
+            <div class="view-field">
+              <span class="view-label">Reason</span>
+              <span class="view-val">{{ viewingRecord.reason }}</span>
+            </div>
+          </div>
+          <div class="modal-actions" style="margin-top:8px">
+            <button class="modal-btn ghost" @click="viewingRecord = null">Close</button>
+            <button class="modal-btn confirm-restore" @click="openRestoreModal(viewingRecord); viewingRecord = null">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
+              Restore
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
   </div>
 </template>
 
@@ -106,94 +185,135 @@ export default {
       search: '',
       filterDate: '',
       typeTabs: [
-        { label: 'All', value: 'all', count: 6, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>` },
-        { label: 'Events', value: 'Event', count: 2, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
-        { label: 'Job Listings', value: 'Job Listing', count: 2, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
-        { label: 'Applicants', value: 'Applicant', count: 1, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
-        { label: 'Employers', value: 'Employer', count: 1, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
+        { label: 'All', value: 'all', count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>` },
+        { label: 'Events', value: 'events', count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
+        { label: 'Employers', value: 'employers', count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
+        { label: 'Jobseekers', value: 'jobseekers', count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
+        { label: 'Job Listings', value: 'job_listings', count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
+        { label: 'Users', value: 'users', count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
       ],
-      records: [
-        { id: 1, type: 'Event', name: 'Regional Job Fair Nov 2023', detail: 'Job Fair · 150 slots', deletedBy: 'Admin', deletedAt: 'Dec 01, 2023', reason: 'Event cancelled due to venue issues' },
-        { id: 2, type: 'Event', name: 'Cooking & Pastry Workshop', detail: 'Workshop · 40 slots', deletedBy: 'Maria Staff', deletedAt: 'Nov 28, 2023', reason: 'Duplicate entry' },
-        { id: 3, type: 'Job Listing', name: 'Data Entry Clerk', detail: 'Accenture PH · Full-time', deletedBy: 'Admin', deletedAt: 'Nov 25, 2023', reason: 'Position filled externally' },
-        { id: 4, type: 'Job Listing', name: 'Call Center Agent', detail: 'Nexus Tech · Part-time', deletedBy: 'Admin', deletedAt: 'Nov 20, 2023', reason: 'Company request' },
-        { id: 5, type: 'Applicant', name: 'Jose Ramirez', detail: 'Driving · Valenzuela', deletedBy: 'Maria Staff', deletedAt: 'Nov 18, 2023', reason: 'Duplicate registration' },
-        { id: 6, type: 'Employer', name: 'FastFood Co.', detail: 'Food & Beverage · Caloocan', deletedBy: 'Admin', deletedAt: 'Nov 15, 2023', reason: 'Invalid business documents' },
-      ]
+      records: [],
+      isLoading: false,
+      toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
+      showRestoreModal: false,
+      recordToRestore: null,
+      restoring: false,
+      viewingRecord: null,
     }
   },
   computed: {
     filteredRecords() {
       return this.records.filter(r => {
         const matchTab = this.activeTab === 'all' || r.type === this.activeTab
-        const matchSearch = !this.search || r.name.toLowerCase().includes(this.search.toLowerCase()) || r.deletedBy.toLowerCase().includes(this.search.toLowerCase())
+        const matchSearch = !this.search || r.name.toLowerCase().includes(this.search.toLowerCase())
         return matchTab && matchSearch
       })
-    },
-    stripStats() {
-      const r = this.records
-      return [
-        { label: 'Total Archived', value: r.length, color: '#1e293b' },
-        { label: 'Events', value: r.filter(x => x.type === 'Event').length, color: '#f97316' },
-        { label: 'Job Listings', value: r.filter(x => x.type === 'Job Listing').length, color: '#2563eb' },
-        { label: 'Applicants', value: r.filter(x => x.type === 'Applicant').length, color: '#22c55e' },
-        { label: 'Employers', value: r.filter(x => x.type === 'Employer').length, color: '#06b6d4' },
-      ]
+    }
+  },
+  watch: {
+    activeTab() {
+      this.fetchArchived()
     }
   },
   methods: {
     async fetchArchived() {
+      if (this.isLoading) return
+      this.isLoading = true
       try {
-        const params = {}
-        if (this.search)    params.search = this.search
-        if (this.activeTab !== 'all') params.type = this.activeTab
-        const { data } = await api.get('/admin/archive', { params })
-        this.records = data.data || data
-        this.updateTabCounts()
-      } catch (e) { console.error(e) }
+        const allTypes = ['events', 'employers', 'jobseekers', 'job_listings', 'users']
+        const tabMap = { events: 1, employers: 2, jobseekers: 3, job_listings: 4, users: 5 }
+
+        // Fetch counts only once or when 'all' is active to update dashboard
+        if (this.activeTab === 'all') {
+            const { data: countsData } = await api.get('/admin/archive')
+            if (countsData.data && !countsData.data.data) {
+              const c = countsData.data
+              let totalCount = 0
+              allTypes.forEach(key => {
+                this.typeTabs[tabMap[key]].count = c[key] || 0
+                totalCount += (c[key] || 0)
+              })
+              this.typeTabs[0].count = totalCount  // 'All' tab total
+            }
+        }
+
+        const mapItem = (item, type) => {
+          let name = 'Unknown', detail = 'Deleted Record'
+          if (type === 'employers')    { name = item.company_name || 'Employer'; detail = item.email }
+          else if (type === 'jobseekers')  { name = `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Jobseeker'; detail = item.email }
+          else if (type === 'job_listings'){ name = item.title || 'Job Listing'; detail = `ID: ${item.id}` }
+          else if (type === 'events')      { name = item.title || 'Event'; detail = item.location }
+          else if (type === 'users')       { name = item.name || 'User'; detail = item.email }
+          return { id: item.id, type, name, detail, deletedBy: 'Admin', deletedAt: new Date(item.deleted_at).toLocaleDateString(), reason: 'System Cleanup', itemData: item }
+        }
+
+        // Only fetch the active tab data to prevent API spam
+        let targetTypes = this.activeTab === 'all' ? allTypes : [this.activeTab]
+        
+        const results = await Promise.all(
+          targetTypes.map(t => api.get('/admin/archive', { params: { type: t } }).then(r => {
+            const list = r.data.data?.data || r.data.data || []
+            return list.map(item => mapItem(item, t))
+          }).catch(() => []))
+        )
+        this.records = results.flat().sort((a,b) => new Date(b.deletedAt) - new Date(a.deletedAt))
+      } catch (e) {
+        console.error(e)
+      } finally {
+        this.isLoading = false
+      }
     },
-    updateTabCounts() {
-      this.typeTabs[0].count = this.records.length
-      this.typeTabs[1].count = this.records.filter(r => r.type === 'Event').length
-      this.typeTabs[2].count = this.records.filter(r => r.type === 'Job Listing').length
-      this.typeTabs[3].count = this.records.filter(r => r.type === 'Applicant').length
-      this.typeTabs[4].count = this.records.filter(r => r.type === 'Employer').length
+    typeLabel(type) {
+      const map = { events: 'Events', employers: 'Employers', jobseekers: 'Jobseekers', job_listings: 'Job Listings', users: 'Users' }
+      return map[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : '')
     },
     typeColor(type) {
-      return { Event: { bg: '#fff7ed', text: '#f97316' }, 'Job Listing': { bg: '#dbeafe', text: '#2563eb' }, Applicant: { bg: '#dcfce7', text: '#22c55e' }, Employer: { bg: '#eff6ff', text: '#3b82f6' } }[type] || { bg: '#f1f5f9', text: '#64748b' }
+      return { events: { bg: '#fff7ed', text: '#f97316' }, job_listings: { bg: '#dbeafe', text: '#2563eb' }, jobseekers: { bg: '#dcfce7', text: '#22c55e' }, employers: { bg: '#eff6ff', text: '#3b82f6' }, users: { bg: '#f3e8ff', text: '#9333ea' } }[type] || { bg: '#f1f5f9', text: '#64748b' }
     },
     typeIcon(type) {
       const icons = {
-        Event: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
-        'Job Listing': `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>`,
-        Applicant: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>`,
-        Employer: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>`,
+        events: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+        job_listings: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>`,
+        jobseekers: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>`,
+        employers: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>`,
+        users: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
       }
       return icons[type] || ''
     },
-    async restoreRecord(r) {
-      const typeMap = { 'Event': 'event', 'Job Listing': 'job', 'Applicant': 'applicant', 'Employer': 'employer' }
-      try {
-        await api.post(`/admin/archive/${typeMap[r.type] || r.type}/${r.id}/restore`)
-        this.records = this.records.filter(rec => rec.id !== r.id)
-        this.updateTabCounts()
-      } catch (e) { console.error(e) }
+    openRestoreModal(r) {
+      this.recordToRestore = r
+      this.showRestoreModal = true
     },
-    async permanentDelete(r) {
-      const typeMap = { 'Event': 'event', 'Job Listing': 'job', 'Applicant': 'applicant', 'Employer': 'employer' }
+    async doRestore() {
+      const r = this.recordToRestore
+      if (!r) return
+      this.restoring = true
       try {
-        await api.delete(`/admin/archive/${typeMap[r.type] || r.type}/${r.id}`)
-        this.records = this.records.filter(rec => rec.id !== r.id)
-        this.updateTabCounts()
-      } catch (e) { console.error(e) }
+        await api.post(`/admin/archive/${r.type}/${r.id}/restore`)
+        this.records = this.records.filter(record => record.id !== r.id || record.type !== r.type)
+        this.showRestoreModal = false
+        this.recordToRestore = null
+        this.showToastMsg(`${r.name} restored successfully`, 'success')
+        await this.fetchArchived()
+      } catch (e) {
+        console.error(e)
+        this.showToastMsg('Failed to restore record', 'error')
+      } finally {
+        this.restoring = false
+      }
+    },
+    viewRecord(r) {
+      this.viewingRecord = r
+    },
+    showToastMsg(text, type = 'success') {
+      const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+      const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK : X, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
     },
     async confirmClearAll() {
-      if (!confirm('Permanently delete all archived records?')) return
-      try {
-        await api.delete('/admin/archive')
-        this.records = []
-        this.updateTabCounts()
-      } catch (e) { console.error(e) }
+      if (!confirm('This feature is not fully supported by the API yet. Continue anyway?')) return
+      // The current backend doesn't seem to have a `/admin/archive` DELETE route that fully cascades all types, so avoiding doing this for now.
     }
   }
 }
@@ -264,13 +384,66 @@ export default {
 .date-cell { color: #94a3b8; font-size: 12px; white-space: nowrap; }
 .reason-cell { font-size: 12px; color: #64748b; max-width: 200px; }
 
+
+
+
 .action-btns { display: flex; gap: 4px; }
 .act-btn { width: 28px; height: 28px; border-radius: 7px; border: none; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s; }
 .act-btn.restore { background: #dcfce7; color: #22c55e; }
 .act-btn.restore:hover { background: #bbf7d0; }
+.act-btn.view { background: #eff6ff; color: #2563eb; }
+.act-btn.view:hover { background: #dbeafe; }
 .act-btn.delete { background: #fef2f2; color: #ef4444; }
 .act-btn.delete:hover { background: #fee2e2; }
 
 .empty-cell { padding: 40px !important; }
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: 10px; color: #cbd5e1; font-size: 13px; }
+
+/* Toast */
+.toast {
+  position: fixed; top: 20px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  min-width: 240px; max-width: 380px;
+}
+.toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.toast-icon { display: flex; align-items: center; flex-shrink: 0; }
+.toast-msg { word-break: break-word; line-height: 1.4; }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
+
+/* Modals */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+.modal-box { background: #fff; border-radius: 18px; padding: 28px 28px 24px; width: 420px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
+.modal-icon { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+.restore-icon { background: #dcfce7; }
+.modal-title { font-size: 17px; font-weight: 800; color: #1e293b; margin: 0; }
+.modal-desc { font-size: 13.5px; color: #64748b; line-height: 1.6; margin: 0; }
+.modal-actions { display: flex; gap: 10px; width: 100%; margin-top: 8px; }
+.modal-btn { flex: 1; padding: 10px 18px; border-radius: 10px; border: none; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.modal-btn.ghost { background: #f1f5f9; color: #64748b; }
+.modal-btn.ghost:hover { background: #e2e8f0; }
+.modal-btn.confirm-restore { background: #22c55e; color: #fff; }
+.modal-btn.confirm-restore:hover { background: #16a34a; }
+.modal-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.modal-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.modal-close-btn { margin-left: auto; background: none; border: none; font-size: 18px; color: #94a3b8; cursor: pointer; padding: 4px 6px; border-radius: 6px; line-height: 1; }
+.modal-close-btn:hover { background: #f1f5f9; color: #1e293b; }
+
+/* View Modal */
+.view-modal { align-items: stretch; text-align: left; gap: 14px; max-width: 460px; }
+.view-modal-header { display: flex; align-items: center; gap: 12px; }
+.view-modal-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.view-fields { display: flex; flex-direction: column; gap: 0; border: 1px solid #f1f5f9; border-radius: 10px; overflow: hidden; }
+.view-field { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-bottom: 1px solid #f8fafc; }
+.view-field:last-child { border-bottom: none; }
+.view-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.04em; min-width: 90px; padding-top: 1px; }
+.view-val { font-size: 13px; color: #1e293b; font-weight: 500; flex: 1; }
+
+/* Modal transition */
+.modal-enter-active, .modal-leave-active { transition: all 0.22s cubic-bezier(0.4,0,0.2,1); }
+.modal-enter-from, .modal-leave-to { opacity: 0; transform: scale(0.95) translateY(10px); }
 </style>
