@@ -1,4 +1,4 @@
-, <template>
+<template>
   <div class="page">
     <!-- Toast -->
     <transition name="toast">
@@ -119,8 +119,20 @@
         <!-- Mapbox container -->
         <div id="mapbox-map" ref="mapRef" class="mapbox-container"></div>
 
+        <!-- Map loading state -->
+        <div v-if="mapLoading" class="map-loading">
+          <div class="map-loading-spinner"></div>
+          <p>Loading map…</p>
+        </div>
+
+        <!-- Map error state -->
+        <div v-if="mapError" class="map-error">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <p>{{ mapError }}</p>
+        </div>
+
         <!-- Legend -->
-        <div class="map-legend">
+        <div v-if="!mapLoading && !mapError" class="map-legend">
           <p class="legend-title">Legend</p>
           <div class="legend-item"><span class="legend-dot blue"></span> Open</div>
           <div class="legend-item"><span class="legend-dot gray"></span> Filled</div>
@@ -158,11 +170,11 @@
             <div class="form-row coord-row">
               <div class="form-group">
                 <label class="form-label">Latitude</label>
-                <input v-model="confirmForm.lat" type="number" step="0.000001" class="form-input"/>
+                <input v-model.number="confirmForm.lat" type="number" step="0.000001" class="form-input"/>
               </div>
               <div class="form-group">
                 <label class="form-label">Longitude</label>
-                <input v-model="confirmForm.lng" type="number" step="0.000001" class="form-input"/>
+                <input v-model.number="confirmForm.lng" type="number" step="0.000001" class="form-input"/>
               </div>
             </div>
             <p class="coord-hint">
@@ -188,7 +200,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Available Slots</label>
-                <input v-model="confirmForm.slots" type="number" class="form-input" placeholder="10"/>
+                <input v-model.number="confirmForm.slots" type="number" class="form-input" placeholder="10"/>
               </div>
               <div class="form-group">
                 <label class="form-label">Status</label>
@@ -249,7 +261,7 @@
             <div class="form-row">
               <div class="form-group">
                 <label class="form-label">Available Slots</label>
-                <input v-model="addForm.slots" type="number" class="form-input" placeholder="10"/>
+                <input v-model.number="addForm.slots" type="number" class="form-input" placeholder="10"/>
               </div>
               <div class="form-group">
                 <label class="form-label">Status</label>
@@ -277,19 +289,25 @@
 <script>
 import api from '@/services/api'
 
+const MAPBOX_CSS = 'https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css'
+const MAPBOX_JS  = 'https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'
+
 export default {
   name: 'MapPage',
   data() {
     return {
       map: null,
-      markers: {},          // id -> mapboxgl.Marker
-      tempMarker: null,     // preview marker while placing
+      markers: {},
+      tempMarker: null,
+
+      mapLoading: true,
+      mapError: null,
 
       search: '',
       filterCategory: '',
       filterStatus: '',
 
-      pinningEmp: null,     // employer currently being pinned
+      pinningEmp: null,
       selectedPin: null,
 
       showConfirmModal: false,
@@ -308,13 +326,13 @@ export default {
   },
   computed: {
     unpinned() { return this.employers.filter(e => !e.lat || !e.lng) },
-    pinned() { return this.employers.filter(e => e.lat && e.lng) },
+    pinned()   { return this.employers.filter(e =>  e.lat &&  e.lng) },
     unpinnedFiltered() {
       return this.unpinned.filter(e => {
         const s = this.search.toLowerCase()
         const matchSearch = !s || e.jobTitle.toLowerCase().includes(s) || e.company.toLowerCase().includes(s)
-        const matchCat = !this.filterCategory || e.category === this.filterCategory
-        const matchStatus = !this.filterStatus || this.filterStatus === 'unpinned'
+        const matchCat    = !this.filterCategory || e.category === this.filterCategory
+        const matchStatus = !this.filterStatus   || this.filterStatus === 'unpinned'
         return matchSearch && matchCat && matchStatus
       })
     },
@@ -322,110 +340,181 @@ export default {
       return this.pinned.filter(e => {
         const s = this.search.toLowerCase()
         const matchSearch = !s || e.jobTitle.toLowerCase().includes(s) || e.company.toLowerCase().includes(s)
-        const matchCat = !this.filterCategory || e.category === this.filterCategory
-        const matchStatus = !this.filterStatus || this.filterStatus === 'pinned'
+        const matchCat    = !this.filterCategory || e.category === this.filterCategory
+        const matchStatus = !this.filterStatus   || this.filterStatus === 'pinned'
         return matchSearch && matchCat && matchStatus
       })
     }
   },
+
   async mounted() {
     await this.fetchEmployers()
-    this.loadMapbox()
+    await this.loadMapbox()
   },
+
   beforeUnmount() {
-    if (this.map) this.map.remove()
+    if (this.map) {
+      this.map.remove()
+      this.map = null
+    }
   },
+
   methods: {
+    /* ─── Data ─────────────────────────────────────────────── */
     async fetchEmployers() {
       try {
-        // Fetch a high amount to ensure they all load on the map without complicated pagination logic initially
-        const res = await api.get('/admin/employers', { params: { per_page: 500 } })
+        const res     = await api.get('/admin/employers', { params: { per_page: 500 } })
         const rawData = res.data.data?.data || res.data.data || res.data
-        const colors = ['#2563eb', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6']
-        
+        const colors  = ['#2563eb', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6']
+
         this.employers = rawData.map(e => ({
-          id: e.id,
-          company: e.company_name,
+          id:       e.id,
+          company:  e.company_name,
           jobTitle: 'Hiring Employer',
           category: e.industry || 'Other',
-          type: 'Full-time',
-          address: e.address_full || e.city || '',
-          lat: parseFloat(e.latitude) || null,
-          lng: parseFloat(e.longitude) || null,
-          slots: 1,
-          status: 'Open',
-          logoBg: colors[e.id % colors.length]
+          type:     'Full-time',
+          address:  e.address_full || e.city || '',
+          lat:      parseFloat(e.latitude)  || null,
+          lng:      parseFloat(e.longitude) || null,
+          slots:    1,
+          status:   'Open',
+          logoBg:   colors[e.id % colors.length]
         }))
-
-        // Load map markers for already pinned places
-        if (this.map && this.map.loaded()) {
-            this.pinned.forEach(emp => this.addMarker(emp))
-        }
       } catch (err) {
         console.error('Error fetching employers for map:', err)
       }
     },
+
+    /* ─── Mapbox loading ────────────────────────────────────── */
     loadMapbox() {
-      // Load Mapbox GL JS dynamically
-      if (window.mapboxgl) { this.initMap(); return }
+      return new Promise((resolve) => {
+        // Already loaded
+        if (window.mapboxgl) {
+          this.initMap()
+          resolve()
+          return
+        }
 
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css'
-      document.head.appendChild(link)
+        // Inject CSS once
+        if (!document.querySelector(`link[href="${MAPBOX_CSS}"]`)) {
+          const link = document.createElement('link')
+          link.rel   = 'stylesheet'
+          link.href  = MAPBOX_CSS
+          document.head.appendChild(link)
+        }
 
-      const script = document.createElement('script')
-      script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js'
-      script.onload = () => this.initMap()
-      document.head.appendChild(script)
+        // Inject JS once
+        if (!document.querySelector(`script[src="${MAPBOX_JS}"]`)) {
+          const script    = document.createElement('script')
+          script.src      = MAPBOX_JS
+          script.async    = true
+          script.onload   = () => { this.initMap(); resolve() }
+          script.onerror  = () => {
+            this.mapLoading = false
+            this.mapError   = 'Failed to load the map library. Check your internet connection.'
+            resolve()
+          }
+          document.head.appendChild(script)
+        } else {
+          // Script tag exists but window.mapboxgl not ready yet — poll briefly
+          const poll = setInterval(() => {
+            if (window.mapboxgl) {
+              clearInterval(poll)
+              this.initMap()
+              resolve()
+            }
+          }, 50)
+          setTimeout(() => {
+            clearInterval(poll)
+            if (!window.mapboxgl) {
+              this.mapLoading = false
+              this.mapError   = 'Map library took too long to load.'
+              resolve()
+            }
+          }, 10000)
+        }
+      })
     },
 
     initMap() {
-      // ⚠️ REPLACE with your actual Mapbox public token
-      window.mapboxgl.accessToken = process.env.VUE_APP_MAPBOX_TOKEN
+      const token = process.env.VUE_APP_MAPBOX_TOKEN
 
-      this.map = new window.mapboxgl.Map({
-        container: this.$refs.mapRef,
-        style: 'mapbox://styles/mapbox/satellite-streets-v12',  // colorful streets style
-        center: [121.55585897821551, 16.689288062554454],  // Cagayan Valley
-        zoom: 12
-      })
-
-      this.map.addControl(new window.mapboxgl.NavigationControl(), 'bottom-right')
-
-      this.map.on('load', () => {
-        // Add existing pinned markers
-        this.pinned.forEach(emp => this.addMarker(emp))
-
-        // Map click handler for pin placement
-        this.map.on('click', (e) => {
-          if (!this.pinningEmp) return
-          const { lng, lat } = e.lngLat
-          this.onMapClick(lng, lat)
-        })
-      })
-    },
-
-    addMarker(emp) {
-      if (!emp.lat || !emp.lng) return
-      if (this.markers[emp.id]) {
-        this.markers[emp.id].remove()
+      if (!token) {
+        this.mapLoading = false
+        this.mapError   = 'Mapbox token is missing. Set VUE_APP_MAPBOX_TOKEN in your .env file.'
+        return
       }
 
-      const el = document.createElement('div')
+      // Guard: ref must exist (component might have been unmounted)
+      if (!this.$refs.mapRef) {
+        this.mapLoading = false
+        return
+      }
+
+      try {
+        window.mapboxgl.accessToken = token
+
+        this.map = new window.mapboxgl.Map({
+          container: this.$refs.mapRef,
+          style:     'mapbox://styles/mapbox/satellite-streets-v12',
+          center:    [121.55585897821551, 16.689288062554454],
+          zoom:      12
+        })
+
+        this.map.addControl(new window.mapboxgl.NavigationControl(), 'bottom-right')
+
+        this.map.on('load', () => {
+          this.mapLoading = false
+
+          // Render already-pinned employers
+          this.pinned.forEach(emp => this.addMarker(emp))
+
+          // Map click → pin placement
+          this.map.on('click', (e) => {
+            if (!this.pinningEmp) return
+            const { lng, lat } = e.lngLat
+            this.onMapClick(lng, lat)
+          })
+        })
+
+        this.map.on('error', (e) => {
+          console.error('Mapbox error:', e)
+          // Only treat it as fatal if the map never loaded
+          if (this.mapLoading) {
+            this.mapLoading = false
+            this.mapError   = 'The map failed to load. Please check your Mapbox token and network.'
+          }
+        })
+      } catch (err) {
+        console.error('initMap error:', err)
+        this.mapLoading = false
+        this.mapError   = 'Could not initialise the map: ' + (err.message || err)
+      }
+    },
+
+    /* ─── Markers ───────────────────────────────────────────── */
+    addMarker(emp) {
+      if (!emp.lat || !emp.lng || !this.map) return
+
+      if (this.markers[emp.id]) {
+        this.markers[emp.id].remove()
+        delete this.markers[emp.id]
+      }
+
+      const el    = document.createElement('div')
       el.className = 'custom-marker'
-      el.style.cssText = `width: 36px; height: 36px; cursor: pointer;`
+      el.style.cssText = 'width:36px;height:36px;cursor:pointer;'
 
       const inner = document.createElement('div')
       inner.style.cssText = `
-        width: 36px; height: 36px;
-        background: ${emp.status === 'Open' ? '#2563eb' : '#94a3b8'};
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-        border: 3px solid white;
-        transition: transform 0.15s, box-shadow 0.15s;
+        width:36px;height:36px;
+        background:${emp.status === 'Open' ? '#2563eb' : '#94a3b8'};
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        display:flex;align-items:center;justify-content:center;
+        box-shadow:0 4px 14px rgba(0,0,0,0.25);
+        border:3px solid white;
+        transition:transform 0.15s,box-shadow 0.15s;
       `
       inner.innerHTML = `<span style="transform:rotate(45deg);font-size:14px;font-weight:800;color:white;">${emp.company[0]}</span>`
       el.appendChild(inner)
@@ -462,10 +551,10 @@ export default {
       }
     },
 
+    /* ─── Pin placement flow ─────────────────────────────────── */
     startPinning(emp) {
-      this.pinningEmp = emp
+      this.pinningEmp  = emp
       this.selectedPin = null
-      // Close any open popups
       Object.values(this.markers).forEach(m => m.getPopup()?.remove())
     },
 
@@ -477,90 +566,87 @@ export default {
     onMapClick(lng, lat) {
       if (!this.pinningEmp) return
 
-      // Remove temp marker if exists
       if (this.tempMarker) { this.tempMarker.remove(); this.tempMarker = null }
 
-      // Show orange temp marker
       const el = document.createElement('div')
       el.style.cssText = `
-        width: 36px; height: 36px;
-        background: #f97316;
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        display: flex; align-items: center; justify-content: center;
-        border: 3px solid white;
-        box-shadow: 0 4px 14px rgba(249,115,22,0.4);
-        animation: pulse 1s infinite;
+        width:36px;height:36px;
+        background:#f97316;
+        border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg);
+        display:flex;align-items:center;justify-content:center;
+        border:3px solid white;
+        box-shadow:0 4px 14px rgba(249,115,22,0.4);
+        animation:pulse 1s infinite;
       `
-      const firstLetter = this.pinningEmp.company ? this.pinningEmp.company[0].toUpperCase() : '?';
-      el.innerHTML = `<span style="transform:rotate(45deg);font-size:14px;font-weight:800;color:white;">${firstLetter}</span>`
+      const letter = (this.pinningEmp.company || '?')[0].toUpperCase()
+      el.innerHTML = `<span style="transform:rotate(45deg);font-size:14px;font-weight:800;color:white;">${letter}</span>`
 
       this.tempMarker = new window.mapboxgl.Marker(el)
         .setLngLat([lng, lat])
         .addTo(this.map)
 
-      // Open confirm modal
       this.confirmForm = {
         ...this.pinningEmp,
         lat: parseFloat(lat.toFixed(6)),
         lng: parseFloat(lng.toFixed(6))
       }
-      this.isEditing = false
+      this.isEditing       = false
       this.showConfirmModal = true
     },
 
     async confirmPin() {
-      if (this.savingPin) return;
-      this.savingPin = true;
+      if (this.savingPin) return
+      this.savingPin = true
+
       const idx = this.employers.findIndex(e => e.id === this.confirmForm.id)
       if (idx !== -1) {
-        this.employers[idx] = { ...this.employers[idx], ...this.confirmForm }
-        const emp = this.employers[idx]
-        
-        emp.lat = emp.lat ? Number(emp.lat) : null;
-        emp.lng = emp.lng ? Number(emp.lng) : null;
-        
+        // Use Vue.set-compatible splice to keep reactivity
+        const updated = {
+          ...this.employers[idx],
+          ...this.confirmForm,
+          lat: this.confirmForm.lat ? Number(this.confirmForm.lat) : null,
+          lng: this.confirmForm.lng ? Number(this.confirmForm.lng) : null
+        }
+        this.employers.splice(idx, 1, updated)
+
         try {
-          // Send to backend
-          await api.put(`/admin/employers/${emp.id}`, {
-            latitude: emp.lat,
-            longitude: emp.lng,
+          await api.put(`/admin/employers/${updated.id}`, {
+            latitude:  updated.lat,
+            longitude: updated.lng
           })
-          
-          // Remove temp marker first
+
           if (this.tempMarker) { this.tempMarker.remove(); this.tempMarker = null }
-          // Add permanent marker or remove it immediately
-          this.$nextTick(() => {
-            if (!emp.lat || !emp.lng) {
-              this.removeMarker(emp.id)
-            } else {
-              this.addMarker(emp)
-            }
-          })
+
+          await this.$nextTick()
+          if (!updated.lat || !updated.lng) {
+            this.removeMarker(updated.id)
+          } else {
+            this.addMarker(updated)
+          }
+
           this.showToastMsg('Pin saved successfully!', 'success')
         } catch (e) {
-          console.error('Failed to save employer location', e)
-          this.showToastMsg('Failed to save pin', 'error')
+          console.error('Failed to save employer location:', e)
+          this.showToastMsg('Failed to save pin.', 'error')
         }
       }
-      this.pinningEmp = null
+
+      this.pinningEmp       = null
       this.showConfirmModal = false
-      this.savingPin = false
+      this.savingPin        = false
     },
 
     cancelConfirm() {
       if (this.tempMarker) { this.tempMarker.remove(); this.tempMarker = null }
       this.showConfirmModal = false
-      if (!this.isEditing) {
-        // Keep pinning mode active so user can re-click
-      } else {
-        this.isEditing = false
-      }
+      if (this.isEditing) this.isEditing = false
+      // If not editing, keep pinningEmp so user can re-click the map
     },
 
     openEditForPin(emp) {
-      this.confirmForm = { ...emp }
-      this.isEditing = true
+      this.confirmForm     = { ...emp }
+      this.isEditing       = true
       this.showConfirmModal = true
     },
 
@@ -572,21 +658,27 @@ export default {
       }
     },
 
+    /* ─── Add Employer modal ─────────────────────────────────── */
     openAddModal() {
-      this.addForm = { jobTitle: '', company: '', category: 'IT / Dev', type: 'Full-time', slots: '', status: 'Open' }
+      this.addForm     = { jobTitle: '', company: '', category: 'IT / Dev', type: 'Full-time', slots: '', status: 'Open' }
       this.showAddModal = true
     },
 
     saveNewEmployer() {
-      alert('Adding new employers should be done via the Employers page or Jobseeker Portals.');
+      alert('Adding new employers should be done via the Employers page or Jobseeker Portals.')
       this.showAddModal = false
     },
 
+    /* ─── Toast ─────────────────────────────────────────────── */
     showToastMsg(text, type = 'success') {
       const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
-      const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+      const X     = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
       if (this.toast._timer) clearTimeout(this.toast._timer)
-      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK : X, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
+      this.toast = {
+        show: true, text, type,
+        icon:   type === 'success' ? CHECK : X,
+        _timer: setTimeout(() => { this.toast.show = false }, 3500)
+      }
     }
   }
 }
@@ -603,29 +695,21 @@ export default {
 .header-left .page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 
 .btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-primary:hover { background: #1d4ed8; }
+.btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-ghost:disabled { opacity: 0.6; cursor: not-allowed; }
 
-/* Toast & Loaders */
-.toast {
-  position: fixed; top: 20px; right: 24px; z-index: 9999;
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 18px; border-radius: 12px;
-  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-  min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif;
-}
+/* Toast */
+.toast { position: fixed; top: 20px; right: 24px; z-index: 9999; display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12); min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif; }
 .toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 .toast-icon { display: flex; align-items: center; flex-shrink: 0; }
 .toast-msg { word-break: break-word; line-height: 1.4; }
-.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
 
-.spinner-sm {
-  width: 14px; height: 14px; flex-shrink: 0;
-  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
-}
+.spinner-sm { width: 14px; height: 14px; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .map-layout { display: flex; gap: 16px; flex: 1; overflow: hidden; }
@@ -668,7 +752,6 @@ export default {
 
 .listing-item-meta { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 5px; }
 .meta-chip { background: #f1f5f9; color: #64748b; font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 5px; }
-
 .listing-item-loc { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #94a3b8; }
 
 .pin-hint-inline { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #2563eb; background: #eff6ff; padding: 5px 8px; border-radius: 7px; margin-top: 4px; animation: blink 1.2s ease-in-out infinite; }
@@ -678,9 +761,23 @@ export default {
 .divider-label::before, .divider-label::after { content: ''; flex: 1; height: 1px; background: #f1f5f9; }
 
 /* MAP */
-.map-area { flex: 1; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; position: relative; }
+.map-area { flex: 1; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; position: relative; background: #e2e8f0; }
 .map-area.pin-cursor { cursor: crosshair; }
 .mapbox-container { width: 100%; height: 100%; }
+
+/* Map states */
+.map-loading, .map-error {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; background: #f8fafc; z-index: 20;
+  font-size: 13px; font-weight: 600; color: #94a3b8;
+}
+.map-error { color: #ef4444; }
+.map-loading-spinner {
+  width: 32px; height: 32px;
+  border: 3px solid #e2e8f0; border-top-color: #2563eb;
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
 
 /* Pinning banner */
 .pin-mode-banner { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 10; background: #1e293b; color: #fff; font-size: 12.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 99px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); white-space: nowrap; font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -692,8 +789,8 @@ export default {
 .legend-title { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 7px; }
 .legend-item { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #475569; margin-bottom: 3px; }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
-.legend-dot.blue { background: #2563eb; }
-.legend-dot.gray { background: #94a3b8; }
+.legend-dot.blue   { background: #2563eb; }
+.legend-dot.gray   { background: #94a3b8; }
 .legend-dot.orange { background: #f97316; }
 
 /* MODAL */
@@ -712,16 +809,16 @@ export default {
 .form-input:focus { border-color: #93c5fd; background: #fff; }
 .coord-hint { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #94a3b8; background: #f8fafc; padding: 8px 12px; border-radius: 8px; }
 
-/* Animations */
+/* Transitions */
 .modal-enter-active, .modal-leave-active { transition: opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s, transform 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translate(-50%, -8px); }
 
-@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-@keyframes pulse { 0%, 100% { box-shadow: 0 4px 14px rgba(249,115,22,0.4); } 50% { box-shadow: 0 4px 24px rgba(249,115,22,0.7); } }
+@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.6; } }
+@keyframes pulse { 0%,100% { box-shadow:0 4px 14px rgba(249,115,22,0.4); } 50% { box-shadow:0 4px 24px rgba(249,115,22,0.7); } }
 
 /* Mapbox popup override */
-:global(.mapboxgl-popup-content) { font-family: 'Plus Jakarta Sans', sans-serif !important; border-radius: 12px !important; padding: 14px !important; box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important; }
-:global(.mapboxgl-popup-tip) { display: none; }
+:global(.mapboxgl-popup-content) { font-family:'Plus Jakarta Sans',sans-serif !important; border-radius:12px !important; padding:14px !important; box-shadow:0 8px 30px rgba(0,0,0,0.12) !important; }
+:global(.mapboxgl-popup-tip) { display:none; }
 </style>
