@@ -1,4 +1,4 @@
-<template>
+, <template>
   <div class="page">
     <!-- Toast -->
     <transition name="toast">
@@ -382,7 +382,7 @@ export default {
 
     initMap() {
       // ⚠️ REPLACE with your actual Mapbox public token
-      window.mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
+      window.mapboxgl.accessToken = process.env.VUE_APP_MAPBOX_TOKEN
 
       this.map = new window.mapboxgl.Map({
         container: this.$refs.mapRef,
@@ -517,6 +517,9 @@ export default {
         this.employers[idx] = { ...this.employers[idx], ...this.confirmForm }
         const emp = this.employers[idx]
         
+        emp.lat = emp.lat ? Number(emp.lat) : null;
+        emp.lng = emp.lng ? Number(emp.lng) : null;
+        
         try {
           // Send to backend
           await api.put(`/admin/employers/${emp.id}`, {
@@ -526,9 +529,13 @@ export default {
           
           // Remove temp marker first
           if (this.tempMarker) { this.tempMarker.remove(); this.tempMarker = null }
-          // Add permanent marker immediately
+          // Add permanent marker or remove it immediately
           this.$nextTick(() => {
-            this.addMarker(emp)
+            if (!emp.lat || !emp.lng) {
+              this.removeMarker(emp.id)
+            } else {
+              this.addMarker(emp)
+            }
           })
           this.showToastMsg('Pin saved successfully!', 'success')
         } catch (e) {
