@@ -8,7 +8,8 @@ plugins {
 android {
     namespace = "com.example.untitled1"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // Keep in sync with the locally installed NDK (see error CXX1104).
+    ndkVersion = "29.0.14206865"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11

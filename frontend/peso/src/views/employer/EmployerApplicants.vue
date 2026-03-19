@@ -1,5 +1,12 @@
 <template>
   <div class="layout-wrapper">
+    <!-- Toast -->
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <span class="toast-icon" v-html="toast.icon"></span>
+        <span class="toast-msg">{{ toast.text }}</span>
+      </div>
+    </transition>
     <EmployerSidebar />
     <div class="main-area">
       <EmployerTopbar title="Applicants" subtitle="Review and manage people who applied to your job listings" />
@@ -114,8 +121,9 @@
                       <button class="act-btn view" @click="openDrawer(a)" title="View">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                       </button>
-                      <button class="act-btn accept" @click.stop="updateStatus(a, 'Interview')" title="Interview">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                      <button class="act-btn accept" @click.stop="updateStatus(a, 'Interview')" :disabled="updatingStatusId === a.id" title="Interview">
+                        <span v-if="updatingStatusId === a.id" class="spinner-action"></span>
+                        <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                       </button>
                       <button class="act-btn reject" @click.stop="updateStatus(a, 'Rejected')" title="Reject">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -303,7 +311,10 @@
               </div>
               <div class="section-label mt16">Internal Notes</div>
               <textarea class="notes-area" placeholder="Add notes about this applicant…" rows="4" v-model="selected.notes"></textarea>
-              <button class="btn-blue-full mt12" @click="updateStatus(selected, selected.status)">Save Changes</button>
+              <button class="btn-blue-full mt12" @click="updateStatus(selected, selected.status, true)" :disabled="savingStatus">
+                <span v-if="savingStatus" class="spinner-action" style="margin-right:6px;"></span>
+                {{ savingStatus ? 'Saving…' : 'Save Changes' }}
+              </button>
             </div>
           </div>
         </div>
@@ -401,6 +412,11 @@ export default {
 
       // Profile modal (potential)
       profileModal: null,
+
+      // Spinners/Toasts
+      updatingStatusId: null,
+      savingStatus: false,
+      toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
     }
   },
 
@@ -466,18 +482,37 @@ export default {
 
     sendInvite(a) {
       this.applicantsStore.markInvited(a.id)
-      // Mirror to local selected if open
       const found = this.potentialApplicants.find((x) => x.id === a.id)
       if (found) found.invited = true
+      this.showToastMsg('Invitation sent successfully', 'success')
     },
 
-    async updateStatus(applicant, status) {
+    async updateStatus(applicant, status, isDrawer = false) {
+      if (isDrawer) this.savingStatus = true;
+      else this.updatingStatusId = applicant.id;
+      
       try {
         await this.applicantsStore.updateStatus(applicant.id, status)
         if (this.selected?.id === applicant.id) this.selected.status = status
+        this.showToastMsg(`Status updated to ${status}`, 'success')
+        
+        if (isDrawer) {
+          this.drawerOpen = false
+        }
       } catch (e) {
         console.error('Failed to update status:', e)
+        this.showToastMsg('Failed to update status', 'error')
+      } finally {
+        if (isDrawer) this.savingStatus = false;
+        else this.updatingStatusId = null;
       }
+    },
+    
+    showToastMsg(text, type = 'success') {
+      const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+      const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK : X, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
     },
   },
 
@@ -660,4 +695,27 @@ export default {
 .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); }
 .drawer-enter-from, .drawer-leave-to { opacity: 0; }
 .drawer-enter-from .drawer, .drawer-leave-to .drawer { transform: translateX(100%); }
+
+/* Toast & Loaders */
+.toast {
+  position: fixed; top: 20px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.toast-icon { display: flex; align-items: center; flex-shrink: 0; }
+.toast-msg { word-break: break-word; line-height: 1.4; }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
+
+.spinner-action {
+  width: 13px; height: 13px; flex-shrink: 0;
+  border: 2px solid currentColor; border-right-color: transparent;
+  border-radius: 50%; display: inline-block;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

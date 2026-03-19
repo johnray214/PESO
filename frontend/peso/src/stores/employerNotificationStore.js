@@ -15,19 +15,43 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
   },
 
   actions: {
-    /** Load from API only if not yet loaded (cache-first). */
     async fetch() {
       if (this.loaded || this.loading) return
+
+      const cachedNotifs = localStorage.getItem('employer_notifications')
+      const cachedCount  = localStorage.getItem('employer_unread_count')
+      const cachedTime   = localStorage.getItem('employer_notifications_time')
+
+      if (cachedNotifs) {
+        try { this.notifications = JSON.parse(cachedNotifs) } catch { this.notifications = [] }
+      }
+      if (cachedCount !== null) this.unreadCount = Number(cachedCount)
+
+      // ✅ if cache is less than 5 minutes old, skip API call
+      const age = cachedTime ? Date.now() - Number(cachedTime) : Infinity
+      if (age < 5 * 60 * 1000 && cachedNotifs) {
+        this.loaded = true
+        return
+      }
+
       await this._load()
     },
 
-    /** Force reload from API (e.g. on page focus or manual refresh). */
     async refresh() {
       await this._load()
     },
 
     async _load() {
       this.loading = true
+
+      // load from cache first so notifications show instantly on reload
+      const cachedNotifs = localStorage.getItem('employer_notifications')
+      const cachedCount  = localStorage.getItem('employer_unread_count')
+      if (cachedNotifs) {
+        try { this.notifications = JSON.parse(cachedNotifs) } catch { this.notifications = [] }
+      }
+      if (cachedCount !== null) this.unreadCount = Number(cachedCount)
+
       try {
         const [notifRes, countRes] = await Promise.all([
           employerApi.getNotifications(),
@@ -38,17 +62,20 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
           const raw = notifRes.data.data?.data || notifRes.data.data || []
           this.notifications = raw.map((n) => ({
             id:         n.id,
-            type:       n.type || 'system',
-            title:      n.title || 'Notification',
+            type:       n.type    || 'system',
+            title:      n.title   || 'Notification',
             message:    n.message || '',
             time:       this._formatTime(n.created_at),
             read:       !!n.read,
             created_at: n.created_at,
           }))
+          // save to cache
+          localStorage.setItem('employer_notifications_time', Date.now())
         }
 
         if (countRes.data.success) {
           this.unreadCount = countRes.data.data?.unread_count ?? 0
+          localStorage.setItem('employer_unread_count', this.unreadCount)
         }
 
         this.loaded = true
@@ -59,35 +86,36 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
       }
     },
 
-    /** Mark a single notification as read. */
     async markRead(notification) {
       if (notification.read) return
-      // Optimistic update
       const item = this.notifications.find((n) => n.id === notification.id)
       if (item) {
         item.read = true
         this.unreadCount = Math.max(0, this.unreadCount - 1)
+        localStorage.setItem('employer_notifications', JSON.stringify(this.notifications))
+        localStorage.setItem('employer_unread_count', this.unreadCount)
       }
       try {
         await employerApi.markNotificationRead(notification.id)
       } catch (e) {
-        // Rollback
         if (item) { item.read = false; this.unreadCount++ }
+        localStorage.setItem('employer_notifications', JSON.stringify(this.notifications))
+        localStorage.setItem('employer_unread_count', this.unreadCount)
         console.error('[NotificationStore] markRead error:', e)
       }
     },
 
-    /** Mark all notifications as read. */
     async markAllRead() {
-      // Optimistic update
       const prevUnread = this.unreadCount
       this.notifications.forEach((n) => (n.read = true))
       this.unreadCount = 0
+      localStorage.setItem('employer_notifications', JSON.stringify(this.notifications))
+      localStorage.setItem('employer_unread_count', 0)
       try {
         await employerApi.markAllAsRead()
       } catch (e) {
-        // Rollback
         this.unreadCount = prevUnread
+        localStorage.setItem('employer_unread_count', prevUnread)
         console.error('[NotificationStore] markAllRead error:', e)
       }
     },

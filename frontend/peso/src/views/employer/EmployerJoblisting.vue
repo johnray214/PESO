@@ -1,5 +1,12 @@
 <template>
   <div class="layout-wrapper">
+    <!-- Toast -->
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <span class="toast-icon" v-html="toast.icon"></span>
+        <span class="toast-msg">{{ toast.text }}</span>
+      </div>
+    </transition>
     <EmployerSidebar />
     <div class="main-area">
       <EmployerTopbar title="Job Listings" subtitle="Create and manage your open positions" />
@@ -83,7 +90,7 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 Edit
               </button>
-              <button class="card-btn close-btn" v-if="job.status === 'Open'">
+              <button class="card-btn close-btn" v-if="job.status === 'Open'" @click="closeJob(job)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 Close
               </button>
@@ -207,8 +214,11 @@
             </div>
           </div>
           <div class="modal-footer">
-            <button class="btn-ghost" @click="showModal = false">Cancel</button>
-            <button class="btn-amber" @click="saveJob">{{ editingJob ? 'Save Changes' : 'Post Job' }}</button>
+            <button class="btn-ghost" @click="showModal = false" :disabled="savingJob">Cancel</button>
+            <button class="btn-amber" @click="saveJob" :disabled="savingJob">
+              <span v-if="savingJob" class="spinner-sm" style="margin-right:6px;"></span>
+              {{ editingJob ? (savingJob ? 'Saving…' : 'Save Changes') : (savingJob ? 'Posting…' : 'Post Job') }}
+            </button>
           </div>
         </div>
       </div>
@@ -232,9 +242,10 @@ export default {
     return {
       search: '', filterStatus: '', filterType: '',
       drawerOpen: false, selected: null,
-      showModal: false, editingJob: null,
+      showModal: false, editingJob: null, savingJob: false,
       form: { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', skillsRaw:'', status:'Open' },
-      jobs: []
+      jobs: [],
+      toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
     }
   },
   computed: {
@@ -283,13 +294,13 @@ export default {
           return {
             id: j.id,
             title: j.title,
-            type: j.type,
+            type: j.type ? j.type.charAt(0).toUpperCase() + j.type.slice(1) : '',
             location: j.location,
             salary: j.salary_range || j.salary,
             slots: j.slots || 0,
             applicants: j.applications_count || 0,
             hired: 0, // Can be calculated later if needed
-            status: j.status,
+            status: j.status ? j.status.charAt(0).toUpperCase() + j.status.slice(1) : '',
             daysLeft: j.deadline ? Math.max(0, Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))) : 30,
             postedDate: j.posted_date ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) : '—',
             description: j.description,
@@ -314,6 +325,8 @@ export default {
       this.showModal = true
     },
     async saveJob() {
+      if (this.savingJob) return;
+      this.savingJob = true;
       const skillsArr = this.form.skillsRaw.split(',').map(s => s.trim()).filter(Boolean)
       const colors = [['#eff6ff','#2563eb'],['#faf5ff','#8b5cf6'],['#fdf4ff','#d946ef'],['#f0fdf4','#22c55e'],['#eff8ff','#2872A1']]
       try {
@@ -321,14 +334,39 @@ export default {
         if (this.editingJob) {
           const { data } = await api.put(`/employer/jobs/${this.editingJob.id}`, payload)
           const idx = this.jobs.findIndex(j => j.id === this.editingJob.id)
-          if (idx !== -1) this.jobs[idx] = { ...this.jobs[idx], ...data.data || data, skills: skillsArr }
+          if (idx !== -1) {
+            const updated = data.data || data;
+            this.jobs[idx] = { 
+              ...this.jobs[idx], 
+              ...updated, 
+              skills: skillsArr,
+              type: updated.type ? updated.type.charAt(0).toUpperCase() + updated.type.slice(1) : '',
+              status: updated.status ? updated.status.charAt(0).toUpperCase() + updated.status.slice(1) : ''
+            }
+          }
         } else {
           const { data } = await api.post('/employer/jobs', payload)
           const [bg, color] = colors[this.jobs.length % colors.length]
-          this.jobs.push({ ...data.data || data, skills: skillsArr, applicants: 0, hired: 0, bg, color })
+          const newJob = data.data || data;
+          this.jobs.push({ 
+            ...newJob, 
+            skills: skillsArr, 
+            applicants: 0, 
+            hired: 0, 
+            bg, 
+            color,
+            type: newJob.type ? newJob.type.charAt(0).toUpperCase() + newJob.type.slice(1) : '',
+            status: newJob.status ? newJob.status.charAt(0).toUpperCase() + newJob.status.slice(1) : ''
+          })
         }
         this.showModal = false
-      } catch (e) { console.error(e) }
+        this.showToastMsg(this.editingJob ? 'Job updated successfully' : 'Job posted successfully', 'success')
+      } catch (e) {
+        console.error(e)
+        this.showToastMsg('An error occurred. Please check details.', 'error')
+      } finally {
+        this.savingJob = false
+      }
     },
     async closeJob(job) {
       try {
@@ -336,14 +374,28 @@ export default {
         const idx = this.jobs.findIndex(j => j.id === job.id)
         if (idx !== -1) this.jobs[idx].status = 'Closed'
         if (this.selected?.id === job.id) this.selected.status = 'Closed'
-      } catch (e) { console.error(e) }
+        this.showToastMsg('Job closed successfully', 'success')
+      } catch (e) { 
+        console.error(e) 
+        this.showToastMsg('Failed to close job', 'error')
+      }
     },
     async deleteJob(job) {
       try {
         await api.delete(`/employer/jobs/${job.id}`)
         this.jobs = this.jobs.filter(j => j.id !== job.id)
         this.drawerOpen = false
-      } catch (e) { console.error(e) }
+        this.showToastMsg('Job deleted successfully', 'success')
+      } catch (e) { 
+        console.error(e) 
+        this.showToastMsg('Failed to delete job', 'error')
+      }
+    },
+    showToastMsg(text, type = 'success') {
+      const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+      const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK : X, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
     },
   }
 }
@@ -362,8 +414,16 @@ export default {
 .search-input::placeholder { color: #cbd5e1; }
 .filter-group { display: flex; align-items: center; gap: 8px; }
 .filter-select { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; outline: none; font-family: inherit; }
-.btn-amber { display: flex; align-items: center; gap: 6px; background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
-.btn-amber:hover { background: #1a5f8a; }
+.btn-amber { display: flex; align-items: center; justify-content: center; gap: 6px; background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+.btn-amber:hover:not(:disabled) { background: #1a5f8a; }
+.btn-amber:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.spinner-sm {
+  width: 14px; height: 14px; flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .jobs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .job-card { background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 10px; transition: box-shadow 0.15s; }
@@ -453,4 +513,19 @@ export default {
 .modal-enter-active .modal, .modal-leave-active .modal { transition: transform 0.2s, opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
+
+/* Toast & Loaders */
+.toast {
+  position: fixed; top: 20px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.toast-icon { display: flex; align-items: center; flex-shrink: 0; }
+.toast-msg { word-break: break-word; line-height: 1.4; }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
 </style>

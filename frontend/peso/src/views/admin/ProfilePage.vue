@@ -178,6 +178,7 @@
 
 <script>
 import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 
 const CHECK_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
 const X_SVG    = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
@@ -288,7 +289,14 @@ export default {
         const { data } = await api.post('/admin/profile/photo', form, {
           headers: { 'Content-Type': 'multipart/form-data' }
         })
-        this.user.photo   = data.data?.photo || this.photoPreview
+        const newPhotoUrl = data.data?.photo || this.photoPreview
+        this.user.photo   = newPhotoUrl
+
+        // Make globally reactive for Topbar / AppSidebar
+        const authStore = useAuthStore()
+        authStore.photo = newPhotoUrl
+        localStorage.setItem('peso-auth', JSON.stringify({ user: authStore.user, role: authStore.role, photo: newPhotoUrl }))
+
         this.photoPreview = null
         this.pendingFile  = null
         this.showToast('Profile Photo Updated', 'success')

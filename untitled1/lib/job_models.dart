@@ -46,38 +46,82 @@ class Job {
   });
 
   factory Job.fromJson(Map<String, dynamic> json) {
-    // Backend stores color as hex without '#', e.g. '3B82F6'
-    final colorHex = json['company_color'] as String? ?? '3B82F6';
-    final color = Color(int.parse('0xFF$colorHex'));
+    // Supports both old app JSON and current Laravel JobListing shape.
+    // Laravel returns `employer: { company_name }`, `skills: [{skill}]`,
+    // and `salary_range` rather than `salary_min/max`.
+    Color color;
+    final colorHex = json['company_color'] as String?;
+    if (colorHex != null && colorHex.isNotEmpty) {
+      try {
+        color = Color(int.parse('0xFF$colorHex'));
+      } catch (_) {
+        color = const Color(0xFF3B82F6);
+      }
+    } else {
+      color = const Color(0xFF3B82F6);
+    }
+
+    final employer = json['employer'];
+    final companyName = (json['company'] as String?) ??
+        (employer is Map<String, dynamic> ? employer['company_name'] as String? : null) ??
+        'Employer';
+
+    final companyInitial = (json['company_initial'] as String?) ??
+        (companyName.trim().isNotEmpty ? companyName.trim()[0].toUpperCase() : '?');
+
+    final salaryRange = (json['salary_range'] as String?)?.trim();
+    String salaryMin = (json['salary_min'] as String?) ?? '';
+    String salaryMax = (json['salary_max'] as String?) ?? '';
+    if ((salaryMin.isEmpty || salaryMax.isEmpty) && salaryRange != null && salaryRange.isNotEmpty) {
+      final parts = salaryRange.split(RegExp(r'\s*-\s*'));
+      if (parts.length >= 2) {
+        salaryMin = parts[0].trim();
+        salaryMax = parts[1].trim();
+      } else {
+        salaryMin = salaryRange;
+        salaryMax = salaryRange;
+      }
+    }
 
     final latValue = json['latitude'];
     final lonValue = json['longitude'];
     final double? latitude = latValue is num ? latValue.toDouble() : null;
     final double? longitude = lonValue is num ? lonValue.toDouble() : null;
 
+    final rawSkills = json['skills'];
+    final skills = (rawSkills is List ? rawSkills : const <dynamic>[])
+        .map((e) {
+          if (e is Map<String, dynamic>) return e['skill']?.toString() ?? '';
+          return e.toString();
+        })
+        .where((s) => s.trim().isNotEmpty)
+        .toList();
+
+    final postedRaw = (json['posted_date'] as String?) ?? (json['created_at'] as String?) ?? '';
+    final postedDate = DateTime.tryParse(postedRaw) ?? DateTime.now();
+
     return Job(
       id: json['id'].toString(),
-      title: json['title'] as String,
-      company: json['company'] as String,
-      companyInitial: json['company_initial'] as String? ?? '?',
+      title: (json['title'] as String?) ?? '',
+      company: companyName,
+      companyInitial: companyInitial,
       companyColor: color,
-      location: json['location'] as String,
+      location: (json['location'] as String?) ?? '',
       latitude: latitude,
       longitude: longitude,
-      description: json['description'] as String,
+      description: (json['description'] as String?) ?? '',
       requirements: (json['requirements'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
-      skills: (json['skills'] as List<dynamic>? ?? [])
-          .map((e) => e.toString())
-          .toList(),
-      experienceLevel: json['experience_level'] as String? ?? '',
-      salaryMin: json['salary_min'] as String? ?? '',
-      salaryMax: json['salary_max'] as String? ?? '',
-      employmentType: json['employment_type'] as String? ?? 'Full-time',
+      skills: skills,
+      experienceLevel: (json['experience_level'] as String?) ?? '',
+      salaryMin: salaryMin,
+      salaryMax: salaryMax,
+      employmentType: (json['employment_type'] as String?) ??
+          (json['type'] as String?) ??
+          'full-time',
       category: json['category'] as String?,
-      postedDate: DateTime.tryParse(json['created_at'] as String? ?? '') ??
-          DateTime.now(),
+      postedDate: postedDate,
       matchPercentage: (json['match_percentage'] as num?)?.toInt() ?? 0,
       isUrgent: (json['is_urgent'] as dynamic) == true ||
           json['is_urgent'] == 1,

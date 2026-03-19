@@ -13,61 +13,53 @@ class EmployerAuthController extends Controller
     public function register(Request $request)
     {
         $validated = $request->validate([
-            'company_name' => 'required|string|max:255',
+            'company_name'   => 'required|string|max:255',
             'contact_person' => 'required|string|max:255',
-            'email' => 'required|email|unique:employers|max:191',
-            'password' => 'required|string|min:8|confirmed',
-            'industry' => 'required|string|max:100',
-            'company_size' => 'required|string|max:30',
-            'city' => 'required|string|max:100',
-            'phone' => 'required|string|max:20',
-            'tin' => 'nullable|string|max:50',
-            'website' => 'nullable|string|max:255',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'address_full' => 'nullable|string|max:255',
-            'biz_permit' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
-            'bir_cert' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'email'          => 'required|email|unique:employers|max:191',
+            'password'       => 'required|string|min:8|confirmed',
+            'industry'       => 'required|string|max:100',
+            'company_size'   => 'required|string|max:30',
+            'province'       => 'required|string|max:100',
+            'city'           => 'required|string|max:100',
+            'barangay'       => 'required|string|max:100',
+            'address_full'   => 'nullable|string|max:255',
+            'phone'          => 'required|string|max:20',
+            'tin'            => 'nullable|string|max:50',
+            'website'        => 'nullable|string|max:255',
+            'biz_permit'     => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'bir_cert'       => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
-        $validated['status'] = 'pending';
+        $validated['status']   = 'pending';
 
-        // Handle file uploads
-        if ($request->hasFile('biz_permit')) {
-            $tempPath = $request->file('biz_permit')->store('temp', 'public');
-            $validated['biz_permit_path'] = $tempPath;
-        }
-
-        if ($request->hasFile('bir_cert')) {
-            $tempPath = $request->file('bir_cert')->store('temp', 'public');
-            $validated['bir_cert_path'] = $tempPath;
+        // Build full address from parts
+        $parts = array_filter([
+            $validated['barangay'] ?? null,
+            $validated['city']     ?? null,
+            $validated['province'] ?? null,
+        ]);
+        if (!isset($validated['address_full']) && count($parts)) {
+            $validated['address_full'] = implode(', ', $parts);
         }
 
         $employer = Employer::create($validated);
 
-        // Move files to proper directory
-        if ($request->hasFile('biz_permit')) {
-            $newPath = "employer-docs/{$employer->id}/biz_permit." . $request->file('biz_permit')->extension();
-            Storage::disk('public')->move($validated['biz_permit_path'], $newPath);
-            $employer->update(['biz_permit_path' => $newPath]);
+        // Handle file uploads
+        foreach (['biz_permit' => 'biz_permit_path', 'bir_cert' => 'bir_cert_path'] as $field => $column) {
+            if ($request->hasFile($field)) {
+                $path = $request->file($field)->store(
+                    "employer-docs/{$employer->id}",
+                    'public'
+                );
+                $employer->update([$column => $path]);
+            }
         }
-
-        if ($request->hasFile('bir_cert')) {
-            $newPath = "employer-docs/{$employer->id}/bir_cert." . $request->file('bir_cert')->extension();
-            Storage::disk('public')->move($validated['bir_cert_path'], $newPath);
-            $employer->update(['bir_cert_path' => $newPath]);
-        }
-
-        $token = $employer->createToken('employer-token')->plainTextToken;
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'employer' => $employer,
-                'token' => $token,
-            ],
-            'message' => 'Registration successful. Your account is pending for verification.',
+            'data'    => ['employer' => $employer],
+            'message' => 'Registration successful. Your account is pending verification.',
         ], 201);
     }
 
@@ -87,10 +79,17 @@ class EmployerAuthController extends Controller
             ], 401);
         }
 
-        if ($employer->status !== 'verified'){
+        if ($employer->status !== 'verified') {
+            $messages = [
+                'pending'   => 'Your account is Pending Verification. Please wait for PESO staff to approve your account.',
+                'rejected'  => 'Your account registration has been Rejected. Please contact PESO for more information.',
+                'suspended' => 'Your account has been Suspended. Please contact PESO for more information.',
+            ];
+
             return response()->json([
                 'success' => false,
-                'message' => 'Your account is not verified yet.',
+                'message' => $messages[$employer->status] ?? 'Your account is not verified yet.',
+                'status'  => $employer->status,
             ], 403);
         }
 

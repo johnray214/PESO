@@ -1350,15 +1350,17 @@ class _LoginModalState extends State<LoginModal>
   late AnimationController _animationController;
   late Animation<Offset> _slideAnimation;
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
-  final _ageController = TextEditingController();
+  final _dobController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSignUpMode = false;
-  String? _selectedGender;
+  String? _selectedSex; // 'male' | 'female'
+  DateTime? _selectedDob;
   bool _isSubmitting = false;
   String? _authError;
 
@@ -1378,11 +1380,12 @@ class _LoginModalState extends State<LoginModal>
   @override
   void dispose() {
     _animationController.dispose();
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
-    _ageController.dispose();
+    _dobController.dispose();
     super.dispose();
   }
 
@@ -1394,6 +1397,23 @@ class _LoginModalState extends State<LoginModal>
     });
   }
 
+  Future<void> _pickDob() async {
+    final now = DateTime.now();
+    final initial = _selectedDob ?? DateTime(now.year - 21, now.month, now.day);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1900, 1, 1),
+      lastDate: now,
+    );
+    if (picked == null) return;
+    setState(() {
+      _selectedDob = picked;
+      _dobController.text =
+          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    });
+  }
+
   Future<void> _handleRegistration() async {
     showDialog(
       context: context,
@@ -1402,12 +1422,13 @@ class _LoginModalState extends State<LoginModal>
     );
 
     final result = await ApiService.register(
-      name: _nameController.text,
+      firstName: _firstNameController.text,
+      lastName: _lastNameController.text,
       email: _emailController.text,
       password: _passwordController.text,
       passwordConfirmation: _confirmPasswordController.text,
-      age: int.tryParse(_ageController.text),
-      gender: _selectedGender,
+      sex: _selectedSex,
+      dateOfBirth: _dobController.text.isEmpty ? null : _dobController.text,
     );
 
     Navigator.pop(context);
@@ -1559,11 +1580,19 @@ class _LoginModalState extends State<LoginModal>
                     children: [
                       if (_isSignUpMode) ...[
                         TextFormField(
-                          controller: _nameController,
-                          decoration: _fieldDec('Full Name', Icons.person_outline_rounded),
+                          controller: _firstNameController,
+                          decoration: _fieldDec('First Name', Icons.person_outline_rounded),
                           validator: (v) {
-                            if (v == null || v.isEmpty) return 'Please enter your full name';
-                            if (v.length < 3) return 'Name must be at least 3 characters';
+                            if (v == null || v.trim().isEmpty) return 'Please enter your first name';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _lastNameController,
+                          decoration: _fieldDec('Last Name', Icons.person_outline_rounded),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) return 'Please enter your last name';
                             return null;
                           },
                         ),
@@ -1603,7 +1632,7 @@ class _LoginModalState extends State<LoginModal>
                         ),
                         validator: (v) {
                           if (v == null || v.isEmpty) return 'Please enter your password';
-                          if (v.length < 6) return 'Password must be at least 6 characters';
+                          if (v.length < 8) return 'Password must be at least 8 characters';
                           return null;
                         },
                       ),
@@ -1646,28 +1675,23 @@ class _LoginModalState extends State<LoginModal>
                           children: [
                             Expanded(
                               child: TextFormField(
-                                controller: _ageController,
-                                keyboardType: TextInputType.number,
-                                decoration: _fieldDec('Age', Icons.cake_outlined),
-                                validator: (v) {
-                                  if (v == null || v.isEmpty) return 'Enter age';
-                                  final age = int.tryParse(v);
-                                  if (age == null || age < 15 || age > 120) return 'Invalid';
-                                  return null;
-                                },
+                                controller: _dobController,
+                                readOnly: true,
+                                decoration: _fieldDec('Birthdate (YYYY-MM-DD)', Icons.cake_outlined),
+                                onTap: _pickDob,
                               ),
                             ),
                             const SizedBox(width: 12),
                             Expanded(
                               flex: 2,
                               child: DropdownButtonFormField<String>(
-                                value: _selectedGender,
-                                decoration: _fieldDec('Sex', Icons.person_outline),
-                                items: ['Male', 'Female', 'Other'].map((gender) {
-                                  return DropdownMenuItem(value: gender, child: Text(gender));
-                                }).toList(),
-                                onChanged: (value) => setState(() => _selectedGender = value),
-                                validator: (v) => v == null ? 'Select' : null,
+                                value: _selectedSex,
+                                decoration: _fieldDec('Sex (optional)', Icons.person_outline),
+                                items: const [
+                                  DropdownMenuItem(value: 'male', child: Text('Male')),
+                                  DropdownMenuItem(value: 'female', child: Text('Female')),
+                                ],
+                                onChanged: (value) => setState(() => _selectedSex = value),
                               ),
                             ),
                           ],

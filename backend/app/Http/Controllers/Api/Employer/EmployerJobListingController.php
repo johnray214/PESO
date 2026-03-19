@@ -184,4 +184,17 @@ class EmployerJobListingController extends Controller
             'message' => 'Job listing deleted successfully',
         ]);
     }
+
+    public function close(Request $request, $id)
+    {
+        $employer   = $request->user();
+        $jobListing = JobListing::where('employer_id', $employer->id)->findOrFail($id);
+        
+        $jobListing->update(['status' => 'closed']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Job listing closed successfully',
+        ]);
+    }
 }

@@ -54,8 +54,8 @@
                   </div>
                 </td>
                 <td>
-                  <p class="person-name">{{ e.firstName }} {{ e.lastName }}</p>
-                  <p class="person-meta">{{ e.number }}</p>
+                  <p class="person-name">{{ e.contactPerson }}</p>
+                  <p class="person-meta">{{ e.phone }}</p>
                 </td>
                 <td class="email-cell">{{ e.email }}</td>
                 <td class="meta-cell">{{ e.industry }}</td>
@@ -149,9 +149,9 @@
               <div class="detail-section">
                 <p class="detail-section-title">Contact Person</p>
                 <div class="detail-rows">
-                  <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val">{{ selectedEmployer.firstName }} {{ selectedEmployer.lastName }}</span></div>
+                  <div class="detail-row"><span class="detail-key">Name</span><span class="detail-val">{{ selectedEmployer.contactPerson }}</span></div>
                   <div class="detail-row"><span class="detail-key">Email</span><span class="detail-val">{{ selectedEmployer.email }}</span></div>
-                  <div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val">{{ selectedEmployer.number }}</span></div>
+                  <div class="detail-row"><span class="detail-key">Phone</span><span class="detail-val">{{ selectedEmployer.phone }}</span></div>
                   <div class="detail-row"><span class="detail-key">Registered</span><span class="detail-val">{{ selectedEmployer.registeredDate }}</span></div>
                 </div>
               </div>
@@ -166,7 +166,6 @@
                 <div class="doc-card" :class="selectedEmployer.hasBizPermit ? 'doc-card-ok' : 'doc-card-missing'">
                   <div class="doc-card-preview" @click="selectedEmployer.hasBizPermit && openDocViewer(selectedEmployer, 'bizPermit')">
                     <template v-if="selectedEmployer.hasBizPermit">
-                      <!-- Simulated document thumbnail -->
                       <div class="doc-thumb">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
                         <span class="doc-thumb-label">{{ selectedEmployer.bizPermitName || 'business_permit.pdf' }}</span>
@@ -290,23 +289,20 @@
               <span class="lightbox-company">— {{ activeDoc?.company }}</span>
             </div>
             <div class="lightbox-actions">
-              <a :href="activeDoc?.url" download class="lightbox-btn">
+              <button @click="downloadDoc(activeDoc)" class="lightbox-btn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                 Download
-              </a>
+              </button>
               <button class="lightbox-close" @click="showDocViewer = false">✕</button>
             </div>
           </div>
           <div class="lightbox-body">
-            <!-- If it's an image -->
             <template v-if="activeDoc?.type === 'image'">
               <img :src="activeDoc.url" class="doc-preview-img" alt="Document preview"/>
             </template>
-            <!-- If it's a PDF -->
             <template v-else-if="activeDoc?.type === 'pdf'">
               <iframe :src="activeDoc.url" class="doc-preview-iframe" frameborder="0"></iframe>
             </template>
-            <!-- Fallback / simulated preview -->
             <template v-else>
               <div class="doc-preview-fallback">
                 <div class="doc-preview-icon">
@@ -366,7 +362,7 @@ export default {
       return this.employers.filter(e => {
         const match = !q ||
           e.companyName.toLowerCase().includes(q) ||
-          `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
+          e.contactPerson.toLowerCase().includes(q) ||
           e.email.toLowerCase().includes(q) ||
           e.city.toLowerCase().includes(q)
         return match && (!this.filterStatus || e.verificationStatus === this.filterStatus)
@@ -374,6 +370,30 @@ export default {
     }
   },
   methods: {
+    async downloadDoc(doc) {
+      if (!doc?.url) return
+      try {
+        const path = doc.url.split('/storage/')[1]
+
+        const response = await api.get('/admin/download', {
+          params: { path },
+          responseType: 'blob',
+        })
+
+        const blobUrl = URL.createObjectURL(response.data)
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.download = doc.name || 'document'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(blobUrl)
+      } catch (e) {
+        console.error('Download failed:', e)
+        this.showToastMsg('Download failed. Please try again.', 'error')
+      }
+    },
+
     async fetchEmployers() {
       this.loading = true
       try {
@@ -382,34 +402,52 @@ export default {
         if (this.filterStatus) params.status = this.filterStatus.toLowerCase()
         const { data } = await api.get('/admin/employers', { params })
         const avatarColors = ['#2563eb', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6']
+
+        // EmployerResource::collection wraps paginated data under data.data (the paginator items)
+        // Shape: { success, data: { data: [...items], current_page, ... } }
         const list = data.data?.data || data.data || data || []
-        this.employers = (Array.isArray(list) ? list : []).map((e, i) => ({
-          id: e.id,
-          companyName:        e.company_name        || e.companyName        || 'Unknown',
-          industry:           e.industry            || '—',
-          companySize:        e.company_size        || e.companySize        || '—',
-          city:               e.city                || '—',
-          tin:                e.tin                 || '—',
-          website:            e.website             || '',
-          firstName:          e.first_name          || e.firstName          || '',
-          lastName:           e.last_name           || e.lastName           || '',
-          email:              e.email               || '',
-          number:             e.contact_number      || e.number             || '',
-          registeredDate:     e.created_at ? new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
-          verificationStatus: e.status ? (e.status.charAt(0).toUpperCase() + e.status.slice(1)) : 'Pending',
-          hasBizPermit:       !!(e.business_permit  || e.hasBizPermit),
-          hasBirCert:         !!(e.bir_certificate  || e.hasBirCert),
-          bizPermitUrl:       e.business_permit     || null,
-          birCertUrl:         e.bir_certificate     || null,
-          remarks:            e.remarks             || '',
-          avatarBg:           avatarColors[i % avatarColors.length],
-        }))
+
+        this.employers = (Array.isArray(list) ? list : []).map((e, i) => {
+          // EmployerResource exposes: contact_person, phone, biz_permit_url, bir_cert_url
+          // Fallback to raw path fields in case resource is not used
+          const bizPermitUrl = e.biz_permit_url
+            || (e.biz_permit_path ? `/storage/${e.biz_permit_path}` : null)
+          const birCertUrl = e.bir_cert_url
+            || (e.bir_cert_path ? `/storage/${e.bir_cert_path}` : null)
+
+          return {
+            id:                 e.id,
+            companyName:        e.company_name   || 'Unknown',
+            industry:           e.industry       || '—',
+            companySize:        e.company_size   || '—',
+            city:               e.city           || '—',
+            tin:                e.tin            || '—',
+            website:            e.website        || '',
+            contactPerson:      e.contact_person || '',
+            phone:              e.phone          || e.contact_number || '',
+            email:              e.email          || '',
+            registeredDate:     e.created_at
+              ? new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : '—',
+            verificationStatus: e.status
+              ? (e.status.charAt(0).toUpperCase() + e.status.slice(1))
+              : 'Pending',
+            hasBizPermit:  !!bizPermitUrl,
+            hasBirCert:    !!birCertUrl,
+            bizPermitUrl,
+            birCertUrl,
+            bizPermitName: bizPermitUrl ? bizPermitUrl.split('/').pop() : null,
+            birCertName:   birCertUrl   ? birCertUrl.split('/').pop()   : null,
+            remarks:       e.remarks    || '',
+            avatarBg:      avatarColors[i % avatarColors.length],
+          }
+        })
       } catch (e) { console.error(e) } finally { this.loading = false }
     },
     openDocViewer(employer, docType) {
       const isImage = (url) => url && /\.(jpg|jpeg|png|gif|webp)$/i.test(url)
       const isPdf   = (url) => url && /\.pdf$/i.test(url)
-      const url = docType === 'bizPermit' ? employer.bizPermitUrl : employer.birCertUrl
+      const url  = docType === 'bizPermit' ? employer.bizPermitUrl : employer.birCertUrl
       const name = docType === 'bizPermit'
         ? (employer.bizPermitName || 'business_permit.pdf')
         : (employer.birCertName  || 'bir_certificate.pdf')
@@ -419,6 +457,7 @@ export default {
         url: url || null,
         type: isImage(url) ? 'image' : isPdf(url) ? 'pdf' : 'fallback'
       }
+      console.log('Doc URL:', url)
       this.showDocViewer = true
     },
     viewEmployer(employer) {
@@ -443,8 +482,8 @@ export default {
         const idx = this.employers.findIndex(e => e.id === employer.id)
         if (idx !== -1) this.employers[idx].verificationStatus = status
         this.showToastMsg(`Employer ${mappedStatus} successfully`, 'success')
-      } catch (e) { 
-        console.error(e) 
+      } catch (e) {
+        console.error(e)
         this.showToastMsg('Failed to update status', 'error')
       } finally {
         this.actionLoading = false
@@ -466,8 +505,8 @@ export default {
           this.selectedEmployer = { ...this.employers[idx] }
         }
         this.showToastMsg(`Employer ${mappedStatus} successfully`, 'success')
-      } catch (e) { 
-        console.error(e) 
+      } catch (e) {
+        console.error(e)
         this.showToastMsg('Failed to verify employer', 'error')
       } finally {
         this.verifyRemarks = ''
@@ -485,7 +524,7 @@ export default {
 .layout-wrapper { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; }
 .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .page { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; } /* kept for layout structure inside Employers verification */
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; }
 .page-title { font-size: 20px; font-weight: 800; color: #1e293b; }
 .page-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 
@@ -573,79 +612,38 @@ export default {
 .doc-card-ok      { border-color: #bbf7d0; }
 .doc-card-missing { border-color: #fecaca; }
 .doc-card-neutral { border-color: #e2e8f0; }
-
-.doc-card-preview {
-  height: 120px; background: #f8fafc; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; position: relative; overflow: hidden; transition: background 0.15s;
-}
+.doc-card-preview { height: 120px; background: #f8fafc; display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; overflow: hidden; transition: background 0.15s; }
 .doc-card-ok .doc-card-preview     { background: #f0fdf4; }
 .doc-card-missing .doc-card-preview { background: #fef2f2; cursor: default; }
 .doc-card-neutral .doc-card-preview { cursor: default; }
-
 .doc-thumb { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .doc-thumb-label { font-size: 11px; color: #64748b; font-weight: 500; max-width: 140px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.doc-hover-overlay {
-  position: absolute; inset: 0;
-  background: rgba(37,99,235,0.85);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-  opacity: 0; transition: opacity 0.2s;
-  color: #fff; font-size: 12px; font-weight: 600;
-}
+.doc-hover-overlay { position: absolute; inset: 0; background: rgba(37,99,235,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; opacity: 0; transition: opacity 0.2s; color: #fff; font-size: 12px; font-weight: 600; }
 .doc-card-preview:hover .doc-hover-overlay { opacity: 1; }
-
 .doc-missing-thumb { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; color: #94a3b8; }
-
 .doc-card-info { padding: 10px 12px; border-top: 1px solid #f1f5f9; }
 .doc-card-name { font-size: 12.5px; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
 .optional-label { font-size: 10px; font-weight: 500; color: #94a3b8; margin-left: 4px; }
 .doc-card-footer { display: flex; align-items: center; justify-content: space-between; }
-.doc-view-btn {
-  display: flex; align-items: center; gap: 4px;
-  background: #eff6ff; border: none; border-radius: 6px;
-  padding: 4px 10px; font-size: 11.5px; font-weight: 600; color: #2563eb;
-  cursor: pointer; font-family: inherit; transition: background 0.15s;
-}
+.doc-view-btn { display: flex; align-items: center; gap: 4px; background: #eff6ff; border: none; border-radius: 6px; padding: 4px 10px; font-size: 11.5px; font-weight: 600; color: #2563eb; cursor: pointer; font-family: inherit; transition: background 0.15s; }
 .doc-view-btn:hover { background: #dbeafe; }
 
 /* lightbox */
-.lightbox-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
-  z-index: 200; display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(4px);
-}
-.lightbox {
-  background: #fff; border-radius: 16px; width: 860px; max-width: 95vw;
-  max-height: 92vh; display: flex; flex-direction: column;
-  box-shadow: 0 30px 80px rgba(0,0,0,0.4);
-}
-.lightbox-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 20px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0;
-}
+.lightbox-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 200; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.lightbox { background: #fff; border-radius: 16px; width: 860px; max-width: 95vw; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 30px 80px rgba(0,0,0,0.4); }
+.lightbox-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
 .lightbox-title-wrap { display: flex; align-items: center; gap: 8px; }
 .lightbox-title { font-size: 14px; font-weight: 700; color: #1e293b; }
 .lightbox-company { font-size: 12px; color: #94a3b8; }
 .lightbox-actions { display: flex; align-items: center; gap: 8px; }
-.lightbox-btn {
-  display: flex; align-items: center; gap: 6px;
-  background: #f1f5f9; border: none; border-radius: 8px;
-  padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: #475569;
-  cursor: pointer; font-family: inherit; text-decoration: none; transition: background 0.15s;
-}
+.lightbox-btn { display: flex; align-items: center; gap: 6px; background: #f1f5f9; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: #475569; cursor: pointer; font-family: inherit; text-decoration: none; transition: background 0.15s; }
 .lightbox-btn:hover { background: #e2e8f0; }
-.lightbox-close {
-  background: none; border: none; cursor: pointer; color: #94a3b8;
-  font-size: 18px; padding: 4px 8px; border-radius: 6px; line-height: 1;
-}
+.lightbox-close { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 18px; padding: 4px 8px; border-radius: 6px; line-height: 1; }
 .lightbox-close:hover { background: #f1f5f9; color: #1e293b; }
 .lightbox-body { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; min-height: 0; background: #f8fafc; border-radius: 0 0 16px 16px; }
 .doc-preview-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 0 0 16px 16px; }
 .doc-preview-iframe { width: 100%; height: 600px; border: none; }
-.doc-preview-fallback {
-  display: flex; flex-direction: column; align-items: center; gap: 14px;
-  padding: 40px; text-align: center; max-width: 480px;
-}
+.doc-preview-fallback { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 40px; text-align: center; max-width: 480px; }
 .doc-preview-icon { width: 80px; height: 80px; background: #eff6ff; border-radius: 20px; display: flex; align-items: center; justify-content: center; }
 .doc-preview-filename { font-size: 14px; font-weight: 700; color: #1e293b; }
 .doc-preview-hint { font-size: 12.5px; color: #94a3b8; line-height: 1.65; }
@@ -655,7 +653,6 @@ export default {
 .w40 { width: 40%; } .w50 { width: 50%; } .w60 { width: 60%; }
 .w70 { width: 70%; } .w80 { width: 80%; } .w85 { width: 85%; } .w90 { width: 90%; }
 
-/* lightbox transition */
 .lightbox-enter-active, .lightbox-leave-active { transition: opacity 0.2s; }
 .lightbox-enter-active .lightbox, .lightbox-leave-active .lightbox { transition: transform 0.25s, opacity 0.2s; }
 .lightbox-enter-from, .lightbox-leave-to { opacity: 0; }
@@ -665,13 +662,11 @@ export default {
 .doc-tag-missing { background: #fee2e2; color: #ef4444; }
 .doc-tag-optional { background: #f1f5f9; color: #94a3b8; }
 
-/* remarks */
 .remarks-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; background: #f8fafc; resize: vertical; transition: border 0.15s; }
 .remarks-input:focus { border-color: #93c5fd; background: #fff; }
 .remarks-display { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 14px; }
 .remarks-text { font-size: 13px; color: #92400e; line-height: 1.6; }
 
-/* footer action buttons */
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-ghost:hover:not(:disabled) { background: #e2e8f0; }
 .btn-ghost:disabled { opacity: 0.7; cursor: not-allowed; }
@@ -682,14 +677,7 @@ export default {
 .btn-reject:hover:not(:disabled) { background: #fee2e2; }
 .btn-reject:disabled { opacity: 0.7; cursor: not-allowed; }
 
-/* Toast */
-.toast {
-  position: fixed; top: 20px; right: 24px; z-index: 9999;
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 18px; border-radius: 12px;
-  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-  min-width: 240px; max-width: 380px;
-}
+.toast { position: fixed; top: 20px; right: 24px; z-index: 9999; display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12); min-width: 240px; max-width: 380px; }
 .toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 .toast-icon { display: flex; align-items: center; flex-shrink: 0; }
@@ -697,18 +685,10 @@ export default {
 .toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
 
-/* Spinners */
-.spinner-sm {
-  width: 15px; height: 15px; flex-shrink: 0;
-  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
-}
+.spinner-sm { width: 15px; height: 15px; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.btn-reject .spinner-sm {
-  border: 2px solid rgba(239, 68, 68, 0.4); border-top-color: #ef4444;
-}
+.btn-reject .spinner-sm { border: 2px solid rgba(239, 68, 68, 0.4); border-top-color: #ef4444; }
 
-/* transitions */
 .modal-enter-active, .modal-leave-active { transition: opacity 0.2s; }
 .modal-enter-active .modal, .modal-leave-active .modal { transition: transform 0.2s, opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
