@@ -831,9 +831,12 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                                     final result = await ApiService.updateProfile(
                                       token: token,
-                                      name: _nameController.text.trim(),
                                       email: _emailController.text.trim(),
-                                      phone: _phoneController.text.trim(),
+                                      // Backend expects `contact` and separates name into first/last.
+                                      // Keep existing Full Name field: best-effort split.
+                                      firstName: _nameController.text.trim().split(RegExp(r'\s+')).first,
+                                      lastName: _nameController.text.trim().split(RegExp(r'\s+')).skip(1).join(' '),
+                                      contact: _phoneController.text.trim(),
                                       address: _addressController.text.trim(),
                                     );
 
@@ -1045,39 +1048,49 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
             DateTime.tryParse(map['applied_at'] as String? ?? map['created_at'] as String? ?? '') ??
                 DateTime.now();
         final appliedDate = 'Applied ${createdAt.month}/${createdAt.day}/${createdAt.year}';
-        final status = (map['status'] as String? ?? 'Registration').trim();
-        // Backward compatibility: map old statuses to new
-        final normalizedStatus = switch (status) {
-          'Submitted' => 'Registration',
-          'Under Review' => 'Processing',
-          'Interview Scheduled' => 'Hired',
-          'Decision' => 'Processing',
-          _ => status,
+        final rawStatus = (map['status'] as String? ?? '').trim().toLowerCase();
+        // Map backend statuses → app display labels.
+        // Backend: reviewing, shortlisted, interview, hired, rejected
+        final normalizedStatus = switch (rawStatus) {
+          // REGISTRATION = reviewing
+          'reviewing' => 'Registration',
+
+          // PROCESSING = interview, shortlisted
+          'shortlisted' => 'Processing',
+          'interview' => 'Processing',
+
+          // PLACEMENT/HIRED = hired / rejected
+          'hired' => 'Placement/Hired',
+          'rejected' => 'Placement/Hired',
+
+          // Backward compatibility with legacy labels
+          'submitted' => 'Registration',
+          'under review' => 'Processing',
+          'interview scheduled' => 'Processing',
+          'decision' => 'Processing',
+          _ => rawStatus.isEmpty ? 'Registration' : rawStatus,
         };
 
         Color statusColor;
         IconData statusIcon;
         switch (normalizedStatus) {
           case 'Registration':
-            statusColor = const Color(0xFF3B82F6);
+            statusColor = const Color(0xFF3B82F6); // blue
             statusIcon = Icons.app_registration_rounded;
             break;
           case 'Processing':
-            statusColor = const Color(0xFFF97316);
+            statusColor = const Color(0xFFF97316); // orange
             statusIcon = Icons.hourglass_top_rounded;
             break;
-          case 'Accepted':
-            statusColor = const Color(0xFF22C55E);
-            statusIcon = Icons.check_circle_rounded;
-            break;
-          case 'Denied':
-            statusColor = const Color(0xFFEF4444);
-            statusIcon = Icons.cancel_rounded;
-            break;
+          case 'Placement/Hired':
           case 'Hired':
           case 'Placement':
-            statusColor = const Color(0xFF22C55E);
+            statusColor = const Color(0xFF10B981); // emerald green, matches buttons
             statusIcon = Icons.work_rounded;
+            break;
+          case 'Denied':
+            statusColor = const Color(0xFFEF4444); // red
+            statusIcon = Icons.cancel_rounded;
             break;
           default:
             statusColor = const Color(0xFF3B82F6);
@@ -1909,8 +1922,12 @@ class _ApplicationStatusBanner extends StatelessWidget {
     final statusToStep = {
       'Registration': 0,
       'Processing': 1,
+      // Final bucket in the UI (maps from backend hired/rejected)
+      'Placement/Hired': 2,
+
+      // Backward compatibility (older labels)
       'Accepted': 1,
-      'Denied': 1,
+      'Denied': 2,
       'Hired': 2,
       'Placement': 2,
     };
@@ -2090,6 +2107,7 @@ class _ApplicationStatusBanner extends StatelessWidget {
         return 'Your application was not accepted for this position. Keep applying to other opportunities.';
       case 'Hired':
       case 'Placement':
+      case 'Placement/Hired':
         return 'Congratulations! You have been hired/placed. Follow up with the employer for onboarding details.';
       default:
         return 'You will be notified via email once there are updates to your application.';

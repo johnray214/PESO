@@ -13,6 +13,7 @@ import 'event_models.dart';
 import 'user_session.dart';
 import 'api_service.dart';
 import 'job_action_service.dart';
+import 'package:http/http.dart' as http;
 
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
 
@@ -857,6 +858,7 @@ class _HomeTabState extends State<HomeTab> {
   String? _errorMessage;
   final _jobActionService = JobActionService();
   List<int>? _avatarBytes;
+  int _unreadNotificationCount = 0;
 
   static const List<String> _sortOptions = [
     'Latest',
@@ -886,6 +888,7 @@ class _HomeTabState extends State<HomeTab> {
     _fetchJobs();
     _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
+    _loadUnreadNotifications();
   }
 
   Future<void> _loadAvatar() async {
@@ -907,12 +910,31 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   void _openNotifications() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const NotificationsTab()),
-    );
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(builder: (_) => const NotificationsTab()),
+        )
+        .then((_) {
+      if (mounted) {
+        _loadUnreadNotifications();
+      }
+    });
   }
 
   String _getPhilippinesGreeting() => '${getPhilippinesGreeting()},';
+
+  Future<void> _loadUnreadNotifications() async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) {
+      if (!mounted) return;
+      setState(() => _unreadNotificationCount = 0);
+      return;
+    }
+    final count =
+        await ApiService.getJobseekerUnreadNotificationCount(token);
+    if (!mounted) return;
+    setState(() => _unreadNotificationCount = count);
+  }
 
   Future<void> _fetchJobs() async {
     setState(() {
@@ -1566,15 +1588,49 @@ class _HomeTabState extends State<HomeTab> {
                         ],
                       ),
                     ),
-                      IconButton(
-                        onPressed: _openNotifications,
-                        icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: Colors.white,
-                          size: 26,
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          onPressed: _openNotifications,
+                          icon: const Icon(
+                            Icons.notifications_none_rounded,
+                            color: Colors.white,
+                            size: 26,
+                          ),
                         ),
-                      ),
-                    ],
+                        if (_unreadNotificationCount > 0)
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              constraints: const BoxConstraints(
+                                minWidth: 16,
+                                minHeight: 16,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  _unreadNotificationCount > 9
+                                      ? '9+'
+                                      : '$_unreadNotificationCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ],
                   ),
                 ),
               ],
@@ -2318,6 +2374,7 @@ class _MapTabState extends State<MapTab> {
   }
 
   Future<void> _loadBusinessesFromApi() async {
+    if (!mounted) return;
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -2325,6 +2382,7 @@ class _MapTabState extends State<MapTab> {
 
     try {
       final response = await ApiService.getJobListings();
+      if (!mounted) return;
       if (response['success'] == true) {
         final raw = response['data'] as List<dynamic>? ?? [];
         final jobs = raw
@@ -2347,12 +2405,14 @@ class _MapTabState extends State<MapTab> {
             )
             .toList();
 
+        if (!mounted) return;
         setState(() {
           _allBusinesses = businesses;
           _filteredBusinesses = businesses;
           _isLoading = false;
         });
       } else {
+        if (!mounted) return;
         setState(() {
           _errorMessage =
               response['message'] as String? ?? 'Failed to load jobs.';
@@ -2360,6 +2420,7 @@ class _MapTabState extends State<MapTab> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Failed to load jobs.';
         _isLoading = false;
@@ -3380,8 +3441,132 @@ class _JobListItem extends StatelessWidget {
 }
 
 // ─── Notifications Tab ────────────────────────────────────────────────────────
-class NotificationsTab extends StatelessWidget {
+class NotificationsTab extends StatefulWidget {
   const NotificationsTab({super.key});
+
+  @override
+  State<NotificationsTab> createState() => _NotificationsTabState();
+}
+
+class _NotificationsTabState extends State<NotificationsTab> {
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<Map<String, dynamic>> _notifications = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _notifications = [];
+        _isLoading = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result =
+        await ApiService.getJobseekerNotifications(token: token, page: 1);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final data = result['data'];
+      final list = data is Map<String, dynamic> ? data['data'] : null;
+      _notifications =
+          (list as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+      _isLoading = false;
+      setState(() {});
+    } else {
+      setState(() {
+        _errorMessage =
+            result['message'] as String? ?? 'Failed to load notifications.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _markAllRead() async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return;
+    try {
+      await http.post(
+        Uri.parse('${ApiService.baseUrl}/jobseeker/notifications/mark-all-read'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      setState(() {
+        _notifications = _notifications
+            .map((n) => {...n, 'read_at': n['read_at'] ?? DateTime.now().toIso8601String()})
+            .toList();
+      });
+    } catch (_) {}
+  }
+
+  bool get _allRead =>
+      _notifications.isNotEmpty &&
+      _notifications.every((n) => n['read_at'] != null);
+
+  Future<void> _openNotification(int index) async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return;
+    final n = _notifications[index];
+    final id = n['id'];
+    if (id == null) return;
+
+    final result = await ApiService.getJobseekerNotification(
+      token: token,
+      id: id is int ? id : int.tryParse(id.toString()) ?? 0,
+    );
+    if (!mounted) return;
+    if (result['success'] == true) {
+      final data = result['data'] as Map<String, dynamic>? ?? {};
+      setState(() {
+        _notifications[index] = {
+          ..._notifications[index],
+          'read_at': data['read_at'] ?? DateTime.now().toIso8601String(),
+        };
+      });
+    }
+  }
+
+  Future<void> _deleteNotification(int index) async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) {
+      setState(() => _notifications.removeAt(index));
+      return;
+    }
+    final n = _notifications[index];
+    final id = n['id'];
+    setState(() => _notifications.removeAt(index));
+    if (id == null) return;
+    await ApiService.deleteJobseekerNotification(
+      token: token,
+      id: id is int ? id : int.tryParse(id.toString()) ?? 0,
+    );
+  }
+
+  Future<void> _deleteAllRead() async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return;
+    final ok = await ApiService.deleteAllJobseekerNotifications(token);
+    if (!mounted) return;
+    if (ok) {
+      setState(() {
+        _notifications.clear();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3395,7 +3580,7 @@ class NotificationsTab extends StatelessWidget {
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: () {},
+            onPressed: _notifications.isEmpty ? null : _markAllRead,
             child: const Text(
               'Mark all read',
               style: TextStyle(
@@ -3406,48 +3591,213 @@ class NotificationsTab extends StatelessWidget {
           ),
         ],
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.notifications_outlined,
-                size: 50,
-                color: Color(0xFF2563EB),
-              ),
+      body: _isLoading
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+            )
+          : _errorMessage != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.error_outline_rounded,
+                            size: 40, color: Color(0xFFEF4444)),
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: _loadNotifications,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : _notifications.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.notifications_outlined,
+                              size: 50,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          Text(
+                            'No notifications yet',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 40),
+                            child: Text(
+                              'You\'ll receive updates about jobs, applications, and more',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[500],
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      color: const Color(0xFF2563EB),
+                      onRefresh: _loadNotifications,
+                      child: ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        itemCount: _notifications.length,
+                        itemBuilder: (context, index) {
+                          final n = _notifications[index];
+                          final notif = n['notification'] as Map<String, dynamic>? ?? {};
+                          final subject = notif['subject'] as String? ?? 'Notification';
+                          final message = notif['message'] as String? ?? '';
+                          final createdAt = DateTime.tryParse(
+                                (notif['created_at'] as String? ?? ''),
+                              ) ??
+                              DateTime.now();
+                          final isRead = n['read_at'] != null;
+
+                          final id = n['id'] ?? index;
+
+                          return Dismissible(
+                            key: ValueKey('notif_$id'),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFEF4444),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              alignment: Alignment.centerRight,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              child: const Icon(
+                                Icons.delete_rounded,
+                                color: Colors.white,
+                              ),
+                            ),
+                            onDismissed: (_) => _deleteNotification(index),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isRead
+                                      ? const Color(0xFFE2E8F0)
+                                      : const Color(0xFF2563EB)
+                                          .withOpacity(0.5),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  ),
+                                ],
+                              ),
+                              child: ListTile(
+                                onTap: () => _openNotification(index),
+                                leading: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB)
+                                        .withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.notifications_rounded,
+                                    color: Color(0xFF2563EB),
+                                    size: 22,
+                                  ),
+                                ),
+                                title: Text(
+                                  subject,
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: isRead
+                                        ? FontWeight.w500
+                                        : FontWeight.w700,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      message,
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        color: Color(0xFF64748B),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      '${createdAt.month}/${createdAt.day}/${createdAt.year}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        color: Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                trailing: !isRead
+                                    ? Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: const BoxDecoration(
+                                          color: Color(0xFF2563EB),
+                                          shape: BoxShape.circle,
+                                        ),
+                                      )
+                                    : null,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+      floatingActionButton: _notifications.isEmpty
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _allRead ? _deleteAllRead : null,
+              backgroundColor: _allRead
+                  ? const Color(0xFFEF4444)
+                  : const Color(0xFFCBD5E1),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.delete_forever_rounded),
+              label: const Text('Delete all'),
             ),
-            const SizedBox(height: 24),
-            Text(
-              'No notifications yet',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                color: Colors.grey[800],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Text(
-                'You\'ll receive updates about jobs, applications, and more',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey[500],
-                  height: 1.5,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

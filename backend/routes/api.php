@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\Admin\AdminNotificationController;
 use App\Http\Controllers\Api\Admin\AdminReportController;
 use App\Http\Controllers\Api\Admin\AdminArchiveController;
 use App\Http\Controllers\Api\Admin\AdminActivityFeedController;
+use App\Http\Controllers\Api\Public\PublicEventController;
 
 // Employer Controllers
 use App\Http\Controllers\Api\Employer\EmployerDashboardController;
@@ -32,6 +33,7 @@ use App\Http\Controllers\Api\Jobseeker\JobseekerProfileController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerJobListingController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerApplicationController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerNotificationController;
+use App\Http\Controllers\Api\Jobseeker\JobseekerSavedJobController;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,9 +58,17 @@ Route::post('/jobseeker/verify-email/{id}/{hash}', [JobseekerAuthController::cla
 Route::get('/public/jobs', [JobseekerJobListingController::class, 'index']);
 Route::get('/public/jobs/{id}', [JobseekerJobListingController::class, 'show']);
 
+// Backwards-compatible aliases for mobile app expecting /api/jobs
+Route::get('/jobs', [JobseekerJobListingController::class, 'index']);
+Route::get('/jobs/{id}', [JobseekerJobListingController::class, 'show']);
+
 // Public Employers
 Route::get('/public/employers', [AdminEmployerController::class, 'index']);
 Route::get('/public/employers/{id}', [AdminEmployerController::class, 'show']);
+
+// Public Events (used by mobile app Jobs page)
+Route::get('/public/events', [PublicEventController::class, 'index']);
+Route::get('/public/events/{id}', [PublicEventController::class, 'show']);
 
 /*
 |--------------------------------------------------------------------------
@@ -187,16 +197,25 @@ Route::middleware(['auth:jobseeker', \App\Http\Middleware\EnsureJobseeker::class
     Route::get('/applications/{id}', [JobseekerApplicationController::class, 'show']);
     Route::post('/applications', [JobseekerApplicationController::class, 'store']);
     Route::delete('/applications/{id}', [JobseekerApplicationController::class, 'withdraw']);
+
+    // Saved Jobs
+    Route::get('/saved-jobs', [JobseekerSavedJobController::class, 'index']);
+    Route::post('/saved-jobs', [JobseekerSavedJobController::class, 'store']);
+    Route::delete('/saved-jobs/{job_listing_id}', [JobseekerSavedJobController::class, 'destroyByJobListing']);
     
     // Profile
     Route::get('/profile', [JobseekerProfileController::class, 'show']);
     Route::put('/profile', [JobseekerProfileController::class, 'update']);
     Route::post('/profile/password', [JobseekerProfileController::class, 'changePassword']);
     Route::post('/profile/resume', [JobseekerProfileController::class, 'uploadResume']);
+    Route::post('/profile/avatar', [JobseekerProfileController::class, 'uploadAvatar']);
+    Route::get('/profile/avatar', [JobseekerProfileController::class, 'avatar']);
     
     // Notifications (specific routes MUST come before {id} wildcard)
     Route::get('/notifications', [JobseekerNotificationController::class, 'index']);
     Route::get('/notifications/unread-count', [JobseekerNotificationController::class, 'unreadCount']);
     Route::post('/notifications/mark-all-read', [JobseekerNotificationController::class, 'markAllAsRead']);
     Route::get('/notifications/{id}', [JobseekerNotificationController::class, 'show']);
+    Route::delete('/notifications/{id}', [JobseekerNotificationController::class, 'destroy']);
+    Route::delete('/notifications', [JobseekerNotificationController::class, 'destroyAllRead']);
 });

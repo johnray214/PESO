@@ -5,24 +5,30 @@ class ApiService {
   static const String baseUrl = 'http://127.0.0.1:8000/api';
 
   static Future<Map<String, dynamic>> register({
-    required String name,
+    required String firstName,
+    required String lastName,
     required String email,
     required String password,
     required String passwordConfirmation,
-    int? age,
-    String? gender,
+    String? contact,
+    String? address,
+    String? sex, // 'male' | 'female'
+    String? dateOfBirth, // 'YYYY-MM-DD'
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/register'),
+        Uri.parse('$baseUrl/jobseeker/register'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'name': name,
+          'first_name': firstName,
+          'last_name': lastName,
           'email': email,
           'password': password,
           'password_confirmation': passwordConfirmation,
-          'age': age,
-          'gender': gender,
+          'contact': contact,
+          'address': address,
+          'sex': sex,
+          'date_of_birth': dateOfBirth,
         }),
       );
 
@@ -41,7 +47,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/login'),
+        Uri.parse('$baseUrl/jobseeker/login'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'email': email,
@@ -61,7 +67,7 @@ class ApiService {
   static Future<Map<String, dynamic>> logout(String token) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/logout'),
+        Uri.parse('$baseUrl/jobseeker/logout'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -80,7 +86,7 @@ class ApiService {
   static Future<Map<String, dynamic>> getUser(String token) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/user'),
+        Uri.parse('$baseUrl/jobseeker/profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -155,10 +161,26 @@ class ApiService {
   static Future<Map<String, dynamic>> getEvents() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/events'),
+        Uri.parse('$baseUrl/public/events'),
         headers: {'Content-Type': 'application/json'},
       );
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return {'success': false, 'message': 'Invalid response'};
+
+      final data = decoded['data'];
+      if (decoded['success'] == true && data is Map<String, dynamic> && data['data'] is List) {
+        return {
+          'success': true,
+          'data': data['data'],
+          'meta': {
+            'current_page': data['current_page'],
+            'last_page': data['last_page'],
+            'total': data['total'],
+          },
+        };
+      }
+
+      return decoded;
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
@@ -169,10 +191,28 @@ class ApiService {
   static Future<Map<String, dynamic>> getJobListings() async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/jobs'),
+        Uri.parse('$baseUrl/public/jobs'),
         headers: {'Content-Type': 'application/json'},
       );
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) return {'success': false, 'message': 'Invalid response'};
+
+      // Normalize Laravel pagination shape:
+      // { success: true, data: { data: [...] , ...pagination } }
+      final data = decoded['data'];
+      if (decoded['success'] == true && data is Map<String, dynamic> && data['data'] is List) {
+        return {
+          'success': true,
+          'data': data['data'],
+          'meta': {
+            'current_page': data['current_page'],
+            'last_page': data['last_page'],
+            'total': data['total'],
+          },
+        };
+      }
+
+      return decoded;
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
@@ -183,13 +223,24 @@ class ApiService {
   static Future<Map<String, dynamic>> getApplications(String token) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/applications'),
+        Uri.parse('$baseUrl/jobseeker/applications'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return {'success': false, 'message': 'Invalid response'};
+      }
+      final data = decoded['data'];
+      if (decoded['success'] == true && data is Map<String, dynamic> && data['data'] is List) {
+        return {
+          'success': true,
+          'data': data['data'],
+        };
+      }
+      return decoded;
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
@@ -201,7 +252,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/applications'),
+        Uri.parse('$baseUrl/jobseeker/applications'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -217,13 +268,24 @@ class ApiService {
   static Future<Map<String, dynamic>> getSavedJobs(String token) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/saved-jobs'),
+        Uri.parse('$baseUrl/jobseeker/saved-jobs'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
-      return jsonDecode(response.body);
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map<String, dynamic>) {
+        return {'success': false, 'message': 'Invalid response'};
+      }
+      final data = decoded['data'];
+      if (decoded['success'] == true && data is Map<String, dynamic> && data['data'] is List) {
+        return {
+          'success': true,
+          'data': data['data'],
+        };
+      }
+      return decoded;
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
@@ -235,7 +297,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/saved-jobs'),
+        Uri.parse('$baseUrl/jobseeker/saved-jobs'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -254,7 +316,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.delete(
-        Uri.parse('$baseUrl/saved-jobs/$jobListingId'),
+        Uri.parse('$baseUrl/jobseeker/saved-jobs/$jobListingId'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -272,7 +334,7 @@ class ApiService {
   static Future<List<int>?> getAvatarBytes(String token) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/user/avatar'),
+        Uri.parse('$baseUrl/jobseeker/profile/avatar'),
         headers: {'Authorization': 'Bearer $token'},
       );
       if (response.statusCode != 200) return null;
@@ -292,7 +354,7 @@ class ApiService {
     try {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/user/avatar'),
+        Uri.parse('$baseUrl/jobseeker/profile/avatar'),
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
@@ -323,7 +385,7 @@ class ApiService {
     try {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/user/avatar'),
+        Uri.parse('$baseUrl/jobseeker/profile/avatar'),
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
@@ -380,7 +442,7 @@ class ApiService {
     try {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/user/resume'),
+        Uri.parse('$baseUrl/jobseeker/profile/resume'),
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
@@ -397,35 +459,17 @@ class ApiService {
   /// Get a one-time URL to view the resume. Returns map with 'url' (if success) or 'error'.
   static Future<Map<String, dynamic>> getResumeViewUrl(String token) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/user/resume/view-url'),
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Accept': 'application/json',
-        },
-      );
-      final body = response.body.trim();
-      if (body.isEmpty) {
-        return {'error': 'Empty response (${response.statusCode})'};
+      final profile = await getUser(token);
+      if (profile['success'] != true || profile['data'] == null) {
+        return {'error': profile['message'] ?? 'Could not load profile'};
       }
-      if (response.statusCode != 200) {
-        String msg = 'Server error (${response.statusCode})';
-        if (body.startsWith('{')) {
-          try {
-            final data = jsonDecode(body) as Map<String, dynamic>?;
-            if (data != null && data['message'] != null) {
-              msg = data['message'] as String;
-            }
-          } catch (_) {}
-        }
-        return {'error': msg};
+      final data = profile['data'] as Map<String, dynamic>;
+      final path = data['resume_path'] as String?;
+      if (path == null || path.isEmpty) {
+        return {'error': 'No resume on file'};
       }
-      final data = jsonDecode(body) as Map<String, dynamic>?;
-      if (data == null || data['success'] != true) {
-        return {'error': data?['message'] as String? ?? 'Could not get view link'};
-      }
-      final url = data['url'] as String?;
-      if (url == null || url.isEmpty) return {'error': 'No URL in response'};
+      // Assume default Laravel public disk: /storage/{path}
+      final url = 'http://127.0.0.1:8000/storage/$path';
       return {'url': url};
     } catch (e) {
       return {'error': 'Connection error: $e'};
@@ -441,7 +485,7 @@ class ApiService {
     try {
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('$baseUrl/user/resume'),
+        Uri.parse('$baseUrl/jobseeker/profile/resume'),
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
@@ -457,24 +501,32 @@ class ApiService {
 
   static Future<Map<String, dynamic>> updateProfile({
     required String token,
-    String? name,
+    String? firstName,
+    String? lastName,
     String? email,
-    String? phone,
+    String? contact,
     String? address,
-    int? age,
-    String? gender,
+    String? sex,
+    String? dateOfBirth,
+    String? bio,
   }) async {
     try {
       final body = <String, dynamic>{};
-      if (name != null && name.isNotEmpty) body['name'] = name;
+      if (firstName != null && firstName.isNotEmpty) {
+        body['first_name'] = firstName;
+      }
+      if (lastName != null && lastName.isNotEmpty) {
+        body['last_name'] = lastName;
+      }
       if (email != null && email.isNotEmpty) body['email'] = email;
-      if (phone != null) body['phone'] = phone;
+      if (contact != null) body['contact'] = contact;
       if (address != null) body['address'] = address;
-      if (age != null) body['age'] = age;
-      if (gender != null) body['gender'] = gender;
+      if (sex != null) body['sex'] = sex;
+      if (dateOfBirth != null) body['date_of_birth'] = dateOfBirth;
+      if (bio != null) body['bio'] = bio;
 
       final response = await http.put(
-        Uri.parse('$baseUrl/user/profile'),
+        Uri.parse('$baseUrl/jobseeker/profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -495,7 +547,7 @@ class ApiService {
   }) async {
     try {
       final response = await http.put(
-        Uri.parse('$baseUrl/user/skills'),
+        Uri.parse('$baseUrl/jobseeker/profile'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -564,6 +616,100 @@ class ApiService {
         'cities': [],
         'barangays': [],
       };
+    }
+  }
+
+  // ─── Jobseeker Notifications ─────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getJobseekerNotifications({
+    required String token,
+    int page = 1,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/jobseeker/notifications?page=$page'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<int> getJobseekerUnreadNotificationCount(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/jobseeker/notifications/unread-count'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      if (data['success'] == true &&
+          data['data'] is Map<String, dynamic> &&
+          (data['data'] as Map<String, dynamic>)['unread_count'] is int) {
+        return (data['data'] as Map<String, dynamic>)['unread_count'] as int;
+      }
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  static Future<Map<String, dynamic>> getJobseekerNotification({
+    required String token,
+    required int id,
+  }) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/jobseeker/notifications/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<bool> deleteJobseekerNotification({
+    required String token,
+    required int id,
+  }) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/jobseeker/notifications/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['success'] == true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> deleteAllJobseekerNotifications(String token) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/jobseeker/notifications'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      return data['success'] == true;
+    } catch (_) {
+      return false;
     }
   }
 }

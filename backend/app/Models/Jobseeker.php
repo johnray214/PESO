@@ -25,6 +25,7 @@ class Jobseeker extends Authenticatable
         'date_of_birth',
         'bio',
         'resume_path',
+        'avatar_path',
         'latitude',
         'longitude',
         'status',

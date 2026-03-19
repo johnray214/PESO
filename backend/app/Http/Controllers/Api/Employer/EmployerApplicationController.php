@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\Employer;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
+use App\Models\Notification;
+use App\Models\NotificationRead;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -69,8 +71,58 @@ class EmployerApplicationController extends Controller
         $application = Application::whereHas('jobListing', function ($q) use ($employer) {
             $q->where('employer_id', $employer->id);
         })->findOrFail($id);
-        
+
+        $oldStatus = $application->status;
         $application->update($validated);
+
+        $newStatus = $application->status;
+
+        // Only notify when status actually changes
+        if ($newStatus !== $oldStatus) {
+            $jobseeker = $application->jobseeker;
+            $job       = $application->jobListing;
+            $company   = $job->employer->company_name ?? 'Employer';
+
+            switch ($newStatus) {
+                case 'reviewing':
+                    $subject = 'Application received';
+                    $message = "Your application for {$job->title} at {$company} has been received and is under review.";
+                    break;
+                case 'shortlisted':
+                case 'interview':
+                    $subject = 'Application in process';
+                    $message = "Your application for {$job->title} at {$company} is now being processed.";
+                    break;
+                case 'hired':
+                    $subject = 'Application successful';
+                    $message = "Congratulations! You have been hired for {$job->title} at {$company}.";
+                    break;
+                case 'rejected':
+                    $subject = 'Application update';
+                    $message = "Your application for {$job->title} at {$company} was not selected. Please consider applying to other opportunities.";
+                    break;
+                default:
+                    $subject = 'Application update';
+                    $message = "There is an update to your application for {$job->title} at {$company}.";
+            }
+
+            $notification = Notification::create([
+                'subject'      => $subject,
+                'message'      => $message,
+                'recipients'   => 'jobseekers',
+                'scheduled_at' => null,
+                'sent_at'      => now(),
+                'status'       => 'sent',
+                'created_by'   => $employer->id,
+            ]);
+
+            NotificationRead::create([
+                'notification_id' => $notification->id,
+                'recipient_type'  => 'jobseeker',
+                'recipient_id'    => $jobseeker->id,
+                'read_at'         => null,
+            ]);
+        }
 
         return response()->json([
             'success' => true,

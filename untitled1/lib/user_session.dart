@@ -37,9 +37,13 @@ class UserSession {
   }
 
   /// Populate session from the API login/register `data` block.
-  /// Expects: { "user": {...}, "token": "..." }
+  /// Accepts either:
+  /// - { "user": {...}, "token": "..." }
+  /// - { "jobseeker": {...}, "token": "..." }
   void setFromApiData(Map<String, dynamic> data) {
-    final user = data['user'] as Map<String, dynamic>? ?? {};
+    final user = (data['user'] as Map<String, dynamic>?) ??
+        (data['jobseeker'] as Map<String, dynamic>?) ??
+        {};
     token = data['token'] as String? ?? '';
     _applyUserFields(user);
   }
@@ -49,11 +53,22 @@ class UserSession {
 
   void _applyUserFields(Map<String, dynamic> user) {
     userId = user['id'] as int?;
-    name = user['name'] as String?;
+    final directName = user['name'] as String?;
+    if (directName != null && directName.trim().isNotEmpty) {
+      name = directName;
+    } else {
+      final first = (user['first_name'] as String?)?.trim();
+      final last = (user['last_name'] as String?)?.trim();
+      final combined = [first, last]
+          .where((p) => p != null && p.isNotEmpty)
+          .cast<String>()
+          .join(' ');
+      name = combined.isNotEmpty ? combined : null;
+    }
     email = user['email'] as String?;
-    gender = user['gender'] as String?;
+    gender = (user['gender'] as String?) ?? (user['sex'] as String?);
     age = user['age'] as int?;
-    phone = user['phone'] as String?;
+    phone = (user['phone'] as String?) ?? (user['contact'] as String?);
     address = user['address'] as String?;
     avatarPath = user['avatar_path'] as String?;
     final rawSkills = user['skills'];

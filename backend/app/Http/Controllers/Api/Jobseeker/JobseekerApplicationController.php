@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api\Jobseeker;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\JobListing;
+use App\Models\Notification;
+use App\Models\NotificationRead;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -82,6 +84,24 @@ class JobseekerApplicationController extends Controller
             'status' => 'reviewing',
             'match_score' => $matchScore,
             'applied_at' => now(),
+        ]);
+
+        // Create notification for jobseekers: Registration (first time applying)
+        $notification = Notification::create([
+            'subject'    => 'Application submitted',
+            'message'    => "Your application for {$jobListing->title} at {$jobListing->employer->company_name} has been received and is under review.",
+            'recipients' => 'jobseekers',
+            'scheduled_at' => null,
+            'sent_at'    => now(),
+            'status'     => 'sent',
+            'created_by' => null,
+        ]);
+
+        NotificationRead::create([
+            'notification_id' => $notification->id,
+            'recipient_type'  => 'jobseeker',
+            'recipient_id'    => $jobseeker->id,
+            'read_at'         => null,
         ]);
 
         return response()->json([

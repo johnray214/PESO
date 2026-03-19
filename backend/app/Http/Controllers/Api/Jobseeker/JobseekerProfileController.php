@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Jobseeker;
 use App\Http\Controllers\Controller;
 use App\Models\JobseekerSkill;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 
 class JobseekerProfileController extends Controller
@@ -109,9 +110,49 @@ class JobseekerProfileController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'resume_url' => \Illuminate\Support\Facades\Storage::disk('public')->url($path),
+                'resume_path' => $path,
             ],
             'message' => 'Resume uploaded successfully',
         ]);
+    }
+
+    public function uploadAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => 'required|image|max:3072', // 3MB
+        ]);
+
+        $jobseeker = $request->user();
+
+        $path = $request->file('avatar')->store(
+            "avatars/jobseekers/{$jobseeker->id}",
+            'public'
+        );
+
+        $jobseeker->update(['avatar_path' => $path]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'avatar_path' => $path,
+            ],
+            'message' => 'Avatar uploaded successfully',
+        ]);
+    }
+
+    public function avatar(Request $request)
+    {
+        $jobseeker = $request->user();
+        $path = $jobseeker->avatar_path;
+
+        if (!$path) {
+            return response()->noContent();
+        }
+
+        if (!Storage::disk('public')->exists($path)) {
+            return response()->noContent();
+        }
+
+        return response()->file(Storage::disk('public')->path($path));
     }
 }
