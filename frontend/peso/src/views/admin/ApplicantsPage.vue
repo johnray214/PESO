@@ -122,17 +122,15 @@
         <span class="page-info">Showing {{ applicants.length }} of {{ totalApplicants }} applicants</span>
         <div class="page-btns">
           <button class="page-btn" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">‹</button>
-          
-          <button 
-            v-for="p in paginationPages" 
+          <button
+            v-for="p in paginationPages"
             :key="p"
-            class="page-btn" 
+            class="page-btn"
             :class="{ active: currentPage === p }"
             @click="changePage(p)"
           >
             {{ p }}
           </button>
-
           <button class="page-btn" :disabled="currentPage === lastPage" @click="changePage(currentPage + 1)">›</button>
         </div>
       </div>
@@ -230,12 +228,12 @@ export default {
         { label: 'Barangay Clearance', key: 'clearance' },
       ],
       statusTabs: [
-        { label: 'All', value: 'all', count: 0 },
-        { label: 'Reviewing', value: 'reviewing', count: 0 },
+        { label: 'All',         value: 'all',         count: 0 },
+        { label: 'Reviewing',   value: 'reviewing',   count: 0 },
         { label: 'Shortlisted', value: 'shortlisted', count: 0 },
-        { label: 'Interview', value: 'interview', count: 0 },
-        { label: 'Hired', value: 'hired', count: 0 },
-        { label: 'Rejected', value: 'rejected', count: 0 },
+        { label: 'Interview',   value: 'interview',   count: 0 },
+        { label: 'Hired',       value: 'hired',       count: 0 },
+        { label: 'Rejected',    value: 'rejected',    count: 0 },
       ],
       skillOptions: ['Accounting', 'IT / Dev', 'Nursing', 'Electrical', 'Teaching', 'BPO', 'Welding', 'Driving'],
       applicants: [],
@@ -254,66 +252,65 @@ export default {
     },
     filteredApplicants() {
       return this.applicants.filter(a => {
-        const matchTab = this.activeTab === 'all' || a.status === this.activeTab
-        const matchSearch = !this.search || a.name.toLowerCase().includes(this.search.toLowerCase()) || a.skills.some(s => s.toLowerCase().includes(this.search.toLowerCase())) || a.location.toLowerCase().includes(this.search.toLowerCase())
+        const matchTab    = this.activeTab === 'all' || a.status === this.activeTab
+        const matchSearch = !this.search ||
+          a.name.toLowerCase().includes(this.search.toLowerCase()) ||
+          a.skills.some(s => s.toLowerCase().includes(this.search.toLowerCase())) ||
+          a.location.toLowerCase().includes(this.search.toLowerCase())
         const matchStatus = !this.filterStatus || a.status === this.filterStatus
-        const matchSkill = !this.filterSkill || a.skills.includes(this.filterSkill)
+        const matchSkill  = !this.filterSkill  || a.skills.includes(this.filterSkill)
         return matchTab && matchSearch && matchStatus && matchSkill
       })
     },
-    stripStats() {
-      return [
-        { label: 'Total Applicants', value: this.applicants.length, color: '#1e293b' },
-        { label: 'Hired', value: this.applicants.filter(a => a.status === 'Hired').length, color: '#2563eb' },
-        { label: 'Placed', value: this.applicants.filter(a => a.status === 'Placed').length, color: '#22c55e' },
-        { label: 'Processing', value: this.applicants.filter(a => a.status === 'Processing').length, color: '#f97316' },
-        { label: 'Rejected', value: this.applicants.filter(a => a.status === 'Rejected').length, color: '#ef4444' },
-      ]
-    }
   },
   methods: {
     async fetchApplicants() {
       this.loading = true
       try {
         const params = { page: this.currentPage }
-        if (this.search)       params.search = this.search
-        if (this.filterStatus) params.status = this.filterStatus
-        if (this.filterSkill)  params.skill  = this.filterSkill
+        if (this.search)       params.search    = this.search
+        if (this.filterStatus) params.status    = this.filterStatus
+        if (this.filterSkill)  params.skill     = this.filterSkill
         if (this.filterDate)   params.date_from = this.filterDate
         if (this.activeTab !== 'all') params.status = this.activeTab
 
         const { data } = await api.get('/admin/applications', { params })
         const colors = ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b82f6','#14b8a6']
-        
+
         const payload = data.data || {}
-        this.currentPage = payload.current_page || 1
-        this.lastPage = payload.last_page || 1
-        this.totalApplicants = payload.total || 0
+        this.currentPage   = payload.current_page || 1
+        this.lastPage      = payload.last_page    || 1
+        this.totalApplicants = payload.total      || 0
 
         this.applicants = (payload.data || []).map((a, i) => {
-          const js = a.jobseeker || {}
+          const js = a.jobseeker   || {}
           const jl = a.job_listing || {}
           return {
-            id: a.id,
-            name: `${js.first_name || ''} ${js.last_name || ''}`.trim() || 'Unknown',
-            location: js.address || 'N/A',
-            contact: js.contact || 'N/A',
-            email: js.email || 'N/A',
-            education: js.education_level || 'N/A',
+            id:         a.id,
+            name:       `${js.first_name || ''} ${js.last_name || ''}`.trim() || 'Unknown',
+            location:   js.address         || 'N/A',
+            contact:    js.contact         || 'N/A',
+            email:      js.email           || 'N/A',
+            education:  js.education_level || 'N/A',
             experience: js.experience_years ? `${js.experience_years} years` : 'N/A',
-            skills: js.skills?.map(s => s.skill) || [],
-            jobApplied: jl.title || 'Unknown',
-            employer: jl.employer?.company_name || 'Unknown',
-            date: new Date(a.created_at || a.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            status: a.status || 'reviewing',
-            avatarBg: colors[i % colors.length],
-            notes: a.notes || '',
-            files: { resume: !!js.resume_path, cert: false, clearance: false }
+            skills:     js.skills?.map(s => s.skill) || [],
+            jobApplied: jl.title                        || 'Unknown',
+            employer:   jl.employer?.company_name       || 'Unknown',
+            date:       new Date(a.created_at || a.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            status:     a.status || 'reviewing',
+            avatarBg:   colors[i % colors.length],
+            notes:      a.notes || '',
+            files:      { resume: !!js.resume_path, cert: false, clearance: false },
           }
         })
         this.updateTabCounts()
-      } catch (e) { console.error(e) } finally { this.loading = false }
+      } catch (e) {
+        console.error(e)
+      } finally {
+        this.loading = false
+      }
     },
+
     updateTabCounts() {
       this.statusTabs[0].count = this.applicants.length
       this.statusTabs[1].count = this.applicants.filter(a => a.status === 'reviewing').length
@@ -322,25 +319,30 @@ export default {
       this.statusTabs[4].count = this.applicants.filter(a => a.status === 'hired').length
       this.statusTabs[5].count = this.applicants.filter(a => a.status === 'rejected').length
     },
+
     changePage(page) {
       if (page >= 1 && page <= this.lastPage) {
         this.currentPage = page
         this.fetchApplicants()
       }
     },
+
     initials(name) {
       return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     },
+
+    /* ── FIX: every status maps directly to its own CSS class name ── */
     statusClass(status) {
       if (!status) return ''
-      const stat = status.toLowerCase()
-      return { 'hired': 'hired', 'shortlisted': 'placed', 'interview': 'placed', 'reviewing': 'processing', 'rejected': 'rejected' }[stat] || stat
+      return status.toLowerCase()   // 'reviewing' | 'shortlisted' | 'interview' | 'hired' | 'rejected'
     },
+
     openDrawer(applicant) {
-      this.selected = { ...applicant }
+      this.selected  = { ...applicant }
       this.drawerTab = 'Profile'
       this.drawerOpen = true
     },
+
     async updateStatus(applicant, status) {
       try {
         await api.patch(`/admin/applications/${applicant.id}/status`, {
@@ -350,15 +352,16 @@ export default {
         const idx = this.applicants.findIndex(a => a.id === applicant.id)
         if (idx !== -1) {
           this.applicants[idx].status = status
-          this.applicants[idx].notes = applicant.notes
+          this.applicants[idx].notes  = applicant.notes
         }
         if (this.selected?.id === applicant.id) {
           this.selected.status = status
-          this.selected.notes = applicant.notes
+          this.selected.notes  = applicant.notes
         }
         this.updateTabCounts()
       } catch (e) { console.error(e) }
     },
+
     async archiveApplicant(a) {
       try {
         await api.delete(`/admin/applications/${a.id}`)
@@ -367,6 +370,7 @@ export default {
         this.updateTabCounts()
       } catch (e) { console.error(e) }
     },
+
     async uploadFile(applicantId, type, file) {
       const fd = new FormData()
       fd.append('file', file)
@@ -377,7 +381,7 @@ export default {
         await this.fetchApplicants()
       } catch (e) { console.error(e) }
     },
-  }
+  },
 }
 </script>
 
@@ -422,14 +426,14 @@ export default {
   align-items: flex-start;
   border: 1px solid #e2e8f0;
   border-left: 4px solid var(--accent, #94a3b8);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .strip-stat:hover {
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
   border-color: #cbd5e1;
 }
-.strip-val { font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
+.strip-val   { font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
 .strip-label { font-size: 11.5px; color: #64748b; margin-top: 6px; font-weight: 500; }
 
 /* FILTERS */
@@ -444,15 +448,12 @@ export default {
 }
 .search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
 .search-input::placeholder { color: #cbd5e1; }
-
 .filter-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
 .filter-select {
   background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
   padding: 8px 12px; font-size: 12.5px; color: #475569;
   cursor: pointer; outline: none; font-family: inherit;
 }
-
 .btn-icon {
   display: flex; align-items: center; gap: 6px;
   background: #fff; border: 1px solid #e2e8f0;
@@ -473,14 +474,16 @@ export default {
 .tab-btn:hover { background: #f1f5f9; }
 .tab-btn.active { background: #eff6ff; color: #2563eb; font-weight: 700; }
 
+/* Tab count pills — match the badge colors */
 .tab-count {
   font-size: 10px; font-weight: 700; padding: 2px 7px;
   border-radius: 99px; background: #f1f5f9; color: #64748b;
 }
-.tab-count.Hired { background: #dbeafe; color: #2563eb; }
-.tab-count.Placed { background: #dcfce7; color: #22c55e; }
-.tab-count.Processing { background: #fff7ed; color: #f97316; }
-.tab-count.Rejected { background: #fef2f2; color: #ef4444; }
+.tab-count.reviewing   { background: #dbeafe; color: #1d4ed8; }
+.tab-count.shortlisted { background: #eff8ff; color: #1a5f8a; }
+.tab-count.interview   { background: #ede9fe; color: #8B5CF6; }
+.tab-count.hired       { background: #dcfce7; color: #16a34a; }
+.tab-count.rejected    { background: #fef2f2; color: #ef4444; }
 
 /* TABLE */
 .table-card { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; }
@@ -508,23 +511,28 @@ export default {
 .person-meta { font-size: 11px; color: #94a3b8; margin-top: 1px; }
 
 .skill-tags { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
-.skill-tag { background: #eff6ff; color: #2563eb; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.skill-tag  { background: #eff6ff; color: #2563eb; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
 .skill-more { font-size: 11px; color: #94a3b8; }
 
-.job-cell { color: #475569; font-size: 12.5px; }
+.job-cell      { color: #475569; font-size: 12.5px; }
 .employer-cell { color: #64748b; font-size: 12px; }
-.date-cell { color: #94a3b8; font-size: 12px; white-space: nowrap; }
+.date-cell     { color: #94a3b8; font-size: 12px; white-space: nowrap; }
 
+/* ── STATUS BADGES ── */
 .status-badge {
-  padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap;
+  padding: 4px 10px; border-radius: 99px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
   text-transform: capitalize;
 }
 .status-badge.lg { padding: 5px 14px; font-size: 12px; }
-.hired { background: #dbeafe; color: #2563eb; }
-.placed { background: #dcfce7; color: #22c55e; }
-.processing { background: #fff7ed; color: #f97316; }
-.rejected { background: #fef2f2; color: #ef4444; }
 
+.reviewing   { background: #dbeafe; color: #1d4ed8; }
+.shortlisted { background: #eff8ff; color: #1a5f8a; }
+.interview   { background: #ede9fe; color: #8B5CF6; }
+.hired       { background: #dcfce7; color: #16a34a; }
+.rejected    { background: #fef2f2; color: #ef4444; }
+
+/* FILE ICONS */
 .file-icons { display: flex; gap: 4px; }
 .file-btn {
   width: 26px; height: 26px; border-radius: 6px;
@@ -532,17 +540,18 @@ export default {
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; color: #cbd5e1; transition: all 0.15s;
 }
-.file-btn.has { background: #eff6ff; border-color: #bfdbfe; color: #2563eb; }
+.file-btn.has   { background: #eff6ff; border-color: #bfdbfe; color: #2563eb; }
 .file-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
 
+/* ACTION BUTTONS */
 .action-btns { display: flex; gap: 4px; }
 .act-btn {
   width: 28px; height: 28px; border-radius: 7px; border: none;
   display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;
 }
-.act-btn.edit { background: #eff6ff; color: #2563eb; }
-.act-btn.edit:hover { background: #dbeafe; }
-.act-btn.delete { background: #fef2f2; color: #ef4444; }
+.act-btn.edit        { background: #eff6ff; color: #2563eb; }
+.act-btn.edit:hover  { background: #dbeafe; }
+.act-btn.delete      { background: #fef2f2; color: #ef4444; }
 .act-btn.delete:hover { background: #fee2e2; }
 
 /* PAGINATION */
@@ -558,12 +567,12 @@ export default {
   font-size: 12px; color: #64748b; cursor: pointer; font-family: inherit;
   display: flex; align-items: center; justify-content: center;
 }
-.page-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.page-btn.active          { background: #2563eb; color: #fff; border-color: #2563eb; }
 .page-btn:hover:not(.active) { background: #f8fafc; }
 
 /* DRAWER */
 .drawer-overlay {
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.3);
+  position: fixed; inset: 0; background: rgba(15,23,42,0.3);
   z-index: 100; display: flex; justify-content: flex-end;
   backdrop-filter: blur(2px);
 }
@@ -583,11 +592,10 @@ export default {
 }
 .drawer-title-wrap { flex: 1; }
 .drawer-name { font-size: 16px; font-weight: 800; color: #1e293b; }
-.drawer-loc { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+.drawer-loc  { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 .drawer-close {
   background: none; border: none; cursor: pointer;
-  color: #94a3b8; font-size: 16px; padding: 4px;
-  border-radius: 6px;
+  color: #94a3b8; font-size: 16px; padding: 4px; border-radius: 6px;
 }
 .drawer-close:hover { background: #f1f5f9; color: #1e293b; }
 
@@ -605,14 +613,14 @@ export default {
 .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
 .info-item { display: flex; flex-direction: column; gap: 3px; }
 .info-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; }
-.info-val { font-size: 13px; font-weight: 500; color: #1e293b; }
+.info-val   { font-size: 13px; font-weight: 500; color: #1e293b; }
 
 .section-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin: 16px 0 8px; }
-.mt4 { margin-top: 4px; }
+.mt4  { margin-top: 4px; }
 .mt12 { margin-top: 12px; }
 
-.applied-job-box { background: #f8fafc; border-radius: 10px; padding: 12px 14px; border: 1px solid #f1f5f9; }
-.applied-job { font-size: 14px; font-weight: 700; color: #1e293b; }
+.applied-job-box  { background: #f8fafc; border-radius: 10px; padding: 12px 14px; border: 1px solid #f1f5f9; }
+.applied-job      { font-size: 14px; font-weight: 700; color: #1e293b; }
 .applied-employer { font-size: 12px; color: #64748b; margin-top: 3px; }
 
 /* FILES */
@@ -628,23 +636,24 @@ export default {
   color: #94a3b8; flex-shrink: 0;
 }
 .file-icon-lg.uploaded { background: #dbeafe; color: #2563eb; }
-.file-info { flex: 1; }
-.file-name { font-size: 13px; font-weight: 600; color: #1e293b; }
-.file-status { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-.btn-view { background: #eff6ff; color: #2563eb; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-upload { background: #f1f5f9; color: #64748b; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.file-info    { flex: 1; }
+.file-name    { font-size: 13px; font-weight: 600; color: #1e293b; }
+.file-status  { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.btn-view     { background: #eff6ff; color: #2563eb; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-upload   { background: #f1f5f9; color: #64748b; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 
-/* STATUS OPTIONS */
+/* STATUS OPTIONS (drawer) */
 .status-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .status-option {
   padding: 10px; border-radius: 10px; border: 2px solid transparent;
   font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
   transition: all 0.15s; background: #f8fafc; color: #64748b;
 }
-.status-option.active.hired { background: #dbeafe; color: #2563eb; border-color: #2563eb; }
-.status-option.active.placed { background: #dcfce7; color: #22c55e; border-color: #22c55e; }
-.status-option.active.processing { background: #fff7ed; color: #f97316; border-color: #f97316; }
-.status-option.active.rejected { background: #fef2f2; color: #ef4444; border-color: #ef4444; }
+.status-option.active.reviewing   { background: #dbeafe; color: #1d4ed8; border-color: #1d4ed8; }
+.status-option.active.shortlisted { background: #1A5F18; color: #a7f3a0; border-color: #1A5F18; }
+.status-option.active.interview   { background: #ede9fe; color: #8B5CF6; border-color: #8B5CF6; }
+.status-option.active.hired       { background: #dcfce7; color: #16a34a; border-color: #16a34a; }
+.status-option.active.rejected    { background: #fef2f2; color: #ef4444; border-color: #ef4444; }
 
 .notes-area {
   width: 100%; border: 1px solid #e2e8f0; border-radius: 10px;

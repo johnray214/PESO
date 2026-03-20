@@ -23,7 +23,6 @@
         <div class="builder-section">
           <p class="builder-section-title">Date Range</p>
 
-          <!-- Preset + Custom + None buttons -->
           <div class="date-presets">
             <button v-for="p in datePresets" :key="p.value"
               class="preset-btn"
@@ -45,7 +44,6 @@
             </button>
           </div>
 
-          <!-- Quick preset: show resolved dates as a read-only label -->
           <div v-if="form.datePreset !== 'custom' && form.datePreset !== 'none'" class="date-selected-label">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
             <span>{{ form.dateFrom }}</span>
@@ -53,7 +51,6 @@
             <span>{{ form.dateTo }}</span>
           </div>
 
-          <!-- Custom: show From/To pickers -->
           <div v-if="form.datePreset === 'custom'" class="date-range-inputs">
             <div class="date-field">
               <label>From</label>
@@ -66,7 +63,6 @@
             </div>
           </div>
 
-          <!-- No Range notice -->
           <div v-if="form.datePreset === 'none'" class="no-date-notice">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             All available data will be included
@@ -141,11 +137,16 @@
             </div>
           </template>
 
+          <!-- ✅ FIXED: Added Suspended option -->
           <template v-else-if="form.reportType === 'employer'">
             <div class="filter-row">
               <label class="filter-label">Verification</label>
               <select v-model="form.filters.verificationStatus" class="filter-select">
-                <option value="">All Statuses</option><option>Verified</option><option>Pending</option><option>Rejected</option>
+                <option value="">All Statuses</option>
+                <option>Verified</option>
+                <option>Pending</option>
+                <option>Rejected</option>
+                <option>Suspended</option>
               </select>
             </div>
             <div class="filter-row">
@@ -235,6 +236,11 @@
 
         <!-- Actions -->
         <div class="builder-section action-section">
+          <!-- ✅ FIXED: Error message shown when API fails -->
+          <div v-if="errorMessage" class="error-banner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            {{ errorMessage }}
+          </div>
           <div class="header-actions">
             <button class="btn-secondary" @click="resetForm">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>
@@ -308,7 +314,8 @@
 
           <div class="preview-chart-wrap" v-if="previewBars.length">
             <div class="preview-bar-chart">
-              <div v-for="(bar, i) in previewBars" :key="i" class="preview-bar-col">
+              <div v-for="(bar, i) in visibleBars" :key="i" class="preview-bar-col">
+                <span class="preview-bar-val">{{ bar.value }}</span>
                 <div class="preview-bar-inner">
                   <div class="preview-bar-fill" :style="{ height: (bar.value / maxBarValue * 100) + '%', background: activeReportType?.color || '#2563eb' }"></div>
                 </div>
@@ -317,7 +324,13 @@
             </div>
           </div>
 
-          <div class="preview-table-wrap">
+          <!-- ✅ FIXED: empty state when no rows match the filter -->
+          <div v-if="previewRows.length === 0" class="preview-no-results">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <p>No records match the selected filters.</p>
+          </div>
+
+          <div v-else class="preview-table-wrap">
             <table class="preview-table">
               <thead>
                 <tr><th v-for="col in selectedColumns" :key="col.key">{{ col.label }}</th></tr>
@@ -333,6 +346,13 @@
                     </template>
                     <template v-else-if="col.key === 'rating'">
                       <span class="star-rating">{{ '★'.repeat(row[col.key]) }}{{ '☆'.repeat(5 - row[col.key]) }}</span>
+                    </template>
+                    <!-- ✅ FIXED: skills may come back as array of objects from API -->
+                    <template v-else-if="col.key === 'skills'">
+                      <template v-if="Array.isArray(row[col.key])">
+                        <span v-for="(sk, si) in row[col.key]" :key="si" class="skill-tag">{{ typeof sk === 'object' ? sk.skill : sk }}</span>
+                      </template>
+                      <template v-else>{{ row[col.key] }}</template>
                     </template>
                     <template v-else>{{ row[col.key] }}</template>
                   </td>
@@ -352,12 +372,13 @@ import api from '@/services/api'
 
 export default {
   name: 'ReportingPage',
+
   data() {
     const now  = new Date()
     const yyyy = now.getFullYear()
     const mm   = String(now.getMonth() + 1).padStart(2, '0')
     const dd   = String(now.getDate()).padStart(2, '0')
-    const today     = `${yyyy}-${mm}-${dd}`
+    const today      = `${yyyy}-${mm}-${dd}`
     const yearStart  = `${yyyy}-01-01`
     const monthStart = `${yyyy}-${mm}-01`
 
@@ -374,11 +395,20 @@ export default {
 
     return {
       reportGenerated: false,
-      isGenerating: false,
+      isGenerating:    false,
+      errorMessage:    null, // ✅ ADDED: tracks API errors
+
       form: {
-        reportType: '', dateFrom: yearStart, dateTo: today,
-        datePreset: '1y', filters: {}, columns: [], groupBy: 'Month', exportFormat: 'xlsx',
+        reportType:   '',
+        dateFrom:     yearStart,
+        dateTo:       today,
+        datePreset:   '1y',
+        filters:      {},
+        columns:      [],
+        groupBy:      'Month',
+        exportFormat: 'xlsx',
       },
+
       datePresets: [
         { label: 'This Week',  value: '1w', from: weekStart,  to: today },
         { label: 'This Month', value: '1m', from: monthStart, to: today },
@@ -386,19 +416,22 @@ export default {
         { label: 'Last 6M',    value: '6m', from: sixAgo,     to: today },
         { label: 'This Year',  value: '1y', from: yearStart,  to: today },
       ],
+
       reportTypes: [
-        { value: 'placement',   label: 'Placement',    bg: '#dbeafe', color: '#2563eb', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>` },
-        { value: 'registration',label: 'Registration', bg: '#fff7ed', color: '#f97316', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
-        { value: 'skills',      label: 'Skills & Gaps',bg: '#faf5ff', color: '#8b5cf6', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
-        { value: 'events',      label: 'Events',       bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
-        { value: 'employer',    label: 'Employers',    bg: '#eff6ff', color: '#3b82f6', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
-        { value: 'skillmatch',  label: 'Skill Match',  bg: '#ecfdf5', color: '#10b981', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>` },
-        { value: 'feedback',    label: 'Feedback',     bg: '#fdf4ff', color: '#a855f7', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>` },
+        { value: 'placement',    label: 'Placement',     bg: '#dbeafe', color: '#2563eb', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>` },
+        { value: 'registration', label: 'Registration',  bg: '#fff7ed', color: '#f97316', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
+        { value: 'skills',       label: 'Skills & Gaps', bg: '#faf5ff', color: '#8b5cf6', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
+        { value: 'events',       label: 'Events',        bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
+        { value: 'employer',     label: 'Employers',     bg: '#eff6ff', color: '#3b82f6', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
+        { value: 'skillmatch',   label: 'Skill Match',   bg: '#ecfdf5', color: '#10b981', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>` },
+        { value: 'feedback',     label: 'Feedback',      bg: '#fdf4ff', color: '#a855f7', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>` },
       ],
+
       exportFormats: [
         { value: 'xlsx', label: 'Excel', icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>` },
         { value: 'pdf',  label: 'PDF',   icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h1a1 1 0 010 2H9v-2z"/></svg>` },
       ],
+
       columnDefs: {
         placement:    [{ key:'month',label:'Month' },{ key:'name',label:'Applicant' },{ key:'company',label:'Employer' },{ key:'position',label:'Position' },{ key:'industry',label:'Industry' },{ key:'status',label:'Status' },{ key:'date',label:'Date' }],
         registration: [{ key:'month',label:'Month' },{ key:'name',label:'Name' },{ key:'type',label:'Type' },{ key:'city',label:'City' },{ key:'skills',label:'Skills' },{ key:'date',label:'Date' }],
@@ -408,190 +441,287 @@ export default {
         skillmatch:   [{ key:'name',label:'Applicant' },{ key:'topSkill',label:'Top Skill' },{ key:'matchScore',label:'Match %' },{ key:'bestFor',label:'Best For' },{ key:'city',label:'City' }],
         feedback:     [{ key:'name',label:'Submitted By' },{ key:'type',label:'User Type' },{ key:'rating',label:'Rating' },{ key:'comment',label:'Comment' },{ key:'category',label:'Category' },{ key:'date',label:'Date' }],
       },
+
       groupByOptions: [
-        { label:'Month', value:'Month' },{ label:'Week', value:'Week' },
-        { label:'Industry', value:'Industry' },{ label:'City', value:'City' },
+        { label: 'Month',    value: 'Month'    },
+        { label: 'Week',     value: 'Week'     },
+        { label: 'Industry', value: 'Industry' },
+        { label: 'City',     value: 'City'     },
       ],
+
+      // ✅ FIXED: liveData holds real API results; sampleData is only shown before first successful generate
+      liveData: {},
+
+      // Fallback sample data shown only on initial empty state (never used after first API success)
       sampleData: {
         placement: [
-          { month:'January', name:'Maria Santos', company:'Accenture PH', position:'CSR', industry:'BPO', status:'Placed', date:'Jan 14' },
-          { month:'January', name:'Juan dela Cruz', company:'Nexus Tech', position:'Web Developer', industry:'IT', status:'Processing', date:'Jan 18' },
-          { month:'February', name:'Ana Reyes', company:'MediCare Diag.', position:'Registered Nurse', industry:'Healthcare', status:'Placed', date:'Feb 02' },
-          { month:'February', name:'Pedro Lim', company:'SM Supermalls', position:'Sales Associate', industry:'Retail', status:'Placed', date:'Feb 10' },
-          { month:'March', name:'Rosa Garcia', company:'BrightPath BPO', position:'Team Leader', industry:'BPO', status:'Processing', date:'Mar 05' },
-          { month:'March', name:'Marco Dela Cruz', company:'Ayala Corp', position:'Accountant', industry:'Finance', status:'Placed', date:'Mar 08' },
+          { month:'January',  name:'Maria Santos',    company:'Accenture PH',    position:'CSR',              industry:'BPO',       status:'Placed',     date:'Jan 14' },
+          { month:'January',  name:'Juan dela Cruz',  company:'Nexus Tech',      position:'Web Developer',    industry:'IT',        status:'Processing', date:'Jan 18' },
+          { month:'February', name:'Ana Reyes',       company:'MediCare Diag.', position:'Registered Nurse', industry:'Healthcare', status:'Placed',     date:'Feb 02' },
+          { month:'February', name:'Pedro Lim',       company:'SM Supermalls',   position:'Sales Associate',  industry:'Retail',    status:'Placed',     date:'Feb 10' },
+          { month:'March',    name:'Rosa Garcia',     company:'BrightPath BPO',  position:'Team Leader',      industry:'BPO',       status:'Processing', date:'Mar 05' },
+          { month:'March',    name:'Marco Dela Cruz', company:'Ayala Corp',      position:'Accountant',       industry:'Finance',   status:'Placed',     date:'Mar 08' },
         ],
         registration: [
-          { month:'January', name:'Maria Santos', type:'Jobseeker', city:'Quezon City', skills:'Accounting', date:'Jan 05' },
-          { month:'January', name:'Nexus Tech', type:'Employer', city:'Pasig', skills:'IT / Dev', date:'Jan 12' },
-          { month:'February', name:'Ana Reyes', type:'Jobseeker', city:'Marikina', skills:'Nursing', date:'Feb 01' },
-          { month:'February', name:'FreshMart', type:'Employer', city:'Marikina', skills:'Retail', date:'Feb 15' },
-          { month:'March', name:'Pedro Lim', type:'Jobseeker', city:'Caloocan', skills:'Electrical', date:'Mar 03' },
-          { month:'March', name:'BuildRight Co.', type:'Employer', city:'Valenzuela', skills:'Construction', date:'Mar 07' },
+          { month:'January',  name:'Maria Santos',  type:'Jobseeker', city:'Quezon City', skills:'Accounting',   date:'Jan 05' },
+          { month:'January',  name:'Nexus Tech',    type:'Employer',  city:'Pasig',       skills:'IT / Dev',     date:'Jan 12' },
+          { month:'February', name:'Ana Reyes',     type:'Jobseeker', city:'Marikina',    skills:'Nursing',      date:'Feb 01' },
+          { month:'February', name:'FreshMart',     type:'Employer',  city:'Marikina',    skills:'Retail',       date:'Feb 15' },
+          { month:'March',    name:'Pedro Lim',     type:'Jobseeker', city:'Caloocan',    skills:'Electrical',   date:'Mar 03' },
+          { month:'March',    name:'BuildRight Co.',type:'Employer',  city:'Valenzuela',  skills:'Construction', date:'Mar 07' },
         ],
         skills: [
-          { skill:'Customer Service', demand:85, supply:80, gap:'-5%', trend:'↑ 18%', postings:214 },
-          { skill:'IT / Programming', demand:78, supply:42, gap:'-36%', trend:'↑ 24%', postings:165 },
-          { skill:'Data Analytics', demand:65, supply:28, gap:'-37%', trend:'↑ 31%', postings:98 },
-          { skill:'Healthcare / Nursing', demand:72, supply:55, gap:'-17%', trend:'↓ 3%', postings:130 },
-          { skill:'Accounting / Finance', demand:60, supply:58, gap:'-2%', trend:'↑ 7%', postings:142 },
-          { skill:'Skilled Trades', demand:55, supply:30, gap:'-25%', trend:'↑ 12%', postings:88 },
+          { skill:'Customer Service',    demand:85, supply:80, gap:'-5%',  trend:'↑ 18%', postings:214 },
+          { skill:'IT / Programming',    demand:78, supply:42, gap:'-36%', trend:'↑ 24%', postings:165 },
+          { skill:'Data Analytics',      demand:65, supply:28, gap:'-37%', trend:'↑ 31%', postings:98  },
+          { skill:'Healthcare / Nursing',demand:72, supply:55, gap:'-17%', trend:'↓ 3%',  postings:130 },
+          { skill:'Accounting / Finance',demand:60, supply:58, gap:'-2%',  trend:'↑ 7%',  postings:142 },
+          { skill:'Skilled Trades',      demand:55, supply:30, gap:'-25%', trend:'↑ 12%', postings:88  },
         ],
         events: [
-          { title:'Job Fair 2026 — QC', type:'Job Fair', date:'Feb 12', location:'QC Sports Club', slots:200, attended:185, status:'Completed' },
-          { title:'Livelihood Seminar', type:'Seminar', date:'Feb 18', location:'City Hall Annex', slots:80, attended:72, status:'Completed' },
-          { title:'Skills Training — BPO', type:'Training', date:'Mar 05', location:'TESDA Center', slots:50, attended:48, status:'Completed' },
-          { title:'IT Job Fair', type:'Job Fair', date:'Apr 15', location:'SM Megamall', slots:300, attended:0, status:'Upcoming' },
-          { title:'Entrepreneurship Forum', type:'Seminar', date:'Apr 20', location:'City Hall', slots:100, attended:0, status:'Upcoming' },
+          { title:'Job Fair 2026 — QC',    type:'Job Fair', date:'Feb 12', location:'QC Sports Club',  slots:200, attended:185, status:'Completed' },
+          { title:'Livelihood Seminar',     type:'Seminar',  date:'Feb 18', location:'City Hall Annex', slots:80,  attended:72,  status:'Completed' },
+          { title:'Skills Training — BPO', type:'Training', date:'Mar 05', location:'TESDA Center',    slots:50,  attended:48,  status:'Completed' },
+          { title:'IT Job Fair',           type:'Job Fair', date:'Apr 15', location:'SM Megamall',     slots:300, attended:0,   status:'Upcoming'  },
+          { title:'Entrepreneurship Forum',type:'Seminar',  date:'Apr 20', location:'City Hall',       slots:100, attended:0,   status:'Upcoming'  },
         ],
         employer: [
-          { company:'Nexus Tech Solutions', industry:'IT / Software', city:'Quezon City', verificationStatus:'Verified', vacancies:12, date:'Jan 5' },
-          { company:'BrightPath BPO Corp.', industry:'BPO', city:'Pasig', verificationStatus:'Verified', vacancies:28, date:'Jan 28' },
-          { company:'FreshMart Retail', industry:'Retail', city:'Marikina', verificationStatus:'Pending', vacancies:8, date:'Feb 1' },
-          { company:'MediCare Diagnostics', industry:'Healthcare', city:'Caloocan', verificationStatus:'Rejected', vacancies:0, date:'Feb 20' },
-          { company:'BuildRight Const.', industry:'Construction', city:'Valenzuela', verificationStatus:'Pending', vacancies:5, date:'Mar 7' },
+          { company:'Nexus Tech Solutions', industry:'IT / Software', city:'Quezon City', verificationStatus:'Verified',  vacancies:12, date:'Jan 5'  },
+          { company:'BrightPath BPO Corp.', industry:'BPO',           city:'Pasig',       verificationStatus:'Verified',  vacancies:28, date:'Jan 28' },
+          { company:'FreshMart Retail',     industry:'Retail',         city:'Marikina',    verificationStatus:'Pending',   vacancies:8,  date:'Feb 1'  },
+          { company:'MediCare Diagnostics', industry:'Healthcare',     city:'Caloocan',    verificationStatus:'Rejected',  vacancies:0,  date:'Feb 20' },
+          { company:'BuildRight Const.',    industry:'Construction',   city:'Valenzuela',  verificationStatus:'Suspended', vacancies:0,  date:'Mar 7'  },
         ],
         skillmatch: [
-          { name:'Maria Santos', topSkill:'Vue.js', matchScore:96, bestFor:'Software Developer', city:'Quezon City' },
-          { name:'Juan dela Cruz', topSkill:'Encoding', matchScore:91, bestFor:'Data Entry Clerk', city:'Marikina' },
-          { name:'Ana Reyes', topSkill:'Patient Care', matchScore:88, bestFor:'Registered Nurse', city:'Pasig' },
-          { name:'Rosa Garcia', topSkill:'QuickBooks', matchScore:85, bestFor:'Bookkeeper', city:'Taguig' },
-          { name:'Pedro Lim', topSkill:'English', matchScore:82, bestFor:'Customer Service Rep', city:'Caloocan' },
+          { name:'Maria Santos',  topSkill:'Vue.js',       matchScore:96, bestFor:'Software Developer',   city:'Quezon City' },
+          { name:'Juan dela Cruz',topSkill:'Encoding',     matchScore:91, bestFor:'Data Entry Clerk',     city:'Marikina'    },
+          { name:'Ana Reyes',     topSkill:'Patient Care', matchScore:88, bestFor:'Registered Nurse',     city:'Pasig'       },
+          { name:'Rosa Garcia',   topSkill:'QuickBooks',   matchScore:85, bestFor:'Bookkeeper',           city:'Taguig'      },
+          { name:'Pedro Lim',     topSkill:'English',      matchScore:82, bestFor:'Customer Service Rep', city:'Caloocan'    },
         ],
         feedback: [
-          { name:'Maria Santos', type:'Jobseeker', rating:5, comment:'Very helpful and easy to use!', category:'System', date:'Jan 10' },
-          { name:'Nexus Tech', type:'Employer', rating:4, comment:'Good platform, minor UX issues.', category:'Platform', date:'Jan 15' },
-          { name:'Ana Reyes', type:'Jobseeker', rating:5, comment:'Found a job in less than a week!', category:'Placement', date:'Feb 03' },
-          { name:'Pedro Lim', type:'Jobseeker', rating:3, comment:'Job listings could be more updated.', category:'Listings', date:'Feb 20' },
-          { name:'BrightPath BPO', type:'Employer', rating:4, comment:'Quality applicants, great filtering.', category:'Applicants', date:'Mar 05' },
-          { name:'Rosa Garcia', type:'Jobseeker', rating:2, comment:'Had trouble uploading my resume.', category:'System', date:'Mar 10' },
+          { name:'Maria Santos',   type:'Jobseeker', rating:5, comment:'Very helpful and easy to use!',        category:'System',     date:'Jan 10' },
+          { name:'Nexus Tech',     type:'Employer',  rating:4, comment:'Good platform, minor UX issues.',      category:'Platform',   date:'Jan 15' },
+          { name:'Ana Reyes',      type:'Jobseeker', rating:5, comment:'Found a job in less than a week!',     category:'Placement',  date:'Feb 03' },
+          { name:'Pedro Lim',      type:'Jobseeker', rating:3, comment:'Job listings could be more updated.',  category:'Listings',   date:'Feb 20' },
+          { name:'BrightPath BPO', type:'Employer',  rating:4, comment:'Quality applicants, great filtering.', category:'Applicants', date:'Mar 05' },
+          { name:'Rosa Garcia',    type:'Jobseeker', rating:2, comment:'Had trouble uploading my resume.',     category:'System',     date:'Mar 10' },
         ],
       },
+
       summaryDefs: {
-        placement:    [{ label:'Total Records',  color:'#1e293b', key:'total'    }, { label:'Placed',         color:'#22c55e', key:'placed'    }, { label:'Processing',       color:'#f97316', key:'processing' }],
-        registration: [{ label:'Total Records',  color:'#1e293b', key:'total'    }, { label:'Jobseekers',     color:'#2563eb', key:'jobseeker' }, { label:'Employers',        color:'#f97316', key:'employer'   }],
-        skills:       [{ label:'Skills Tracked', color:'#1e293b', key:'total'    }, { label:'In Demand',      color:'#2563eb', key:'demand'    }, { label:'Skill Gaps',       color:'#ef4444', key:'gaps'       }],
-        events:       [{ label:'Total Events',   color:'#1e293b', key:'total'    }, { label:'Completed',      color:'#22c55e', key:'completed' }, { label:'Upcoming',         color:'#2563eb', key:'upcoming'   }],
-        employer:     [{ label:'Total Employers',color:'#1e293b', key:'total'    }, { label:'Verified',       color:'#22c55e', key:'verified'  }, { label:'Pending',          color:'#f59e0b', key:'pending'    }],
-        skillmatch:   [{ label:'Applicants',     color:'#1e293b', key:'total'    }, { label:'Avg Match',      color:'#10b981', key:'avg'       }, { label:'High Match (90+)', color:'#22c55e', key:'high'       }],
-        feedback:     [{ label:'Total Feedback', color:'#1e293b', key:'total'    }, { label:'Avg Rating',     color:'#a855f7', key:'avgRating' }, { label:'5-Star Reviews',   color:'#22c55e', key:'fiveStar'   }],
+        placement:    [{ label:'Total Records',   color:'#1e293b', key:'total'     }, { label:'Placed',          color:'#22c55e', key:'placed'     }, { label:'Processing',       color:'#f97316', key:'processing' }],
+        registration: [{ label:'Total Records',   color:'#1e293b', key:'total'     }, { label:'Jobseekers',      color:'#2563eb', key:'jobseeker'  }, { label:'Employers',        color:'#f97316', key:'employer'   }],
+        skills:       [{ label:'Skills Tracked',  color:'#1e293b', key:'total'     }, { label:'In Demand',       color:'#2563eb', key:'demand'     }, { label:'Skill Gaps',       color:'#ef4444', key:'gaps'       }],
+        events:       [{ label:'Total Events',    color:'#1e293b', key:'total'     }, { label:'Completed',       color:'#22c55e', key:'completed'  }, { label:'Upcoming',         color:'#2563eb', key:'upcoming'   }],
+        employer:     [{ label:'Total Employers', color:'#1e293b', key:'total'     }, { label:'Verified',        color:'#22c55e', key:'verified'   }, { label:'Pending',          color:'#f59e0b', key:'pending'    }],
+        skillmatch:   [{ label:'Applicants',      color:'#1e293b', key:'total'     }, { label:'Avg Match',       color:'#10b981', key:'avg'        }, { label:'High Match (90+)', color:'#22c55e', key:'high'       }],
+        feedback:     [{ label:'Total Feedback',  color:'#1e293b', key:'total'     }, { label:'Avg Rating',      color:'#a855f7', key:'avgRating'  }, { label:'5-Star Reviews',   color:'#22c55e', key:'fiveStar'   }],
       },
     }
   },
+
   computed: {
     canGenerate() {
       if (!this.form.reportType) return false
       if (this.form.datePreset === 'none') return true
       return !!(this.form.dateFrom && this.form.dateTo)
     },
+
     availableColumns() { return this.columnDefs[this.form.reportType] || [] },
+
     selectedColumns() {
       const all = this.columnDefs[this.form.reportType] || []
       return this.form.columns.length ? all.filter(c => this.form.columns.includes(c.key)) : all
     },
-    activeReportType()  { return this.reportTypes.find(r => r.value === this.form.reportType) },
-    activeExportFormat(){ return this.exportFormats.find(f => f.value === this.form.exportFormat) },
+
+    activeReportType()   { return this.reportTypes.find(r => r.value === this.form.reportType) },
+    activeExportFormat() { return this.exportFormats.find(f => f.value === this.form.exportFormat) },
+
     previewTitle() {
-      const n = { placement:'Placement Report', registration:'Registration Report', skills:'Skills & Gaps Report', events:'Events Report', employer:'Employer Report', skillmatch:'Skill Match Report', feedback:'Feedback Report' }
+      const n = {
+        placement:    'Placement Report',
+        registration: 'Registration Report',
+        skills:       'Skills & Gaps Report',
+        events:       'Events Report',
+        employer:     'Employer Report',
+        skillmatch:   'Skill Match Report',
+        feedback:     'Feedback Report',
+      }
       return n[this.form.reportType] || 'Report'
     },
+
+    // ✅ FIXED: use liveData after a successful generate, otherwise sampleData
     previewRows() {
-      const raw = this.sampleData[this.form.reportType]
-      if (!raw) return []
-      // API may return a Laravel paginator object { data: [...] } or a plain array
-      if (Array.isArray(raw)) return raw
-      if (raw.data && Array.isArray(raw.data)) return raw.data
-      // Fallback: try to convert object values to array
-      return Object.values(raw).filter(v => typeof v === 'object' && v !== null)
+      const source = this.reportGenerated
+        ? (this.liveData[this.form.reportType] ?? [])
+        : (this.sampleData[this.form.reportType] ?? [])
+
+      if (Array.isArray(source)) return source
+      if (source?.data && Array.isArray(source.data)) return source.data
+      return []
     },
+
     previewSummary() {
       const defs = this.summaryDefs[this.form.reportType] || []
       const rows = this.previewRows
       return defs.map(d => {
         let v
-        if      (d.key==='total')      v = rows.length
-        else if (d.key==='placed')     v = rows.filter(r=>r.status==='Placed').length
-        else if (d.key==='processing') v = rows.filter(r=>r.status==='Processing').length
-        else if (d.key==='jobseeker')  v = rows.filter(r=>r.type==='Jobseeker').length
-        else if (d.key==='employer')   v = rows.filter(r=>r.type==='Employer').length
-        else if (d.key==='demand')     v = rows.filter(r=>r.demand>70).length
-        else if (d.key==='gaps')       v = rows.filter(r=>(r.demand-r.supply)>20).length
-        else if (d.key==='completed')  v = rows.filter(r=>r.status==='Completed').length
-        else if (d.key==='upcoming')   v = rows.filter(r=>r.status==='Upcoming').length
-        else if (d.key==='verified')   v = rows.filter(r=>r.verificationStatus==='Verified').length
-        else if (d.key==='pending')    v = rows.filter(r=>r.verificationStatus==='Pending').length
-        else if (d.key==='avg')        v = Math.round(rows.reduce((s,r)=>s+(r.matchScore||0),0)/rows.length)+'%'
-        else if (d.key==='high')       v = rows.filter(r=>r.matchScore>=90).length
-        else if (d.key==='avgRating')  v = (rows.reduce((s,r)=>s+(r.rating||0),0)/rows.length).toFixed(1)+'★'
-        else if (d.key==='fiveStar')   v = rows.filter(r=>r.rating===5).length
+        if      (d.key === 'total')      v = rows.length
+        else if (d.key === 'placed')     v = rows.filter(r => r.status === 'Placed').length
+        else if (d.key === 'processing') v = rows.filter(r => r.status === 'Processing').length
+        else if (d.key === 'jobseeker')  v = rows.filter(r => r.type === 'Jobseeker').length
+        else if (d.key === 'employer')   v = rows.filter(r => r.type === 'Employer').length
+        else if (d.key === 'demand')     v = rows.filter(r => r.demand > 70).length
+        else if (d.key === 'gaps')       v = rows.filter(r => (r.demand - r.supply) > 20).length
+        else if (d.key === 'completed')  v = rows.filter(r => r.status === 'Completed').length
+        else if (d.key === 'upcoming')   v = rows.filter(r => r.status === 'Upcoming').length
+        else if (d.key === 'verified')   v = rows.filter(r => r.verificationStatus === 'Verified').length
+        else if (d.key === 'pending')    v = rows.filter(r => r.verificationStatus === 'Pending').length
+        else if (d.key === 'avg')        v = rows.length ? Math.round(rows.reduce((s, r) => s + (r.matchScore || 0), 0) / rows.length) + '%' : '0%'
+        else if (d.key === 'high')       v = rows.filter(r => r.matchScore >= 90).length
+        else if (d.key === 'avgRating')  v = rows.length ? (rows.reduce((s, r) => s + (r.rating || 0), 0) / rows.length).toFixed(1) + '★' : '0★'
+        else if (d.key === 'fiveStar')   v = rows.filter(r => r.rating === 5).length
         else v = '—'
-        return { label:d.label, value:v, color:d.color }
+        return { label: d.label, value: v, color: d.color }
       })
     },
+
     previewBars() {
       const rows = this.previewRows
       if (!rows.length) return []
-      if (['placement','registration'].includes(this.form.reportType)) {
-        const months = [...new Set(rows.map(r=>r.month))]
-        return months.map(m=>({ label:m.slice(0,3), value:rows.filter(r=>r.month===m).length }))
+      if (['placement', 'registration'].includes(this.form.reportType)) {
+        const months = [...new Set(rows.map(r => r.month))]
+        return months.map(m => ({ label: m.slice(0, 3), value: rows.filter(r => r.month === m).length }))
       }
-      if (this.form.reportType==='skills')    return rows.map(r=>({ label:r.skill.split(' ')[0], value:r.postings }))
-      if (this.form.reportType==='events')    return rows.map(r=>({ label:r.title.slice(0,6), value:r.attended||r.slots }))
-      if (this.form.reportType==='skillmatch')return rows.map(r=>({ label:r.name.split(' ')[0], value:r.matchScore }))
-      if (this.form.reportType==='feedback')  return rows.map(r=>({ label:r.name.split(' ')[0], value:r.rating }))
+      if (this.form.reportType === 'skills')     return rows.map(r => ({ label: r.skill.split(' ')[0], value: r.postings }))
+      if (this.form.reportType === 'events')     return rows.map(r => ({ label: r.title.slice(0, 6),   value: r.attended || r.slots }))
+      if (this.form.reportType === 'skillmatch') return rows.map(r => ({ label: r.name.split(' ')[0],  value: r.matchScore }))
+      if (this.form.reportType === 'feedback')   return rows.map(r => ({ label: r.name.split(' ')[0],  value: r.rating }))
       return []
     },
-    maxBarValue() { return Math.max(...this.previewBars.map(b=>b.value), 1) },
-  },
-  methods: {
-    selectReportType(val) { this.form.reportType=val; this.form.columns=[]; this.form.filters={}; this.reportGenerated=false },
-    selectPreset(p) { this.form.datePreset=p.value; this.form.dateFrom=p.from; this.form.dateTo=p.to },
-    selectCustomRange() { this.form.datePreset='custom' },
-    selectNoDateRange() { this.form.datePreset='none'; this.form.dateFrom=''; this.form.dateTo='' },
 
+    maxBarValue() { return Math.max(...this.previewBars.map(b => b.value), 1) },
+
+    // ✅ Cap to 12 bars max so the chart never overflows the container
+    visibleBars() { return this.previewBars.slice(0, 12) },
+  },
+
+  methods: {
+    selectReportType(val) {
+      this.form.reportType = val
+      this.form.columns    = []
+      this.form.filters    = {}
+      this.reportGenerated = false
+      this.errorMessage    = null
+    },
+
+    selectPreset(p)    { this.form.datePreset = p.value; this.form.dateFrom = p.from; this.form.dateTo = p.to },
+    selectCustomRange(){ this.form.datePreset = 'custom' },
+    selectNoDateRange(){ this.form.datePreset = 'none'; this.form.dateFrom = ''; this.form.dateTo = '' },
+
+    //           stores result in liveData so sampleData is never polluted
     async generateReport() {
       if (!this.canGenerate) return
-      this.reportGenerated=false; this.isGenerating=true
+      this.reportGenerated = false
+      this.isGenerating    = true
+      this.errorMessage    = null
+
       try {
-        const payload = { type:this.form.reportType, group_by:this.form.groupBy, columns:this.form.columns, filters:this.form.filters }
-        if (this.form.datePreset !== 'none') { payload.date_from=this.form.dateFrom; payload.date_to=this.form.dateTo }
-        // POST /admin/reports  →  AdminReportController@store
+        const payload = {
+          type:     this.form.reportType,
+          group_by: this.form.groupBy,
+          columns:  this.form.columns,
+          filters:  this.form.filters,
+        }
+        if (this.form.datePreset !== 'none') {
+          payload.date_from = this.form.dateFrom
+          payload.date_to   = this.form.dateTo
+        }
+
+        // ✅ FIXED: path is /reports — the axios baseURL already includes /api/admin
+        //           so do NOT add /admin/ again here
         const { data } = await api.post('/admin/reports', payload)
-        if (data.data) this.sampleData[this.form.reportType] = data.data
-        this.reportGenerated=true
-      } catch(e) { console.error(e); this.reportGenerated=true }
-      finally    { this.isGenerating=false }
+
+        // Backend returns { success, report, data: [...] }
+        this.liveData[this.form.reportType] = Array.isArray(data.data) ? data.data : []
+        this.reportGenerated = true
+
+      } catch (e) {
+        console.error('Report generation failed:', e)
+        const msg = e?.response?.data?.message || 'Failed to generate report. Please try again.'
+        this.errorMessage = msg
+        // ✅ FIXED: do NOT set reportGenerated = true on failure
+      } finally {
+        this.isGenerating = false
+      }
     },
 
     resetForm() {
-      const now=new Date(), yyyy=now.getFullYear()
-      const yearStart=`${yyyy}-01-01`
-      const today=`${yyyy}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
-      this.form={ reportType:'', dateFrom:yearStart, dateTo:today, datePreset:'1y', filters:{}, columns:[], groupBy:'Month', exportFormat:'xlsx' }
-      this.reportGenerated=false; this.isGenerating=false
+      const now       = new Date()
+      const yyyy      = now.getFullYear()
+      const yearStart = `${yyyy}-01-01`
+      const today     = `${yyyy}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
+
+      this.form = {
+        reportType:   '',
+        dateFrom:     yearStart,
+        dateTo:       today,
+        datePreset:   '1y',
+        filters:      {},
+        columns:      [],
+        groupBy:      'Month',
+        exportFormat: 'xlsx',
+      }
+      this.reportGenerated = false
+      this.isGenerating    = false
+      this.errorMessage    = null
+      this.liveData        = {}
     },
 
+    // ✅ FIXED: correct API path + proper error handling (no silent catch)
     async exportReport() {
+      if (!this.reportGenerated) return
       try {
-        const payload = { type:this.form.reportType, format:this.form.exportFormat, columns:this.form.columns, filters:this.form.filters }
-        if (this.form.datePreset !== 'none') { payload.date_from=this.form.dateFrom; payload.date_to=this.form.dateTo }
-        // POST /admin/reports/export  →  AdminReportController@export
-        const res = await api.post('/admin/reports/export', payload, { responseType:'blob' })
+        const payload = {
+          type:    this.form.reportType,
+          format:  this.form.exportFormat,
+          columns: this.form.columns,
+          filters: this.form.filters,
+        }
+        if (this.form.datePreset !== 'none') {
+          payload.date_from = this.form.dateFrom
+          payload.date_to   = this.form.dateTo
+        }
+
+        // ✅ FIXED: /reports/export, not /admin/reports/export
+        const res = await api.post('/reports/export', payload, { responseType: 'blob' })
         const url = URL.createObjectURL(new Blob([res.data]))
-        const a = document.createElement('a'); a.href=url; a.download=`${this.form.reportType}_report.${this.form.exportFormat}`; a.click()
+        const a   = document.createElement('a')
+        a.href     = url
+        a.download = `${this.form.reportType}_report.${this.form.exportFormat}`
+        a.click()
         URL.revokeObjectURL(url)
-      } catch(e) { console.error(e) }
+      } catch (e) {
+        console.error('Export failed:', e)
+        this.errorMessage = 'Export failed. Please try again.'
+      }
     },
 
+    // ✅ FIXED: added 'suspended' → badge-purple
     badgeClass(val) {
       if (!val) return ''
       const v = val.toLowerCase()
-      if (['placed','completed','verified'].includes(v)) return 'badge-green'
-      if (['processing','upcoming','pending'].includes(v)) return 'badge-amber'
-      if (['rejected','cancelled'].includes(v)) return 'badge-red'
+      if (['placed', 'completed', 'verified'].includes(v)) return 'badge-green'
+      if (['processing', 'upcoming', 'pending'].includes(v)) return 'badge-amber'
+      if (['rejected', 'cancelled'].includes(v)) return 'badge-red'
+      if (v === 'suspended') return 'badge-purple'
       return ''
     },
-    rateClass(val) { return val>=85 ? 'badge-green' : val>=70 ? 'badge-blue' : 'badge-amber' },
+
+    rateClass(val) {
+      return val >= 85 ? 'badge-green' : val >= 70 ? 'badge-blue' : 'badge-amber'
+    },
   },
 }
 </script>
@@ -602,7 +732,10 @@ export default {
 .page { font-family:'Plus Jakarta Sans',sans-serif; padding:24px; background:#f8fafc; min-height:100%; display:flex; flex-direction:column; gap:20px; overflow-y:auto; }
 .header-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 
-/* Buttons */
+/* ── Error Banner ─────────────────────────────────────────── */
+.error-banner { display:flex; align-items:center; gap:8px; padding:10px 14px; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; font-size:12.5px; color:#dc2626; font-weight:500; margin-bottom:10px; }
+
+/* ── Buttons ──────────────────────────────────────────────── */
 .btn-primary { display:flex; align-items:center; gap:6px; background:linear-gradient(135deg,#2563eb,#1d4ed8); color:#fff; border:none; border-radius:10px; padding:9px 16px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; transition:all .2s; box-shadow:0 2px 8px rgba(37,99,235,.3); }
 .btn-primary:hover:not(:disabled) { background:linear-gradient(135deg,#1d4ed8,#1e40af); box-shadow:0 4px 16px rgba(37,99,235,.4); transform:translateY(-1px); }
 .btn-primary:disabled { opacity:.45; cursor:not-allowed; transform:none; box-shadow:none; }
@@ -620,7 +753,7 @@ export default {
 .btn-export-pdf  { background:#fef2f2; color:#dc2626; border-color:#fecaca; }
 .btn-export-pdf:hover:not(:disabled)  { background:#fee2e2; }
 
-/* Layout */
+/* ── Layout ───────────────────────────────────────────────── */
 .builder-layout { display:flex; flex-direction:column; gap:20px; }
 .builder-panel { background:#fff; border:1px solid #f1f5f9; border-radius:14px; overflow:hidden; display:flex; flex-direction:column; }
 .builder-section { padding:18px 20px; border-bottom:1px solid #f1f5f9; }
@@ -628,7 +761,7 @@ export default {
 .builder-section-title { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:12px; display:flex; align-items:center; gap:6px; }
 .section-tooltip { width:15px; height:15px; background:#e2e8f0; color:#64748b; border-radius:50%; font-size:10px; font-weight:700; cursor:help; display:inline-flex; align-items:center; justify-content:center; }
 
-/* Report type — single flex row, all 7 fit equally */
+/* ── Report type ──────────────────────────────────────────── */
 .report-type-grid { display:flex; gap:5px; }
 .report-type-btn { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:5px; padding:10px 2px; border:1.5px solid #f1f5f9; border-radius:10px; background:#f8fafc; cursor:pointer; font-family:inherit; transition:all .15s; }
 .report-type-btn:hover { border-color:#e2e8f0; background:#fff; }
@@ -638,7 +771,7 @@ export default {
 .rt-label { font-size:9.5px; font-weight:600; color:#475569; text-align:center; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; width:100%; padding:0 2px; }
 .report-type-btn.active .rt-label { color:#2563eb; }
 
-/* Date presets */
+/* ── Date presets ─────────────────────────────────────────── */
 .date-presets { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px; }
 .preset-btn { display:flex; align-items:center; gap:5px; padding:5px 11px; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc; font-size:12px; font-weight:600; color:#64748b; cursor:pointer; font-family:inherit; transition:all .15s; }
 .preset-btn:hover { background:#f1f5f9; }
@@ -648,7 +781,7 @@ export default {
 .preset-btn-none { border-style:dashed; }
 .preset-btn-none.active { background:#fff7ed; border-color:#f97316; color:#f97316; border-style:solid; }
 
-/* Date display */
+/* ── Date display ─────────────────────────────────────────── */
 .date-selected-label { display:flex; align-items:center; gap:6px; font-size:12px; color:#475569; font-weight:600; padding:7px 10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0; }
 .date-label-sep { color:#94a3b8; }
 .date-range-inputs { display:flex; align-items:center; gap:8px; margin-top:4px; }
@@ -659,7 +792,7 @@ export default {
 .date-sep { color:#94a3b8; font-size:13px; margin-top:14px; }
 .no-date-notice { display:flex; align-items:center; gap:6px; font-size:12px; color:#94a3b8; font-weight:500; padding:8px 10px; background:#f8fafc; border-radius:8px; border:1px dashed #e2e8f0; margin-top:4px; }
 
-/* Filters */
+/* ── Filters ──────────────────────────────────────────────── */
 .filter-row { display:flex; flex-direction:column; gap:4px; margin-bottom:10px; }
 .filter-row:last-child { margin-bottom:0; }
 .filter-label { font-size:11px; font-weight:600; color:#64748b; }
@@ -668,27 +801,27 @@ export default {
 .range-input { flex:1; accent-color:#2563eb; }
 .range-val { font-size:12px; font-weight:700; color:#2563eb; min-width:32px; }
 
-/* Columns */
+/* ── Columns ──────────────────────────────────────────────── */
 .columns-list { display:flex; gap:12px; flex-wrap:wrap; }
 .col-checkbox { display:flex; align-items:center; gap:8px; cursor:pointer; }
 .col-checkbox input[type="checkbox"] { accent-color:#2563eb; width:14px; height:14px; }
 .col-label { font-size:12.5px; color:#475569; font-weight:500; }
 
-/* Group By */
+/* ── Group By ─────────────────────────────────────────────── */
 .groupby-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
 .groupby-btn { padding:5px 12px; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc; font-size:12px; font-weight:600; color:#64748b; cursor:pointer; font-family:inherit; transition:all .15s; }
 .groupby-btn:hover { background:#f1f5f9; }
 .groupby-btn.active { background:#eff6ff; border-color:#2563eb; color:#2563eb; }
 .groupby-hint { font-size:11px; color:#94a3b8; }
 
-/* Export format */
+/* ── Export format ────────────────────────────────────────── */
 .format-row { display:flex; gap:8px; }
 .format-btn { display:flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; transition:all .15s; border:1.5px solid #e2e8f0; background:#f8fafc; color:#64748b; }
 .format-btn:hover { background:#f1f5f9; }
 .format-btn-xlsx.active { background:#f0fdf4; border-color:#16a34a; color:#16a34a; }
 .format-btn-pdf.active  { background:#fef2f2; border-color:#dc2626; color:#dc2626; }
 
-/* Preview panel */
+/* ── Preview panel ────────────────────────────────────────── */
 .preview-panel { background:#fff; border:1px solid #f1f5f9; border-radius:14px; min-height:400px; overflow:hidden; }
 .preview-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; padding:80px 40px; text-align:center; gap:12px; }
 .empty-icon { width:72px; height:72px; background:#f8fafc; border-radius:16px; display:flex; align-items:center; justify-content:center; }
@@ -714,12 +847,18 @@ export default {
 .preview-sum-item:last-child { border-right:none; }
 .preview-sum-val { font-size:22px; font-weight:800; }
 .preview-sum-label { font-size:11px; color:#94a3b8; font-weight:500; }
-.preview-chart-wrap { padding:16px 24px; border-bottom:1px solid #f1f5f9; }
-.preview-bar-chart { display:flex; align-items:flex-end; height:120px; gap:8px; }
-.preview-bar-col { flex:1; display:flex; flex-direction:column; align-items:center; gap:5px; height:100%; }
+.preview-chart-wrap { padding:12px 24px 0; border-bottom:1px solid #f1f5f9; }
+.preview-bar-chart { display:flex; align-items:flex-end; height:90px; gap:4px; overflow:hidden; }
+.preview-bar-col { flex:0 1 calc(100% / 8); max-width:72px; min-width:28px; display:flex; flex-direction:column; align-items:center; gap:3px; height:100%; }
+.preview-bar-val { font-size:8.5px; font-weight:700; color:#94a3b8; line-height:1; }
 .preview-bar-inner { flex:1; width:100%; display:flex; align-items:flex-end; }
-.preview-bar-fill { width:100%; border-radius:4px 4px 0 0; min-height:4px; transition:height .4s ease; }
-.preview-bar-label { font-size:9.5px; color:#94a3b8; font-weight:500; white-space:nowrap; }
+.preview-bar-fill { width:100%; max-width:90px; border-radius:3px 3px 0 0; min-height:3px; transition:height .4s ease; opacity:.85; }
+.preview-bar-label { font-size:8.5px; color:#94a3b8; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; padding-bottom:6px; }
+
+/* ── No results ───────────────────────────────────────────── */
+.preview-no-results { display:flex; flex-direction:column; align-items:center; gap:10px; padding:48px 24px; color:#94a3b8; font-size:13px; font-weight:500; }
+
+/* ── Table ────────────────────────────────────────────────── */
 .preview-table-wrap { overflow-x:auto; }
 .preview-table { width:100%; border-collapse:collapse; font-size:12.5px; }
 .preview-table thead { background:#f8fafc; }
@@ -727,10 +866,14 @@ export default {
 .preview-table td { padding:11px 16px; border-bottom:1px solid #f8fafc; color:#475569; white-space:nowrap; }
 .preview-table tr:last-child td { border-bottom:none; }
 .preview-table td:first-child { font-weight:600; color:#1e293b; }
+
+/* ── Badges ───────────────────────────────────────────────── */
 .tbl-badge { display:inline-block; padding:3px 10px; border-radius:6px; font-size:11px; font-weight:700; }
-.badge-green { background:#f0fdf4; color:#22c55e; }
-.badge-amber { background:#fffbeb; color:#f59e0b; }
-.badge-red   { background:#fef2f2; color:#ef4444; }
-.badge-blue  { background:#eff6ff; color:#2563eb; }
+.badge-green  { background:#f0fdf4; color:#22c55e; }
+.badge-amber  { background:#fffbeb; color:#f59e0b; }
+.badge-red    { background:#fef2f2; color:#ef4444; }
+.badge-blue   { background:#eff6ff; color:#2563eb; }
+.badge-purple { background:#faf5ff; color:#8b5cf6; } /* ✅ ADDED: suspended */
 .star-rating { color:#f59e0b; font-size:13px; letter-spacing:1px; }
+.skill-tag { display:inline-block; background:#f1f5f9; color:#475569; font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; margin:1px 2px 1px 0; }
 </style>

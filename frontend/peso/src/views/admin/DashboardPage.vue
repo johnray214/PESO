@@ -1,6 +1,29 @@
 <template>
   <div class="dashboard-page">
 
+    <!-- ── PERIOD FILTER BAR ──────────────────────────────────────── -->
+    <div class="period-bar">
+      <div class="period-pills">
+        <button
+          v-for="p in periodOptions" :key="p.value"
+          :class="['period-pill', { active: activePeriod === p.value }]"
+          @click="setPeriod(p.value)"
+        >{{ p.label }}</button>
+      </div>
+
+      <!-- Custom date range -->
+      <transition name="fade-slide">
+        <div v-if="activePeriod === 'custom'" class="custom-range">
+          <input type="date" v-model="customFrom" class="date-input" :max="customTo || undefined"/>
+          <span class="date-sep">→</span>
+          <input type="date" v-model="customTo"   class="date-input" :min="customFrom || undefined"/>
+          <button class="apply-btn" :disabled="!customFrom || !customTo" @click="applyCustom">Apply</button>
+        </div>
+      </transition>
+
+      <span v-if="!loading && lastUpdated" class="last-updated">Updated {{ lastUpdated }}</span>
+    </div>
+
     <!-- SKELETON -->
     <template v-if="loading">
       <!-- Stat Cards Skeleton -->
@@ -182,7 +205,7 @@
           <div class="card-header">
             <div>
               <h3>Registrations Overview</h3>
-              <p class="card-sub">Monthly jobseeker & employer registrations — {{ new Date().getFullYear() }}</p>
+              <p class="card-sub">{{ chartSubLabel }}</p>
             </div>
             <div class="legend">
               <span class="legend-item"><span class="legend-line blue"></span> Jobseekers</span>
@@ -190,7 +213,6 @@
             </div>
           </div>
 
-          <!-- Registration chart empty state -->
           <div v-if="!hasRegData" class="empty-state">
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
               <rect x="8" y="40" width="10" height="20" rx="3" fill="#e2e8f0"/>
@@ -278,20 +300,17 @@
             <div class="summary-divider"></div>
             <div class="summary-item"><span class="summary-dot cyan-dot"></span><span class="summary-label">Total Employers</span><span class="summary-val cyan-val">{{ totalEmployers.toLocaleString() }}</span></div>
             <div class="summary-divider"></div>
-            <div class="summary-item"><span class="summary-label">Peak Month</span><span class="summary-val">{{ peakMonth }}</span></div>
+            <div class="summary-item"><span class="summary-label">Peak</span><span class="summary-val">{{ peakMonth }}</span></div>
           </div>
         </div>
 
         <div class="card side-card">
           <div class="card-header">
-            <div><h3>Placement Rate</h3><p class="card-sub">This month</p></div>
+            <div><h3>Placement Rate</h3><p class="card-sub">{{ chartSubLabel }}</p></div>
           </div>
           <div v-if="!hasPlacementData" class="empty-state">
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
               <circle cx="32" cy="32" r="24" fill="none" stroke="#e2e8f0" stroke-width="8"/>
-              <circle cx="32" cy="32" r="24" fill="none" stroke="#f1f5f9" stroke-width="8"
-                      stroke-dasharray="30 120" stroke-dashoffset="0"
-                      transform="rotate(-90 32 32)"/>
               <circle cx="46" cy="10" r="8" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
               <path d="M43 10h6M46 7v6" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
@@ -330,37 +349,37 @@
       <div class="mid-row">
         <div class="card chart-card">
           <div class="card-header">
-            <div><h3>Placement Metrics</h3><p class="card-sub">Monthly placement status breakdown — {{ new Date().getFullYear() }}</p></div>
+            <div><h3>Placement Metrics</h3><p class="card-sub">Monthly placement status breakdown — {{ chartSubLabel }}</p></div>
             <div class="legend">
               <span class="legend-item"><span class="legend-line placement-blue"></span> Placement</span>
               <span class="legend-item"><span class="legend-line processing-orange"></span> Processing</span>
               <span class="legend-item"><span class="legend-line registration-cyan"></span> Registration</span>
-              <span class="legend-item"><span class="legend-line rejection-red"></span> Rejection</span>
+              <span class="legend-item"><span class="legend-line rejection-red"></span> Refer to TESDA/Self Employment</span>
             </div>
           </div>
-    
+
           <div v-if="!hasPlacementData" class="empty-state">
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <path d="M8 48 L20 32 L32 38 L44 20 L56 28" stroke="#e2e8f0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="8"  cy="48" r="3" fill="#e2e8f0"/>
-            <circle cx="20" cy="32" r="3" fill="#e2e8f0"/>
-            <circle cx="32" cy="38" r="3" fill="#e2e8f0"/>
-            <circle cx="44" cy="20" r="3" fill="#e2e8f0"/>
-            <circle cx="56" cy="28" r="3" fill="#e2e8f0"/>
-            <circle cx="46" cy="12" r="8" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
-            <path d="M43 12h6M46 9v6" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
-          </svg>
-          <p class="empty-title">No placement data yet</p>
-          <p class="empty-sub">Placement metrics will show once applications are processed</p>
-        </div>
-        <div v-else class="svg-chart-wrap" ref="pmWrap" data-animate="pm">
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+              <path d="M8 48 L20 32 L32 38 L44 20 L56 28" stroke="#e2e8f0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="8"  cy="48" r="3" fill="#e2e8f0"/>
+              <circle cx="20" cy="32" r="3" fill="#e2e8f0"/>
+              <circle cx="32" cy="38" r="3" fill="#e2e8f0"/>
+              <circle cx="44" cy="20" r="3" fill="#e2e8f0"/>
+              <circle cx="56" cy="28" r="3" fill="#e2e8f0"/>
+              <circle cx="46" cy="12" r="8" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
+              <path d="M43 12h6M46 9v6" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            <p class="empty-title">No placement data yet</p>
+            <p class="empty-sub">Placement metrics will show once applications are processed</p>
+          </div>
+          <div v-else class="svg-chart-wrap" ref="pmWrap" data-animate="pm">
             <transition name="tip">
               <div v-if="pmTip" class="chart-tooltip" :style="{ left: pmTip.x+'px', top: pmTip.y+'px' }">
                 <div class="tooltip-label">{{ pmTip.label }}</div>
                 <div class="tooltip-row"><span class="tooltip-dot" style="background:#2563eb"></span>Placement<strong>{{ pmTip.placement }}</strong></div>
                 <div class="tooltip-row"><span class="tooltip-dot" style="background:#f97316"></span>Processing<strong>{{ pmTip.processing }}</strong></div>
                 <div class="tooltip-row"><span class="tooltip-dot" style="background:#06b6d4"></span>Registration<strong>{{ pmTip.registration }}</strong></div>
-                <div class="tooltip-row"><span class="tooltip-dot" style="background:#ef4444"></span>Rejection<strong>{{ pmTip.rejection }}</strong></div>
+                <div class="tooltip-row"><span class="tooltip-dot" style="background:#ef4444"></span>Refer to TESDA<strong>{{ pmTip.rejection }}</strong></div>
               </div>
             </transition>
 
@@ -427,7 +446,7 @@
             <div class="summary-divider"></div>
             <div class="summary-item"><span class="summary-dot registration-dot"></span><span class="summary-label">Registration</span><span class="summary-val registration-val">{{ totalRegistration }}</span></div>
             <div class="summary-divider"></div>
-            <div class="summary-item"><span class="summary-dot rejection-dot"></span><span class="summary-label">Rejection</span><span class="summary-val rejection-val">{{ totalRejection }}</span></div>
+            <div class="summary-item"><span class="summary-dot rejection-dot"></span><span class="summary-label">Refer TESDA</span><span class="summary-val rejection-val">{{ totalRejection }}</span></div>
           </div>
         </div>
 
@@ -467,7 +486,7 @@
       <div class="skills-gap-row">
         <div class="card">
           <div class="card-header">
-            <div><h3>Indemand Skills</h3><p class="card-sub">Most in-demand skills from active job postings this month</p></div>
+            <div><h3>Indemand Skills</h3><p class="card-sub">Most in-demand skills from active job postings</p></div>
             <span class="live-badge">Live</span>
           </div>
           <div v-if="!trendingSkills.length" class="empty-state">
@@ -507,11 +526,8 @@
           </div>
           <div v-if="!skillGaps.length" class="empty-state">
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-              <rect x="8" y="18" width="22" height="6" rx="3" fill="#e2e8f0"/>
               <rect x="8" y="18" width="38" height="6" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
-              <rect x="8" y="30" width="16" height="6" rx="3" fill="#e2e8f0"/>
               <rect x="8" y="30" width="30" height="6" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
-              <rect x="8" y="42" width="24" height="6" rx="3" fill="#e2e8f0"/>
               <rect x="8" y="42" width="44" height="6" rx="3" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
               <circle cx="50" cy="10" r="8" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
               <path d="M47 10h6M50 7v6" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
@@ -555,8 +571,6 @@
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
               <circle cx="32" cy="22" r="12" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
               <path d="M10 54c0-12.15 9.85-22 22-22s22 9.85 22 22" stroke="#e2e8f0" stroke-width="1.5" stroke-linecap="round"/>
-              <circle cx="50" cy="14" r="8" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
-              <path d="M47 14h6M50 11v6" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
             </svg>
             <p class="empty-title">No applicants yet</p>
             <p class="empty-sub">Recent jobseeker registrations will appear here</p>
@@ -614,7 +628,6 @@
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
                 <rect x="4" y="16" width="40" height="28" rx="5" fill="#f1f5f9" stroke="#e2e8f0" stroke-width="1.5"/>
                 <path d="M16 16V12a8 8 0 0116 0v4" stroke="#e2e8f0" stroke-width="1.5" stroke-linecap="round"/>
-                <path d="M12 28h24M12 36h16" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
               </svg>
               <p class="empty-title">No employers yet</p>
               <p class="empty-sub">Top hiring companies will appear here</p>
@@ -644,11 +657,24 @@ export default {
   data() {
     return {
       loading: true,
+      lastUpdated: null,
+
+      // Period state
+      activePeriod: 'monthly',
+      customFrom: '',
+      customTo:   '',
+      periodOptions: [
+        { value: 'weekly',  label: 'Weekly'  },
+        { value: 'monthly', label: 'Monthly' },
+        { value: 'yearly',  label: 'Yearly'  },
+        { value: 'custom',  label: 'Custom'  },
+      ],
+
       stats: [
-        { label: 'Registered Jobseekers', value: '0', sub: 'Loading...', iconBg: '#dbeafe', iconColor: '#2563eb', trendVal: '0', trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>` },
-        { label: 'Active Employers',      value: '0', sub: 'Loading...', iconBg: '#fff7ed', iconColor: '#f97316', trendVal: '0', trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
-        { label: 'Job Vacancies',         value: '0', sub: 'Loading...', iconBg: '#f0fdf4', iconColor: '#22c55e', trendVal: '0', trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
-        { label: 'Successful Placements', value: '0', sub: 'Loading...', iconBg: '#eff6ff', iconColor: '#3b82f6', trendVal: '0', trendUp: false, icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>` },
+        { label: 'Registered Jobseekers', value: '0', sub: '—', iconBg: '#dbeafe', iconColor: '#2563eb', trendVal: '0%', trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>` },
+        { label: 'Active Employers',      value: '0', sub: '—', iconBg: '#fff7ed', iconColor: '#f97316', trendVal: '0%', trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
+        { label: 'Job Vacancies',         value: '0', sub: '—', iconBg: '#f0fdf4', iconColor: '#22c55e', trendVal: '0%', trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
+        { label: 'Successful Placements', value: '0', sub: '—', iconBg: '#eff6ff', iconColor: '#3b82f6', trendVal: '0%', trendUp: false, icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>` },
       ],
       chartData:      [],
       placementData:  [],
@@ -666,55 +692,23 @@ export default {
   },
 
   async mounted() {
-    const cached     = localStorage.getItem('admin_dashboard')
-    const cachedTime = localStorage.getItem('admin_dashboard_time')
-    const age        = cachedTime ? Date.now() - Number(cachedTime) : Infinity
-
-    // ✅ always wait so skeleton renders for at least one visible frame
     await this.$nextTick()
-
-    if (cached && age < 5 * 60 * 1000) {
-      try {
-        this._applyDashboardData(JSON.parse(cached))
-      } catch { /* fall through */ }
-
-      // ✅ minimum skeleton time so it's actually visible
-      setTimeout(() => {
-        this.loading = false
-        this.$nextTick(() => this._setupObservers())
-      }, 600)
-
-      // silently refresh cache in background
-      api.get('/admin/dashboard').then(({ data }) => {
-        this._applyDashboardData(data.data)
-        localStorage.setItem('admin_dashboard', JSON.stringify(data.data))
-        localStorage.setItem('admin_dashboard_time', Date.now())
-      }).catch(() => {})
-
-      return
-    }
-
-    // no cache — show skeleton until API responds
-    try {
-      const { data } = await api.get('/admin/dashboard')
-      this._applyDashboardData(data.data)
-      localStorage.setItem('admin_dashboard', JSON.stringify(data.data))
-      localStorage.setItem('admin_dashboard_time', Date.now())
-    } catch (e) {
-      console.error('Dashboard load error:', e)
-    } finally {
-      this.loading = false
-      this.$nextTick(() => this._setupObservers())
-    }
+    await this.fetchDashboard()
   },
 
   computed: {
+    chartSubLabel() {
+      const map = { weekly: 'This week', monthly: `${new Date().getFullYear()}`, yearly: 'Last 5 years', custom: 'Custom range' }
+      return map[this.activePeriod] || ''
+    },
+
     hasRegData() {
       return this.chartData.some(d => d.jobseekers > 0 || d.employers > 0)
     },
     hasPlacementData() {
       return this.placementData.some(d => d.placement > 0 || d.processing > 0 || d.registration > 0 || d.rejection > 0)
     },
+
     chartMax()  { return Math.max(...this.chartData.flatMap(d => [d.jobseekers, d.employers]), 1) },
     chartNice() { return this.niceMax(this.chartMax) },
     dynamicGridLines() {
@@ -799,12 +793,54 @@ export default {
         { label:'Placement',    pct:`${Math.round((this.totalPlacement   /this.donutTotal)*100)||0}%`, color:'#2563eb' },
         { label:'Processing',   pct:`${Math.round((this.totalProcessing  /this.donutTotal)*100)||0}%`, color:'#f97316' },
         { label:'Registration', pct:`${Math.round((this.totalRegistration/this.donutTotal)*100)||0}%`, color:'#06b6d4' },
-        { label:'Rejection',    pct:`${Math.round((this.totalRejection   /this.donutTotal)*100)||0}%`, color:'#ef4444' },
+        { label:'Refer to TESDA/Self Employment',    pct:`${Math.round((this.totalRejection   /this.donutTotal)*100)||0}%`, color:'#ef4444' },
       ]
     },
   },
 
   methods: {
+    // ── Period control ───────────────────────────────────────────────
+    setPeriod(p) {
+      this.activePeriod = p
+      if (p !== 'custom') this.fetchDashboard()
+    },
+    applyCustom() {
+      if (this.customFrom && this.customTo) this.fetchDashboard()
+    },
+
+    // ── Fetch ────────────────────────────────────────────────────────
+    async fetchDashboard() {
+      this.loading = true
+      this._resetAnimations()
+
+      const params = { period: this.activePeriod }
+      if (this.activePeriod === 'custom') {
+        params.from = this.customFrom
+        params.to   = this.customTo
+      }
+
+      try {
+        const { data } = await api.get('/admin/dashboard', { params })
+        this._applyDashboardData(data.data)
+        this.lastUpdated = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      } catch (e) {
+        console.error('Dashboard load error:', e)
+      } finally {
+        this.loading = false
+        this.$nextTick(() => this._setupObservers())
+      }
+    },
+
+    _resetAnimations() {
+      this.regAnimated = false
+      this.pmAnimated  = false
+      this.donutAnimated = false
+      this.skillsAnimated = false
+      this.gapsAnimated = false
+      this.regTip = null
+      this.pmTip  = null
+    },
+
     _applyDashboardData(d) {
       if (!d) return
       if (d.stats?.length) {
@@ -837,7 +873,7 @@ export default {
           up:     s.up     ?? true,
         }))
       }
-      if (d.skillGaps?.length)          this.skillGaps    = d.skillGaps
+      if (d.skillGaps?.length)         this.skillGaps    = d.skillGaps
       if (d.recentApplicants?.length) {
         const colors = ['#2563eb','#f97316','#22c55e','#8b5cf6','#06b6d4','#ef4444']
         this.applicants = d.recentApplicants.map((a, i) => ({ ...a, color: colors[i%colors.length] }))
@@ -860,6 +896,7 @@ export default {
       }
     },
 
+    // ── Chart helpers ────────────────────────────────────────────────
     getX(i)    { return 50 + i*(560/Math.max(this.chartData.length-1,    1)) },
     getXP(i)   { return 50 + i*(560/Math.max(this.placementData.length-1,1)) },
     valToY(v)  { return 158 - ((v/this.chartNice)    *144) },
@@ -957,6 +994,54 @@ export default {
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
 .dashboard-page { font-family: 'Plus Jakarta Sans', sans-serif; flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; background: #f1eeff; }
+
+/* ── PERIOD FILTER BAR ───────────────────────────────────────────── */
+.period-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: #fff; border: 1px solid #f1f5f9; border-radius: 14px;
+  padding: 10px 16px;
+}
+.period-pills { display: flex; gap: 4px; }
+.period-pill {
+  padding: 6px 16px; border-radius: 8px; border: 1.5px solid #e2e8f0;
+  font-size: 12.5px; font-weight: 600; color: #64748b;
+  background: #f8fafc; cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+}
+.period-pill:hover { border-color: #94a3b8; color: #1e293b; }
+.period-pill.active { background: #eff6ff; color: #2563eb; border-color: #2563eb; }
+
+.custom-range {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.date-input {
+  border: 1.5px solid #e2e8f0; border-radius: 8px;
+  padding: 5px 10px; font-size: 12px; color: #1e293b;
+  font-family: inherit; outline: none; background: #f8fafc;
+  transition: border-color 0.15s;
+}
+.date-input:focus { border-color: #2563eb; background: #fff; }
+.date-sep { font-size: 12px; color: #94a3b8; }
+.apply-btn {
+  padding: 6px 14px; background: #2563eb; color: #fff; border: none;
+  border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: background 0.15s;
+}
+.apply-btn:hover:not(:disabled) { background: #1d4ed8; }
+.apply-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+.last-updated {
+  margin-left: auto; font-size: 11px; color: #94a3b8;
+  display: flex; align-items: center; gap: 4px;
+}
+.last-updated::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: #22c55e; display: inline-block;
+}
+
+/* Fade-slide transition for custom range */
+.fade-slide-enter-active { transition: all 0.2s ease; }
+.fade-slide-leave-active { transition: all 0.15s ease; }
+.fade-slide-enter-from, .fade-slide-leave-to { opacity: 0; transform: translateX(-8px); }
 
 /* ── SKELETON ────────────────────────────────────────────────────────────── */
 @keyframes shimmer {
@@ -1137,16 +1222,16 @@ export default {
 .job-cell      { color: #475569; }
 .date-cell     { color: #94a3b8; white-space: nowrap; }
 .status-badge  { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.status-badge.matched   { background: #f0fdf4; color: #22c55e; }
-.status-badge.pending   { background: #fff7ed; color: #f97316; }
-.status-badge.reviewing { background: #eff6ff; color: #3b82f6; }
-.status-badge.shortlisted { background: #cffafe; color: #0891b2; }
-.status-badge.interview   { background: #fdf4ff; color: #a21caf; }
+.status-badge.matched     { background: #f0fdf4; color: #22c55e; }
+.status-badge.pending     { background: #fff7ed; color: #f97316; }
+.status-badge.reviewing   { background: #dbeafe; color: #1d4ed8; }
+.status-badge.shortlisted { background: #1A5F18; color: #a7f3a0; }
+.status-badge.interview   { background: #ede9fe; color: #8B5CF6; }
 .status-badge.hired       { background: #dcfce7; color: #16a34a; }
 .status-badge.rejected    { background: #fef2f2; color: #ef4444; }
 
 /* ── EVENTS ──────────────────────────────────────────────────────────────── */
-.events-list { display: flex; flex-direction: column; gap: 10px; }
+.events-list { display: flex; flex-direction: columns; gap: 10px; }
 .event-item  { display: flex; align-items: center; gap: 10px; }
 .event-date-box { min-width: 40px; height: 44px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
 .event-day   { font-size: 15px; font-weight: 800; line-height: 1; }
@@ -1170,37 +1255,12 @@ export default {
 @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 @keyframes slideInRight { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
 .slide-in-right { animation: slideInRight 0.4s ease both; }
+
 /* ── EMPTY STATES ────────────────────────────────────────────────────────── */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 20px;
-  gap: 10px;
-  text-align: center;
-}
-.empty-state.sm {
-  padding: 24px 16px;
-}
-.empty-state svg {
-  opacity: 0.85;
-  margin-bottom: 4px;
-}
-.empty-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: #94a3b8;
-  margin: 0;
-}
-.empty-sub {
-  font-size: 11.5px;
-  color: #cbd5e1;
-  margin: 0;
-  max-width: 220px;
-  line-height: 1.5;
-}
-.stat-value.zero {
-  color: #cbd5e1;
-}
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; gap: 10px; text-align: center; }
+.empty-state.sm { padding: 24px 16px; }
+.empty-state svg { opacity: 0.85; margin-bottom: 4px; }
+.empty-title { font-size: 13px; font-weight: 700; color: #94a3b8; margin: 0; }
+.empty-sub { font-size: 11.5px; color: #cbd5e1; margin: 0; max-width: 220px; line-height: 1.5; }
+.stat-value.zero { color: #cbd5e1; }
 </style>
