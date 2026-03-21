@@ -190,7 +190,12 @@
                     <p class="file-name">{{ file.label }}</p>
                     <p class="file-status">{{ selected?.files[file.key] ? 'Uploaded' : 'Not uploaded' }}</p>
                   </div>
-                  <button v-if="selected?.files[file.key]" class="btn-view">View</button>
+                  <button
+                    v-if="selected?.files[file.key]"
+                    type="button"
+                    class="btn-view"
+                    @click.stop="viewApplicantDocument(file.key)"
+                  >View</button>
                 </div>
               </div>
             </div>
@@ -287,12 +292,13 @@ export default {
           const jl = a.job_listing || {}
           return {
             id:         a.id,
+            jobseekerId: js.id ?? null,
             name:       `${js.first_name || ''} ${js.last_name || ''}`.trim() || 'Unknown',
             location:   js.address         || 'N/A',
             contact:    js.contact         || 'N/A',
             email:      js.email           || 'N/A',
             education:  js.education_level || 'N/A',
-            experience: js.experience_years ? `${js.experience_years} years` : 'N/A',
+            experience: js.job_experience || 'N/A',
             skills:     js.skills?.map(s => s.skill) || [],
             jobApplied: jl.title                        || 'Unknown',
             employer:   jl.employer?.company_name       || 'Unknown',
@@ -300,7 +306,11 @@ export default {
             status:     a.status || 'reviewing',
             avatarBg:   colors[i % colors.length],
             notes:      a.notes || '',
-            files:      { resume: !!js.resume_path, cert: false, clearance: false },
+            files:      {
+              resume: !!js.resume_path,
+              cert: !!js.certificate_path,
+              clearance: !!js.barangay_clearance_path,
+            },
           }
         })
         this.updateTabCounts()
@@ -341,6 +351,34 @@ export default {
       this.selected  = { ...applicant }
       this.drawerTab = 'Profile'
       this.drawerOpen = true
+    },
+
+    /** Open PDF in new tab via authenticated API (avoids /storage 403). */
+    async viewApplicantDocument(fileKey) {
+      const jid = this.selected?.jobseekerId
+      if (!jid) {
+        alert('Applicant record is missing — refresh the list and try again.')
+        return
+      }
+      const typeMap = { resume: 'resume', cert: 'certificate', clearance: 'clearance' }
+      const type = typeMap[fileKey]
+      if (!type) return
+      try {
+        const res = await api.get(
+          `/admin/jobseekers/${jid}/documents/${type}`,
+          { responseType: 'blob' },
+        )
+        const blob = new Blob([res.data], { type: 'application/pdf' })
+        const url = URL.createObjectURL(blob)
+        const win = window.open(url, '_blank', 'noopener,noreferrer')
+        if (!win) {
+          alert('Pop-up blocked. Allow pop-ups for this site to view the PDF.')
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 120000)
+      } catch (e) {
+        console.error(e)
+        alert('Could not open document. It may be missing or you may have lost access.')
+      }
     },
 
     async updateStatus(applicant, status) {

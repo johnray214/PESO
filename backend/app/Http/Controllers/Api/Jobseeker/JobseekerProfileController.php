@@ -33,6 +33,8 @@ class JobseekerProfileController extends Controller
             'sex' => 'sometimes|in:male,female',
             'date_of_birth' => 'sometimes|date',
             'bio' => 'nullable|string',
+            'education_level' => 'sometimes|nullable|string|max:120|in:No Formal Education,Elementary Level,Elementary Graduate,Secondary Level,Secondary Graduate,Tertiary Level,Tertiary Graduate',
+            'job_experience' => 'sometimes|nullable|string|max:1000',
             'province_code' => 'sometimes|nullable|string|max:20',
             'province_name' => 'sometimes|nullable|string|max:120',
             'city_code' => 'sometimes|nullable|string|max:20',
@@ -119,16 +121,20 @@ class JobseekerProfileController extends Controller
     public function uploadResume(Request $request)
     {
         $request->validate([
-            'resume' => 'required|file|mimes:pdf,doc,docx|max:5120',
+            'resume' => 'required|file|mimes:pdf|max:5120',
         ]);
 
         $jobseeker = $request->user();
+
+        if ($jobseeker->resume_path) {
+            Storage::disk('public')->delete($jobseeker->resume_path);
+        }
 
         $path = $request->file('resume')->store(
             "resumes/{$jobseeker->id}",
             'public'
         );
-        
+
         $jobseeker->update(['resume_path' => $path]);
 
         return response()->json([
@@ -137,6 +143,62 @@ class JobseekerProfileController extends Controller
                 'resume_path' => $path,
             ],
             'message' => 'Resume uploaded successfully',
+        ]);
+    }
+
+    public function uploadCertificate(Request $request)
+    {
+        $request->validate([
+            'certificate' => 'required|file|mimes:pdf|max:5120',
+        ]);
+
+        $jobseeker = $request->user();
+
+        if ($jobseeker->certificate_path) {
+            Storage::disk('public')->delete($jobseeker->certificate_path);
+        }
+
+        $path = $request->file('certificate')->store(
+            "certificates/{$jobseeker->id}",
+            'public'
+        );
+
+        $jobseeker->update(['certificate_path' => $path]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'certificate_path' => $path,
+            ],
+            'message' => 'Certificate uploaded successfully',
+        ]);
+    }
+
+    public function uploadBarangayClearance(Request $request)
+    {
+        $request->validate([
+            'barangay_clearance' => 'required|file|mimes:pdf|max:5120',
+        ]);
+
+        $jobseeker = $request->user();
+
+        if ($jobseeker->barangay_clearance_path) {
+            Storage::disk('public')->delete($jobseeker->barangay_clearance_path);
+        }
+
+        $path = $request->file('barangay_clearance')->store(
+            "barangay_clearances/{$jobseeker->id}",
+            'public'
+        );
+
+        $jobseeker->update(['barangay_clearance_path' => $path]);
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'barangay_clearance_path' => $path,
+            ],
+            'message' => 'Barangay clearance uploaded successfully',
         ]);
     }
 
@@ -178,5 +240,37 @@ class JobseekerProfileController extends Controller
         }
 
         return response()->file(Storage::disk('public')->path($path));
+    }
+
+    /**
+     * View own document (PDF) with auth — avoids public /storage 403 issues.
+     *
+     * @param  string  $type  resume|certificate|clearance
+     */
+    public function downloadDocument(Request $request, string $type)
+    {
+        $column = match ($type) {
+            'resume' => 'resume_path',
+            'certificate' => 'certificate_path',
+            'clearance' => 'barangay_clearance_path',
+            default => null,
+        };
+
+        if ($column === null) {
+            abort(404);
+        }
+
+        $jobseeker = $request->user();
+        $path = $jobseeker->getAttribute($column);
+
+        if (! is_string($path) || $path === '' || ! Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        $fullPath = Storage::disk('public')->path($path);
+
+        return response()->file($fullPath, [
+            'Content-Disposition' => 'inline; filename="'.basename($path).'"',
+        ]);
     }
 }

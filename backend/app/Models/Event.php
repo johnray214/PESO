@@ -34,6 +34,11 @@ class Event extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function registrations()
+    {
+        return $this->hasMany(EventRegistration::class);
+    }
+
     public function getStatusAttribute($value)
     {
         // Don't override cancelled status

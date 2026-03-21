@@ -10,14 +10,14 @@ class PublicEventController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Event::query();
+        $query = Event::query()->withCount(['registrations as participants_count']);
 
         if ($request->has('search')) {
             $search = $request->search;
             $query->where('title', 'like', "%{$search}%");
         }
 
-        // Only show non-cancelled events by default
+        // Only show non-cancelled events by default (uses DB column, not accessor)
         $status = $request->get('status');
         if ($status) {
             $query->where('status', $status);
@@ -26,7 +26,8 @@ class PublicEventController extends Controller
         }
 
         $events = $query
-            ->orderByDesc('event_date')
+            ->orderBy('event_date')
+            ->orderBy('start_time')
             ->paginate(15);
 
         return response()->json([
@@ -37,7 +38,9 @@ class PublicEventController extends Controller
 
     public function show(Request $request, $id)
     {
-        $event = Event::findOrFail($id);
+        $event = Event::query()
+            ->withCount(['registrations as participants_count'])
+            ->findOrFail($id);
 
         return response()->json([
             'success' => true,

@@ -24,6 +24,8 @@ class UserSession {
   String? streetAddress;
   List<String> skills = [];
   String? avatarPath;
+  String? educationLevel;
+  String? jobExperience;
 
   bool get isLoggedIn => token != null && token!.isNotEmpty;
 
@@ -87,6 +89,8 @@ class UserSession {
     barangayName = (user['barangay_name'] as String?)?.trim();
     streetAddress = (user['street_address'] as String?)?.trim();
     avatarPath = user['avatar_path'] as String?;
+    educationLevel = (user['education_level'] as String?)?.trim();
+    jobExperience = (user['job_experience'] as String?)?.trim();
     final rawSkills = user['skills'];
     if (rawSkills is List) {
       skills = rawSkills.map((e) {
@@ -124,6 +128,8 @@ class UserSession {
     streetAddress = null;
     avatarPath = null;
     skills = [];
+    educationLevel = null;
+    jobExperience = null;
   }
 }
 

@@ -68,8 +68,8 @@
                 <span class="prog-label">{{ job.applicants }} applicants</span>
                 <span class="prog-label">{{ job.slots }} slots</span>
               </div>
-              <div class="prog-bar-bg">
-                <div class="prog-bar-fill" :style="{ width: Math.min(job.applicants/job.slots*100,100)+'%', background: job.color }"></div>
+                <div class="prog-bar-bg">
+                <div class="prog-bar-fill" :style="{ width: Math.min(job.applicants/Math.max(job.slots,1)*100,100)+'%', background: job.color }"></div>
               </div>
             </div>
 
@@ -381,6 +381,32 @@ export default {
     }
   },
   methods: {
+    mapJobFromApi(j, idx) {
+      const colors = [['#eff6ff','#2563eb'],['#faf5ff','#8b5cf6'],['#fdf4ff','#d946ef'],['#f0fdf4','#22c55e'],['#eff8ff','#2872A1']]
+      let skills = []
+      if (Array.isArray(j.skills)) {
+        skills = j.skills.map(s => typeof s === 'string' ? s : s.skill || s).filter(Boolean)
+      } else if (j.skills) {
+        skills = (j.skills || '').split(',').map(s => s.trim()).filter(Boolean)
+      }
+      return {
+        id: j.id,
+        title: j.title,
+        type: j.type ? j.type.charAt(0).toUpperCase() + j.type.slice(1) : '',
+        location: j.location,
+        salary: j.salary_range || j.salary,
+        slots: j.slots || 0,
+        applicants: Number(j.applications_count) || 0,
+        hired: Number(j.hired_count) || 0,
+        status: j.status ? j.status.charAt(0).toUpperCase() + j.status.slice(1) : '',
+        daysLeft: j.deadline ? Math.max(0, Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))) : 30,
+        postedDate: j.posted_date ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) : '—',
+        description: j.description,
+        skills: skills,
+        bg: colors[idx % colors.length][0],
+        color: colors[idx % colors.length][1],
+      }
+    },
     async fetchJobs() {
       try {
         const params = {}
@@ -388,39 +414,12 @@ export default {
         if (this.filterStatus) params.status = this.filterStatus
         if (this.filterType)   params.type   = this.filterType
         const { data } = await api.get('/employer/jobs', { params })
-        const colors = [['#eff6ff','#2563eb'],['#faf5ff','#8b5cf6'],['#fdf4ff','#d946ef'],['#f0fdf4','#22c55e'],['#eff8ff','#2872A1']]
         
         // Handle paginated response
         const jobsData = data.data?.data || data.data || data || []
         const jobsArray = Array.isArray(jobsData) ? jobsData : []
         
-        this.jobs = jobsArray.map((j, idx) => {
-          // Handle skills - could be array of strings or array of objects
-          let skills = []
-          if (Array.isArray(j.skills)) {
-            skills = j.skills.map(s => typeof s === 'string' ? s : s.skill || s).filter(Boolean)
-          } else if (j.skills) {
-            skills = (j.skills || '').split(',').map(s => s.trim()).filter(Boolean)
-          }
-          
-          return {
-            id: j.id,
-            title: j.title,
-            type: j.type ? j.type.charAt(0).toUpperCase() + j.type.slice(1) : '',
-            location: j.location,
-            salary: j.salary_range || j.salary,
-            slots: j.slots || 0,
-            applicants: j.applications_count || 0,
-            hired: 0, // Can be calculated later if needed
-            status: j.status ? j.status.charAt(0).toUpperCase() + j.status.slice(1) : '',
-            daysLeft: j.deadline ? Math.max(0, Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))) : 30,
-            postedDate: j.posted_date ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) : '—',
-            description: j.description,
-            skills: skills,
-            bg: colors[idx % colors.length][0],
-            color: colors[idx % colors.length][1],
-          }
-        })
+        this.jobs = jobsArray.map((j, idx) => this.mapJobFromApi(j, idx))
       } catch (e) { 
         console.error('Failed to fetch jobs:', e) 
         this.jobs = []
@@ -505,36 +504,21 @@ export default {
       if (this.savingJob) return;
       this.savingJob = true;
       const skillsArr = [...this.selectedSkills]
-      const colors = [['#eff6ff','#2563eb'],['#faf5ff','#8b5cf6'],['#fdf4ff','#d946ef'],['#f0fdf4','#22c55e'],['#eff8ff','#2872A1']]
       try {
         const payload = { ...this.form, skills: skillsArr }
         if (this.editingJob) {
           const { data } = await api.put(`/employer/jobs/${this.editingJob.id}`, payload)
           const idx = this.jobs.findIndex(j => j.id === this.editingJob.id)
           if (idx !== -1) {
-            const updated = data.data || data;
-            this.jobs[idx] = { 
-              ...this.jobs[idx], 
-              ...updated, 
-              skills: skillsArr,
-              type: updated.type ? updated.type.charAt(0).toUpperCase() + updated.type.slice(1) : '',
-              status: updated.status ? updated.status.charAt(0).toUpperCase() + updated.status.slice(1) : ''
-            }
+            const updated = data.data || data
+            const mapped = this.mapJobFromApi({ ...updated, skills: skillsArr }, idx)
+            this.jobs[idx] = mapped
           }
         } else {
           const { data } = await api.post('/employer/jobs', payload)
-          const [bg, color] = colors[this.jobs.length % colors.length]
-          const newJob = data.data || data;
-          this.jobs.push({ 
-            ...newJob, 
-            skills: skillsArr, 
-            applicants: 0, 
-            hired: 0, 
-            bg, 
-            color,
-            type: newJob.type ? newJob.type.charAt(0).toUpperCase() + newJob.type.slice(1) : '',
-            status: newJob.status ? newJob.status.charAt(0).toUpperCase() + newJob.status.slice(1) : ''
-          })
+          const newJob = data.data || data
+          const mapped = this.mapJobFromApi({ ...newJob, skills: skillsArr }, this.jobs.length)
+          this.jobs.push(mapped)
         }
         this.showModal = false
         this.showToastMsg(this.editingJob ? 'Job updated successfully' : 'Job posted successfully', 'success')

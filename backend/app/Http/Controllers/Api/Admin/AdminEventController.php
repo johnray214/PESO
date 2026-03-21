@@ -27,6 +27,7 @@ class AdminEventController extends Controller
         }
 
         $events = $query->with('creator:id,first_name,last_name')
+            ->withCount(['registrations as participants_count'])
             ->orderByDesc('event_date')
             ->paginate(15);
 
@@ -36,9 +37,37 @@ class AdminEventController extends Controller
         ]);
     }
 
+    public function registrations(Request $request, $id)
+    {
+        $event = Event::query()->findOrFail($id);
+        $rows = $event->registrations()
+            ->with('jobseeker:id,first_name,last_name,email,contact')
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $rows->map(function ($r) {
+                $js = $r->jobseeker;
+
+                return [
+                    'id' => $r->id,
+                    'jobseeker_id' => $r->jobseeker_id,
+                    'name' => $js ? trim(($js->first_name ?? '') . ' ' . ($js->last_name ?? '')) : '',
+                    'email' => $js->email ?? '',
+                    'contact' => $js->contact ?? '',
+                    'registered_at' => $r->created_at?->toIso8601String(),
+                ];
+            }),
+        ]);
+    }
+
     public function show($id)
     {
-        $event = Event::with('creator')->findOrFail($id);
+        $event = Event::query()
+            ->with('creator')
+            ->withCount(['registrations as participants_count'])
+            ->findOrFail($id);
         
         return response()->json([
             'success' => true,
@@ -64,6 +93,7 @@ class AdminEventController extends Controller
         $validated['created_by'] = $request->user()->id;
         
         $event = Event::create($validated);
+        $event->loadCount(['registrations as participants_count']);
 
         return response()->json([
             'success' => true,
@@ -90,6 +120,7 @@ class AdminEventController extends Controller
         ]);
 
         $event->update($validated);
+        $event->loadCount(['registrations as participants_count']);
 
         return response()->json([
             'success' => true,

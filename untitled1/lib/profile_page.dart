@@ -13,7 +13,7 @@ import 'api_service.dart';
 import '_error_state_widget.dart';
 import 'job_action_service.dart';
 import 'skills_profile_page.dart';
-import 'resume_upload_page.dart';
+import 'my_documents_page.dart';
 
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 class ProfileTab extends StatefulWidget {
@@ -306,10 +306,10 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                   ),
                   _buildMenuItem(
-                    icon: Icons.upload_file_rounded,
-                    title: 'My Resume',
+                    icon: Icons.folder_copy_outlined,
+                    title: 'My documents',
                     onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const ResumeUploadPage()),
+                      MaterialPageRoute(builder: (_) => const MyDocumentsPage()),
                     ),
                   ),
                   _buildMenuItem(
@@ -520,6 +520,19 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
   late final TextEditingController _streetController;
+  late final TextEditingController _experienceController;
+
+  String? _educationLevel;
+  List<String> _jobExperiences = [];
+  final List<Map<String, String>> _educationLevelOptions = const [
+    {'name': 'No Formal Education', 'code': 'No Formal Education'},
+    {'name': 'Elementary Level', 'code': 'Elementary Level'},
+    {'name': 'Elementary Graduate', 'code': 'Elementary Graduate'},
+    {'name': 'Secondary Level', 'code': 'Secondary Level'},
+    {'name': 'Secondary Graduate', 'code': 'Secondary Graduate'},
+    {'name': 'Tertiary Level', 'code': 'Tertiary Level'},
+    {'name': 'Tertiary Graduate', 'code': 'Tertiary Graduate'},
+  ];
   bool _isSaving = false;
   List<int>? _avatarBytes;
   Uint8List? _pickedImageBytes;
@@ -559,6 +572,17 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     _emailController = TextEditingController(text: UserSession().email ?? '');
     _phoneController = TextEditingController(text: UserSession().phone ?? '');
     _streetController = TextEditingController(text: session.streetAddress ?? '');
+    _experienceController = TextEditingController();
+
+    // Parse comma-separated experience items saved as `job_experience`
+    _educationLevel = UserSession().educationLevel;
+    final rawExperience = UserSession().jobExperience ?? '';
+    _jobExperiences = rawExperience
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
+
     _loadAvatar();
     _loadProvinces();
   }
@@ -615,6 +639,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     _emailController.dispose();
     _phoneController.dispose();
     _streetController.dispose();
+    _experienceController.dispose();
     super.dispose();
   }
 
@@ -771,8 +796,9 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   Future<Map<String, String>?> _pickOption({
     required String title,
     required List<Map<String, String>> options,
+    bool enableSearch = true,
   }) async {
-    final queryController = TextEditingController();
+    final queryController = enableSearch ? TextEditingController() : null;
     List<Map<String, String>> filtered = List<Map<String, String>>.from(options);
     return showDialog<Map<String, String>>(
       context: context,
@@ -783,28 +809,34 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               title: Text(title),
               content: SizedBox(
                 width: 420,
-                height: 420,
+                height: enableSearch ? 420 : 360,
                 child: Column(
                   children: [
-                    TextField(
-                      controller: queryController,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search_rounded),
-                        hintText: 'Search...',
+                    if (enableSearch) ...[
+                      TextField(
+                        controller: queryController!,
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search_rounded),
+                          hintText: 'Search...',
+                        ),
+                        onChanged: (q) {
+                          final needle = q.trim().toLowerCase();
+                          setLocalState(() {
+                            filtered = options
+                                .where((o) => (o['name'] ?? '').toLowerCase().contains(needle))
+                                .toList();
+                          });
+                        },
                       ),
-                      onChanged: (q) {
-                        final needle = q.trim().toLowerCase();
-                        setLocalState(() {
-                          filtered = options
-                              .where((o) => (o['name'] ?? '').toLowerCase().contains(needle))
-                              .toList();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 12),
+                    ],
                     Expanded(
                       child: filtered.isEmpty
-                          ? const Center(child: Text('No matching results'))
+                          ? Center(
+                              child: Text(
+                                enableSearch ? 'No matching results' : 'No options available',
+                              ),
+                            )
                           : ListView.builder(
                               itemCount: filtered.length,
                               itemBuilder: (_, index) {
@@ -824,7 +856,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
           },
         );
       },
-    );
+    ).whenComplete(() => queryController?.dispose());
   }
 
   Widget _selectorField({
@@ -880,6 +912,32 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       }
     }
     return deduped.join(', ');
+  }
+
+  void _addJobExperience() {
+    final value = _experienceController.text.trim();
+    if (value.isEmpty) return;
+
+    if (value.length > 30) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Each experience item must be 30 characters max.'),
+          backgroundColor: Color(0xFFDC2626),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      if (!_jobExperiences.contains(value)) {
+        _jobExperiences.add(value);
+      }
+      _experienceController.clear();
+    });
+  }
+
+  void _removeJobExperience(String value) {
+    setState(() => _jobExperiences.remove(value));
   }
 
   InputDecoration _fieldDec(String label, IconData icon) {
@@ -1113,6 +1171,105 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                         const SizedBox(height: 16),
 
                         _selectorField(
+                          label: 'Education Level',
+                          icon: Icons.school_outlined,
+                          value: _educationLevel,
+                          placeholder: 'Select education level',
+                          enabled: !_isSaving,
+                          onTap: () async {
+                            final picked = await _pickOption(
+                              title: 'Select Education Level',
+                              options: _educationLevelOptions,
+                              enableSearch: false,
+                            );
+                            if (picked == null) return;
+                            setState(() => _educationLevel = picked['name']);
+                          },
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Text(
+                          'Add one experience at a time. Type an item (max 30 chars) and tap Add.',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey[600],
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _experienceController,
+                                maxLength: 30,
+                                enabled: !_isSaving,
+                                decoration: _fieldDec(
+                                  'Job Experience (max 30 chars)',
+                                  Icons.work_outline_rounded,
+                                ).copyWith(counterText: ''),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            SizedBox(
+                              height: 56,
+                              child: ElevatedButton.icon(
+                                onPressed: _isSaving ? null : _addJobExperience,
+                                icon: const Icon(Icons.add_rounded, size: 20),
+                                label: const Text('Add'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2563EB),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        if (_jobExperiences.isEmpty)
+                          Text(
+                            'No job experience added yet.',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              color: Colors.grey[600],
+                            ),
+                          )
+                        else
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _jobExperiences.map((exp) {
+                              return Chip(
+                                label: Text(
+                                  exp,
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                backgroundColor: const Color(0xFFEFF6FF),
+                                deleteIcon: const Icon(
+                                  Icons.close_rounded,
+                                  size: 16,
+                                ),
+                                onDeleted: _isSaving
+                                    ? null
+                                    : () => _removeJobExperience(exp),
+                              );
+                            }).toList(),
+                          ),
+
+                        const SizedBox(height: 16),
+
+                        _selectorField(
                           label: 'Province',
                           icon: Icons.location_city_outlined,
                           value: _provinceName,
@@ -1243,6 +1400,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                       lastName: _lastNameController.text.trim(),
                                       contact: _phoneController.text.trim(),
                                       address: _composeAddress(),
+                                      educationLevel: _educationLevel,
+                                      jobExperience: _jobExperiences.isEmpty
+                                          ? null
+                                          : _jobExperiences.join(', '),
                                       provinceCode: _provinceCode,
                                       provinceName: _provinceName,
                                       cityCode: _cityCode,

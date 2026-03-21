@@ -8,6 +8,7 @@ use App\Models\Application;
 use App\Models\Notification;
 use App\Models\NotificationRead;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class EmployerApplicationController extends Controller
@@ -57,6 +58,30 @@ class EmployerApplicationController extends Controller
         return response()->json([
             'success' => true,
             'data' => $application,
+        ]);
+    }
+
+    /**
+     * Stream applicant resume PDF (must be an application to this employer's listing).
+     */
+    public function downloadResume(Request $request, $id)
+    {
+        $employer = $request->user();
+
+        $application = Application::whereHas('jobListing', function ($q) use ($employer) {
+            $q->where('employer_id', $employer->id);
+        })->with('jobseeker')->findOrFail($id);
+
+        $path = $application->jobseeker->resume_path;
+
+        if (! is_string($path) || $path === '' || ! Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        $fullPath = Storage::disk('public')->path($path);
+
+        return response()->file($fullPath, [
+            'Content-Disposition' => 'inline; filename="'.basename($path).'"',
         ]);
     }
 

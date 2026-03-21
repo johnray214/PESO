@@ -18,7 +18,7 @@
           Calendar
         </button>
       </div>
-      <button class="btn-primary" @click="openCreateModal">
+      <button class="btn-primary" @click="openCreateModal()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Create Event
       </button>
@@ -173,21 +173,38 @@
       <div class="cal-grid">
         <div v-for="d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="d" class="cal-day-label">{{ d }}</div>
         <div v-for="(cell, i) in calCells" :key="i"
-          :class="['cal-cell', { empty: !cell.day, today: cell.isToday, has: cell.events.length > 0 }]">
-          <span v-if="cell.day" class="cal-date">{{ cell.day }}</span>
-          <div class="cal-events">
-            <div v-for="ev in cell.events.slice(0,2)" :key="ev.id"
-              class="cal-event-dot"
-              :style="{ background: statusColor(ev.status).bg, color: statusColor(ev.status).text, borderLeftColor: statusColor(ev.status).text }"
-              :title="ev.title + ' (' + ev.time + ')'"
-            >
-              <span class="cal-event-time">{{ ev._start_time ? ev._start_time.substring(0, 5) : '' }}</span>
-              <span class="cal-event-title">{{ ev.title }}</span>
-              <!-- small faded indicator if this event is hidden from list -->
-              <span v-if="isHiddenFromList(ev)" class="cal-hidden-badge" title="Hidden from list (completed > 1 day ago)">•</span>
+          :class="['cal-cell', {
+            empty: !cell.day,
+            today: cell.isToday,
+            has: cell.events.length > 0,
+            'cal-events-scroll': cell.day && cell.events.length >= 4,
+          }]"
+          :title="cell.day ? 'Click to create an event on this date' : ''"
+          @click="onCalendarCellClick(cell, $event)">
+          <template v-if="cell.day">
+            <span class="cal-date">{{ cell.day }}</span>
+            <div class="cal-events">
+              <div
+                v-for="ev in cell.events"
+                :key="ev.id"
+                class="cal-event-block"
+                @click.stop
+                :style="{
+                  background: statusColor(ev.status).bg,
+                  color: statusColor(ev.status).text,
+                  borderLeftColor: statusColor(ev.status).text,
+                }"
+                :title="ev.title + ' (' + ev.time + ')'"
+              >
+                <div class="cal-event-block-inner">
+                  <span v-if="ev._start_time" class="cal-event-time">{{ ev._start_time.substring(0, 5) }}</span>
+                  <span class="cal-event-title">{{ ev.title }}</span>
+                  <span v-if="isHiddenFromList(ev)" class="cal-hidden-badge" title="Hidden from list (completed > 1 day ago)">•</span>
+                </div>
+              </div>
+              <div v-if="!cell.events.length" class="cal-events-empty" aria-hidden="true" />
             </div>
-            <div v-if="cell.events.length > 2" class="cal-more">+{{ cell.events.length - 2 }} more</div>
-          </div>
+          </template>
         </div>
       </div>
     </div>
@@ -221,6 +238,7 @@
               <div class="form-group">
                 <label class="form-label">Date</label>
                 <input v-model="form.date" type="date" class="form-input"/>
+                <p v-if="form.date" class="form-date-hint">Selected: {{ formatDateUs(form.date) }}</p>
               </div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                 <div class="form-group">
@@ -263,8 +281,22 @@
             <h3>Registrants — {{ viewingEvent?.title }}</h3>
             <button class="drawer-close" @click="showViewModal = false">✕</button>
           </div>
-          <div class="modal-body" style="text-align:center;padding:40px 20px;">
-            <p style="color:#64748b;font-size:14px;">No registrants yet for this event.</p>
+          <div class="modal-body" style="max-height:55vh;overflow-y:auto;padding:16px 20px 24px;">
+            <div v-if="viewRegistrantsLoading" style="text-align:center;padding:32px;color:#64748b;font-size:14px;">
+              Loading registrants…
+            </div>
+            <template v-else>
+              <p v-if="viewRegistrants.length === 0" style="text-align:center;color:#64748b;font-size:14px;padding:24px 0;">
+                No registrants yet for this event.
+              </p>
+              <ul v-else class="registrants-list">
+                <li v-for="r in viewRegistrants" :key="r.id" class="registrant-row">
+                  <div class="registrant-name">{{ r.name || 'Jobseeker' }}</div>
+                  <div class="registrant-meta">{{ r.email }}<span v-if="r.contact"> · {{ r.contact }}</span></div>
+                  <div v-if="r.registered_at" class="registrant-time">{{ formatRegTime(r.registered_at) }}</div>
+                </li>
+              </ul>
+            </template>
           </div>
         </div>
       </div>
@@ -324,6 +356,8 @@ export default {
       showArchiveModal: false,
       editingEvent: null,
       viewingEvent: null,
+      viewRegistrants: [],
+      viewRegistrantsLoading: false,
       eventToArchive: null,
       toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
       lockToast: { show: false, text: '', _timer: null },
@@ -390,12 +424,12 @@ export default {
       const daysInMonth = new Date(this.calYear, this.calMonth + 1, 0).getDate()
       const today       = new Date()
       const cells       = []
-      for (let i = 0; i < firstDay; i++) cells.push({ day: null, isToday: false, events: [] })
+      for (let i = 0; i < firstDay; i++) cells.push({ day: null, isToday: false, events: [], dateStr: null })
       for (let d = 1; d <= daysInMonth; d++) {
         const isToday = today.getDate() === d && today.getMonth() === this.calMonth && today.getFullYear() === this.calYear
         const dateStr = `${this.calYear}-${String(this.calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
         const dayEvents = this.events.filter(e => e.date === dateStr)
-        cells.push({ day: d, isToday, events: dayEvents })
+        cells.push({ day: d, isToday, events: dayEvents, dateStr })
       }
       return cells
     },
@@ -503,10 +537,35 @@ export default {
     },
 
     // ── Modal openers ────────────────────────────────────────────────
-    openCreateModal() {
+    /** @param {string} [prefillIsoDate] YYYY-MM-DD for native date input; shows mm/dd/yyyy hint in modal */
+    openCreateModal(prefillIsoDate = '') {
       this.editingEvent = null
-      this.form = { title: '', type: 'Job Fair', description: '', date: '', time: '', endTime: '', venue: '', slots: '' }
+      this.form = {
+        title: '',
+        type: 'Job Fair',
+        description: '',
+        date: prefillIsoDate || '',
+        time: '',
+        endTime: '',
+        venue: '',
+        slots: '',
+      }
       this.showModal = true
+    },
+
+    /** mm/dd/yyyy from YYYY-MM-DD */
+    formatDateUs(iso) {
+      if (!iso || typeof iso !== 'string') return ''
+      const parts = iso.split('-')
+      if (parts.length !== 3) return iso
+      const [y, m, d] = parts
+      return `${m}/${d}/${y}`
+    },
+
+    onCalendarCellClick(cell, evt) {
+      if (!cell.day || !cell.dateStr) return
+      if (evt.target.closest && evt.target.closest('.cal-event-block')) return
+      this.openCreateModal(cell.dateStr)
     },
 
     openEditModal(event) {
@@ -525,9 +584,31 @@ export default {
       this.showModal = true
     },
 
-    openViewModal(event) {
+    async openViewModal(event) {
       this.viewingEvent = event
       this.showViewModal = true
+      this.viewRegistrants = []
+      this.viewRegistrantsLoading = true
+      try {
+        const { data } = await api.get(`/admin/events/${event.id}/registrations`)
+        const body = data?.data ?? data
+        this.viewRegistrants = Array.isArray(body) ? body : (body?.data || [])
+      } catch (e) {
+        console.error(e)
+        this.viewRegistrants = []
+      } finally {
+        this.viewRegistrantsLoading = false
+      }
+    },
+
+    formatRegTime(iso) {
+      if (!iso) return ''
+      try {
+        const d = new Date(iso)
+        return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+      } catch {
+        return iso
+      }
     },
 
     // ── Save ─────────────────────────────────────────────────────────
@@ -726,18 +807,124 @@ export default {
 .cal-legend-dot { width: 10px; height: 10px; border-radius: 3px; border: 1.5px solid transparent; display: inline-block; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
 .cal-day-label { text-align: center; font-size: 10px; font-weight: 700; color: #94a3b8; padding: 6px 0; text-transform: uppercase; }
-.cal-cell { min-height: 80px; border-radius: 8px; padding: 6px; border: 1px solid transparent; transition: background 0.1s; }
-.cal-cell:not(.empty):hover { background: #f8fafc; }
-.cal-cell.today { border-color: #2563eb; background: #eff6ff; }
-.cal-cell.has   { background: #fafafa; }
-.cal-date { font-size: 12px; font-weight: 600; color: #1e293b; display: block; margin-bottom: 4px; }
-.cal-cell.today .cal-date { color: #2563eb; }
-.cal-events { display: flex; flex-direction: column; gap: 3px; }
-.cal-event-dot { display: flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 3px 6px; border-radius: 4px; white-space: nowrap; overflow: hidden; border-left: 2px solid currentColor; cursor: default; }
-.cal-event-time  { font-size: 9px; opacity: 0.8; font-weight: 700; flex-shrink: 0; }
-.cal-event-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-.cal-hidden-badge { font-size: 8px; opacity: 0.5; flex-shrink: 0; margin-left: 2px; }
-.cal-more { font-size: 10px; font-weight: 600; color: #64748b; padding: 2px 4px; text-align: center; cursor: pointer; }
+.cal-cell {
+  min-height: 120px;
+  border-radius: 8px;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  transition: box-shadow 0.12s, background 0.12s;
+  overflow: hidden;
+  background: #fff;
+}
+.cal-cell:not(.empty) {
+  position: relative;
+  cursor: pointer;
+}
+.cal-cell.empty {
+  min-height: 120px;
+  border-color: transparent;
+  background: transparent;
+}
+.cal-cell:not(.empty):not(.has):hover { background: #f8fafc; }
+.cal-cell.today {
+  border-color: #2563eb;
+  box-shadow: inset 0 0 0 1px #2563eb;
+}
+.cal-cell.today:not(.has) { background: #eff6ff; }
+.cal-cell.has { border-color: #e2e8f0; }
+/* Day number floats above event fill */
+.cal-date {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  z-index: 3;
+  font-size: 12px;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  pointer-events: none;
+}
+.cal-cell.today .cal-date { color: #1d4ed8; }
+/* Events layer fills the entire day box (under the date badge) */
+.cal-events {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-radius: inherit;
+  overflow: hidden;
+}
+.cal-cell.cal-events-scroll .cal-events {
+  overflow-y: auto;
+}
+.cal-events-empty {
+  flex: 1;
+  min-height: 0;
+}
+.cal-event-block {
+  flex: 1 1 0;
+  min-height: 40px;
+  width: 100%;
+  box-sizing: border-box;
+  border-left: 3px solid;
+  cursor: default;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+.cal-event-block:first-child { border-top-left-radius: 7px; border-top-right-radius: 7px; }
+.cal-event-block:last-child { border-bottom-left-radius: 7px; border-bottom-right-radius: 7px; }
+.cal-event-block:only-child { border-radius: 7px; }
+.cal-event-block-inner {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: 0;
+  padding: 8px 10px 10px 11px;
+  overflow: hidden;
+}
+.cal-event-block:first-child .cal-event-block-inner {
+  padding-top: 28px;
+}
+.cal-event-time {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  opacity: 0.88;
+  flex-shrink: 0;
+  line-height: 1.2;
+}
+.cal-event-title {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  overflow: hidden;
+}
+.cal-hidden-badge { font-size: 9px; opacity: 0.45; flex-shrink: 0; align-self: flex-start; }
+
+/* Registrants modal */
+.registrants-list { list-style: none; margin: 0; padding: 0; }
+.registrant-row {
+  padding: 12px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.registrant-row:last-child { border-bottom: none; }
+.registrant-name { font-size: 14px; font-weight: 700; color: #1e293b; }
+.registrant-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
+.registrant-time { font-size: 11px; color: #94a3b8; margin-top: 4px; }
 
 /* MODAL */
 .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
@@ -752,6 +939,7 @@ export default {
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
 .form-input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; background: #f8fafc; }
+.form-date-hint { margin: 0; font-size: 12px; color: #64748b; }
 .form-input:focus { border-color: #93c5fd; background: #fff; }
 .form-textarea { border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; resize: vertical; background: #f8fafc; }
 

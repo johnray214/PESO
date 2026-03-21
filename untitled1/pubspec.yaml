@@ -24,6 +24,7 @@ dependencies:
   path_provider: ^2.1.0
   image_picker: ^1.0.0
   shared_preferences: ^2.5.4
+  open_file: ^3.5.10
 
 dev_dependencies:
   flutter_test:

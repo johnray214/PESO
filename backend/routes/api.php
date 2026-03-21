@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\Admin\AdminNotificationController;
 use App\Http\Controllers\Api\Admin\AdminReportController;
 use App\Http\Controllers\Api\Admin\AdminArchiveController;
 use App\Http\Controllers\Api\Admin\AdminActivityFeedController;
+use App\Http\Controllers\Api\Admin\AdminJobseekerDocumentController;
 use App\Http\Controllers\Api\Public\PublicEventController;
 use App\Http\Controllers\Api\Public\PublicMapController;
 use App\Http\Controllers\Api\Public\PublicSkillsController;
@@ -37,6 +38,7 @@ use App\Http\Controllers\Api\Jobseeker\JobseekerApplicationController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerNotificationController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerSavedJobController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerSkillsController;
+use App\Http\Controllers\Api\Jobseeker\JobseekerEventRegistrationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -111,6 +113,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     
     // Jobseekers
     Route::get('/jobseekers', [AdminJobseekerController::class, 'index']);
+    Route::get('/jobseekers/{jobseeker}/documents/{type}', [AdminJobseekerDocumentController::class, 'show'])
+        ->where('type', 'resume|certificate|clearance');
     Route::get('/jobseekers/{id}', [AdminJobseekerController::class, 'show']);
     Route::patch('/jobseekers/{id}/status', [AdminJobseekerController::class, 'updateStatus']);
     Route::delete('/jobseekers/{id}', [AdminJobseekerController::class, 'destroy']);
@@ -128,7 +132,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     Route::patch('/applications/{id}/status', [AdminApplicationController::class, 'updateStatus']);
     Route::delete('/applications/{id}', [AdminApplicationController::class, 'destroy']);
     
-    // Events
+    // Events (specific routes before apiResource)
+    Route::get('/events/{id}/registrations', [AdminEventController::class, 'registrations']);
     Route::apiResource('events', AdminEventController::class);
     
     // Notifications
@@ -185,6 +190,7 @@ Route::middleware(['auth:employer', \App\Http\Middleware\EnsureEmployer::class])
     
     // Applications
     Route::get('/applications', [EmployerApplicationController::class, 'index']);
+    Route::get('/applications/{id}/resume', [EmployerApplicationController::class, 'downloadResume']);
     Route::get('/applications/{id}', [EmployerApplicationController::class, 'show']);
     Route::patch('/applications/{id}/status', [EmployerApplicationController::class, 'updateStatus']);
     Route::get('/potential-applicants', [EmployerApplicationController::class, 'potentialApplicants']);
@@ -213,6 +219,11 @@ Route::middleware(['auth:jobseeker', \App\Http\Middleware\EnsureJobseeker::class
     // Auth
     Route::post('/logout', [JobseekerAuthController::class, 'logout']);
     Route::get('/me', [JobseekerAuthController::class, 'me']);
+
+    // Events (registrations — must be before /jobs/{id} style conflicts)
+    Route::get('/events/registered-ids', [JobseekerEventRegistrationController::class, 'registeredEventIds']);
+    Route::post('/events/{id}/register', [JobseekerEventRegistrationController::class, 'register']);
+    Route::delete('/events/{id}/register', [JobseekerEventRegistrationController::class, 'unregister']);
     
     // Job Listings
     Route::get('/jobs', [JobseekerJobListingController::class, 'index']);
@@ -234,6 +245,10 @@ Route::middleware(['auth:jobseeker', \App\Http\Middleware\EnsureJobseeker::class
     Route::put('/profile', [JobseekerProfileController::class, 'update']);
     Route::post('/profile/password', [JobseekerProfileController::class, 'changePassword']);
     Route::post('/profile/resume', [JobseekerProfileController::class, 'uploadResume']);
+    Route::post('/profile/certificate', [JobseekerProfileController::class, 'uploadCertificate']);
+    Route::post('/profile/barangay-clearance', [JobseekerProfileController::class, 'uploadBarangayClearance']);
+    Route::get('/profile/documents/{type}', [JobseekerProfileController::class, 'downloadDocument'])
+        ->where('type', 'resume|certificate|clearance');
     Route::post('/profile/avatar', [JobseekerProfileController::class, 'uploadAvatar']);
     Route::get('/profile/avatar', [JobseekerProfileController::class, 'avatar']);
 

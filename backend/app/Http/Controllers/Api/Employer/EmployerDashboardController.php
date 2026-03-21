@@ -108,7 +108,7 @@ class EmployerDashboardController extends Controller
                             'job_id' => $bestJob->id,
                             'job_title' => $bestJob->title,
                             'location' => $js->address ?? 'Unknown',
-                            'education' => $js->education ?? 'Not specified',
+                            'education' => $js->education_level ?? 'Not specified',
                         ];
                     }
                 }

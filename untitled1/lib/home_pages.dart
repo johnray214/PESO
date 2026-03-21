@@ -252,7 +252,29 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
-  final Future<Map<String, dynamic>> _eventsFuture = ApiService.getEvents();
+  late Future<Map<String, dynamic>> _eventsFuture;
+
+  List<PesoEvent> _parseEventsPayload(Map<String, dynamic> data) {
+    final raw = data['data'] as List<dynamic>? ?? [];
+    final regIds = <int>{};
+    final rid = data['registered_ids'];
+    if (rid is List) {
+      for (final x in rid) {
+        if (x is num) regIds.add(x.toInt());
+      }
+    }
+    return raw.map((item) {
+      final e = item as Map<String, dynamic>;
+      final id = (e['id'] as num).toInt();
+      return PesoEvent.fromJson(e, isRegistered: regIds.contains(id));
+    }).toList();
+  }
+
+  void _reloadEventsFuture() {
+    setState(() {
+      _eventsFuture = ApiService.getEventsWithRegistration();
+    });
+  }
 
   /// Keep all tabs mounted so switching pill nav does not dispose HomeTab
   /// (avoids full-screen "Loading jobs..." on every return to Home).
@@ -265,6 +287,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _eventsFuture = ApiService.getEventsWithRegistration();
     homeNavRequestNotifier.addListener(_onHomeNavRequested);
   }
 
@@ -293,134 +316,218 @@ class _HomePageState extends State<HomePage> {
   void _showEventDetailModal(BuildContext context, PesoEvent e) {
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                    Row(
-                      children: [
+      builder: (ctx) {
+        PesoEvent local = e;
+        var busy = false;
+        return StatefulBuilder(
+          builder: (ctx, setModal) {
+            Future<void> onPrimaryAction() async {
+              final token = UserSession().token;
+              if (token == null || token.isEmpty) {
+                Navigator.of(ctx).pop();
+                if (!context.mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please log in to register for events.'),
+                    backgroundColor: Color(0xFFEF4444),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                return;
+              }
+              setModal(() => busy = true);
+              final Map<String, dynamic> res = local.isRegistered
+                  ? await ApiService.unregisterFromEvent(token: token, eventId: local.id)
+                  : await ApiService.registerForEvent(token: token, eventId: local.id);
+              setModal(() => busy = false);
+              if (!ctx.mounted) return;
+              if (res['success'] == true) {
+                final data = res['data'];
+                final pc = data is Map<String, dynamic>
+                    ? (data['participants_count'] as num?)?.toInt()
+                    : null;
+                setModal(() {
+                  final nextRegistered = !local.isRegistered;
+                  local = local.copyWith(
+                    isRegistered: nextRegistered,
+                    participantsCount: pc ??
+                        (nextRegistered
+                            ? local.participantsCount + 1
+                            : (local.participantsCount > 0 ? local.participantsCount - 1 : 0)),
+                  );
+                });
+                _reloadEventsFuture();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        local.isRegistered
+                            ? 'Registered for ${local.title}'
+                            : 'Cancelled registration',
+                      ),
+                      backgroundColor: const Color(0xFF10B981),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              } else {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text(res['message']?.toString() ?? 'Something went wrong'),
+                    backgroundColor: const Color(0xFFEF4444),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            }
+
+            final primaryDisabled =
+                busy || (!local.isRegistered && local.isFull);
+
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
                           Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        e.typeLabel,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2563EB),
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.grey[100],
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  e.title,
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _detailRow(Icons.calendar_today_rounded, e.formattedDate),
-                if (e.eventTime != null) _detailRow(Icons.access_time_rounded, e.eventTime!),
-                _detailRow(Icons.location_on_rounded, e.location),
-                if (e.organizer != null) _detailRow(Icons.business_rounded, e.organizer!),
-                const SizedBox(height: 16),
-                Text(
-                  'Description',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.grey[700],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  e.description,
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.5,
-                    color: Colors.grey[800],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.of(ctx).pop(),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF64748B),
-                          side: const BorderSide(color: Color(0xFFE2E8F0)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text('Close'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          Navigator.of(ctx).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  const Icon(Icons.check_circle_outline_rounded,
-                                      color: Colors.white, size: 18),
-                                  const SizedBox(width: 8),
-                                  Text('Registered for ${e.title}!'),
-                                ],
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2563EB).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              local.typeLabel,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF2563EB),
                               ),
-                              backgroundColor: const Color(0xFF10B981),
-                              behavior: SnackBarBehavior.floating,
+                            ),
+                          ),
+                          if (local.isRegistered) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Registered',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF059669),
+                                ),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.grey[100],
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                          );
-                        },
-                        style: FilledButton.styleFrom(
-                          backgroundColor: const Color(0xFF2563EB),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ),
-                        child: const Text('Register'),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      Text(
+                        local.title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _detailRow(Icons.calendar_today_rounded, local.formattedDate),
+                      if (local.eventTime != null) _detailRow(Icons.access_time_rounded, local.eventTime!),
+                      _detailRow(Icons.location_on_rounded, local.location),
+                      _detailRow(Icons.people_outline_rounded, local.slotsLabel),
+                      if (local.organizer != null) _detailRow(Icons.business_rounded, local.organizer!),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Description',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        local.description,
+                        style: TextStyle(
+                          fontSize: 15,
+                          height: 1.5,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: busy ? null : () => Navigator.of(ctx).pop(),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFF64748B),
+                                side: const BorderSide(color: Color(0xFFE2E8F0)),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: const Text('Close'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: primaryDisabled ? null : () => onPrimaryAction(),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: local.isRegistered
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFF2563EB),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: busy
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      local.isRegistered ? 'Cancel registration' : 'Register',
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -544,10 +651,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                       );
                     }
-                    final raw = data['data'] as List<dynamic>? ?? [];
-                    final events = raw
-                        .map((e) => PesoEvent.fromJson(e as Map<String, dynamic>))
-                        .toList();
+                    final events = _parseEventsPayload(data);
                     if (events.isEmpty) {
                       return Center(
                         child: Padding(
@@ -584,96 +688,227 @@ class _HomePageState extends State<HomePage> {
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
-                            color: Colors.grey[50],
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(color: Colors.grey[200]!),
                           ),
+                          clipBehavior: Clip.antiAlias,
                           child: Material(
                             color: Colors.transparent,
                             child: InkWell(
                               onTap: () => _showEventDetailModal(context, e),
                               borderRadius: BorderRadius.circular(16),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+                              child: IntrinsicHeight(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 10,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF2563EB).withOpacity(0.12),
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Text(
-                                            e.typeLabel,
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: Color(0xFF2563EB),
+                                    // Full-height blue rail + centered white date badge (reference design)
+                                    Container(
+                                      width: 82,
+                                      color: const Color(0xFF2563EB),
+                                      alignment: Alignment.center,
+                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          vertical: 12,
+                                          horizontal: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(12),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(0.1),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 2),
                                             ),
-                                          ),
+                                          ],
                                         ),
-                                        const Spacer(),
-                                        Text(
-                                          e.formattedDate,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      e.title,
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF0F172A),
-                                      ),
-                                    ),
-                                    if (e.eventTime != null) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        e.eventTime!,
-                                        style: TextStyle(
-                                          fontSize: 13,
-                                          color: Colors.grey[600],
-                                        ),
-                                      ),
-                                    ],
-                                    const SizedBox(height: 6),
-                                    Row(
-                                      children: [
-                                        Icon(Icons.location_on_outlined, size: 14, color: Colors.grey[600]),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            e.location,
-                                            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (e.organizer != null) ...[
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'by ${e.organizer}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.grey[500],
-                                          fontStyle: FontStyle.italic,
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              e.dateBadgeDay,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 22,
+                                                fontWeight: FontWeight.w800,
+                                                height: 1.05,
+                                                color: Color(0xFF2563EB),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              e.dateBadgeMonthUpper,
+                                              textAlign: TextAlign.center,
+                                              style: const TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w800,
+                                                letterSpacing: 0.5,
+                                                color: Color(0xFF2563EB),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              e.dateBadgeYear,
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
+                                    ),
+                                    Expanded(
+                                      child: Container(
+                                        color: const Color(0xFFF8FAFC),
+                                        padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Expanded(
+                                                  child: Align(
+                                                    alignment: Alignment.centerLeft,
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 10,
+                                                        vertical: 4,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: const Color(0xFF2563EB).withOpacity(0.12),
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: Text(
+                                                        e.typeLabel,
+                                                        maxLines: 2,
+                                                        overflow: TextOverflow.ellipsis,
+                                                        style: const TextStyle(
+                                                          fontSize: 12,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Color(0xFF2563EB),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Container(
+                                                  constraints: const BoxConstraints(maxWidth: 118),
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 5,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: e.isRegistered
+                                                        ? const Color(0xFFE8F5E9)
+                                                        : Colors.white,
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    border: Border.all(
+                                                      color: e.isRegistered
+                                                          ? const Color(0xFF81C784).withOpacity(0.6)
+                                                          : const Color(0xFFE2E8F0),
+                                                    ),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        e.isRegistered
+                                                            ? Icons.check_circle_rounded
+                                                            : Icons.circle_outlined,
+                                                        size: 14,
+                                                        color: e.isRegistered
+                                                            ? const Color(0xFF2E7D32)
+                                                            : const Color(0xFF757575),
+                                                      ),
+                                                      const SizedBox(width: 5),
+                                                      Flexible(
+                                                        child: Text(
+                                                          e.isRegistered
+                                                              ? 'Registered'
+                                                              : 'Not registered',
+                                                          maxLines: 2,
+                                                          textAlign: TextAlign.right,
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            fontWeight: FontWeight.w700,
+                                                            height: 1.2,
+                                                            color: e.isRegistered
+                                                                ? const Color(0xFF2E7D32)
+                                                                : const Color(0xFF757575),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              e.title,
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                                color: Color(0xFF0F172A),
+                                              ),
+                                            ),
+                                            if (e.eventTime != null) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                e.eventTime!,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: Colors.grey[600],
+                                                ),
+                                              ),
+                                            ],
+                                            const SizedBox(height: 6),
+                                            Row(
+                                              children: [
+                                                Icon(Icons.location_on_outlined,
+                                                    size: 14, color: Colors.grey[600]),
+                                                const SizedBox(width: 4),
+                                                Expanded(
+                                                  child: Text(
+                                                    e.location,
+                                                    style: TextStyle(
+                                                        fontSize: 13, color: Colors.grey[600]),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            if (e.organizer != null) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'by ${e.organizer}',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey[500],
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                            ],
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              e.slotsLabel,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),

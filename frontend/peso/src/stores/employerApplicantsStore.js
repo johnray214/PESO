@@ -27,18 +27,26 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
 
   actions: {
     async fetch() {
-      if (this.loaded || this.loading) return
+      if (this.loading) return
 
       // load from cache first so data shows instantly on reload
       const cachedApplicants = localStorage.getItem('employer_applicants')
       const cachedPotential  = localStorage.getItem('employer_potential_applicants')
       if (cachedApplicants) {
-        try { this.applicants = JSON.parse(cachedApplicants) } catch { this.applicants = [] }
+        try {
+          const parsed = JSON.parse(cachedApplicants)
+          this.applicants = Array.isArray(parsed)
+            ? parsed.map((a) => ({ ...a, hasResume: a.hasResume ?? false }))
+            : []
+        } catch {
+          this.applicants = []
+        }
       }
       if (cachedPotential) {
         try { this.potentialApplicants = JSON.parse(cachedPotential) } catch { this.potentialApplicants = [] }
       }
 
+      if (this.loaded) return
       await this._load()
     },
 
@@ -65,8 +73,8 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
             location:   js.address    || 'Unknown',
             contact:    js.contact    || '',
             email:      js.email      || '',
-            education:  js.education  || '',
-            experience: js.experience || '',
+            education:  js.education_level  || '',
+            experience: js.job_experience  || '',
             skills,
             jobApplied: a.job_listing?.title || 'Unknown Position',
             date:       new Date(a.applied_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
@@ -74,6 +82,7 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
             status:     (a.status?.charAt(0).toUpperCase() + a.status?.slice(1)) || 'Reviewing',
             avatarBg:   AVATAR_COLORS[i % AVATAR_COLORS.length],
             notes:      a.notes || '',
+            hasResume:  !!js.has_resume,
           }
         })
         // save to cache
@@ -94,7 +103,8 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
             jobColor:  AVATAR_COLORS[i % AVATAR_COLORS.length],
             skills,
             location:  a.address   || 'Unknown',
-            education: a.education || 'Not specified',
+              education: a.education_level || 'Not specified',
+              experience: a.job_experience || '',
             invited:   false,
           }
         })

@@ -133,15 +133,21 @@
                 <p class="detail-section-title">Professional Background</p>
                 <div class="detail-rows">
                   <div class="detail-row"><span class="detail-key">Education Level</span><span class="detail-val">{{ selectedJobseeker.educationLevel || '—' }}</span></div>
-                  <div class="detail-row"><span class="detail-key">Experience</span><span class="detail-val">{{ selectedJobseeker.experienceYears ? selectedJobseeker.experienceYears + ' years' : '—' }}</span></div>
+                  <div class="detail-row"><span class="detail-key">Experience</span><span class="detail-val" style="white-space: normal;">{{ selectedJobseeker.jobExperience || '—' }}</span></div>
                   <div class="detail-row"><span class="detail-key">Applications</span><span class="detail-val">{{ selectedJobseeker.applicationsCount }} total</span></div>
                   <div class="detail-row">
                     <span class="detail-key">Resume</span>
                     <span class="detail-val">
-                      <a v-if="selectedJobseeker.resumeUrl" :href="selectedJobseeker.resumeUrl" target="_blank" class="resume-link">
+                      <button
+                        v-if="selectedJobseeker?.hasResume"
+                        type="button"
+                        class="resume-view-btn"
+                        :disabled="openingResume"
+                        @click.stop="viewJobseekerResume(selectedJobseeker)"
+                      >
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        View Resume
-                      </a>
+                        {{ openingResume ? 'Opening…' : 'View Resume' }}
+                      </button>
                       <span v-else style="color:#94a3b8">Not uploaded</span>
                     </span>
                   </div>
@@ -225,6 +231,7 @@ export default {
       selectedJobseeker: null,
       loading: false,
       actionLoading: false,
+      openingResume: false,
       toast: { show: false, text: '', type: 'success', icon: CHECK_SVG, _timer: null },
       jobseekers: [],
       currentPage: 1,
@@ -278,10 +285,11 @@ export default {
           city:             js.city              || '',
           address:          js.address           || '',
           educationLevel:   js.education_level   || '',
-          experienceYears:  js.experience_years  || null,
+          jobExperience:    js.job_experience    || null,
           skills:           js.skills?.map(s => s.skill || s) || [],
           applicationsCount: js.applications_count || 0,
-          resumeUrl:        js.resume_path ? `/storage/${js.resume_path}` : null,
+          resumePath:       js.resume_path || null,
+          hasResume:        !!js.resume_path,
           status:           js.status            || 'active',
           registeredDate:   js.created_at
             ? new Date(js.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -305,6 +313,29 @@ export default {
     viewJobseeker(js) {
       this.selectedJobseeker = { ...js }
       this.showModal = true
+    },
+
+    /** Open the selected jobseeker's resume (PDF) via auth-backed endpoint. */
+    async viewJobseekerResume(js) {
+      if (!js?.id || !js?.hasResume) return
+      this.openingResume = true
+      try {
+        const res = await api.get(`/admin/jobseekers/${js.id}/documents/resume`, {
+          responseType: 'blob',
+        })
+        const blob = new Blob([res.data], { type: 'application/pdf' })
+        const url = URL.createObjectURL(blob)
+        const win = window.open(url, '_blank', 'noopener,noreferrer')
+        if (!win) {
+          alert('Pop-up blocked. Allow pop-ups to view the PDF.')
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 120000)
+      } catch (e) {
+        console.error(e)
+        this.showToastMsg('Could not open resume.', 'error')
+      } finally {
+        this.openingResume = false
+      }
     },
 
     async updateStatus(status) {
@@ -439,6 +470,38 @@ export default {
 /* Resume link */
 .resume-link { display: inline-flex; align-items: center; gap: 5px; color: #2563eb; font-size: 13px; font-weight: 600; text-decoration: none; }
 .resume-link:hover { text-decoration: underline; }
+
+  /* Jobseeker modal: authenticated Resume "View" button */
+  .resume-view-btn {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 12.5px;
+    font-weight: 800;
+    cursor: pointer;
+    font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.15s, box-shadow 0.15s, transform 0.05s;
+    box-shadow: 0 10px 25px rgba(37, 99, 235, 0.16);
+  }
+
+  .resume-view-btn:hover:not(:disabled) {
+    background: #1d4ed8;
+    box-shadow: 0 14px 34px rgba(37, 99, 235, 0.22);
+    transform: translateY(-1px);
+  }
+
+  .resume-view-btn:disabled {
+    background: #93c5fd;
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 0.7;
+  }
 
 /* Applications list */
 .apps-list { display: flex; flex-direction: column; gap: 7px; }

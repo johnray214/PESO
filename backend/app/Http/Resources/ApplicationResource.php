@@ -20,7 +20,7 @@ class ApplicationResource extends JsonResource
                 'salary_range' => $this->jobListing->salary_range,
             ]),
             'jobseeker_id' => $this->jobseeker_id,
-            'jobseeker' => $this->whenLoaded('jobseeker', function() {
+            'jobseeker' => $this->whenLoaded('jobseeker', function () {
                 return [
                     'id' => $this->jobseeker->id,
                     'first_name' => $this->jobseeker->first_name,
@@ -28,7 +28,11 @@ class ApplicationResource extends JsonResource
                     'full_name' => $this->jobseeker->fullName(),
                     'email' => $this->jobseeker->email,
                     'address' => $this->jobseeker->address,
+                    'contact' => $this->jobseeker->contact,
                     'skills' => $this->jobseeker->skills->pluck('skill')->toArray(),
+                    'education_level' => $this->jobseeker->education_level,
+                    'job_experience' => $this->jobseeker->job_experience,
+                    'has_resume' => ! empty($this->jobseeker->resume_path),
                 ];
             }),
             'status' => $this->status,

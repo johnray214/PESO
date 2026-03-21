@@ -1,8 +1,25 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'user_session.dart';
 
 class ApiService {
   static const String baseUrl = 'http://127.0.0.1:8000/api';
+
+  /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
+  static String get apiOrigin {
+    final uri = Uri.parse(baseUrl);
+    return Uri(
+      scheme: uri.scheme,
+      host: uri.host,
+      port: uri.hasPort ? uri.port : null,
+    ).toString();
+  }
+
+  static String publicStorageUrl(String relativePath) {
+    if (relativePath.isEmpty) return '';
+    final clean = relativePath.replaceFirst(RegExp(r'^/+'), '');
+    return '$apiOrigin/storage/$clean';
+  }
 
   static Future<Map<String, dynamic>> register({
     required String firstName,
@@ -181,6 +198,68 @@ class ApiService {
       }
 
       return decoded;
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  /// Public events + registered event IDs when jobseeker is logged in.
+  static Future<Map<String, dynamic>> getEventsWithRegistration() async {
+    final base = await getEvents();
+    if (base['success'] != true) return base;
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return base;
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/jobseeker/events/registered-ids'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic> &&
+          decoded['success'] == true &&
+          decoded['data'] is List) {
+        base['registered_ids'] = decoded['data'];
+      }
+    } catch (_) {
+      /* ignore */
+    }
+    return base;
+  }
+
+  static Future<Map<String, dynamic>> registerForEvent({
+    required String token,
+    required int eventId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/events/$eventId/register'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> unregisterFromEvent({
+    required String token,
+    required int eventId,
+  }) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/jobseeker/events/$eventId/register'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
@@ -468,12 +547,24 @@ class ApiService {
       if (path == null || path.isEmpty) {
         return {'error': 'No resume on file'};
       }
-      // Assume default Laravel public disk: /storage/{path}
-      final url = 'http://127.0.0.1:8000/storage/$path';
-      return {'url': url};
+      return {'url': publicStorageUrl(path)};
     } catch (e) {
       return {'error': 'Connection error: $e'};
     }
+  }
+
+  /// Download own document PDF (auth). [type]: resume | certificate | clearance
+  static Future<http.Response> fetchJobseekerDocument({
+    required String token,
+    required String type,
+  }) async {
+    return http.get(
+      Uri.parse('$baseUrl/jobseeker/profile/documents/$type'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/pdf,*/*',
+      },
+    );
   }
 
   /// Upload resume from bytes (used on web where file path is not available).
@@ -490,6 +581,95 @@ class ApiService {
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
         http.MultipartFile.fromBytes('resume', fileBytes, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      return _parseResumeResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  /// Certificate / diploma (PDF or image, max 5MB server-side).
+  static Future<Map<String, dynamic>> uploadCertificate({
+    required String token,
+    required String filePath,
+    required String fileName,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/jobseeker/profile/certificate'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        await http.MultipartFile.fromPath('certificate', filePath, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      return _parseResumeResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadCertificateBytes({
+    required String token,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/jobseeker/profile/certificate'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        http.MultipartFile.fromBytes('certificate', fileBytes, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      return _parseResumeResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadBarangayClearance({
+    required String token,
+    required String filePath,
+    required String fileName,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/jobseeker/profile/barangay-clearance'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        await http.MultipartFile.fromPath('barangay_clearance', filePath, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      return _parseResumeResponse(response);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> uploadBarangayClearanceBytes({
+    required String token,
+    required List<int> fileBytes,
+    required String fileName,
+  }) async {
+    try {
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$baseUrl/jobseeker/profile/barangay-clearance'),
+      );
+      request.headers['Authorization'] = 'Bearer $token';
+      request.files.add(
+        http.MultipartFile.fromBytes('barangay_clearance', fileBytes, filename: fileName),
       );
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
@@ -516,6 +696,8 @@ class ApiService {
     String? sex,
     String? dateOfBirth,
     String? bio,
+    String? educationLevel,
+    String? jobExperience,
   }) async {
     try {
       final body = <String, dynamic>{};
@@ -538,6 +720,8 @@ class ApiService {
       if (sex != null) body['sex'] = sex;
       if (dateOfBirth != null) body['date_of_birth'] = dateOfBirth;
       if (bio != null) body['bio'] = bio;
+      if (educationLevel != null) body['education_level'] = educationLevel;
+      if (jobExperience != null) body['job_experience'] = jobExperience;
 
       final response = await http.put(
         Uri.parse('$baseUrl/jobseeker/profile'),

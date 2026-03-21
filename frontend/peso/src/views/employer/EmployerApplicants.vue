@@ -296,10 +296,22 @@
               </div>
             </div>
             <div v-if="drawerTab === 'Resume'">
-              <div class="resume-placeholder">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                <p class="resume-msg">Resume / CV</p>
-                <button class="btn-blue">View Document</button>
+              <div class="resume-panel">
+                <p class="resume-hint">Resume / CV (PDF only)</p>
+                <div class="resume-placeholder" :class="{ 'resume-placeholder--has': selected?.hasResume }">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" :stroke="selected?.hasResume ? '#2872A1' : '#e2e8f0'" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  <p class="resume-msg">Resume / CV</p>
+                  <p class="resume-status-line">{{ selected?.hasResume ? 'Uploaded' : 'Not uploaded' }}</p>
+                  <button
+                    type="button"
+                    class="btn-blue"
+                    :disabled="!selected?.hasResume || openingResume"
+                    @click="viewApplicantResume"
+                  >
+                    <span v-if="openingResume" class="spinner-action" style="margin-right:8px;"></span>
+                    {{ openingResume ? 'Opening…' : (selected?.hasResume ? 'View Document' : 'No document') }}
+                  </button>
+                </div>
               </div>
             </div>
             <div v-if="drawerTab === 'Status'">
@@ -383,6 +395,7 @@
 <script>
 import EmployerSidebar from '@/components/EmployerSidebar.vue'
 import EmployerTopbar  from '@/components/EmployerTopbar.vue'
+import employerApi from '@/services/employerApi'
 import { useEmployerApplicantsStore } from '@/stores/employerApplicantsStore'
 
 export default {
@@ -406,6 +419,7 @@ export default {
 
       // Drawer
       drawerOpen: false, drawerTab: 'Profile', selected: null,
+      openingResume: false,
 
       // Potential filters + pagination
       potentialJobFilter: '', potentialPage: 1,
@@ -478,7 +492,27 @@ export default {
     statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', Hired:'hired', Rejected:'rejected' }[s] || '' },
     scoreColor(v)  { return v >= 85 ? '#22c55e' : v >= 70 ? '#2872A1' : '#ef4444' },
     scoreBg(v)     { return v >= 85 ? '#f0fdf4' : v >= 70 ? '#eff8ff' : '#fef2f2' },
-    openDrawer(a)  { this.selected = { ...a }; this.drawerTab = 'Profile'; this.drawerOpen = true },
+    openDrawer(a)  { this.selected = { ...a }; this.drawerTab = 'Resume'; this.drawerOpen = true },
+
+    async viewApplicantResume() {
+      if (!this.selected?.id || !this.selected?.hasResume) return
+      this.openingResume = true
+      try {
+        const res = await employerApi.downloadApplicationResume(this.selected.id)
+        const blob = new Blob([res.data], { type: 'application/pdf' })
+        const url = URL.createObjectURL(blob)
+        const win = window.open(url, '_blank', 'noopener,noreferrer')
+        if (!win) {
+          this.showToastMsg('Pop-up blocked — allow pop-ups to view the PDF.', 'error')
+        }
+        setTimeout(() => URL.revokeObjectURL(url), 120000)
+      } catch (e) {
+        console.error(e)
+        this.showToastMsg('Could not open resume.', 'error')
+      } finally {
+        this.openingResume = false
+      }
+    },
 
     sendInvite(a) {
       this.applicantsStore.markInvited(a.id)
@@ -659,9 +693,14 @@ export default {
 .applied-box { background: #eff8ff; border-radius: 10px; padding: 12px 14px; border: 1px solid #bae6fd; }
 .applied-job { font-size: 14px; font-weight: 700; color: #1e293b; }
 .applied-date { font-size: 12px; color: #94a3b8; margin-top: 3px; }
-.resume-placeholder { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 20px; }
-.resume-msg { font-size: 14px; font-weight: 600; color: #94a3b8; }
-.btn-blue { background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 9px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.resume-panel { width: 100%; }
+.resume-hint { font-size: 11px; font-weight: 600; color: #64748b; margin: 0 0 12px; }
+.resume-placeholder { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 20px; border: 1px solid #e2e8f0; border-radius: 14px; background: #fafafa; }
+.resume-placeholder--has { background: #f8fafc; border-color: #bae6fd; }
+.resume-msg { font-size: 15px; font-weight: 700; color: #1e293b; }
+.resume-status-line { font-size: 12px; font-weight: 600; color: #64748b; margin: -4px 0 4px; }
+.btn-blue { background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 9px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; min-width: 160px; }
+.btn-blue:disabled { opacity: 0.55; cursor: not-allowed; }
 .status-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .status-option { padding: 10px; border-radius: 10px; border: 2px solid transparent; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; background: #f8fafc; color: #64748b; }
 .status-option.active.reviewing   { background: #eff6ff; color: #3b82f6; border-color: #3b82f6; }

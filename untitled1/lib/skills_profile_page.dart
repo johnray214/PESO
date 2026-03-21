@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'user_session.dart';
@@ -28,6 +30,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   bool _isLoadingMatched = false;
 
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
   String _searchQuery = '';
 
   // Job Matches sorting & filtering
@@ -65,6 +68,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   void dispose() {
     _tabController.dispose();
     _searchController.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -659,9 +663,19 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   List<String> get _searchSuggestions {
     final q = _searchQuery.toLowerCase();
     if (q.isEmpty) return [];
+    final selectedSet = _selectedSkills.toSet();
     return _allCatalogSkills
-        .where((s) => s.toLowerCase().contains(q) && !_selectedSkills.contains(s))
+        .where((s) => s.toLowerCase().contains(q) && !selectedSet.contains(s))
         .toList();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    final nextQuery = value.trim();
+    _searchDebounce = Timer(const Duration(milliseconds: 150), () {
+      if (!mounted || _searchQuery == nextQuery) return;
+      setState(() => _searchQuery = nextQuery);
+    });
   }
 
   @override
@@ -768,6 +782,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     final filteredCatalog = _sortedFilteredCatalog;
     final isSearching = _searchQuery.isNotEmpty;
     final suggestions = _searchSuggestions;
+    final selectedSkillSet = _selectedSkills.toSet();
 
     return Column(
       children: [
@@ -777,7 +792,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
           child: TextField(
             controller: _searchController,
-            onChanged: (value) => setState(() => _searchQuery = value.trim()),
+            onChanged: _onSearchChanged,
             decoration: InputDecoration(
               hintText: 'Search skills (e.g. Flutter, Sales, Nursing...)',
               hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
@@ -785,6 +800,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
               suffixIcon: _searchQuery.isNotEmpty
                   ? GestureDetector(
                       onTap: () {
+                        _searchDebounce?.cancel();
                         _searchController.clear();
                         setState(() => _searchQuery = '');
                       },
@@ -1117,7 +1133,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                         return _SkillCategoryCard(
                           category: entry.key,
                           skills: entry.value,
-                          selectedSkills: _selectedSkills,
+                          selectedSkillSet: selectedSkillSet,
                           onToggle: _toggleSkill,
                           searchQuery: _searchQuery,
                           forceExpanded: isSearching,
@@ -1579,7 +1595,7 @@ class _SelectedSkillChip extends StatelessWidget {
 class _SkillCategoryCard extends StatefulWidget {
   final String category;
   final List<String> skills;
-  final List<String> selectedSkills;
+  final Set<String> selectedSkillSet;
   final void Function(String) onToggle;
   final String searchQuery;
   final bool forceExpanded;
@@ -1588,7 +1604,7 @@ class _SkillCategoryCard extends StatefulWidget {
   const _SkillCategoryCard({
     required this.category,
     required this.skills,
-    required this.selectedSkills,
+    required this.selectedSkillSet,
     required this.onToggle,
     this.searchQuery = '',
     this.forceExpanded = false,
@@ -1600,7 +1616,7 @@ class _SkillCategoryCard extends StatefulWidget {
 }
 
 class _SkillCategoryCardState extends State<_SkillCategoryCard> {
-  bool _expanded = true;
+  bool _expanded = false;
 
   IconData _categoryIcon(String cat) {
     switch (cat) {
@@ -1654,15 +1670,15 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
         final bMatch = b.toLowerCase().contains(q);
         if (aMatch && !bMatch) return -1;
         if (!aMatch && bMatch) return 1;
-        final aSelected = widget.selectedSkills.contains(a);
-        final bSelected = widget.selectedSkills.contains(b);
+        final aSelected = widget.selectedSkillSet.contains(a);
+        final bSelected = widget.selectedSkillSet.contains(b);
         if (aSelected && !bSelected) return -1;
         if (!aSelected && bSelected) return 1;
         return 0;
       });
     }
 
-    final selectedInCat = widget.skills.where((s) => widget.selectedSkills.contains(s)).length;
+    final selectedInCat = widget.skills.where((s) => widget.selectedSkillSet.contains(s)).length;
     final matchingCount = isSearching
         ? widget.skills.where((s) => s.toLowerCase().contains(q)).length
         : 0;
@@ -1755,7 +1771,7 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                 spacing: 8,
                 runSpacing: 8,
                 children: sortedSkills.map((skill) {
-                  final isSelected = widget.selectedSkills.contains(skill);
+                  final isSelected = widget.selectedSkillSet.contains(skill);
                   final isSearchMatch = isSearching && skill.toLowerCase().contains(q);
                   final canTap = widget.skillsEditable;
                   return GestureDetector(

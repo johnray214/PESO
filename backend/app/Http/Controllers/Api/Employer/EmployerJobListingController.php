@@ -128,7 +128,11 @@ class EmployerJobListingController extends Controller
             $query->whereRaw('LOWER(type) = ?', [strtolower($request->type)]);
         }
 
-        $jobListings = $query->withCount('applications')
+        $jobListings = $query
+            ->withCount([
+                'applications',
+                'applications as hired_count' => fn ($q) => $q->where('status', 'hired'),
+            ])
             ->with('skills')
             ->orderByDesc('created_at')
             ->paginate(50);
@@ -143,7 +147,12 @@ class EmployerJobListingController extends Controller
     {
         $employer = $request->user();
 
-        $jobListing = JobListing::with(['skills', 'applications.jobseeker:id,first_name,last_name'])
+        $jobListing = JobListing::query()
+            ->with(['skills', 'applications.jobseeker:id,first_name,last_name'])
+            ->withCount([
+                'applications',
+                'applications as hired_count' => fn ($q) => $q->where('status', 'hired'),
+            ])
             ->where('employer_id', $employer->id)
             ->findOrFail($id);
 
@@ -197,9 +206,16 @@ class EmployerJobListingController extends Controller
 
             DB::commit();
 
+            $jobListing->refresh();
+            $jobListing->load('skills');
+            $jobListing->loadCount([
+                'applications',
+                'applications as hired_count' => fn ($q) => $q->where('status', 'hired'),
+            ]);
+
             return response()->json([
                 'success' => true,
-                'data'    => $jobListing->load('skills'),
+                'data'    => $jobListing,
                 'message' => 'Job listing created successfully',
             ], 201);
         } catch (\Exception $e) {
@@ -247,9 +263,16 @@ class EmployerJobListingController extends Controller
 
             DB::commit();
 
+            $jobListing->refresh();
+            $jobListing->load('skills');
+            $jobListing->loadCount([
+                'applications',
+                'applications as hired_count' => fn ($q) => $q->where('status', 'hired'),
+            ]);
+
             return response()->json([
                 'success' => true,
-                'data'    => $jobListing->load('skills'),
+                'data'    => $jobListing,
                 'message' => 'Job listing updated successfully',
             ]);
         } catch (\Exception $e) {

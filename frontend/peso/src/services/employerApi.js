@@ -13,6 +13,9 @@ export const employerApi = {
 
   // Applications
   getApplications: (params) => api.get('/employer/applications', { params }),
+  /** PDF blob — use with employer token */
+  downloadApplicationResume: (id) =>
+    api.get(`/employer/applications/${id}/resume`, { responseType: 'blob' }),
   getApplication: (id) => api.get(`/employer/applications/${id}`),
   updateApplicationStatus: (id, status) => api.patch(`/employer/applications/${id}/status`, { status }),
   getPotentialApplicants: (params) => api.get('/employer/potential-applicants', { params }),
