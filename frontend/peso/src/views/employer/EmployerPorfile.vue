@@ -9,11 +9,10 @@
           <!-- Left Col -->
           <div class="left-col">
             <div class="card profile-card">
-              <div class="cover-banner">
-              </div>
+              <div class="cover-banner"></div>
               <div class="profile-info">
                 <div class="company-logo-wrap">
-                  <div class="company-logo">N</div>
+                  <div class="company-logo">{{ (company.name || 'N')[0] }}</div>
                 </div>
                 <h2 class="company-name-lg">{{ company.name }}</h2>
                 <p class="company-tagline">{{ company.tagline }}</p>
@@ -83,14 +82,16 @@
           <div class="right-col">
             <div class="card tabs-card">
               <div class="tab-bar">
-                <button v-for="tab in ['Company Info', 'Job Listings', 'Settings']" :key="tab"
-                  :class="['profile-tab', { active: activeTab === tab }]" @click="activeTab = tab">{{ tab }}</button>
+                <button
+                  v-for="tab in ['Company Info', 'Job Listings', 'Settings']"
+                  :key="tab"
+                  :class="['profile-tab', { active: activeTab === tab }]"
+                  @click="activeTab = tab"
+                >{{ tab }}</button>
               </div>
 
               <!-- ── COMPANY INFO TAB ── -->
               <div v-if="activeTab === 'Company Info'" class="tab-body">
-
-                <!-- Single Edit Button for entire Company Info -->
                 <div class="section-header-row" style="margin-bottom: -8px;">
                   <span></span>
                   <button class="btn-edit-all" @click="toggleEditAll">
@@ -192,10 +193,12 @@
 
                   <div class="edit-actions" style="margin-top: 12px;">
                     <button class="btn-ghost-sm" @click="cancelEditAll">Cancel</button>
-                    <button class="btn-blue-sm" @click="saveAll">Save All Changes</button>
+                    <button class="btn-blue-sm" :disabled="saving" @click="saveAll">
+                      <span v-if="saving" class="spinner-sm"></span>
+                      {{ saving ? 'Saving…' : 'Save All Changes' }}
+                    </button>
                   </div>
                 </div>
-
               </div>
 
               <!-- ── JOB LISTINGS TAB ── -->
@@ -203,6 +206,7 @@
                 <p class="jl-sub">Your posted job openings visible to jobseekers on PESO</p>
                 <div class="jl-list">
                   <div v-for="job in previewJobs" :key="job.title" class="jl-row">
+                    <!-- FIX #4: bg/color now always present from API -->
                     <div class="jl-icon" :style="{ background: job.bg }">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" :stroke="job.color" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                     </div>
@@ -226,10 +230,12 @@
                   </div>
                   <div class="form-row two">
                     <div class="form-group">
+                      <!-- FIX #5: use contact_person, not first/last split -->
                       <label class="form-label">Contact Person</label>
                       <input class="form-input" v-model="editCompany.contactPerson"/>
                     </div>
                     <div class="form-group">
+                      <!-- FIX #1: field is phone, not contact_role -->
                       <label class="form-label">Contact Number</label>
                       <input class="form-input" v-model="editCompany.phone"/>
                     </div>
@@ -244,30 +250,33 @@
                       <input class="form-input" v-model="editCompany.website"/>
                     </div>
                   </div>
-
                 </div>
 
                 <div class="section-block">
                   <h4 class="section-title">Change Password</h4>
                   <div class="form-group">
                     <label class="form-label">Current Password</label>
-                    <input class="form-input" type="password" placeholder="Enter current password"/>
+                    <input class="form-input" type="password" v-model="passwords.current" placeholder="Enter current password"/>
                   </div>
                   <div class="form-row two">
                     <div class="form-group">
                       <label class="form-label">New Password</label>
-                      <input class="form-input" type="password" placeholder="New password"/>
+                      <input class="form-input" type="password" v-model="passwords.new" placeholder="New password"/>
                     </div>
                     <div class="form-group">
                       <label class="form-label">Confirm Password</label>
-                      <input class="form-input" type="password" placeholder="Repeat password"/>
+                      <input class="form-input" type="password" v-model="passwords.confirm" placeholder="Repeat password"/>
                     </div>
                   </div>
+                  <p v-if="passwordError" class="error-msg">{{ passwordError }}</p>
                 </div>
 
                 <div class="settings-footer">
                   <button class="btn-ghost" @click="resetSettings">Cancel</button>
-                  <button class="btn-amber" @click="saveSettings">Save Changes</button>
+                  <button class="btn-amber" :disabled="savingSettings" @click="saveSettings">
+                    <span v-if="savingSettings" class="spinner-sm"></span>
+                    {{ savingSettings ? 'Saving…' : 'Save Changes' }}
+                  </button>
                 </div>
               </div>
 
@@ -284,55 +293,71 @@ import api from '@/services/api'
 import EmployerSidebar from '@/components/EmployerSidebar.vue'
 import EmployerTopbar from '@/components/EmployerTopbar.vue'
 
+const JOB_PALETTE = [
+  { bg: '#eff6ff', color: '#2563eb' },
+  { bg: '#faf5ff', color: '#8b5cf6' },
+  { bg: '#fdf4ff', color: '#d946ef' },
+  { bg: '#f0fdf4', color: '#16a34a' },
+  { bg: '#f8fafc', color: '#94a3b8' },
+]
+
 export default {
   name: 'EmployerProfile',
   components: { EmployerSidebar, EmployerTopbar },
+
   data() {
     return {
       activeTab: 'Company Info',
       editAll: false,
+      saving: false,
+      savingSettings: false,
+      passwordError: '',
+
+      passwords: { current: '', new: '', confirm: '' },
+
       company: {
-        name: 'Nexus Tech Solutions',
-        legalName: 'Nexus Tech Solutions Inc.',
-        tagline: 'Building the future, one line of code at a time.',
-        about: 'Nexus Tech Solutions is a leading software development company based in Quezon City. We specialize in building web applications, mobile solutions, and enterprise software for clients across Southeast Asia. Our team of passionate engineers and designers work together to deliver high-quality products that drive business growth.',
-        industry: 'IT / Software',
-        location: 'Quezon City, PH',
-        size: '50–100 employees',
-        founded: '2015',
-        businessType: 'Private Corporation',
-        tin: '123-456-789-000',
-        address: '4F Nexus Building, Diliman, Quezon City, Metro Manila, 1101',
-        city: 'Quezon City, PH',
-        phone: '+63 917 123 4567',
-        email: 'hr@nexustech.com.ph',
-        website: 'www.nexustech.com.ph',
-        contactPerson: 'John Dela Cruz',
-        perks: ['Health Insurance', 'Hybrid Setup', '13th Month Pay', 'HMO Day 1', 'Performance Bonus', 'Paid Leaves', 'Training & Dev', 'Team Events'],
+        name: '',
+        legalName: '',
+        tagline: '',
+        about: '',
+        industry: '',
+        location: '',
+        size: '',
+        founded: '',
+        businessType: '',
+        tin: '',
+        address: '',
+        city: '',
+        phone: '',
+        email: '',
+        website: '',
+        contactPerson: '',
+        perks: [],
       },
       editCompany: {},
+
       accountStats: [
-        { label: 'Active Job Listings', value: '7',   bg: '#eff6ff', color: '#2563eb', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
-        { label: 'Total Applicants',    value: '142', bg: '#eff8ff', color: '#2872A1', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
-        { label: 'Total Hired',         value: '12',  bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>` },
-        { label: 'Member Since',        value: '2022', bg: '#f8fafc', color: '#64748b', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
+        { label: 'Active Job Listings', value: '—', bg: '#eff6ff', color: '#2563eb', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
+        { label: 'Total Applicants',    value: '—', bg: '#eff8ff', color: '#2872A1', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
+        { label: 'Total Hired',         value: '—', bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>` },
+        { label: 'Member Since',        value: '—', bg: '#f8fafc', color: '#64748b', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
       ],
-      previewJobs: [
-        { title:'Frontend Developer', type:'Full-time', location:'Quezon City', salary:'₱30K–₱45K/mo', status:'Open',   applicants:38, bg:'#eff6ff', color:'#2563eb' },
-        { title:'Backend Developer',  type:'Full-time', location:'Remote',      salary:'₱35K–₱50K/mo', status:'Open',   applicants:29, bg:'#faf5ff', color:'#8b5cf6' },
-        { title:'UI/UX Designer',     type:'Full-time', location:'Hybrid',      salary:'₱25K–₱40K/mo', status:'Open',   applicants:22, bg:'#fdf4ff', color:'#d946ef' },
-        { title:'QA Engineer',        type:'Part-time', location:'Hybrid',      salary:'₱20K–₱30K/mo', status:'Closed', applicants:11, bg:'#f0fdf4', color:'#16a34a' },
-        { title:'Data Analyst',       type:'Internship',location:'Quezon City', salary:'₱15K–₱18K/mo', status:'Draft',  applicants:0,  bg:'#f8fafc', color:'#94a3b8' },
-      ]
+
+      previewJobs: [],
     }
   },
+
   async created() {
     try {
       const { data } = await api.get('/employer/profile')
       const p = data.data || data
+
+      // FIX #1: phone   — was p.contact_role (wrong), now p.phone
+      // FIX #2: legalName — resource now returns real legal_name column
+      // FIX #7: address — was p.address (wrong key), now p.address_full
       this.company = {
-        name:          p.company_name  || p.name || '',
-        legalName:     p.legal_name    || '',
+        name:          p.company_name  || '',
+        legalName:     p.legal_name    || p.company_name || '',
         tagline:       p.tagline       || '',
         about:         p.about         || '',
         industry:      p.industry      || '',
@@ -341,33 +366,55 @@ export default {
         founded:       p.founded       || '',
         businessType:  p.business_type || '',
         tin:           p.tin           || '',
-        address:       p.address       || '',
+        address:       p.address_full  || '',   // FIX #7
         city:          p.city          || '',
-        phone:         p.contact_role  || '',
+        phone:         p.phone         || '',   // FIX #1
         email:         p.email         || '',
         website:       p.website       || '',
-        contactPerson: `${p.first_name||''} ${p.last_name||''}`.trim(),
+        contactPerson: p.contact_person || '',  // FIX #5: single field, no split
         perks:         Array.isArray(p.perks) ? p.perks : [],
       }
+
+      // FIX #3: use stats object returned by resource
       if (p.stats) {
-        if (p.stats.active_listings !== undefined) this.accountStats[0].value = String(p.stats.active_listings)
-        if (p.stats.total_applicants !== undefined) this.accountStats[1].value = String(p.stats.total_applicants)
-        if (p.stats.total_hired !== undefined) this.accountStats[2].value = String(p.stats.total_hired)
-        if (p.stats.member_since !== undefined) this.accountStats[3].value = String(p.stats.member_since)
+        if (p.stats.active_listings  != null) this.accountStats[0].value = String(p.stats.active_listings)
+        if (p.stats.total_applicants != null) this.accountStats[1].value = String(p.stats.total_applicants)
+        if (p.stats.total_hired      != null) this.accountStats[2].value = String(p.stats.total_hired)
+        if (p.stats.member_since     != null) this.accountStats[3].value = String(p.stats.member_since)
       }
-      if (p.jobs) this.previewJobs = p.jobs
-    } catch (e) { console.error(e) }
+
+      // FIX #4: bg/color now come from the API (EmployerResource adds them)
+      // but we still guard with palette fallback just in case
+      if (Array.isArray(p.jobs)) {
+        this.previewJobs = p.jobs.map((j, i) => ({
+          ...j,
+          bg:    j.bg    || JOB_PALETTE[i % JOB_PALETTE.length].bg,
+          color: j.color || JOB_PALETTE[i % JOB_PALETTE.length].color,
+        }))
+      }
+    } catch (e) {
+      console.error('Failed to load employer profile:', e)
+    }
+
     this.editCompany = { ...this.company, perks: [...(this.company.perks || [])] }
   },
+
   methods: {
+    // ── Company Info tab ──────────────────────────────────────────────────────
     toggleEditAll() {
-      if (!this.editAll) this.editCompany = { ...this.company, perks: [...this.company.perks] }
+      if (!this.editAll) {
+        this.editCompany = { ...this.company, perks: [...this.company.perks] }
+      }
       this.editAll = !this.editAll
     },
+
     cancelEditAll() {
       this.editAll = false
     },
+
     async saveAll() {
+      if (this.saving) return
+      this.saving = true
       try {
         await api.put('/employer/profile', {
           about:         this.editCompany.about,
@@ -377,31 +424,66 @@ export default {
           founded:       this.editCompany.founded,
           business_type: this.editCompany.businessType,
           tin:           this.editCompany.tin,
-          address:       this.editCompany.address,
+          address_full:  this.editCompany.address,
           tagline:       this.editCompany.tagline,
-          perks:         this.editCompany.perks,
+          perks:         this.editCompany.perks.filter(p => p.trim()),
         })
-        Object.assign(this.company, { ...this.editCompany, perks: [...this.editCompany.perks] })
+        Object.assign(this.company, {
+          ...this.editCompany,
+          perks: [...this.editCompany.perks],
+        })
         this.editAll = false
-      } catch (e) { console.error(e) }
+      } catch (e) {
+        console.error('Failed to save profile:', e)
+      } finally {
+        this.saving = false
+      }
     },
+
     addPerk() {
       this.editCompany.perks.push('')
     },
+
     removePerk(i) {
       this.editCompany.perks.splice(i, 1)
     },
+
+    // ── Settings tab ──────────────────────────────────────────────────────────
     async saveSettings() {
+      if (this.savingSettings) return
+      this.passwordError = ''
+
+      // Validate password section if user filled any password field
+      const { current, new: newPw, confirm } = this.passwords
+      const changingPassword = current || newPw || confirm
+      if (changingPassword) {
+        if (!current)          { this.passwordError = 'Enter your current password.'; return }
+        if (newPw !== confirm) { this.passwordError = 'New passwords do not match.';  return }
+        if (newPw.length < 8)  { this.passwordError = 'New password must be at least 8 characters.'; return }
+      }
+
+      this.savingSettings = true
       try {
+        // FIX #5: send contact_person as a single field (matches controller + resource)
         await api.put('/employer/profile', {
-          company_name:  this.editCompany.name,
-          tagline:       this.editCompany.tagline,
-          phone:         this.editCompany.phone,
-          email:         this.editCompany.email,
-          website:       this.editCompany.website,
-          first_name:    this.editCompany.contactPerson?.split(' ')[0] || '',
-          last_name:     this.editCompany.contactPerson?.split(' ').slice(1).join(' ') || '',
+          company_name:   this.editCompany.name,
+          tagline:        this.editCompany.tagline,
+          phone:          this.editCompany.phone,
+          email:          this.editCompany.email,
+          website:        this.editCompany.website,
+          contact_person: this.editCompany.contactPerson,
         })
+
+        // Change password in a separate request if needed
+        if (changingPassword) {
+          await api.put('/employer/profile/password', {
+            current_password:       current,
+            password:               newPw,
+            password_confirmation:  confirm,
+          })
+          this.passwords = { current: '', new: '', confirm: '' }
+        }
+
         Object.assign(this.company, {
           name:          this.editCompany.name,
           tagline:       this.editCompany.tagline,
@@ -410,21 +492,30 @@ export default {
           website:       this.editCompany.website,
           contactPerson: this.editCompany.contactPerson,
         })
-      } catch (e) { console.error(e) }
+      } catch (e) {
+        console.error('Failed to save settings:', e)
+        this.passwordError = e.response?.data?.message || 'Failed to save. Please try again.'
+      } finally {
+        this.savingSettings = false
+      }
     },
+
     resetSettings() {
-      this.editCompany = { ...this.company, perks: [...(this.company.perks || [])] }
+      this.editCompany   = { ...this.company, perks: [...(this.company.perks || [])] }
+      this.passwords     = { current: '', new: '', confirm: '' }
+      this.passwordError = ''
     },
+
     openEditProfile() {
-      this.activeTab = 'Company Info'
+      this.activeTab   = 'Company Info'
       this.editCompany = { ...this.company, perks: [...this.company.perks] }
-      this.editAll = true
+      this.editAll     = true
       this.$nextTick(() => {
         const el = document.querySelector('.right-col')
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
-    }
-  }
+    },
+  },
 }
 </script>
 
@@ -442,7 +533,6 @@ export default {
 
 /* PROFILE CARD */
 .cover-banner { height: 80px; background: linear-gradient(135deg, #2872A1, #08BDDE); position: relative; }
-.cover-edit-btn { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.3); border: none; border-radius: 6px; padding: 5px; cursor: pointer; color: #fff; display: flex; align-items: center; }
 .profile-info { padding: 0 18px 18px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
 .company-logo-wrap { position: relative; margin-top: -26px; }
 .company-logo { width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -493,8 +583,9 @@ export default {
 .edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .btn-ghost-sm { background: #f1f5f9; color: #64748b; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-ghost-sm:hover { background: #e2e8f0; }
-.btn-blue-sm { background: #2872A1; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-amber-sm:hover { background: #1a5f8a; }
+.btn-blue-sm { display: flex; align-items: center; gap: 6px; background: #2872A1; color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-blue-sm:hover:not(:disabled) { background: #1a5f8a; }
+.btn-blue-sm:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* FORM */
 .form-group { display: flex; flex-direction: column; gap: 5px; }
@@ -523,45 +614,28 @@ export default {
 .settings-footer { display: flex; justify-content: flex-end; gap: 10px; padding-top: 8px; border-top: 1px solid #f1f5f9; }
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-ghost:hover { background: #e2e8f0; }
-.btn-amber { background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-amber:hover { background: #1a5f8a; }
+.btn-amber { display: flex; align-items: center; gap: 6px; background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-amber:hover:not(:disabled) { background: #1a5f8a; }
+.btn-amber:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.btn-edit-all {
-  display: flex; align-items: center; gap: 6px;
-  background: #eff8ff; color: #2872A1; border: 1px solid #bae6fd;
-  border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600;
-  cursor: pointer; font-family: inherit; transition: all 0.15s;
-}
+.error-msg { font-size: 12px; color: #ef4444; background: #fef2f2; padding: 8px 12px; border-radius: 8px; border: 1px solid #fecaca; }
+
+/* EDIT ALL BUTTON */
+.btn-edit-all { display: flex; align-items: center; gap: 6px; background: #eff8ff; color: #2872A1; border: 1px solid #bae6fd; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .btn-edit-all:hover { background: #dbeafe; }
-.edit-section-label {
-  font-size: 10px; font-weight: 700; color: #2872A1;
-  text-transform: uppercase; letter-spacing: 0.08em;
-  padding-bottom: 6px; border-bottom: 1px solid #e0f2fe;
-}
+.edit-section-label { font-size: 10px; font-weight: 700; color: #2872A1; text-transform: uppercase; letter-spacing: 0.08em; padding-bottom: 6px; border-bottom: 1px solid #e0f2fe; }
 .perks-edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .perk-edit-row { display: flex; align-items: center; gap: 6px; }
 .perk-input { flex: 1; }
-.perk-remove-btn {
-  width: 26px; height: 26px; border-radius: 6px; border: none;
-  background: #fef2f2; color: #ef4444; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
+.perk-remove-btn { width: 26px; height: 26px; border-radius: 6px; border: none; background: #fef2f2; color: #ef4444; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .perk-remove-btn:hover { background: #fee2e2; }
-.add-perk-btn {
-  display: flex; align-items: center; gap: 6px;
-  background: none; border: 1px dashed #bae6fd;
-  border-radius: 8px; padding: 7px 14px; font-size: 12px;
-  color: #2872A1; cursor: pointer; font-family: inherit;
-  width: fit-content; margin-top: 4px;
-}
+.add-perk-btn { display: flex; align-items: center; gap: 6px; background: none; border: 1px dashed #bae6fd; border-radius: 8px; padding: 7px 14px; font-size: 12px; color: #2872A1; cursor: pointer; font-family: inherit; width: fit-content; margin-top: 4px; }
 .add-perk-btn:hover { background: #eff8ff; }
 
-.edit-profile-btn {
-  display: flex; align-items: center; gap: 6px; margin-top: 4px;
-  background: #eff8ff; color: #2872A1; border: 1px solid #bae6fd;
-  border-radius: 99px; padding: 6px 16px; font-size: 12px; font-weight: 600;
-  cursor: pointer; font-family: inherit; transition: all 0.15s;
-}
+.edit-profile-btn { display: flex; align-items: center; gap: 6px; margin-top: 4px; background: #eff8ff; color: #2872A1; border: 1px solid #bae6fd; border-radius: 99px; padding: 6px 16px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .edit-profile-btn:hover { background: #dbeafe; border-color: #93c5fd; }
 
+/* Spinner */
+.spinner-sm { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

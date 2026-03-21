@@ -136,11 +136,11 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     Route::post('/notifications/{id}/send', [AdminNotificationController::class, 'send']);
     
     // Reports
-    Route::post('/admin/reports', [AdminReportController::class, 'store']);
-    Route::post('/admin/reports/export', [AdminReportController::class, 'export']);
-    Route::get('/admin/reports', [AdminReportController::class, 'index']);
-    Route::get('/admin/reports/{id}', [AdminReportController::class, 'show']);
-    Route::delete('/admin/reports/{id}', [AdminReportController::class, 'destroy']);
+    Route::get('/reports',              [AdminReportController::class, 'index']);
+    Route::post('/reports',             [AdminReportController::class, 'store']);
+    Route::post('/reports/export',      [AdminReportController::class, 'export']); // static segment first
+    Route::get('/reports/{id}',         [AdminReportController::class, 'show']);
+    Route::delete('/reports/{id}',      [AdminReportController::class, 'destroy']);
     
     // Archive
     Route::get('/archive', [AdminArchiveController::class, 'index']);

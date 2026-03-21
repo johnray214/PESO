@@ -147,6 +147,15 @@ const routes = [
         },
       },
       {
+        path: 'jobseekers',
+        name: 'jobseekers',
+        component: () => import('@/views/admin/JobseekerPage.vue'),
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER],
+          subtitle: 'Manage jobseekers accounts',
+        },
+      },
+      {
         path: 'verified-employer',
         name: 'verified-employer',
         component: () => import('@/views/admin/EmployerUser.vue'),
@@ -200,7 +209,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),  // ✅ removes /#/ from URLs
+  history: createWebHistory(), 
   routes,
 })
 

@@ -54,10 +54,10 @@ class AdminEventController extends Controller
             'type' => 'required|string|max:100',
             'location' => 'required|string|max:255',
             'event_date' => 'required|date',
-            'start_time' => 'required|date_format:H:i',
-            'end_time' => 'nullable|date_format:H:i|after:start_time',
+            'start_time' => 'required|string',
+            'end_time' => 'nullable|string|after:start_time',
             'organizer' => 'nullable|string|max:255',
-            'max_participants' => 'nullable|integer|min:1',
+            'max_participants' => 'nullable|numeric|min:1',
             'status' => ['sometimes', Rule::in(['upcoming', 'ongoing', 'completed', 'cancelled'])],
         ]);
 
@@ -82,10 +82,10 @@ class AdminEventController extends Controller
             'type' => 'sometimes|string|max:100',
             'location' => 'sometimes|string|max:255',
             'event_date' => 'sometimes|date',
-            'start_time' => 'sometimes|date_format:H:i',
-            'end_time' => 'nullable|date_format:H:i|after:start_time',
+            'start_time' => 'sometimes|string',
+            'end_time' => 'nullable|string|after:start_time',
             'organizer' => 'nullable|string|max:255',
-            'max_participants' => 'nullable|integer|min:1',
+            'max_participants' => 'nullable|numeric|min:1',
             'status' => ['sometimes', Rule::in(['upcoming', 'ongoing', 'completed', 'cancelled'])],
         ]);
 
