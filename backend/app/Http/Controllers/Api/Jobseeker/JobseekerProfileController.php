@@ -27,11 +27,19 @@ class JobseekerProfileController extends Controller
         $validated = $request->validate([
             'first_name' => 'sometimes|string|max:100',
             'last_name' => 'sometimes|string|max:100',
-            'contact' => 'sometimes|string|max:20',
-            'address' => 'sometimes|string|max:255',
+            'contact' => 'sometimes|nullable|string|max:20',
+            'address' => 'sometimes|nullable|string|max:500',
+            'email' => 'sometimes|email|unique:jobseekers,email,' . $jobseeker->id,
             'sex' => 'sometimes|in:male,female',
             'date_of_birth' => 'sometimes|date',
             'bio' => 'nullable|string',
+            'province_code' => 'sometimes|nullable|string|max:20',
+            'province_name' => 'sometimes|nullable|string|max:120',
+            'city_code' => 'sometimes|nullable|string|max:20',
+            'city_name' => 'sometimes|nullable|string|max:120',
+            'barangay_code' => 'sometimes|nullable|string|max:20',
+            'barangay_name' => 'sometimes|nullable|string|max:120',
+            'street_address' => 'sometimes|nullable|string|max:255',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'skills' => 'nullable|array',
@@ -42,6 +50,22 @@ class JobseekerProfileController extends Controller
         try {
             $skills = $validated['skills'] ?? null;
             unset($validated['skills']);
+
+            if (!array_key_exists('address', $validated)) {
+                $parts = [
+                    $validated['street_address'] ?? $jobseeker->street_address,
+                    $validated['barangay_name'] ?? $jobseeker->barangay_name,
+                    $validated['city_name'] ?? $jobseeker->city_name,
+                    $validated['province_name'] ?? $jobseeker->province_name,
+                ];
+                $parts = array_values(array_filter(array_map(
+                    fn ($p) => is_string($p) ? trim($p) : '',
+                    $parts
+                )));
+                if (!empty($parts)) {
+                    $validated['address'] = implode(', ', $parts);
+                }
+            }
             
             $jobseeker->update($validated);
             

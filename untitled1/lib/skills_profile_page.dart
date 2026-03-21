@@ -16,9 +16,13 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   late TabController _tabController;
   List<String> _selectedSkills = [];
   Map<String, List<String>> _skillCatalog = {};
+  Map<String, int> _skillNameToId = {};
   bool _isLoadingCatalog = true;
   bool _isSaving = false;
   bool _hasChanges = false;
+  /// When false, selected chips have no remove (X); browse/search add is locked too.
+  /// New users with no skills yet can always browse/add (`_canChangeSkills`).
+  bool _editingSelectedSkills = false;
 
   List<Job> _matchedJobs = [];
   bool _isLoadingMatched = false;
@@ -28,8 +32,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   // Job Matches sorting & filtering
   String _sortOption = 'Best Match';
-  final Set<String> _selectedEmploymentTypes = {};
-  final Set<String> _selectedCategories = {};
+  final Set<String> _selectedEmploymentTypes = <String>{};
+  final Set<String> _selectedSkillFilters = <String>{};
+  String _skillFilterQuery = '';
 
   static const List<String> _sortOptions = [
     'Best Match',
@@ -43,20 +48,13 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     'Contract',
     'Freelance',
   ];
-  static const List<String> _categoryList = [
-    'IT & Software',
-    'Healthcare',
-    'Education',
-    'Construction',
-    'Sales & Marketing',
-    'Manufacturing',
-  ];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _selectedSkills = List.from(UserSession().skills);
+    _loadSavedSkills();
     _loadSkillCatalog();
     if (_selectedSkills.isNotEmpty) {
       _loadMatchedJobs();
@@ -71,23 +69,71 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   }
 
   Future<void> _loadSkillCatalog() async {
-    final result = await ApiService.getSkillCatalog();
+    final result = await ApiService.getPublicSkills();
     if (!mounted) return;
 
     if (result['success'] == true) {
-      final data = result['data'] as Map<String, dynamic>;
-      final cats = data['categories'] as Map<String, dynamic>? ?? {};
+      final list = result['data'] as List<dynamic>? ?? [];
+
+      final byCategory = <String, List<String>>{};
+      final nameToId = <String, int>{};
+
+      for (final raw in list) {
+        final m = raw as Map<String, dynamic>;
+        final id = (m['id'] as num?)?.toInt();
+        final name = (m['name'] as String?)?.trim();
+        final categoryRaw = m['category']?.toString().trim() ?? '';
+        final category = categoryRaw.isNotEmpty ? categoryRaw : 'Other';
+
+        if (id == null || name == null || name.isEmpty) continue;
+
+        final key = name.toLowerCase();
+        nameToId[key] = id;
+        byCategory.putIfAbsent(category, () => <String>[]).add(name);
+      }
+
+      // Only keep already-selected skills that exist in the catalog.
+      final filteredSelected = _selectedSkills
+          .where((s) => nameToId.containsKey(s.toLowerCase()))
+          .toList();
+
       setState(() {
-        _skillCatalog = cats.map(
-          (key, value) => MapEntry(
-            key,
-            (value as List<dynamic>).map((e) => e.toString()).toList(),
-          ),
-        );
+        _skillCatalog = byCategory;
+        _skillNameToId = nameToId;
+        _selectedSkills = filteredSelected;
         _isLoadingCatalog = false;
+        _hasChanges = false;
       });
     } else {
       setState(() => _isLoadingCatalog = false);
+    }
+  }
+
+  Future<void> _loadSavedSkills() async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return;
+
+    final result = await ApiService.getJobseekerSkills(token);
+    if (!mounted) return;
+
+    if (result['success'] == true) {
+      final list = result['data'] as List<dynamic>? ?? [];
+      final names = list
+          .map((e) => (e as Map<String, dynamic>)['name']?.toString().trim() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+
+      setState(() {
+        _selectedSkills = names;
+        _hasChanges = false;
+      });
+
+      // Keep session copy in sync so other pages can use it.
+      UserSession().skills = List<String>.from(names);
+
+      if (_selectedSkills.isNotEmpty) {
+        _loadMatchedJobs();
+      }
     }
   }
 
@@ -96,7 +142,10 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     if (token == null || token.isEmpty) return;
 
     setState(() => _isLoadingMatched = true);
-    final result = await ApiService.getMatchedJobs(token);
+    final result = await ApiService.getMatchedJobs(
+      token,
+      skills: _selectedSkills,
+    );
     if (!mounted) return;
 
     if (result['success'] == true) {
@@ -112,11 +161,13 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   List<Job> get _sortedFilteredMatchedJobs {
     List<Job> jobs = _matchedJobs.where((job) {
+      String normType(String s) => s.toLowerCase().replaceAll(' ', '').trim();
       final matchesType = _selectedEmploymentTypes.isEmpty ||
-          _selectedEmploymentTypes.contains(job.employmentType);
-      final matchesCategory = _selectedCategories.isEmpty ||
-          (job.category != null && _selectedCategories.contains(job.category));
-      return matchesType && matchesCategory;
+          _selectedEmploymentTypes.map(normType).contains(normType(job.employmentType));
+      final matchesSkill = _selectedSkillFilters.isEmpty ||
+          _selectedSkillFilters.any((selected) =>
+              job.skills.any((s) => s.toLowerCase() == selected.toLowerCase()));
+      return matchesType && matchesSkill;
     }).toList();
 
     switch (_sortOption) {
@@ -145,7 +196,27 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   }
 
   bool get _hasActiveMatchFilters =>
-      _selectedEmploymentTypes.isNotEmpty || _selectedCategories.isNotEmpty;
+      _selectedEmploymentTypes.isNotEmpty || _selectedSkillFilters.isNotEmpty;
+
+  List<String> get _availableMatchSkillFilters {
+    final unique = <String>{};
+    for (final job in _matchedJobs) {
+      for (final skill in job.skills) {
+        final s = skill.trim();
+        if (s.isNotEmpty) unique.add(s);
+      }
+    }
+    final list = unique.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list.take(30).toList();
+  }
+
+  List<String> get _visibleMatchSkillFilters {
+    final q = _skillFilterQuery.trim().toLowerCase();
+    if (q.isEmpty) return _availableMatchSkillFilters;
+    return _availableMatchSkillFilters
+        .where((s) => s.toLowerCase().contains(q))
+        .toList();
+  }
 
   void _showMatchSortSheet() {
     showModalBottomSheet(
@@ -279,7 +350,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                         onPressed: () {
                           setSheetState(() {
                             _selectedEmploymentTypes.clear();
-                            _selectedCategories.clear();
+                            _selectedSkillFilters.clear();
+                            _skillFilterQuery = '';
                           });
                           setState(() {});
                         },
@@ -320,16 +392,17 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           setState(() {});
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF2563EB)
+                                ? const Color(0xFFDBEAFE)
                                 : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF2563EB)
+                                  ? const Color(0xFF93C5FD)
                                   : const Color(0xFFE2E8F0),
+                              width: isSelected ? 1.5 : 1,
                             ),
                           ),
                           child: Text(
@@ -337,7 +410,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: isSelected ? Colors.white : const Color(0xFF0F172A),
+                              color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFF0F172A),
                             ),
                           ),
                         ),
@@ -346,7 +419,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    'Category',
+                    'Skills',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -354,41 +427,72 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                     ),
                   ),
                   const SizedBox(height: 12),
+                  TextField(
+                    onChanged: (value) {
+                      setSheetState(() => _skillFilterQuery = value);
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search skills...',
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        size: 20,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF2563EB)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _categoryList.map((cat) {
-                      final isSelected = _selectedCategories.contains(cat);
+                    children: _visibleMatchSkillFilters.map((skill) {
+                      final isSelected = _selectedSkillFilters.contains(skill);
                       return GestureDetector(
                         onTap: () {
                           setSheetState(() {
                             if (isSelected) {
-                              _selectedCategories.remove(cat);
+                              _selectedSkillFilters.remove(skill);
                             } else {
-                              _selectedCategories.add(cat);
+                              _selectedSkillFilters.add(skill);
                             }
                           });
                           setState(() {});
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF0F172A)
+                                ? const Color(0xFFDBEAFE)
                                 : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF0F172A)
+                                  ? const Color(0xFF93C5FD)
                                   : const Color(0xFFE2E8F0),
+                              width: isSelected ? 1.5 : 1,
                             ),
                           ),
                           child: Text(
-                            cat,
+                            skill,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: isSelected ? Colors.white : const Color(0xFF0F172A),
+                              color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFF0F172A),
                             ),
                           ),
                         ),
@@ -427,18 +531,43 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     if (token == null || token.isEmpty) return;
 
     setState(() => _isSaving = true);
-    final result = await ApiService.updateSkills(
+
+    final skillIds = _selectedSkills
+        .map((name) => _skillNameToId[name.toLowerCase()])
+        .whereType<int>()
+        .toList();
+
+    // If for some reason current selections are not present in the catalog,
+    // don't save them as ids (prevents bad/free-text skills from entering).
+    if (skillIds.isEmpty && _selectedSkills.isNotEmpty) {
+      setState(() => _isSaving = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select skills from the catalog before saving.'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
+
+    final result = await ApiService.saveJobseekerSkills(
       token: token,
-      skills: _selectedSkills,
+      skillIds: skillIds,
     );
     if (!mounted) return;
 
     if (result['success'] == true) {
-      final user = result['data'] as Map<String, dynamic>? ?? {};
-      UserSession().updateFromUser(user);
+      // Refresh profile so UserSession().skills matches what backend stored.
+      final refreshed = await ApiService.getUser(token);
+      final userData = refreshed['data'] as Map<String, dynamic>? ?? {};
+      if (refreshed['success'] == true) {
+        UserSession().updateFromUser(userData);
+      }
       setState(() {
         _hasChanges = false;
         _isSaving = false;
+        _editingSelectedSkills = false;
       });
       _loadMatchedJobs();
       if (mounted) {
@@ -472,14 +601,27 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     }
   }
 
+  /// Browse / search can change skills when empty (onboarding) or in edit mode.
+  bool get _canChangeSkills =>
+      _selectedSkills.isEmpty || _editingSelectedSkills;
+
   void _toggleSkill(String skill) {
+    if (!_canChangeSkills) return;
     setState(() {
+      final wasEmpty = _selectedSkills.isEmpty;
       if (_selectedSkills.contains(skill)) {
         _selectedSkills.remove(skill);
       } else {
         _selectedSkills.add(skill);
       }
       _hasChanges = true;
+      // First pick from empty: stay in an open "picking" session so browse doesn't lock.
+      if (wasEmpty && _selectedSkills.isNotEmpty) {
+        _editingSelectedSkills = true;
+      }
+      if (_selectedSkills.isEmpty) {
+        _editingSelectedSkills = false;
+      }
     });
   }
 
@@ -680,6 +822,89 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Your selected skills — always visible when not searching (incl. empty state)
+                      if (!isSearching) ...[
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _buildSectionHeader(
+                                'Your Selected Skills',
+                                Icons.check_circle_outline_rounded,
+                                subtitle: _selectedSkills.isEmpty
+                                    ? 'None yet — tap skills under Browse to add them here'
+                                    : _editingSelectedSkills
+                                        ? '${_selectedSkills.length} skill${_selectedSkills.length == 1 ? '' : 's'} — tap × to remove, keep browsing to add more, then tap Done'
+                                        : '${_selectedSkills.length} skill${_selectedSkills.length == 1 ? '' : 's'} added · Tap Edit to change',
+                              ),
+                            ),
+                            if (_selectedSkills.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              TextButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    _editingSelectedSkills = !_editingSelectedSkills;
+                                  });
+                                },
+                                style: TextButton.styleFrom(
+                                  foregroundColor: const Color(0xFF2563EB),
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  minimumSize: Size.zero,
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                icon: Icon(
+                                  _editingSelectedSkills ? Icons.check_rounded : Icons.edit_rounded,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  _editingSelectedSkills ? 'Done' : 'Edit',
+                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        if (_selectedSkills.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8FAFC),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFFE2E8F0)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.add_task_rounded, size: 22, color: Colors.grey[400]),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'Your chosen skills will appear here. Open a category below and tap any skill to add it.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey[600],
+                                      height: 1.35,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _selectedSkills.map((skill) {
+                              return _SelectedSkillChip(
+                                skill: skill,
+                                onRemove: _editingSelectedSkills ? () => _toggleSkill(skill) : null,
+                              );
+                            }).toList(),
+                          ),
+                        const SizedBox(height: 24),
+                      ],
+
                       // Header card (hidden while searching)
                       if (!isSearching) ...[
                         Container(
@@ -745,6 +970,39 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
                       // Search results summary
                       if (isSearching) ...[
+                        if (_selectedSkills.isNotEmpty && !_canChangeSkills)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Material(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.lock_outline_rounded, size: 18, color: Color(0xFF2563EB)),
+                                    const SizedBox(width: 10),
+                                    const Expanded(
+                                      child: Text(
+                                        'Editing is locked. Tap Edit to add or remove skills from search or categories.',
+                                        style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), height: 1.35),
+                                      ),
+                                    ),
+                                    TextButton(
+                                      onPressed: () => setState(() => _editingSelectedSkills = true),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: const Color(0xFF2563EB),
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w800)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                         Row(
                           children: [
                             const Icon(Icons.filter_list_rounded, size: 18, color: Color(0xFF2563EB)),
@@ -783,8 +1041,10 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                             runSpacing: 8,
                             children: suggestions.take(10).map((skill) {
                               return GestureDetector(
-                                onTap: () => _toggleSkill(skill),
-                                child: Container(
+                                onTap: _canChangeSkills ? () => _toggleSkill(skill) : null,
+                                child: Opacity(
+                                  opacity: _canChangeSkills ? 1 : 0.45,
+                                  child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF10B981).withOpacity(0.08),
@@ -807,32 +1067,19 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                     ],
                                   ),
                                 ),
+                              ),
                               );
                             }).toList(),
                           ),
+                          if (!_canChangeSkills && suggestions.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Tap Edit above to add these skills.',
+                              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                            ),
+                          ],
                           const SizedBox(height: 20),
                         ],
-                      ],
-
-                      // Selected skills summary
-                      if (_selectedSkills.isNotEmpty && !isSearching) ...[
-                        _buildSectionHeader(
-                          'Your Selected Skills',
-                          Icons.check_circle_outline_rounded,
-                          subtitle: '${_selectedSkills.length} skill${_selectedSkills.length == 1 ? '' : 's'} added',
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _selectedSkills.map((skill) {
-                            return _SelectedSkillChip(
-                              skill: skill,
-                              onRemove: () => _toggleSkill(skill),
-                            );
-                          }).toList(),
-                        ),
-                        const SizedBox(height: 24),
                       ],
 
                       // Skill categories (sorted and filtered)
@@ -874,6 +1121,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           onToggle: _toggleSkill,
                           searchQuery: _searchQuery,
                           forceExpanded: isSearching,
+                          skillsEditable: _canChangeSkills,
                         );
                       }),
                     ],
@@ -1239,7 +1487,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                             onPressed: () {
                               setState(() {
                                 _selectedEmploymentTypes.clear();
-                                _selectedCategories.clear();
+                                _selectedSkillFilters.clear();
+                                _skillFilterQuery = '';
                               });
                             },
                             child: const Text(
@@ -1280,9 +1529,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
 class _SelectedSkillChip extends StatelessWidget {
   final String skill;
-  final VoidCallback onRemove;
+  final VoidCallback? onRemove;
 
-  const _SelectedSkillChip({required this.skill, required this.onRemove});
+  const _SelectedSkillChip({required this.skill, this.onRemove});
 
   @override
   Widget build(BuildContext context) {
@@ -1304,19 +1553,21 @@ class _SelectedSkillChip extends StatelessWidget {
               color: Color(0xFF2563EB),
             ),
           ),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: onRemove,
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(
-                color: const Color(0xFF2563EB).withOpacity(0.15),
-                shape: BoxShape.circle,
+          if (onRemove != null) ...[
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2563EB).withOpacity(0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFF2563EB)),
               ),
-              child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFF2563EB)),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -1332,6 +1583,7 @@ class _SkillCategoryCard extends StatefulWidget {
   final void Function(String) onToggle;
   final String searchQuery;
   final bool forceExpanded;
+  final bool skillsEditable;
 
   const _SkillCategoryCard({
     required this.category,
@@ -1340,6 +1592,7 @@ class _SkillCategoryCard extends StatefulWidget {
     required this.onToggle,
     this.searchQuery = '',
     this.forceExpanded = false,
+    this.skillsEditable = true,
   });
 
   @override
@@ -1504,9 +1757,12 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                 children: sortedSkills.map((skill) {
                   final isSelected = widget.selectedSkills.contains(skill);
                   final isSearchMatch = isSearching && skill.toLowerCase().contains(q);
+                  final canTap = widget.skillsEditable;
                   return GestureDetector(
-                    onTap: () => widget.onToggle(skill),
-                    child: AnimatedContainer(
+                    onTap: canTap ? () => widget.onToggle(skill) : null,
+                    child: Opacity(
+                      opacity: canTap ? 1.0 : 0.55,
+                      child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
                       decoration: BoxDecoration(
@@ -1551,6 +1807,7 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                             ),
                         ],
                       ),
+                    ),
                     ),
                   );
                 }).toList(),

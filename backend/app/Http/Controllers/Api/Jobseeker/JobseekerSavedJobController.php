@@ -14,7 +14,11 @@ class JobseekerSavedJobController extends Controller
         $jobseeker = $request->user();
 
         $saved = JobseekerSavedJob::where('jobseeker_id', $jobseeker->id)
-            ->with(['jobListing:id,title,type,location,salary_range,employer_id', 'jobListing.employer:id,company_name'])
+            ->with([
+                'jobListing:id,title,type,location,salary_range,description,slots,deadline,posted_date,created_at,employer_id',
+                'jobListing.employer:id,company_name',
+                'jobListing.skills:id,job_listing_id,skill',
+            ])
             ->orderByDesc('created_at')
             ->paginate(15);
 

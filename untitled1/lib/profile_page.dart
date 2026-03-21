@@ -1,9 +1,12 @@
 import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'job_models.dart';
 import 'user_session.dart';
 import 'api_service.dart';
@@ -512,22 +515,52 @@ class EditProfileSheet extends StatefulWidget {
 
 class _EditProfileSheetState extends State<EditProfileSheet> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _nameController;
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
-  late final TextEditingController _addressController;
+  late final TextEditingController _streetController;
   bool _isSaving = false;
   List<int>? _avatarBytes;
   Uint8List? _pickedImageBytes;
+  bool _isLoadingLocations = false;
+  String? _locationError;
+  static const String _psgcProvincesUrl = 'https://psgc.gitlab.io/api/provinces/';
+  static const String _cachePrefix = 'psgc_cache_v1_';
+
+  List<Map<String, String>> _provinces = [];
+  List<Map<String, String>> _cities = [];
+  List<Map<String, String>> _barangays = [];
+
+  String? _provinceCode;
+  String? _provinceName;
+  String? _cityCode;
+  String? _cityName;
+  String? _barangayCode;
+  String? _barangayName;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: UserSession().name ?? '');
+    final session = UserSession();
+    final firstFromSession = session.firstName?.trim() ?? '';
+    final lastFromSession = session.lastName?.trim() ?? '';
+    final sessionName = (session.name ?? '').trim();
+    final nameParts =
+        sessionName.isEmpty ? <String>[] : sessionName.split(RegExp(r'\s+'));
+    final firstName =
+        firstFromSession.isNotEmpty ? firstFromSession : (nameParts.isNotEmpty ? nameParts.first : '');
+    final lastName = lastFromSession.isNotEmpty
+        ? lastFromSession
+        : (nameParts.length > 1 ? nameParts.skip(1).join(' ') : '');
+
+    _firstNameController = TextEditingController(text: firstName);
+    _lastNameController = TextEditingController(text: lastName);
     _emailController = TextEditingController(text: UserSession().email ?? '');
     _phoneController = TextEditingController(text: UserSession().phone ?? '');
-    _addressController = TextEditingController(text: UserSession().address ?? '');
+    _streetController = TextEditingController(text: session.streetAddress ?? '');
     _loadAvatar();
+    _loadProvinces();
   }
 
   Future<void> _loadAvatar() async {
@@ -577,11 +610,276 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
     _emailController.dispose();
     _phoneController.dispose();
-    _addressController.dispose();
+    _streetController.dispose();
     super.dispose();
+  }
+
+  Future<void> _cacheList(String key, List<Map<String, String>> list) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('$_cachePrefix$key', jsonEncode(list));
+    } catch (_) {
+      // Ignore cache write failures (e.g. platform plugin not ready).
+    }
+  }
+
+  Future<List<Map<String, String>>> _readCachedList(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('$_cachePrefix$key');
+      if (raw == null || raw.isEmpty) return [];
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return [];
+      return decoded
+          .whereType<Map>()
+          .map((e) => {
+                'code': (e['code'] ?? '').toString(),
+                'name': (e['name'] ?? '').toString(),
+              })
+          .where((e) => e['code']!.isNotEmpty && e['name']!.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<Map<String, String>>> _fetchLocationList(
+    String key,
+    String url,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        return _readCachedList(key);
+      }
+      final data = jsonDecode(response.body);
+      if (data is! List) return _readCachedList(key);
+      final list = data
+          .whereType<Map>()
+          .map((e) => {
+                'code': (e['code'] ?? '').toString(),
+                'name': (e['name'] ?? '').toString(),
+              })
+          .where((e) => e['code']!.isNotEmpty && e['name']!.isNotEmpty)
+          .toList();
+      await _cacheList(key, list);
+      return list;
+    } catch (_) {
+      return _readCachedList(key);
+    }
+  }
+
+  Future<void> _loadProvinces() async {
+    setState(() {
+      _isLoadingLocations = true;
+      _locationError = null;
+    });
+    try {
+      _provinces = await _fetchLocationList('provinces_all', _psgcProvincesUrl);
+      if (_provinces.isEmpty) {
+        _locationError =
+            'Unable to load address data. Check connection and try again.';
+        return;
+      }
+      await _prefillAddressFromSession();
+    } finally {
+      if (mounted) setState(() => _isLoadingLocations = false);
+    }
+  }
+
+  Future<void> _prefillAddressFromSession() async {
+    final session = UserSession();
+    final provinceCode = session.provinceCode;
+    final cityCode = session.cityCode;
+    final barangayCode = session.barangayCode;
+
+    if (provinceCode != null && provinceCode.isNotEmpty) {
+      await _onProvinceChanged(provinceCode, silent: true);
+    }
+    if (cityCode != null && cityCode.isNotEmpty) {
+      await _onCityChanged(cityCode, silent: true);
+    }
+    if (barangayCode != null && barangayCode.isNotEmpty) {
+      final hit = _barangays.where((e) => e['code'] == barangayCode).toList();
+      if (hit.isNotEmpty) {
+        _barangayCode = hit.first['code'];
+        _barangayName = hit.first['name'];
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _onProvinceChanged(String? code, {bool silent = false}) async {
+    setState(() {
+      _provinceCode = code;
+      _provinceName = _provinces
+          .firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
+      _cityCode = null;
+      _cityName = null;
+      _barangayCode = null;
+      _barangayName = null;
+      _cities = [];
+      _barangays = [];
+      _isLoadingLocations = !silent;
+    });
+
+    if (code == null || code.isEmpty) {
+      if (mounted && !silent) setState(() => _isLoadingLocations = false);
+      return;
+    }
+
+    try {
+      _cities = await _fetchLocationList(
+        'cities_province_$code',
+        'https://psgc.gitlab.io/api/provinces/$code/cities-municipalities/',
+      );
+    } finally {
+      if (mounted && !silent) setState(() => _isLoadingLocations = false);
+    }
+  }
+
+  Future<void> _onCityChanged(String? code, {bool silent = false}) async {
+    setState(() {
+      _cityCode = code;
+      _cityName = _cities
+          .firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
+      _barangayCode = null;
+      _barangayName = null;
+      _barangays = [];
+      _isLoadingLocations = !silent;
+    });
+
+    if (code == null || code.isEmpty) {
+      if (mounted && !silent) setState(() => _isLoadingLocations = false);
+      return;
+    }
+
+    try {
+      _barangays = await _fetchLocationList(
+        'barangays_$code',
+        'https://psgc.gitlab.io/api/cities-municipalities/$code/barangays/',
+      );
+    } finally {
+      if (mounted && !silent) setState(() => _isLoadingLocations = false);
+    }
+  }
+
+  Future<Map<String, String>?> _pickOption({
+    required String title,
+    required List<Map<String, String>> options,
+  }) async {
+    final queryController = TextEditingController();
+    List<Map<String, String>> filtered = List<Map<String, String>>.from(options);
+    return showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) {
+            return AlertDialog(
+              title: Text(title),
+              content: SizedBox(
+                width: 420,
+                height: 420,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: queryController,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        hintText: 'Search...',
+                      ),
+                      onChanged: (q) {
+                        final needle = q.trim().toLowerCase();
+                        setLocalState(() {
+                          filtered = options
+                              .where((o) => (o['name'] ?? '').toLowerCase().contains(needle))
+                              .toList();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No matching results'))
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (_, index) {
+                                final item = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(item['name'] ?? ''),
+                                  onTap: () => Navigator.of(ctx).pop(item),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _selectorField({
+    required String label,
+    required IconData icon,
+    required String? value,
+    required String placeholder,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    final display = (value ?? '').trim();
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: InputDecorator(
+        decoration: _fieldDec(label, icon),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                display.isNotEmpty ? display : placeholder,
+                style: TextStyle(
+                  color: display.isNotEmpty
+                      ? const Color(0xFF0F172A)
+                      : const Color(0xFF94A3B8),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.expand_more_rounded,
+              color: enabled ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _composeAddress() {
+    final parts = <String>[
+      _streetController.text.trim(),
+      _barangayName ?? '',
+      _cityName ?? '',
+      _provinceName ?? '',
+    ].where((p) => p.trim().isNotEmpty).toList();
+
+    if (parts.isEmpty) return '';
+
+    // Deduplicate adjacent duplicates like city/province with same labels.
+    final deduped = <String>[];
+    for (final p in parts) {
+      if (deduped.isEmpty || deduped.last.toLowerCase() != p.toLowerCase()) {
+        deduped.add(p);
+      }
+    }
+    return deduped.join(', ');
   }
 
   InputDecoration _fieldDec(String label, IconData icon) {
@@ -751,13 +1049,36 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                         const SizedBox(height: 30),
 
                         // Form fields
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: _fieldDec('Full Name', Icons.person_outline_rounded),
-                          validator: (v) {
-                            if (v == null || v.isEmpty) return 'Please enter your name';
-                            return null;
-                          },
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _firstNameController,
+                                decoration:
+                                    _fieldDec('First Name', Icons.person_outline_rounded),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Required';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: TextFormField(
+                                controller: _lastNameController,
+                                decoration:
+                                    _fieldDec('Last Name', Icons.badge_outlined),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Required';
+                                  }
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 16),
@@ -791,10 +1112,83 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                         const SizedBox(height: 16),
 
-                        TextFormField(
-                          controller: _addressController,
-                          decoration: _fieldDec('Address', Icons.location_on_outlined),
+                        _selectorField(
+                          label: 'Province',
+                          icon: Icons.location_city_outlined,
+                          value: _provinceName,
+                          placeholder:
+                              _provinces.isEmpty ? 'Loading provinces...' : 'Select province',
+                          enabled: !_isSaving && _provinces.isNotEmpty,
+                          onTap: () async {
+                            final picked = await _pickOption(
+                                title: 'Select Province', options: _provinces);
+                            if (picked == null) return;
+                            await _onProvinceChanged(picked['code']);
+                          },
                         ),
+
+                        const SizedBox(height: 16),
+
+                        _selectorField(
+                          label: 'City / Municipality',
+                          icon: Icons.location_city_outlined,
+                          value: _cityName,
+                          placeholder: 'Select province first',
+                          enabled: !_isSaving && _cities.isNotEmpty,
+                          onTap: () async {
+                            final picked = await _pickOption(
+                                title: 'Select City / Municipality', options: _cities);
+                            if (picked == null) return;
+                            await _onCityChanged(picked['code']);
+                          },
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        _selectorField(
+                          label: 'Barangay',
+                          icon: Icons.home_work_outlined,
+                          value: _barangayName,
+                          placeholder: 'Select city first',
+                          enabled: !_isSaving && _barangays.isNotEmpty,
+                          onTap: () async {
+                            final picked = await _pickOption(
+                                title: 'Select Barangay', options: _barangays);
+                            if (picked == null) return;
+                            setState(() {
+                              _barangayCode = picked['code'];
+                              _barangayName = picked['name'];
+                            });
+                          },
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        TextFormField(
+                          controller: _streetController,
+                          decoration: _fieldDec(
+                            'Street / House No. / Landmark (Optional)',
+                            Icons.location_on_outlined,
+                          ),
+                        ),
+
+                        if (_isLoadingLocations) ...[
+                          const SizedBox(height: 10),
+                          const LinearProgressIndicator(
+                            color: Color(0xFF2563EB),
+                            minHeight: 3,
+                          ),
+                        ],
+                        if (_locationError != null) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            _locationError!,
+                            style: const TextStyle(
+                              color: Color(0xFFEF4444),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
 
                         const SizedBox(height: 30),
 
@@ -807,6 +1201,19 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                 ? null
                                 : () async {
                                     if (!_formKey.currentState!.validate()) return;
+                                    final missingLocation = _provinceCode == null ||
+                                        _cityCode == null ||
+                                        _barangayCode == null;
+                                    if (missingLocation) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text(
+                                              'Please complete Province, City/Municipality, and Barangay.'),
+                                          backgroundColor: Color(0xFFEF4444),
+                                        ),
+                                      );
+                                      return;
+                                    }
                                     setState(() => _isSaving = true);
 
                                     final token = UserSession().token ?? '';
@@ -832,12 +1239,17 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                     final result = await ApiService.updateProfile(
                                       token: token,
                                       email: _emailController.text.trim(),
-                                      // Backend expects `contact` and separates name into first/last.
-                                      // Keep existing Full Name field: best-effort split.
-                                      firstName: _nameController.text.trim().split(RegExp(r'\s+')).first,
-                                      lastName: _nameController.text.trim().split(RegExp(r'\s+')).skip(1).join(' '),
+                                      firstName: _firstNameController.text.trim(),
+                                      lastName: _lastNameController.text.trim(),
                                       contact: _phoneController.text.trim(),
-                                      address: _addressController.text.trim(),
+                                      address: _composeAddress(),
+                                      provinceCode: _provinceCode,
+                                      provinceName: _provinceName,
+                                      cityCode: _cityCode,
+                                      cityName: _cityName,
+                                      barangayCode: _barangayCode,
+                                      barangayName: _barangayName,
+                                      streetAddress: _streetController.text.trim(),
                                     );
 
                                     if (!mounted) return;

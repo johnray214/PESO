@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Employer;
 use App\Http\Controllers\Controller;
 use App\Models\JobListing;
 use App\Models\JobSkill;
+use App\Models\Skill;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,6 +19,90 @@ class EmployerJobListingController extends Controller
     private function normalise(string $value): string
     {
         return strtolower(trim($value));
+    }
+
+    private function normaliseSkillInput(string $value): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $value) ?? '');
+    }
+
+    /**
+     * Safe #2 flow:
+     * - snap to existing catalog skill when close enough
+     * - otherwise auto-create a new catalog skill
+     * Returns canonical skill name.
+     */
+    private function resolveSkillName(string $rawSkill): ?string
+    {
+        $input = $this->normaliseSkillInput($rawSkill);
+        if ($input === '') return null;
+
+        $inputLower = mb_strtolower($input);
+
+        // Exact (case-insensitive) catalog match first.
+        $exact = Skill::query()
+            ->whereRaw('LOWER(name) = ?', [$inputLower])
+            ->first();
+        if ($exact) {
+            return $exact->name;
+        }
+
+        // Fuzzy snap to nearest catalog skill (typo/case variations).
+        $all = Skill::query()->where('is_active', true)->get(['id', 'name']);
+        $best = null;
+        $bestDist = PHP_INT_MAX;
+        $bestPct = 0.0;
+
+        foreach ($all as $skill) {
+            $candidate = (string) $skill->name;
+            $candidateLower = mb_strtolower($candidate);
+            $dist = levenshtein($inputLower, $candidateLower);
+            similar_text($inputLower, $candidateLower, $pct);
+
+            if ($dist < $bestDist || ($dist === $bestDist && $pct > $bestPct)) {
+                $bestDist = $dist;
+                $bestPct = $pct;
+                $best = $candidate;
+            }
+        }
+
+        $len = max(mb_strlen($inputLower), 1);
+        $distanceThreshold = $len <= 5 ? 1 : ($len <= 10 ? 2 : 3);
+        $isCloseEnough = $best !== null && ($bestDist <= $distanceThreshold || $bestPct >= 88.0);
+
+        if ($isCloseEnough) {
+            return $best;
+        }
+
+        // No close match: allow custom skill, but add it into the catalog.
+        $slugBase = Str::slug($inputLower);
+        $slug = $slugBase !== '' ? $slugBase : Str::random(12);
+        $i = 2;
+        while (Skill::where('slug', $slug)->exists()) {
+            $slug = $slugBase !== '' ? "{$slugBase}-{$i}" : Str::random(12);
+            $i++;
+        }
+
+        $created = Skill::create([
+            'name' => $input,
+            'slug' => $slug,
+            'category' => null,
+            'is_active' => true,
+        ]);
+
+        return $created->name;
+    }
+
+    private function resolveSkillNames(array $skills): array
+    {
+        $canonical = [];
+        foreach ($skills as $raw) {
+            if (!is_string($raw)) continue;
+            $name = $this->resolveSkillName($raw);
+            if (!$name) continue;
+            $canonical[mb_strtolower($name)] = $name; // de-dupe by canonical value
+        }
+        return array_values($canonical);
     }
 
     public function index(Request $request)
@@ -102,10 +187,10 @@ class EmployerJobListingController extends Controller
             $jobListing = JobListing::create($validated);
 
             if (!empty($validated['skills'])) {
-                foreach ($validated['skills'] as $skill) {
+                foreach ($this->resolveSkillNames($validated['skills']) as $skill) {
                     JobSkill::create([
                         'job_listing_id' => $jobListing->id,
-                        'skill'          => trim($skill),
+                        'skill'          => $skill,
                     ]);
                 }
             }
@@ -152,10 +237,10 @@ class EmployerJobListingController extends Controller
 
             if (isset($validated['skills'])) {
                 $jobListing->skills()->delete();
-                foreach ($validated['skills'] as $skill) {
+                foreach ($this->resolveSkillNames($validated['skills']) as $skill) {
                     JobSkill::create([
                         'job_listing_id' => $jobListing->id,
-                        'skill'          => trim($skill),
+                        'skill'          => $skill,
                     ]);
                 }
             }

@@ -506,6 +506,13 @@ class ApiService {
     String? email,
     String? contact,
     String? address,
+    String? provinceCode,
+    String? provinceName,
+    String? cityCode,
+    String? cityName,
+    String? barangayCode,
+    String? barangayName,
+    String? streetAddress,
     String? sex,
     String? dateOfBirth,
     String? bio,
@@ -521,6 +528,13 @@ class ApiService {
       if (email != null && email.isNotEmpty) body['email'] = email;
       if (contact != null) body['contact'] = contact;
       if (address != null) body['address'] = address;
+      if (provinceCode != null) body['province_code'] = provinceCode;
+      if (provinceName != null) body['province_name'] = provinceName;
+      if (cityCode != null) body['city_code'] = cityCode;
+      if (cityName != null) body['city_name'] = cityName;
+      if (barangayCode != null) body['barangay_code'] = barangayCode;
+      if (barangayName != null) body['barangay_name'] = barangayName;
+      if (streetAddress != null) body['street_address'] = streetAddress;
       if (sex != null) body['sex'] = sex;
       if (dateOfBirth != null) body['date_of_birth'] = dateOfBirth;
       if (bio != null) body['bio'] = bio;
@@ -560,16 +574,41 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getMatchedJobs(String token) async {
+  static Future<Map<String, dynamic>> getMatchedJobs(
+    String token, {
+    List<String>? skills,
+  }) async {
     try {
+      final hasSkills = skills != null && skills.isNotEmpty;
+      final uri = Uri.parse(
+        hasSkills
+            ? '$baseUrl/jobseeker/jobs?skills=${Uri.encodeQueryComponent(skills.join(','))}'
+            : '$baseUrl/jobseeker/jobs',
+      );
+
       final response = await http.get(
-        Uri.parse('$baseUrl/jobs-matched'),
+        uri,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
         },
       );
-      return jsonDecode(response.body);
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+
+      // Normalize Laravel paginated shape:
+      // { success: true, data: { data: [...] } } -> { success: true, data: [...] }
+      if (data['success'] == true) {
+        final raw = data['data'];
+        if (raw is Map<String, dynamic> && raw['data'] is List) {
+          return {
+            'success': true,
+            'data': raw['data'],
+            'meta': raw,
+          };
+        }
+      }
+
+      return data;
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
@@ -582,6 +621,60 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       );
       return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  // ─── Skills Catalog (new catalog from `skills` table) ──────────────────
+
+  static Future<Map<String, dynamic>> getPublicSkills({String? q}) async {
+    try {
+      final uri = Uri.parse(q != null && q.trim().isNotEmpty
+          ? '$baseUrl/public/skills?q=${Uri.encodeQueryComponent(q.trim())}'
+          : '$baseUrl/public/skills');
+
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getJobseekerSkills(String token) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/jobseeker/skills'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> saveJobseekerSkills({
+    required String token,
+    required List<int> skillIds,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/skills'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'skill_ids': skillIds,
+        }),
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
@@ -710,6 +803,20 @@ class ApiService {
       return data['success'] == true;
     } catch (_) {
       return false;
+    }
+  }
+
+  // ─── Map ─────────────────────────────────────────────────────────────────────
+
+  static Future<Map<String, dynamic>> getMapEmployers() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/public/map/employers'),
+        headers: {'Content-Type': 'application/json'},
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
   }
 }

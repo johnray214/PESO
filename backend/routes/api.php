@@ -20,6 +20,8 @@ use App\Http\Controllers\Api\Admin\AdminReportController;
 use App\Http\Controllers\Api\Admin\AdminArchiveController;
 use App\Http\Controllers\Api\Admin\AdminActivityFeedController;
 use App\Http\Controllers\Api\Public\PublicEventController;
+use App\Http\Controllers\Api\Public\PublicMapController;
+use App\Http\Controllers\Api\Public\PublicSkillsController;
 
 // Employer Controllers
 use App\Http\Controllers\Api\Employer\EmployerDashboardController;
@@ -34,6 +36,7 @@ use App\Http\Controllers\Api\Jobseeker\JobseekerJobListingController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerApplicationController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerNotificationController;
 use App\Http\Controllers\Api\Jobseeker\JobseekerSavedJobController;
+use App\Http\Controllers\Api\Jobseeker\JobseekerSkillsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -69,6 +72,12 @@ Route::get('/public/employers/{id}', [AdminEmployerController::class, 'show']);
 // Public Events (used by mobile app Jobs page)
 Route::get('/public/events', [PublicEventController::class, 'index']);
 Route::get('/public/events/{id}', [PublicEventController::class, 'show']);
+
+// Public Map endpoints (used by mobile app Map tab)
+Route::get('/public/map/employers', [PublicMapController::class, 'employers']);
+
+// Public Skills Catalog (used by jobseekers to pick skills)
+Route::get('/public/skills', [PublicSkillsController::class, 'index']);
 
 /*
 |--------------------------------------------------------------------------
@@ -227,6 +236,10 @@ Route::middleware(['auth:jobseeker', \App\Http\Middleware\EnsureJobseeker::class
     Route::post('/profile/resume', [JobseekerProfileController::class, 'uploadResume']);
     Route::post('/profile/avatar', [JobseekerProfileController::class, 'uploadAvatar']);
     Route::get('/profile/avatar', [JobseekerProfileController::class, 'avatar']);
+
+    // Skills catalog for jobseekers (stores skill_id selections)
+    Route::get('/skills', [JobseekerSkillsController::class, 'index']);
+    Route::post('/skills', [JobseekerSkillsController::class, 'store']);
     
     // Notifications (specific routes MUST come before {id} wildcard)
     Route::get('/notifications', [JobseekerNotificationController::class, 'index']);

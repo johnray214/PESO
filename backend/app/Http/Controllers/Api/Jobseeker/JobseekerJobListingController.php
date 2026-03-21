@@ -65,6 +65,20 @@ class JobseekerJobListingController extends Controller
 
         $jobListings = $query->paginate(15);
 
+        // Include per-job match percentage for authenticated jobseekers
+        // so mobile/web list views can render real match badges.
+        if ($jobseeker) {
+            $jobListings->getCollection()->transform(function ($job) use ($jobseeker) {
+                $job->setAttribute('match_percentage', Application::calculateMatchScore($jobseeker, $job));
+                return $job;
+            });
+        } else {
+            $jobListings->getCollection()->transform(function ($job) {
+                $job->setAttribute('match_percentage', 0);
+                return $job;
+            });
+        }
+
         return response()->json([
             'success' => true,
             'data' => $jobListings,

@@ -210,7 +210,86 @@
             </div>
             <div class="form-group">
               <label class="form-label">Required Skills <span class="req">*</span></label>
-              <input v-model="form.skillsRaw" class="form-input" placeholder="e.g. Vue.js, Laravel, MySQL (comma-separated)"/>
+              <div class="skills-picker">
+                <div class="picked-chips" v-if="selectedSkills.length">
+                  <span v-for="sk in selectedSkills" :key="sk" class="picked-chip">
+                    {{ sk }}
+                    <button type="button" class="chip-remove" @click="removeSkill(sk)">×</button>
+                  </span>
+                </div>
+                <div class="skill-autocomplete-zone">
+                  <div class="skill-input-wrap">
+                    <span class="skill-search-icon">⌕</span>
+                    <input
+                      v-model="skillQuery"
+                      class="form-input skill-input"
+                      placeholder="Search from catalog or type custom skill"
+                      @focus="showSkillSuggestions = true"
+                      @input="onSkillInput"
+                      @keydown.enter.prevent="addSkillFromInput"
+                      @blur="onSkillBlur"
+                    />
+                    <button type="button" class="skill-add-btn" @click="addSkillFromInput">Add</button>
+                    <button type="button" class="skill-browse-btn" @click="toggleCatalogBrowser">Browse</button>
+                  </div>
+
+                  <div v-if="showSkillSuggestions && skillSuggestions.length" class="skills-suggestions">
+                    <div class="skill-suggestions-head">
+                      Suggested skills
+                      <span>{{ skillSuggestions.length }}</span>
+                    </div>
+                    <div
+                      v-for="opt in skillSuggestions.slice(0, 8)"
+                      :key="opt"
+                      class="skill-suggestion-item"
+                      @mousedown.prevent="addSkill(opt)"
+                    >
+                      <span class="skill-suggestion-plus">+</span>
+                      {{ opt }}
+                    </div>
+                  </div>
+                  <div v-else-if="showSkillSuggestions && skillQuery.trim()" class="skills-custom-hint">
+                    Press <strong>Enter</strong> to add "<em>{{ skillQuery.trim() }}</em>" as a custom skill.
+                  </div>
+                </div>
+                <p class="skills-helper">
+                  Tips: pick from suggestions for best matches. Custom skills are allowed and will be standardized.
+                </p>
+
+                <div v-if="showCatalogBrowser" class="catalog-browser">
+                  <div class="catalog-browser-head">
+                    <h4>Skills Catalog</h4>
+                    <button type="button" class="catalog-close-btn" @click="showCatalogBrowser = false">Close</button>
+                  </div>
+                  <div class="catalog-controls">
+                    <input
+                      v-model="catalogSearch"
+                      class="form-input catalog-search"
+                      placeholder="Search all skills..."
+                    />
+                    <select v-model="catalogCategory" class="form-input catalog-category">
+                      <option value="">All Categories</option>
+                      <option v-for="cat in catalogCategories" :key="cat" :value="cat">{{ cat }}</option>
+                    </select>
+                  </div>
+                  <div class="catalog-list">
+                    <div v-for="item in filteredCatalogItems.slice(0, 120)" :key="item.name" class="catalog-row">
+                      <div class="catalog-meta">
+                        <div class="catalog-skill">{{ item.name }}</div>
+                        <div class="catalog-cat">{{ item.category || 'Other' }}</div>
+                      </div>
+                      <button
+                        type="button"
+                        class="catalog-action"
+                        :class="{ selected: isSkillSelected(item.name) }"
+                        @click="toggleSkill(item.name)"
+                      >
+                        {{ isSkillSelected(item.name) ? 'Remove' : 'Add' }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -243,7 +322,15 @@ export default {
       search: '', filterStatus: '', filterType: '',
       drawerOpen: false, selected: null,
       showModal: false, editingJob: null, savingJob: false,
-      form: { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', skillsRaw:'', status:'Open' },
+      form: { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', status:'Open' },
+      selectedSkills: [],
+      skillCatalog: [],
+      skillCatalogItems: [],
+      skillQuery: '',
+      showSkillSuggestions: false,
+      showCatalogBrowser: false,
+      catalogSearch: '',
+      catalogCategory: '',
       jobs: [],
       toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
     }
@@ -266,6 +353,31 @@ export default {
         { label: 'Draft',          value: j.filter(x => x.status === 'draft').length,  color: '#2872A1' },
         { label: 'Total Slots',    value: j.reduce((s,x) => s + x.slots, 0),           color: '#2563eb' },
       ]
+    }
+    ,
+    skillSuggestions() {
+      const q = this.skillQuery.trim().toLowerCase()
+      if (!q) return []
+      return this.skillCatalog
+        .filter(s => !this.selectedSkills.includes(s))
+        .filter(s => s.toLowerCase().includes(q))
+    },
+    catalogCategories() {
+      const set = new Set(
+        this.skillCatalogItems
+          .map(s => (s.category || 'Other').trim())
+          .filter(Boolean)
+      )
+      return Array.from(set).sort((a, b) => a.localeCompare(b))
+    },
+    filteredCatalogItems() {
+      const q = this.catalogSearch.trim().toLowerCase()
+      return this.skillCatalogItems.filter(item => {
+        const cat = (item.category || 'Other').trim()
+        const matchCat = !this.catalogCategory || cat === this.catalogCategory
+        const matchQ = !q || item.name.toLowerCase().includes(q)
+        return matchCat && matchQ
+      })
     }
   },
   methods: {
@@ -320,14 +432,79 @@ export default {
     openDrawer(job) { this.selected = job; this.drawerOpen = true },
     openModal(job) {
       this.editingJob = job
-      if (job) this.form = { ...job, skillsRaw: Array.isArray(job.skills) ? job.skills.join(', ') : (job.skills || '') }
-      else this.form = { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', skillsRaw:'', status:'Open' }
+      if (job) {
+        this.form = { ...job }
+        this.selectedSkills = Array.isArray(job.skills) ? [...job.skills] : []
+      } else {
+        this.form = { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', status:'Open' }
+        this.selectedSkills = []
+      }
+      this.skillQuery = ''
+      this.showSkillSuggestions = false
+      this.showCatalogBrowser = false
+      this.catalogSearch = ''
+      this.catalogCategory = ''
       this.showModal = true
+    },
+    async ensureCatalogLoaded() {
+      if (this.skillCatalog.length) return
+      try {
+        const { data } = await api.get('/public/skills')
+        const rows = data.data || []
+        this.skillCatalogItems = rows
+          .map(r => ({
+            name: (typeof r === 'string' ? r : r.name || '').trim(),
+            category: (typeof r === 'string' ? null : r.category || null),
+          }))
+          .filter(r => r.name)
+        this.skillCatalog = this.skillCatalogItems.map(r => r.name)
+      } catch (_) {
+        this.skillCatalog = []
+        this.skillCatalogItems = []
+      }
+    },
+    async onSkillInput() {
+      await this.ensureCatalogLoaded()
+      this.showSkillSuggestions = true
+    },
+    toggleCatalogBrowser() {
+      this.showCatalogBrowser = !this.showCatalogBrowser
+      if (this.showCatalogBrowser) this.ensureCatalogLoaded()
+    },
+    addSkill(skillName) {
+      const raw = (skillName || '').trim()
+      if (!raw) return
+
+      // Snap to case-insensitive catalog exact match when available.
+      const catalogExact = this.skillCatalog.find(s => s.toLowerCase() === raw.toLowerCase())
+      const canonical = catalogExact || raw
+
+      if (!this.selectedSkills.some(s => s.toLowerCase() === canonical.toLowerCase())) {
+        this.selectedSkills.push(canonical)
+      }
+      this.skillQuery = ''
+      this.showSkillSuggestions = false
+    },
+    addSkillFromInput() {
+      this.addSkill(this.skillQuery)
+    },
+    isSkillSelected(skillName) {
+      return this.selectedSkills.some(s => s.toLowerCase() === skillName.toLowerCase())
+    },
+    toggleSkill(skillName) {
+      if (this.isSkillSelected(skillName)) this.removeSkill(skillName)
+      else this.addSkill(skillName)
+    },
+    onSkillBlur() {
+      setTimeout(() => { this.showSkillSuggestions = false }, 120)
+    },
+    removeSkill(skillName) {
+      this.selectedSkills = this.selectedSkills.filter(s => s !== skillName)
     },
     async saveJob() {
       if (this.savingJob) return;
       this.savingJob = true;
-      const skillsArr = this.form.skillsRaw.split(',').map(s => s.trim()).filter(Boolean)
+      const skillsArr = [...this.selectedSkills]
       const colors = [['#eff6ff','#2563eb'],['#faf5ff','#8b5cf6'],['#fdf4ff','#d946ef'],['#f0fdf4','#22c55e'],['#eff8ff','#2872A1']]
       try {
         const payload = { ...this.form, skills: skillsArr }
@@ -504,6 +681,243 @@ export default {
 .form-input.textarea { resize: vertical; }
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-ghost:hover { background: #e2e8f0; }
+
+/* Skills picker (modal) */
+.skills-picker {
+  position: relative;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  overflow: visible;
+}
+.picked-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.picked-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 5px 10px;
+}
+.chip-remove {
+  border: none;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.skill-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skill-autocomplete-zone {
+  position: relative;
+  z-index: 30;
+}
+.skill-search-icon {
+  color: #94a3b8;
+  font-size: 14px;
+  width: 14px;
+  text-align: center;
+}
+.skill-input {
+  flex: 1;
+  background: #f8fafc;
+}
+.skill-add-btn {
+  border: none;
+  border-radius: 8px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.skill-add-btn:hover {
+  background: #cbd5e1;
+}
+.skill-browse-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.skill-browse-btn:hover {
+  background: #f8fafc;
+}
+.skills-suggestions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 50;
+}
+.skill-suggestions-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f8fafc;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.skill-suggestions-head span {
+  color: #0f172a;
+}
+.skill-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  padding: 10px;
+  cursor: pointer;
+}
+.skill-suggestion-item:hover {
+  background: #f8fafc;
+}
+.skill-suggestion-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #ecfeff;
+  color: #0e7490;
+  font-weight: 700;
+}
+.skills-custom-hint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  margin-top: 8px;
+  font-size: 12px;
+  color: #475569;
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  z-index: 50;
+}
+.skills-helper {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.catalog-browser {
+  margin-top: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 10px;
+}
+.catalog-browser-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.catalog-browser-head h4 {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0f172a;
+}
+.catalog-close-btn {
+  border: none;
+  background: #e2e8f0;
+  color: #334155;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.catalog-controls {
+  display: grid;
+  grid-template-columns: 1fr 180px;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.catalog-search, .catalog-category {
+  background: #fff;
+}
+.catalog-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+.catalog-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.catalog-row:last-child {
+  border-bottom: none;
+}
+.catalog-meta {
+  min-width: 0;
+}
+.catalog-skill {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.catalog-cat {
+  font-size: 11px;
+  color: #64748b;
+}
+.catalog-action {
+  border: none;
+  border-radius: 6px;
+  background: #dbeafe;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.catalog-action.selected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
 
 .drawer-enter-active, .drawer-leave-active { transition: opacity 0.2s; }
 .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); }

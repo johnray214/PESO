@@ -22,7 +22,11 @@ class JobseekerApplicationController extends Controller
             $query->where('status', $request->status);
         }
 
-        $applications = $query->with(['jobListing:id,title,type,location,salary_range,employer_id', 'jobListing.employer:id,company_name'])
+        $applications = $query->with([
+                'jobListing:id,title,type,location,salary_range,description,slots,deadline,posted_date,created_at,employer_id',
+                'jobListing.employer:id,company_name',
+                'jobListing.skills:id,job_listing_id,skill',
+            ])
             ->orderByDesc('applied_at')
             ->paginate(15);
 

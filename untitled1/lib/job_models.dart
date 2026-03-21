@@ -20,6 +20,8 @@ class Job {
   final String employmentType;
   final String? category;
   final DateTime postedDate;
+  final int? slots;
+  final DateTime? deadline;
   final int matchPercentage;
   final bool isUrgent;
 
@@ -41,6 +43,8 @@ class Job {
     required this.employmentType,
     this.category,
     required this.postedDate,
+    this.slots,
+    this.deadline,
     this.matchPercentage = 0,
     this.isUrgent = false,
   });
@@ -85,8 +89,16 @@ class Job {
 
     final latValue = json['latitude'];
     final lonValue = json['longitude'];
-    final double? latitude = latValue is num ? latValue.toDouble() : null;
-    final double? longitude = lonValue is num ? lonValue.toDouble() : null;
+    final double? latitude = switch (latValue) {
+      final num v => v.toDouble(),
+      final String v => double.tryParse(v),
+      _ => null,
+    };
+    final double? longitude = switch (lonValue) {
+      final num v => v.toDouble(),
+      final String v => double.tryParse(v),
+      _ => null,
+    };
 
     final rawSkills = json['skills'];
     final skills = (rawSkills is List ? rawSkills : const <dynamic>[])
@@ -99,6 +111,8 @@ class Job {
 
     final postedRaw = (json['posted_date'] as String?) ?? (json['created_at'] as String?) ?? '';
     final postedDate = DateTime.tryParse(postedRaw) ?? DateTime.now();
+    final deadlineRaw = json['deadline'] as String?;
+    final deadline = deadlineRaw != null ? DateTime.tryParse(deadlineRaw) : null;
 
     return Job(
       id: json['id'].toString(),
@@ -122,6 +136,8 @@ class Job {
           'full-time',
       category: json['category'] as String?,
       postedDate: postedDate,
+      slots: (json['slots'] as num?)?.toInt(),
+      deadline: deadline,
       matchPercentage: (json['match_percentage'] as num?)?.toInt() ?? 0,
       isUrgent: (json['is_urgent'] as dynamic) == true ||
           json['is_urgent'] == 1,
@@ -317,6 +333,7 @@ void showJobDetailSheet(
   VoidCallback? onApply,
   bool isSaved = false,
   VoidCallback? onSave,
+  VoidCallback? onViewMap,
 }) {
   showModalBottomSheet(
     context: context,
@@ -338,6 +355,7 @@ void showJobDetailSheet(
                 onApply: onApply,
                 isSaved: isSaved,
                 onSave: onSave,
+                onViewMap: onViewMap,
               ),
             ),
           ),
@@ -355,6 +373,7 @@ class JobDetailSheet extends StatefulWidget {
   final VoidCallback? onApply;
   final bool isSaved;
   final VoidCallback? onSave;
+  final VoidCallback? onViewMap;
 
   const JobDetailSheet({
     super.key,
@@ -364,6 +383,7 @@ class JobDetailSheet extends StatefulWidget {
     this.onApply,
     this.isSaved = false,
     this.onSave,
+    this.onViewMap,
   });
 
   @override
@@ -395,6 +415,10 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     final isSaved = _jobActionService.isSaved(job.id);
     final isApplied = _jobActionService.isApplied(job.id);
     final bottomPad = MediaQuery.of(context).padding.bottom;
+    final deadlineText = job.deadline != null
+        ? '${job.deadline!.month}/${job.deadline!.day}/${job.deadline!.year}'
+        : 'Not specified';
+    final slotsText = (job.slots ?? 0) > 0 ? '${job.slots} slot(s)' : 'Not specified';
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -489,7 +513,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                       letterSpacing: -0.3,
                                     ),
                                   ),
-                                  const SizedBox(height: 5),
+                                  const SizedBox(height: 4),
 
                                   // Company name
                                   Text(
@@ -501,26 +525,89 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 8),
 
-                                  // Location
+                                  // Centered location + map CTA
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Icon(Icons.location_on_outlined,
-                                          size: 13, color: Color(0xFF94A3B8)),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        job.location,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF94A3B8),
-                                          fontWeight: FontWeight.w500,
+                                      Flexible(
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFF8FAFC),
+                                            borderRadius:
+                                                BorderRadius.circular(999),
+                                            border: Border.all(
+                                              color: const Color(0xFFE2E8F0),
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.location_on_outlined,
+                                                size: 13,
+                                                color: Color(0xFF94A3B8),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              Flexible(
+                                                child: Text(
+                                                  job.location,
+                                                  maxLines: 1,
+                                                  overflow: TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 11,
+                                                    color: Color(0xFF64748B),
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
+                                      if (widget.onViewMap != null) ...[
+                                        const SizedBox(width: 8),
+                                        GestureDetector(
+                                          onTap: widget.onViewMap,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFEFF6FF),
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              border: Border.all(
+                                                color: const Color(0xFF93C5FD),
+                                              ),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  Icons.my_location_rounded,
+                                                  size: 13,
+                                                  color: Color(0xFF1D4ED8),
+                                                ),
+                                                SizedBox(width: 4),
+                                                Text(
+                                                  'View on Map',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: Color(0xFF1D4ED8),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ],
                                   ),
-                                  const SizedBox(height: 14),
+                                  const SizedBox(height: 12),
 
                                   // Match badge
                                   if (job.matchPercentage > 0) ...[
@@ -561,19 +648,37 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                         ],
                                       ),
                                     ),
-                                    const SizedBox(height: 14),
+                                    const SizedBox(height: 12),
                                   ],
 
-                                  // Info chips
-                                  Wrap(
-                                    alignment: WrapAlignment.center,
-                                    spacing: 8,
-                                    runSpacing: 8,
+                                  // Quick facts (2x2 grid)
+                                  Row(
                                     children: [
-                                      _buildInfoChip(Icons.work_outline_rounded,
-                                          job.employmentType),
-                                      _buildInfoChip(Icons.payments_outlined,
-                                          '${job.salaryMin} – ${job.salaryMax}'),
+                                      Expanded(
+                                        child: _buildInfoChip(
+                                            Icons.work_outline_rounded,
+                                            job.employmentType),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _buildInfoChip(
+                                            Icons.payments_outlined,
+                                            '${job.salaryMin} – ${job.salaryMax}'),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _buildInfoChip(
+                                            Icons.groups_2_outlined, slotsText),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _buildInfoChip(
+                                            Icons.event_outlined, deadlineText),
+                                      ),
                                     ],
                                   ),
                                 ],
@@ -587,8 +692,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                   right: 0,
                                   child: Center(
                                     child: Container(
-                                      width: 84,
-                                      height: 84,
+                                      width: 72,
+                                      height: 72,
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
                                           colors: [
@@ -598,11 +703,11 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                           begin: Alignment.topLeft,
                                           end: Alignment.bottomRight,
                                         ),
-                                        borderRadius: BorderRadius.circular(22),
+                                        borderRadius: BorderRadius.circular(18),
                                         boxShadow: [
                                           BoxShadow(
                                             color: job.companyColor.withOpacity(0.45),
-                                            blurRadius: 22,
+                                            blurRadius: 18,
                                             offset: const Offset(0, 8),
                                           ),
                                         ],
@@ -612,7 +717,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                           job.companyInitial,
                                           style: const TextStyle(
                                             color: Colors.white,
-                                            fontSize: 36,
+                                            fontSize: 30,
                                             fontWeight: FontWeight.w800,
                                           ),
                                         ),
@@ -662,98 +767,6 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                 const SizedBox(height: 20),
 
                                 _buildSection(
-                                  title: 'Experience Required',
-                                  icon: Icons.timeline_outlined,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF2563EB)
-                                          .withOpacity(0.06),
-                                      borderRadius:
-                                          BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color: const Color(0xFF2563EB)
-                                            .withOpacity(0.15),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 36,
-                                          height: 36,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF2563EB)
-                                                .withOpacity(0.12),
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          child: const Icon(
-                                              Icons.badge_outlined,
-                                              color: Color(0xFF2563EB),
-                                              size: 20),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text(
-                                          job.experienceLevel,
-                                          style: const TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF0F172A),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-
-                                _buildSection(
-                                  title: 'Requirements',
-                                  icon: Icons.checklist_rounded,
-                                  child: Column(
-                                    children:
-                                        job.requirements.map((req) {
-                                      return Padding(
-                                        padding: const EdgeInsets.only(
-                                            bottom: 10),
-                                        child: Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Container(
-                                              margin: const EdgeInsets.only(
-                                                  top: 5),
-                                              width: 20,
-                                              height: 20,
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFF2563EB)
-                                                    .withOpacity(0.10),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: const Icon(
-                                                Icons.check_rounded,
-                                                size: 12,
-                                                color: Color(0xFF2563EB),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Expanded(
-                                              child: Text(req,
-                                                  style: const TextStyle(
-                                                      fontSize: 14,
-                                                      color:
-                                                          Color(0xFF475569),
-                                                      height: 1.5)),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-
-                                _buildSection(
                                   title: 'Skills',
                                   icon: Icons.psychology_outlined,
                                   child: Wrap(
@@ -782,43 +795,18 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                   ),
                                 ),
                                 const SizedBox(height: 20),
-
-                                // Additional job details sections
                                 _buildSection(
-                                  title: 'Job Type & Schedule',
-                                  icon: Icons.schedule_outlined,
+                                  title: 'Job Information',
+                                  icon: Icons.info_outline_rounded,
                                   child: Column(
                                     children: [
-                                      _buildDetailRow('Employment Type', job.employmentType),
-                                      _buildDetailRow('Schedule', 'Monday to Friday, 8:00 AM - 5:00 PM'),
-                                      _buildDetailRow('Benefits', 'Health Insurance, 13th Month Pay, SSS, Pag-IBIG, PhilHealth'),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-
-                                _buildSection(
-                                  title: 'Compensation',
-                                  icon: Icons.payments_outlined,
-                                  child: Column(
-                                    children: [
-                                      _buildDetailRow('Salary Range', '${job.salaryMin} - ${job.salaryMax}'),
-                                      _buildDetailRow('Pay Frequency', 'Monthly'),
-                                      _buildDetailRow('Additional Benefits', 'Performance Bonus, Transportation Allowance'),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-
-                                _buildSection(
-                                  title: 'Company Information',
-                                  icon: Icons.business_outlined,
-                                  child: Column(
-                                    children: [
-                                      _buildDetailRow('Company', job.company),
-                                      _buildDetailRow('Industry', job.category ?? 'Various'),
-                                      _buildDetailRow('Company Size', '50-200 employees'),
+                                      _buildDetailRow(
+                                          'Employment Type', job.employmentType),
+                                      _buildDetailRow('Salary Range',
+                                          '${job.salaryMin} - ${job.salaryMax}'),
                                       _buildDetailRow('Location', job.location),
+                                      _buildDetailRow('Number of Slots', slotsText),
+                                      _buildDetailRow('Deadline', deadlineText),
                                     ],
                                   ),
                                 ),
@@ -1075,13 +1063,15 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           Icon(icon, size: 15, color: const Color(0xFF2563EB)),
           const SizedBox(width: 7),
           Flexible(
             child: Text(
               text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,

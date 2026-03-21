@@ -7,12 +7,21 @@ class UserSession {
 
   String? token;
   int? userId;
+  String? firstName;
+  String? lastName;
   String? name;
   String? email;
   String? gender;
   int? age;
   String? phone;
   String? address;
+  String? provinceCode;
+  String? provinceName;
+  String? cityCode;
+  String? cityName;
+  String? barangayCode;
+  String? barangayName;
+  String? streetAddress;
   List<String> skills = [];
   String? avatarPath;
 
@@ -53,13 +62,13 @@ class UserSession {
 
   void _applyUserFields(Map<String, dynamic> user) {
     userId = user['id'] as int?;
+    firstName = (user['first_name'] as String?)?.trim();
+    lastName = (user['last_name'] as String?)?.trim();
     final directName = user['name'] as String?;
     if (directName != null && directName.trim().isNotEmpty) {
       name = directName;
     } else {
-      final first = (user['first_name'] as String?)?.trim();
-      final last = (user['last_name'] as String?)?.trim();
-      final combined = [first, last]
+      final combined = [firstName, lastName]
           .where((p) => p != null && p.isNotEmpty)
           .cast<String>()
           .join(' ');
@@ -70,10 +79,26 @@ class UserSession {
     age = user['age'] as int?;
     phone = (user['phone'] as String?) ?? (user['contact'] as String?);
     address = user['address'] as String?;
+    provinceCode = (user['province_code'] as String?)?.trim();
+    provinceName = (user['province_name'] as String?)?.trim();
+    cityCode = (user['city_code'] as String?)?.trim();
+    cityName = (user['city_name'] as String?)?.trim();
+    barangayCode = (user['barangay_code'] as String?)?.trim();
+    barangayName = (user['barangay_name'] as String?)?.trim();
+    streetAddress = (user['street_address'] as String?)?.trim();
     avatarPath = user['avatar_path'] as String?;
     final rawSkills = user['skills'];
     if (rawSkills is List) {
-      skills = rawSkills.map((e) => e.toString()).toList();
+      skills = rawSkills.map((e) {
+        // Depending on the backend endpoint, `skills` might come as:
+        // 1) List<String>
+        // 2) List<{ skill: "..." , ... }>
+        if (e is Map<String, dynamic>) {
+          final s = e['skill'];
+          if (s != null) return s.toString();
+        }
+        return e.toString();
+      }).toList();
     } else {
       skills = [];
     }
@@ -82,12 +107,21 @@ class UserSession {
   void clear() {
     token = null;
     userId = null;
+    firstName = null;
+    lastName = null;
     name = null;
     email = null;
     gender = null;
     age = null;
     phone = null;
     address = null;
+    provinceCode = null;
+    provinceName = null;
+    cityCode = null;
+    cityName = null;
+    barangayCode = null;
+    barangayName = null;
+    streetAddress = null;
     avatarPath = null;
     skills = [];
   }

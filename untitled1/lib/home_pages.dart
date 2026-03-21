@@ -1,5 +1,5 @@
+import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -18,6 +18,33 @@ import 'package:http/http.dart' as http;
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
 
 final String mapboxAccessToken = mapboxToken.isNotEmpty ? mapboxToken : '';
+
+class MapFocusRequest {
+  final String companyName;
+  final String locationText;
+  final double? latitude;
+  final double? longitude;
+
+  const MapFocusRequest({
+    required this.companyName,
+    required this.locationText,
+    this.latitude,
+    this.longitude,
+  });
+
+  factory MapFocusRequest.fromJob(Job job) {
+    return MapFocusRequest(
+      companyName: job.company,
+      locationText: job.location,
+      latitude: job.latitude,
+      longitude: job.longitude,
+    );
+  }
+}
+
+final ValueNotifier<int?> homeNavRequestNotifier = ValueNotifier<int?>(null);
+final ValueNotifier<MapFocusRequest?> mapFocusRequestNotifier =
+    ValueNotifier<MapFocusRequest?>(null);
 
 // ─── User Location (Demo) ─────────────────────────────────────────────────────
 const double userLatitude = 16.689315116453432;
@@ -227,11 +254,41 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   final Future<Map<String, dynamic>> _eventsFuture = ApiService.getEvents();
 
-  final List<Widget> _pages = [
-    const HomeTab(),
+  /// Keep all tabs mounted so switching pill nav does not dispose HomeTab
+  /// (avoids full-screen "Loading jobs..." on every return to Home).
+  late final List<Widget> _tabPages = [
+    HomeTab(onOpenMapRequested: _openMapForJob),
     const MapTab(),
     const ProfileTab(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    homeNavRequestNotifier.addListener(_onHomeNavRequested);
+  }
+
+  @override
+  void dispose() {
+    homeNavRequestNotifier.removeListener(_onHomeNavRequested);
+    super.dispose();
+  }
+
+  void _onHomeNavRequested() {
+    final requestedIndex = homeNavRequestNotifier.value;
+    if (requestedIndex == null) return;
+    homeNavRequestNotifier.value = null;
+    if (!mounted) return;
+    setState(() => _selectedIndex = requestedIndex.clamp(0, 2));
+  }
+
+  void _openMapForJob(MapFocusRequest request) {
+    if (!mounted) return;
+    setState(() => _selectedIndex = 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      mapFocusRequestNotifier.value = request;
+    });
+  }
 
   void _showEventDetailModal(BuildContext context, PesoEvent e) {
     showDialog(
@@ -641,13 +698,30 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       extendBody: true,
       body: Stack(
+        // Keep child order stable: IndexedStack → nav → events FAB.
+        // If FAB is inserted *before* the nav when Home is selected, the nav's
+        // Stack slot changes and the pill widget is recreated → no animation.
         children: [
-          _pages[_selectedIndex],
-          // Floating Events button on homepage (bottom right, above nav bar)
-          if (_selectedIndex == 0)
-            Positioned(
-              right: 20,
-              bottom: bottomPadding + 92,
+          IndexedStack(
+            index: _selectedIndex,
+            children: _tabPages,
+          ),
+          // Floating pill navigation bar (always 2nd child — stable for AnimatedPositioned)
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: bottomPadding + 12,
+            child: _buildFloatingNavBar(context),
+          ),
+          // Floating Events button: always 3rd child; hide off-Home so Stack order never shifts
+          Positioned(
+            right: 20,
+            bottom: bottomPadding + 92,
+            child: Visibility(
+              visible: _selectedIndex == 0,
+              maintainState: true,
+              maintainAnimation: true,
+              maintainSize: false,
               child: FutureBuilder<Map<String, dynamic>>(
                 future: _eventsFuture,
                 builder: (context, snapshot) {
@@ -725,12 +799,6 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
             ),
-          // Floating pill navigation bar
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: bottomPadding + 12,
-            child: _buildFloatingNavBar(context),
           ),
         ],
       ),
@@ -764,6 +832,7 @@ class _HomePageState extends State<HomePage> {
               clipBehavior: Clip.none,
               children: [
                 AnimatedPositioned(
+                  key: const ValueKey('bottom_nav_pill'),
                   left: pillLeft,
                   top: 4,
                   duration: const Duration(milliseconds: 450),
@@ -840,7 +909,9 @@ class _HomePageState extends State<HomePage> {
 
 // ─── Home Tab ─────────────────────────────────────────────────────────────────
 class HomeTab extends StatefulWidget {
-  const HomeTab({super.key});
+  final ValueChanged<MapFocusRequest>? onOpenMapRequested;
+
+  const HomeTab({super.key, this.onOpenMapRequested});
 
   @override
   State<HomeTab> createState() => _HomeTabState();
@@ -850,8 +921,9 @@ class _HomeTabState extends State<HomeTab> {
   final TextEditingController _searchController = TextEditingController();
   String _searchText = '';
   String _sortOption = 'Latest';
-  final Set<String> _selectedEmploymentTypes = {};
-  final Set<String> _selectedCategories = {};
+  final Set<String> _selectedEmploymentTypes = <String>{};
+  final Set<String> _selectedSkillFilters = <String>{};
+  String _skillFilterQuery = '';
 
   List<Job> _jobs = [];
   bool _isLoading = true;
@@ -859,6 +931,10 @@ class _HomeTabState extends State<HomeTab> {
   final _jobActionService = JobActionService();
   List<int>? _avatarBytes;
   int _unreadNotificationCount = 0;
+  String _greetingText = '';
+  Timer? _notificationPollTimer;
+  Timer? _greetingTimer;
+  bool _isUnreadLoading = false;
 
   static const List<String> _sortOptions = [
     'Latest',
@@ -873,22 +949,15 @@ class _HomeTabState extends State<HomeTab> {
     'Contract',
     'Freelance',
   ];
-  static const List<String> _categories = [
-    'IT & Software',
-    'Healthcare',
-    'Education',
-    'Construction',
-    'Sales & Marketing',
-    'Manufacturing',
-  ];
-
   @override
   void initState() {
     super.initState();
+    _greetingText = '${getPhilippinesGreeting()},';
     _fetchJobs();
     _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
     _loadUnreadNotifications();
+    _startLiveUpdates();
   }
 
   Future<void> _loadAvatar() async {
@@ -904,9 +973,27 @@ class _HomeTabState extends State<HomeTab> {
 
   @override
   void dispose() {
+    _notificationPollTimer?.cancel();
+    _greetingTimer?.cancel();
     _jobActionService.removeListener(_onJobActionsChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _startLiveUpdates() {
+    _notificationPollTimer?.cancel();
+    _notificationPollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _loadUnreadNotifications();
+    });
+
+    _greetingTimer?.cancel();
+    _greetingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      final next = '${getPhilippinesGreeting()},';
+      if (!mounted) return;
+      if (next != _greetingText) {
+        setState(() => _greetingText = next);
+      }
+    });
   }
 
   void _openNotifications() {
@@ -921,27 +1008,42 @@ class _HomeTabState extends State<HomeTab> {
     });
   }
 
-  String _getPhilippinesGreeting() => '${getPhilippinesGreeting()},';
+  String _getPhilippinesGreeting() => _greetingText;
 
   Future<void> _loadUnreadNotifications() async {
+    if (_isUnreadLoading) return;
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
       if (!mounted) return;
-      setState(() => _unreadNotificationCount = 0);
+      if (_unreadNotificationCount != 0) {
+        setState(() => _unreadNotificationCount = 0);
+      }
       return;
     }
-    final count =
-        await ApiService.getJobseekerUnreadNotificationCount(token);
-    if (!mounted) return;
-    setState(() => _unreadNotificationCount = count);
+    _isUnreadLoading = true;
+    try {
+      final count =
+          await ApiService.getJobseekerUnreadNotificationCount(token);
+      if (!mounted) return;
+      if (_unreadNotificationCount != count) {
+        setState(() => _unreadNotificationCount = count);
+      }
+    } finally {
+      _isUnreadLoading = false;
+    }
   }
 
-  Future<void> _fetchJobs() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-    final result = await ApiService.getJobListings();
+  Future<void> _fetchJobs({bool showPageLoader = true}) async {
+    if (showPageLoader) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
+    final token = UserSession().token;
+    final result = (token != null && token.isNotEmpty)
+        ? await ApiService.getMatchedJobs(token)
+        : await ApiService.getJobListings();
     if (!mounted) return;
     if (result['success'] == true) {
       final rawList = result['data'] as List<dynamic>? ?? [];
@@ -949,13 +1051,22 @@ class _HomeTabState extends State<HomeTab> {
         _jobs = rawList
             .map((e) => Job.fromJson(e as Map<String, dynamic>))
             .toList();
-        _isLoading = false;
+        if (showPageLoader) _isLoading = false;
       });
     } else {
-      setState(() {
-        _errorMessage = result['message'] as String? ?? 'Failed to load jobs.';
-        _isLoading = false;
-      });
+      if (showPageLoader) {
+        setState(() {
+          _errorMessage = result['message'] as String? ?? 'Failed to load jobs.';
+          _isLoading = false;
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] as String? ?? 'Failed to refresh jobs.'),
+            backgroundColor: const Color(0xFFEF4444),
+          ),
+        );
+      }
     }
   }
 
@@ -1069,13 +1180,17 @@ class _HomeTabState extends State<HomeTab> {
           job.company.toLowerCase().contains(q) ||
           job.skills.any((s) => s.toLowerCase().contains(q));
 
+      String normType(String s) => s.toLowerCase().replaceAll(' ', '').trim();
       final matchesType = _selectedEmploymentTypes.isEmpty ||
-          _selectedEmploymentTypes.contains(job.employmentType);
+          _selectedEmploymentTypes
+              .map(normType)
+              .contains(normType(job.employmentType));
 
-      final matchesCategory = _selectedCategories.isEmpty ||
-          (job.category != null && _selectedCategories.contains(job.category));
+      final matchesSkill = _selectedSkillFilters.isEmpty ||
+          _selectedSkillFilters.any((selected) =>
+              job.skills.any((s) => s.toLowerCase() == selected.toLowerCase()));
 
-      return matchesSearch && matchesType && matchesCategory;
+      return matchesSearch && matchesType && matchesSkill;
     }).toList();
 
     switch (_sortOption) {
@@ -1107,7 +1222,27 @@ class _HomeTabState extends State<HomeTab> {
   }
 
   bool get _hasActiveFilters =>
-      _selectedEmploymentTypes.isNotEmpty || _selectedCategories.isNotEmpty;
+      _selectedEmploymentTypes.isNotEmpty || _selectedSkillFilters.isNotEmpty;
+
+  List<String> get _availableSkillFilters {
+    final unique = <String>{};
+    for (final job in _jobs) {
+      for (final skill in job.skills) {
+        final s = skill.trim();
+        if (s.isNotEmpty) unique.add(s);
+      }
+    }
+    final list = unique.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list.take(30).toList(); // keep filter sheet compact
+  }
+
+  List<String> get _visibleSkillFilters {
+    final q = _skillFilterQuery.trim().toLowerCase();
+    if (q.isEmpty) return _availableSkillFilters;
+    return _availableSkillFilters
+        .where((s) => s.toLowerCase().contains(q))
+        .toList();
+  }
 
   void _showSortSheet() {
     showModalBottomSheet(
@@ -1207,16 +1342,27 @@ class _HomeTabState extends State<HomeTab> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
+            final sheetHeight = (MediaQuery.of(ctx).size.height * 0.78)
+                .clamp(480.0, 680.0)
+                .toDouble();
             return Container(
+              height: sheetHeight,
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                   Center(
                     child: Container(
                       width: 40,
@@ -1243,7 +1389,8 @@ class _HomeTabState extends State<HomeTab> {
                         onPressed: () {
                           setSheetState(() {
                             _selectedEmploymentTypes.clear();
-                            _selectedCategories.clear();
+                            _selectedSkillFilters.clear();
+                            _skillFilterQuery = '';
                           });
                           setState(() {});
                         },
@@ -1285,16 +1432,17 @@ class _HomeTabState extends State<HomeTab> {
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
+                              horizontal: 14, vertical: 9),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF2563EB)
+                                ? const Color(0xFFDBEAFE)
                                 : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF2563EB)
+                                  ? const Color(0xFF93C5FD)
                                   : const Color(0xFFE2E8F0),
+                              width: isSelected ? 1.5 : 1,
                             ),
                           ),
                           child: Text(
@@ -1303,7 +1451,7 @@ class _HomeTabState extends State<HomeTab> {
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: isSelected
-                                  ? Colors.white
+                                  ? const Color(0xFF1D4ED8)
                                   : const Color(0xFF0F172A),
                             ),
                           ),
@@ -1313,7 +1461,7 @@ class _HomeTabState extends State<HomeTab> {
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    'Category',
+                    'Skills',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
@@ -1321,43 +1469,74 @@ class _HomeTabState extends State<HomeTab> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  TextField(
+                    onChanged: (value) {
+                      setSheetState(() => _skillFilterQuery = value);
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Search skills...',
+                      prefixIcon: const Icon(
+                        Icons.search_rounded,
+                        size: 20,
+                        color: Color(0xFF94A3B8),
+                      ),
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF2563EB)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: _categories.map((cat) {
-                      final isSelected = _selectedCategories.contains(cat);
+                    children: _visibleSkillFilters.map((skill) {
+                      final isSelected = _selectedSkillFilters.contains(skill);
                       return GestureDetector(
                         onTap: () {
                           setSheetState(() {
                             if (isSelected) {
-                              _selectedCategories.remove(cat);
+                              _selectedSkillFilters.remove(skill);
                             } else {
-                              _selectedCategories.add(cat);
+                              _selectedSkillFilters.add(skill);
                             }
                           });
                           setState(() {});
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 10),
+                              horizontal: 14, vertical: 9),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? const Color(0xFF0F172A)
+                                ? const Color(0xFFDBEAFE)
                                 : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFF0F172A)
+                                  ? const Color(0xFF93C5FD)
                                   : const Color(0xFFE2E8F0),
+                              width: isSelected ? 1.5 : 1,
                             ),
                           ),
                           child: Text(
-                            cat,
+                            skill,
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: isSelected
-                                  ? Colors.white
+                                  ? const Color(0xFF1D4ED8)
                                   : const Color(0xFF0F172A),
                             ),
                           ),
@@ -1365,44 +1544,49 @@ class _HomeTabState extends State<HomeTab> {
                       );
                     }).toList(),
                   ),
-                  const SizedBox(height: 28),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF2563EB), Color(0xFF1E88E5)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF2563EB).withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
+                      const SizedBox(height: 8),
+                    ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2563EB), Color(0xFF1E88E5)],
                       ),
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () => Navigator.pop(ctx),
-                          child: const Center(
-                            child: Text(
-                              'Apply Filters',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => Navigator.pop(ctx),
+                        child: const Center(
+                          child: Text(
+                            'Apply Filters',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ],
+                ),
+              ],
               ),
             );
           },
@@ -1829,7 +2013,7 @@ class _HomeTabState extends State<HomeTab> {
               child: Stack(
                 children: [
                   RefreshIndicator(
-                onRefresh: _fetchJobs,
+                onRefresh: () => _fetchJobs(showPageLoader: false),
                 color: const Color(0xFF2563EB),
                 child: jobs.isEmpty
                     ? ListView(
@@ -1937,6 +2121,10 @@ class _HomeTabState extends State<HomeTab> {
       isApplied: isApplied,
       onSave: () => _toggleSaveJob(job),
       onApply: () => _applyToJob(job),
+      onViewMap: () {
+        Navigator.of(context).pop();
+        widget.onOpenMapRequested?.call(MapFocusRequest.fromJob(job));
+      },
     );
   }
 }
@@ -2071,41 +2259,49 @@ class _JobCard extends StatelessWidget {
                             ],
                           ),
                         ),
-                        // Match percentage badge
-                        if (job.matchPercentage > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF10B981), Color(0xFF059669)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF10B981).withOpacity(0.35),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.star_rounded, size: 13, color: Colors.white),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${job.matchPercentage}%',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white,
+                        // Match percentage badge (always visible, including 0%)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            gradient: job.matchPercentage > 0
+                                ? const LinearGradient(
+                                    colors: [Color(0xFF10B981), Color(0xFF059669)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                : const LinearGradient(
+                                    colors: [Color(0xFF94A3B8), Color(0xFF64748B)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
-                                ),
-                              ],
-                            ),
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: (job.matchPercentage > 0
+                                        ? const Color(0xFF10B981)
+                                        : const Color(0xFF64748B))
+                                    .withOpacity(0.30),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ],
                           ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.star_rounded, size: 13, color: Colors.white),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${job.matchPercentage}%',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
 
@@ -2366,11 +2562,14 @@ class _MapTabState extends State<MapTab> {
   List<Business> _filteredBusinesses = [];
   bool _isLoading = true;
   String? _errorMessage;
+  MapFocusRequest? _pendingMapFocusRequest;
 
   @override
   void initState() {
     super.initState();
     _loadBusinessesFromApi();
+    mapFocusRequestNotifier.addListener(_onMapFocusRequested);
+    _onMapFocusRequested();
   }
 
   Future<void> _loadBusinessesFromApi() async {
@@ -2381,29 +2580,57 @@ class _MapTabState extends State<MapTab> {
     });
 
     try {
-      final response = await ApiService.getJobListings();
+      final response = await ApiService.getMapEmployers();
       if (!mounted) return;
       if (response['success'] == true) {
         final raw = response['data'] as List<dynamic>? ?? [];
-        final jobs = raw
-            .map((e) => Job.fromJson(e as Map<String, dynamic>))
-            .where((job) => job.latitude != null && job.longitude != null)
-            .toList();
 
-        // For now, treat each job as a "business" marker
-        final businesses = jobs
-            .map(
-              (job) => Business(
-                id: 'job_${job.id}',
-                name: job.company,
-                description: job.title,
-                imageUrl: '',
-                latitude: job.latitude!,
-                longitude: job.longitude!,
-                availableJobs: [job],
-              ),
-            )
-            .toList();
+        final businesses = <Business>[];
+        for (final item in raw) {
+          final emp = item as Map<String, dynamic>;
+          final lat = switch (emp['latitude']) {
+            final num v => v.toDouble(),
+            final String v => double.tryParse(v),
+            _ => null,
+          };
+          final lng = switch (emp['longitude']) {
+            final num v => v.toDouble(),
+            final String v => double.tryParse(v),
+            _ => null,
+          };
+          if (lat == null || lng == null) continue;
+
+          final company = emp['company_name']?.toString() ?? 'Employer';
+          final address = emp['address_full']?.toString();
+          final city = emp['city']?.toString();
+          final province = emp['province']?.toString();
+          final locationText = [address, city, province]
+              .where((s) => s != null && s.trim().isNotEmpty)
+              .cast<String>()
+              .join(', ');
+
+          final jobsRaw = emp['job_listings'] as List<dynamic>? ?? [];
+          final jobs = jobsRaw.map((j) {
+            final map = j as Map<String, dynamic>;
+            // Provide employer context for Job.fromJson
+            return Job.fromJson({
+              ...map,
+              'employer': {'company_name': company},
+            });
+          }).toList();
+
+          businesses.add(
+            Business(
+              id: 'emp_${emp['id']}',
+              name: company,
+              description: locationText.isNotEmpty ? locationText : (emp['tagline']?.toString() ?? ''),
+              imageUrl: '',
+              latitude: lat,
+              longitude: lng,
+              availableJobs: jobs,
+            ),
+          );
+        }
 
         if (!mounted) return;
         setState(() {
@@ -2411,18 +2638,19 @@ class _MapTabState extends State<MapTab> {
           _filteredBusinesses = businesses;
           _isLoading = false;
         });
+        _tryApplyPendingMapFocus();
       } else {
         if (!mounted) return;
         setState(() {
           _errorMessage =
-              response['message'] as String? ?? 'Failed to load jobs.';
+              response['message'] as String? ?? 'Failed to load map data.';
           _isLoading = false;
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Failed to load jobs.';
+        _errorMessage = 'Failed to load map data.';
         _isLoading = false;
       });
     }
@@ -2430,9 +2658,70 @@ class _MapTabState extends State<MapTab> {
 
   @override
   void dispose() {
+    mapFocusRequestNotifier.removeListener(_onMapFocusRequested);
     _searchController.dispose();
     _mapController.dispose();
     super.dispose();
+  }
+
+  void _onMapFocusRequested() {
+    final request = mapFocusRequestNotifier.value;
+    if (request == null) return;
+    mapFocusRequestNotifier.value = null;
+    _pendingMapFocusRequest = request;
+    _tryApplyPendingMapFocus();
+  }
+
+  void _tryApplyPendingMapFocus() {
+    final request = _pendingMapFocusRequest;
+    if (request == null || _allBusinesses.isEmpty) return;
+    final business = _findBestBusinessForRequest(request);
+    if (business == null) return;
+    _pendingMapFocusRequest = null;
+    _centerOnBusiness(business);
+  }
+
+  Business? _findBestBusinessForRequest(MapFocusRequest request) {
+    String norm(String v) => v.toLowerCase().trim();
+    final reqCompany = norm(request.companyName);
+    final reqLocation = norm(request.locationText);
+
+    for (final business in _allBusinesses) {
+      if (norm(business.name) == reqCompany) return business;
+    }
+
+    for (final business in _allBusinesses) {
+      if (norm(business.name).contains(reqCompany) ||
+          reqCompany.contains(norm(business.name))) {
+        return business;
+      }
+    }
+
+    if (reqLocation.isNotEmpty) {
+      for (final business in _allBusinesses) {
+        if (norm(business.description).contains(reqLocation) ||
+            reqLocation.contains(norm(business.description))) {
+          return business;
+        }
+      }
+    }
+
+    if (request.latitude != null && request.longitude != null) {
+      Business? nearest;
+      var bestDistanceSquared = double.infinity;
+      for (final business in _allBusinesses) {
+        final dLat = business.latitude - request.latitude!;
+        final dLng = business.longitude - request.longitude!;
+        final distanceSquared = (dLat * dLat) + (dLng * dLng);
+        if (distanceSquared < bestDistanceSquared) {
+          bestDistanceSquared = distanceSquared;
+          nearest = business;
+        }
+      }
+      return nearest;
+    }
+
+    return null;
   }
 
   void _onSearch(String query) {
@@ -2619,6 +2908,46 @@ class _MapTabState extends State<MapTab> {
             ],
           ),
 
+          if (_isLoading)
+            const Positioned.fill(
+              child: IgnorePointer(
+                child: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            ),
+
+          if (_errorMessage != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 72,
+              left: 16,
+              right: 16,
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.12),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           // Search Bar & Business List
           SafeArea(
             child: Column(
@@ -2718,9 +3047,12 @@ class _MapTabState extends State<MapTab> {
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: demoBusinesses.length,
+                      itemCount: _filteredBusinesses.isNotEmpty
+                          ? _filteredBusinesses.length
+                          : _allBusinesses.length,
                     itemBuilder: (context, index) {
-                      final business = demoBusinesses[index];
+                      final source = _filteredBusinesses.isNotEmpty ? _filteredBusinesses : _allBusinesses;
+                      final business = source[index];
                       final distance = business.getDistanceFromUser();
                       final isSelected = _selectedBusiness?.id == business.id;
                       
@@ -2755,14 +3087,14 @@ class _MapTabState extends State<MapTab> {
                                     width: 44,
                                     height: 44,
                                     decoration: BoxDecoration(
-                                      color: index == 0
+                                      color: (index % 2 == 0)
                                           ? const Color(0xFFE11D48).withOpacity(0.1)
                                           : const Color(0xFF7C3AED).withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Icon(
                                       Icons.store_rounded,
-                                      color: index == 0
+                                      color: (index % 2 == 0)
                                           ? const Color(0xFFE11D48)
                                           : const Color(0xFF7C3AED),
                                       size: 24,
@@ -2882,6 +3214,9 @@ class _MapTabState extends State<MapTab> {
             right: 16,
             bottom: MediaQuery.of(context).padding.bottom + 260,
             child: FloatingActionButton(
+              // Unique tag — default FAB Hero tags collide with other routes' FABs
+              // (e.g. Notifications "Delete all") during pop transitions, causing morphs.
+              heroTag: 'map_tab_center_on_user',
               mini: true,
               backgroundColor: Colors.white,
               onPressed: _centerOnUser,
@@ -3452,45 +3787,66 @@ class _NotificationsTabState extends State<NotificationsTab> {
   bool _isLoading = true;
   String? _errorMessage;
   List<Map<String, dynamic>> _notifications = [];
+  Timer? _pollTimer;
+  bool _isPolling = false;
 
   @override
   void initState() {
     super.initState();
     _loadNotifications();
+    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      _loadNotifications(showLoader: false);
+    });
   }
 
-  Future<void> _loadNotifications() async {
-    final token = UserSession().token;
-    if (token == null || token.isEmpty) {
-      setState(() {
-        _notifications = [];
-        _isLoading = false;
-      });
-      return;
-    }
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    super.dispose();
+  }
 
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  Future<void> _loadNotifications({bool showLoader = true}) async {
+    if (_isPolling) return;
+    _isPolling = true;
+    try {
+      final token = UserSession().token;
+      if (token == null || token.isEmpty) {
+        setState(() {
+          _notifications = [];
+          if (showLoader) _isLoading = false;
+        });
+        return;
+      }
 
-    final result =
-        await ApiService.getJobseekerNotifications(token: token, page: 1);
-    if (!mounted) return;
+      if (showLoader) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
 
-    if (result['success'] == true) {
-      final data = result['data'];
-      final list = data is Map<String, dynamic> ? data['data'] : null;
-      _notifications =
-          (list as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
-      _isLoading = false;
-      setState(() {});
-    } else {
-      setState(() {
-        _errorMessage =
-            result['message'] as String? ?? 'Failed to load notifications.';
-        _isLoading = false;
-      });
+      final result =
+          await ApiService.getJobseekerNotifications(token: token, page: 1);
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        final data = result['data'];
+        final list = data is Map<String, dynamic> ? data['data'] : null;
+        _notifications =
+            (list as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+        if (showLoader) _isLoading = false;
+        setState(() {});
+      } else {
+        if (showLoader) {
+          setState(() {
+            _errorMessage =
+                result['message'] as String? ?? 'Failed to load notifications.';
+            _isLoading = false;
+          });
+        }
+      }
+    } finally {
+      _isPolling = false;
     }
   }
 
@@ -3790,6 +4146,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
       floatingActionButton: _notifications.isEmpty
           ? null
           : FloatingActionButton.extended(
+              // Unique tag — avoids Hero flight to Map tab's locate FAB (IndexedStack keeps Map mounted).
+              heroTag: 'notifications_delete_all',
               onPressed: _allRead ? _deleteAllRead : null,
               backgroundColor: _allRead
                   ? const Color(0xFFEF4444)
