@@ -12,6 +12,7 @@ class EmployerResource extends JsonResource
     {
         return [
             'id'             => $this->id,
+            'photo'          => $this->photo ? Storage::disk('public')->url($this->photo) : null,
             'company_name'   => $this->company_name,
             'contact_person' => $this->contact_person,
             'email'          => $this->email,

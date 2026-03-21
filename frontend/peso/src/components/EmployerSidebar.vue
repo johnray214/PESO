@@ -11,17 +11,17 @@
     </div>
 
     <nav class="sidebar-nav">
-      <ul class="nav-list">
-        <li v-for="item in topNavItems" :key="item.name" class="nav-li">
-          <router-link :to="item.path" class="nav-item" exact-active-class="active">
-            <span class="nav-icon" v-html="item.icon"></span>
-            <span class="nav-text">{{ item.name }}</span>
-          </router-link>
-        </li>
-      </ul>
-
-      <p class="nav-label">MANAGE</p>
-      <ul class="nav-list">
+      <div>
+        <ul class="nav-list">
+          <li v-for="item in topNavItems" :key="item.name" class="nav-li">
+            <router-link :to="item.path" class="nav-item" exact-active-class="active">
+              <span class="nav-icon" v-html="item.icon"></span>
+              <span class="nav-text">{{ item.name }}</span>
+            </router-link>
+          </li>
+        </ul>
+        <p class="nav-label">MANAGE</p>
+        <ul class="nav-list">
         <!-- Applicants -->
         <li class="nav-li">
           <router-link to="/employer/applicants" class="nav-item" exact-active-class="active">
@@ -61,15 +61,27 @@
           </router-link>
         </li>
       </ul>
+      </div>
     </nav>
 
     <div class="sidebar-footer">
       <div class="company-card">
-        <div class="company-avatar">{{ companyInitial }}</div>
+        <div class="company-logo-nav" v-if="authStore.user?.photo">
+          <img :src="authStore.user.photo" alt="Company Logo" class="nav-logo-img" />
+        </div>
+        <div v-else class="company-avatar">{{ companyInitial }}</div>
         <div class="company-info">
           <span class="company-name">{{ companyName }}</span>
           <span class="company-role">Employer Account</span>
         </div>
+        <button class="logout-btn" title="Logout" @click="handleLogout" :disabled="loggingOut">
+          <span v-if="loggingOut" class="btn-spin"></span>
+          <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+        </button>
       </div>
     </div>
   </aside>
@@ -77,6 +89,7 @@
 
 <script>
 import pesoLogo from '@/assets/PESOLOGO.jpg'
+import { useRouter } from 'vue-router'
 import { useEmployerNotificationStore } from '@/stores/employerNotificationStore'
 import { useEmployerApplicantsStore }   from '@/stores/employerApplicantsStore'
 import { useEmployerAuthStore }         from '@/stores/employerAuth'
@@ -84,14 +97,16 @@ import { useEmployerAuthStore }         from '@/stores/employerAuth'
 export default {
   name: 'EmployerSidebar',
   setup() {
+    const router          = useRouter()
     const notifStore      = useEmployerNotificationStore()
     const applicantsStore = useEmployerApplicantsStore()
     const authStore       = useEmployerAuthStore()
-    return { notifStore, applicantsStore, authStore }
+    return { router, notifStore, applicantsStore, authStore }
   },
   data() {
     return {
       pesoLogo,
+      loggingOut: false,
       topNavItems: [
         { name: 'Dashboard', path: '/employer/dashboard', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>` },
       ],
@@ -105,13 +120,29 @@ export default {
   },
   computed: {
     companyName() {
-      return this.authStore.user?.company_name || 'Employer'
+      const u = this.authStore.user
+      return u?.company_name || u?.name || u?.legal_name || 'Employer'
     },
     companyInitial() {
-      return (this.authStore.user?.company_name || 'E')[0].toUpperCase()
+      const name = this.authStore.user?.company_name || this.authStore.user?.name || this.authStore.user?.legal_name || 'E'
+      return name[0].toUpperCase()
+    },
+
+  },
+  methods: {
+    async handleLogout() {
+      this.loggingOut = true
+      try {
+        await this.authStore.logout()
+        window.location.href = '/employer/login'
+      } finally {
+        this.loggingOut = false
+      }
     },
   },
   mounted() {
+    this.authStore.setAppReady()
+    
     // Kick off background fetch for stores (no-op if already loaded)
     this.notifStore.fetch()
     this.applicantsStore.fetch()
@@ -155,8 +186,25 @@ export default {
 
 .sidebar-footer { padding: 12px; border-top: 1px solid #f1f5f9; }
 .company-card { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: #eff8ff; }
-.company-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.company-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.company-logo-nav { width: 44px; height: 44px; border-radius: 50%; overflow: hidden; flex-shrink: 0; box-shadow: 0 0 0 1px #bae6fd; background: #fff; }
+.nav-logo-img { width: 100%; height: 100%; object-fit: cover; }
 .company-info { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .company-name { font-size: 13px; font-weight: 600; color: #1e293b; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .company-role { font-size: 10px; color: #94a3b8; }
+.logout-btn { background: none; border: none; cursor: pointer; color: #94a3b8; display: flex; align-items: center; padding: 4px; border-radius: 6px; transition: all 0.15s; flex-shrink: 0; }
+.logout-btn:hover { background: #fee2e2; color: #ef4444; }
+.logout-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+.btn-spin { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(148,163,184,0.3); border-top-color: #94a3b8; border-radius: 50%; animation: spin 0.65s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.skeleton {
+  background: #e2e8f0;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.7; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.7; }
+}
 </style>

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'  // ✅ createWebHistory removes /#/
 import { useAuthStore, ROLES } from '@/stores/auth'
+import { useEmployerAuthStore } from '@/stores/employerAuth'
 import DashboardLayout from '@/layouts/DashboardLayout.vue'
 import EmployerLayout from '@/layouts/EmployerLayout.vue'
 
@@ -97,7 +98,7 @@ const routes = [
         name: 'notifications',
         component: () => import('@/views/admin/NotificationsPage.vue'),
         meta: {
-          roles: [ROLES.ADMIN],
+          roles: [ROLES.ADMIN, ROLES.STAFF],
           subtitle: 'System alerts and messaging to jobseekers & employers',
         },
       },
@@ -230,6 +231,12 @@ router.beforeEach(async (to, _from, next) => {
     return next({ name: 'employer-dashboard' })
   }
 
+  // init employer auth store so user data is in state
+  const employerAuthStore = useEmployerAuthStore()
+  if (!employerAuthStore.initialized) {
+    await employerAuthStore.init()
+  }
+
   // init admin auth store
   const authStore = useAuthStore()
   if (!authStore.initialized) {
@@ -250,7 +257,7 @@ router.beforeEach(async (to, _from, next) => {
 
   // role check
   const allowedRoles = to.meta.roles
-  const role = authStore.role
+  const role = authStore.role?.toLowerCase()
   if (allowedRoles?.length && (!role || !allowedRoles.includes(role))) {
     return next({ name: 'dashboard' })
   }

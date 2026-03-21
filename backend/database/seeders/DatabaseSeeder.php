@@ -68,8 +68,8 @@ class DatabaseSeeder extends Seeder
                 'phone' => '02-8123456',
                 'tin' => '123-456-789-000',
                 'website' => 'https://nexustech.ph',
-                'latitude' => 121.555038,
-                'longitude' => 16.691483,
+                'latitude' => 16.691483,
+                'longitude' => 121.555038,
                 'address_full' => '123 Ayala Avenue, Makati City',
             ],
             [
@@ -89,10 +89,10 @@ class DatabaseSeeder extends Seeder
             [
                 'company_name' => 'Creative Designs Studio',
                 'contact_person' => 'Liza Tan',
+                'city' => 'Quezon City',
                 'email' => 'jobs@creativedesigns.ph',
                 'industry' => 'Design & Creative',
                 'company_size' => '10-50',
-                'city' => 'Quezon City',
                 'phone' => '02-7123456',
                 'tin' => '345-678-901-000',
                 'website' => 'https://creativedesigns.ph',

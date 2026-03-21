@@ -44,6 +44,7 @@ export const useAuthStore = defineStore('auth', {
       if (!data.success || !data.data) throw new Error(data.message || 'Login failed')
       const { user, token } = data.data
       this.user = {
+        id: user.id,
         name: user.full_name,
         email: user.email,
         first_name: user.first_name,
@@ -60,12 +61,19 @@ export const useAuthStore = defineStore('auth', {
       try {
         await api.post('/peso-employee/logout')
       } catch (_) { void _; }
+      this.initialized = false
       this.user = null
       this.role = null
       this.token = null
       this.photo = null
+      // auth keys
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem('peso-auth')
+      // adminAppStore cache keys
+      localStorage.removeItem('reviewing_count')
+      localStorage.removeItem('reviewing_count_time')
+      localStorage.removeItem('admin_notifications')
+      localStorage.removeItem('admin_notifications_time')
     },
   },
 })

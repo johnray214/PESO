@@ -148,9 +148,11 @@ class AdminDashboardController extends Controller
             ->map(fn($a) => [
                 'name'        => $a->jobseeker->fullName(),
                 'location'    => $a->jobseeker->city ?? '',
-                'skill'       => $a->jobseeker->primary_skill ?? 'General',
+                'skill'       => $a->jobseeker->skills()->pluck('skill')->first() 
+                                    ?? $a->jobseeker->primary_skill 
+                                    ?? 'General',
                 'job'         => $a->jobListing->title ?? '',
-                'date'        => optional($a->applied_at)->format('M d'),
+                'date'        => optional($a->applied_at)->format('M d, Y'),
                 'status'      => ucfirst($a->status),
                 'statusClass' => strtolower($a->status),
             ]);

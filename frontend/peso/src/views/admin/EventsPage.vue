@@ -7,7 +7,30 @@
         <span class="toast-msg">{{ toast.text }}</span>
       </div>
     </transition>
-    <div class="header-actions">
+    <!-- SKELETON -->
+    <template v-if="loading && !events.length">
+      <div class="header-actions" style="margin-bottom: 16px;">
+        <div class="skel" style="width: 160px; height: 36px; border-radius: 10px;"></div>
+        <div class="skel" style="width: 140px; height: 36px; border-radius: 10px; margin-left: auto;"></div>
+      </div>
+      <div class="filters-bar" style="margin-bottom: 20px;">
+        <div class="skel" style="width: 300px; height: 38px; border-radius: 10px;"></div>
+        <div style="display:flex; gap:8px;">
+          <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
+          <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
+        </div>
+      </div>
+      <div class="status-tabs" style="margin-bottom: 16px;">
+        <div v-for="i in 4" :key="i" class="skel" style="width: 100px; height: 34px; border-radius: 8px;"></div>
+      </div>
+      <div class="events-list">
+        <div v-for="i in 3" :key="i" class="skel" style="width: 100%; height: 120px; border-radius: 14px; margin-bottom: 12px;"></div>
+      </div>
+    </template>
+
+    <!-- ACTUAL CONTENT -->
+    <template v-else>
+      <div class="header-actions">
       <div class="view-toggle">
         <button :class="['toggle-btn', { active: view === 'list' }]" @click="view = 'list'">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -330,6 +353,7 @@
         {{ lockToast.text }}
       </div>
     </transition>
+    </template>
   </div>
 </template>
 
@@ -354,6 +378,7 @@ export default {
       showModal: false,
       showViewModal: false,
       showArchiveModal: false,
+      loading: true,
       editingEvent: null,
       viewingEvent: null,
       viewRegistrants: [],
@@ -446,6 +471,7 @@ export default {
   methods: {
     // ── Data ────────────────────────────────────────────────────────
     async fetchEvents() {
+      this.loading = true
       try {
         const params = { page: this.currentPage }
         if (this.search)     params.search = this.search
@@ -485,6 +511,8 @@ export default {
         this.updateTabCounts()
       } catch (err) {
         console.error('Error fetching events:', err)
+      } finally {
+        this.loading = false
       }
     },
 
@@ -692,6 +720,13 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skel {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 400px 100%; animation: shimmer 1.4s infinite linear;
+  border-radius: 6px; flex-shrink: 0;
+}
 
 .page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
 .header-actions { display: flex; align-items: center; gap: 10px; }

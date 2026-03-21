@@ -19,6 +19,7 @@ class Employer extends Authenticatable
         'contact_person',
         'email',
         'password',
+        'photo',
 
         // ── Company Info ──────────────────────────────────────────────
         'industry',

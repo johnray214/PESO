@@ -1,6 +1,18 @@
 <template>
   <div class="page">
-    <div class="builder-layout">
+
+    <!-- SKELETON -->
+    <template v-if="pageLoading">
+      <div class="builder-layout">
+        <div class="builder-panel" style="background: transparent; border: none; padding: 0; gap: 20px; display: flex; flex-direction: column;">
+          <div v-for="i in 4" :key="i" class="builder-section skel" style="height: 120px; border-radius: 12px; margin: 0;"></div>
+        </div>
+        <div class="preview-panel skel" style="height: 700px; border-radius: 16px; min-height: unset;"></div>
+      </div>
+    </template>
+
+    <!-- ACTUAL CONTENT -->
+    <div class="builder-layout" v-else>
 
       <!-- LEFT: Report Builder Panel -->
       <div class="builder-panel">
@@ -372,20 +384,25 @@ import api from '@/services/api'
 
 export default {
   name: 'ReportingPage',
-
+  mounted() {
+    setTimeout(() => {
+      this.pageLoading = false
+    }, 800)
+  },
   data() {
-    const now  = new Date()
+    const now        = new Date()
+    const currentDay = now.getDay()
+    const diffToMon  = now.getDate() - currentDay + (currentDay === 0 ? -6 : 1)
+    const monday     = new Date(now.setDate(diffToMon))
+    const weekStart  = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`
+
+    now.setTime(new Date().getTime()) // Reset 'now' after modifying it for weekStart
     const yyyy = now.getFullYear()
     const mm   = String(now.getMonth() + 1).padStart(2, '0')
     const dd   = String(now.getDate()).padStart(2, '0')
-    const today      = `${yyyy}-${mm}-${dd}`
-    const yearStart  = `${yyyy}-01-01`
+    const today = `${yyyy}-${mm}-${dd}`
+    const yearStart = `${yyyy}-01-01`
     const monthStart = `${yyyy}-${mm}-01`
-
-    const dow = now.getDay()
-    const monDate = new Date(now)
-    monDate.setDate(now.getDate() + (dow === 0 ? -6 : 1 - dow))
-    const weekStart = `${monDate.getFullYear()}-${String(monDate.getMonth()+1).padStart(2,'0')}-${String(monDate.getDate()).padStart(2,'0')}`
 
     const d3 = new Date(now); d3.setMonth(d3.getMonth() - 3)
     const threeAgo = `${d3.getFullYear()}-${String(d3.getMonth()+1).padStart(2,'0')}-01`
@@ -394,6 +411,7 @@ export default {
     const sixAgo = `${d6.getFullYear()}-${String(d6.getMonth()+1).padStart(2,'0')}-01`
 
     return {
+      pageLoading: true,
       reportGenerated: false,
       isGenerating:    false,
       errorMessage:    null, // ✅ ADDED: tracks API errors
@@ -729,6 +747,14 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skel {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 400px 100%; animation: shimmer 1.4s infinite linear;
+  border-radius: 6px; flex-shrink: 0;
+}
+
 .page { font-family:'Plus Jakarta Sans',sans-serif; padding:24px; background:#f8fafc; min-height:100%; display:flex; flex-direction:column; gap:20px; overflow-y:auto; }
 .header-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 

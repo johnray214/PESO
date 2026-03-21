@@ -2,7 +2,7 @@ import api from './api'
 
 export const employerApi = {
   // Dashboard
-  getDashboard: () => api.get('/employer/dashboard'),
+  getDashboard: (params) => api.get('/employer/dashboard', { params }),
 
   // Job Listings
   getJobs: (params) => api.get('/employer/jobs', { params }),

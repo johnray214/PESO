@@ -198,7 +198,7 @@
 </template>
 
 <script>
-import api from '@/services/api'
+import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 export default {
   name: 'EmployerLogin',
@@ -242,19 +242,8 @@ export default {
       this.verificationError = ''
 
       try {
-        const response = await api.post('/employer/login', {
-          email:    this.form.email,
-          password: this.form.password,
-        })
-
-        const data = response.data.data || response.data
-
-        if (!data.token) {
-          throw new Error('Invalid server response')
-        }
-
-        localStorage.setItem('employer_token', data.token)
-        localStorage.setItem('employer_user',  JSON.stringify(data.employer))
+        const authStore = useEmployerAuthStore()
+        await authStore.login(this.form.email, this.form.password)
 
         this.$router.push('/employer/dashboard')
 

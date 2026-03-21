@@ -112,7 +112,7 @@
 
 <script>
 import { computed } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAppStore } from '@/stores/adminAppStore'
 import AppSidebar from '@/components/AppSidebar.vue'
@@ -121,14 +121,13 @@ export default {
   name: 'DashboardLayout',
   components: { AppSidebar },
   setup() {
-    const router    = useRouter()
     const route     = useRoute()
     const authStore = useAuthStore()
     const appStore  = useAdminAppStore()
 
     async function handleLogout() {
       await authStore.logout()
-      router.push({ name: 'login' })  // ✅ goes to /admin/login
+      window.location.href = '/admin/login'  // ✅ force full reload to wipe cache
     }
 
     const pageTitle = computed(() => {

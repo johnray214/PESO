@@ -11,6 +11,19 @@
           </div>
         </transition>
 
+        <!-- SKELETON -->
+        <template v-if="loading && !employers.length">
+          <div class="filters-bar" style="margin-bottom: 20px;">
+            <div class="skel" style="width: 300px; height: 38px; border-radius: 10px;"></div>
+            <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
+          </div>
+          <div class="table-card" style="padding: 20px;">
+            <div v-for="i in 6" :key="i" class="skel" style="width: 100%; height: 50px; border-radius: 8px; margin-bottom: 10px;"></div>
+          </div>
+        </template>
+
+        <!-- ACTUAL CONTENT -->
+        <template v-else>
         <!-- Filters -->
         <div class="filters-bar">
           <div class="search-box">
@@ -102,6 +115,7 @@
           </div>
         </div>
 
+        </template>
       </div>
     </div>
 
@@ -521,6 +535,14 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skel {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 400px 100%; animation: shimmer 1.4s infinite linear;
+  border-radius: 6px; flex-shrink: 0;
+}
+
 .layout-wrapper { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; }
 .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .page { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }

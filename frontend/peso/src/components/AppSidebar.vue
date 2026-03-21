@@ -141,6 +141,9 @@ export default {
     }
   },
   computed: {
+    isFullyLoaded() {
+      return this.appStore.applicantsLoaded && this.appStore.notificationsLoaded
+    },
     isUsersActive() {
       const p = this.$route?.path || ''
       return p.startsWith('/dashboard/users') ||
@@ -163,11 +166,16 @@ export default {
   },
   async mounted() {
     await this.$nextTick()
-    setTimeout(() => { this.loading = false }, 600)
+    if (this.isFullyLoaded) {
+      this.loading = false
+    }
     this.appStore.fetchApplicantsCount()
     if (this.isUsersActive) this.usersOpen = true
   },
   watch: {
+    isFullyLoaded(val) {
+      if (val) this.loading = false
+    },
     '$route'(to) {
       const p = to.path
       if (p.startsWith('/dashboard/users') ||
