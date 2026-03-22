@@ -3,25 +3,36 @@
 
     <!-- ── PERIOD FILTER BAR ──────────────────────────────────────── -->
     <div class="period-bar">
-      <div class="period-pills">
-        <button
-          v-for="p in periodOptions" :key="p.value"
-          :class="['period-pill', { active: activePeriod === p.value }]"
-          @click="setPeriod(p.value)"
-        >{{ p.label }}</button>
-      </div>
-
-      <!-- Custom date range -->
-      <transition name="fade-slide">
-        <div v-if="activePeriod === 'custom'" class="custom-range">
-          <input type="date" v-model="customFrom" class="date-input" :max="customTo || undefined"/>
-          <span class="date-sep">→</span>
-          <input type="date" v-model="customTo"   class="date-input" :min="customFrom || undefined"/>
-          <button class="apply-btn" :disabled="!customFrom || !customTo" @click="applyCustom">Apply</button>
+      <template v-if="loading">
+        <div style="display:flex; gap:8px;">
+          <div class="skel" style="width: 80px; height: 34px; border-radius: 99px;"></div>
+          <div class="skel" style="width: 80px; height: 34px; border-radius: 99px;"></div>
+          <div class="skel" style="width: 80px; height: 34px; border-radius: 99px;"></div>
+          <div class="skel" style="width: 80px; height: 34px; border-radius: 99px;"></div>
         </div>
-      </transition>
+        <div class="skel" style="width: 140px; height: 14px; border-radius: 4px;"></div>
+      </template>
+      <template v-else>
+        <div class="period-pills">
+          <button
+            v-for="p in periodOptions" :key="p.value"
+            :class="['period-pill', { active: activePeriod === p.value }]"
+            @click="setPeriod(p.value)"
+          >{{ p.label }}</button>
+        </div>
 
-      <span v-if="!loading && lastUpdated" class="last-updated">Updated {{ lastUpdated }}</span>
+        <!-- Custom date range -->
+        <transition name="fade-slide">
+          <div v-if="activePeriod === 'custom'" class="custom-range">
+            <input type="date" v-model="customFrom" class="date-input" :max="customTo || undefined"/>
+            <span class="date-sep">→</span>
+            <input type="date" v-model="customTo"   class="date-input" :min="customFrom || undefined"/>
+            <button class="apply-btn" :disabled="!customFrom || !customTo" @click="applyCustom">Apply</button>
+          </div>
+        </transition>
+
+        <span v-if="lastUpdated" class="last-updated">Updated {{ lastUpdated }}</span>
+      </template>
     </div>
 
     <!-- SKELETON -->
@@ -616,7 +627,8 @@
                 </div>
                 <div class="event-info">
                   <p class="event-title">{{ event.title }}</p>
-                  <p class="event-meta">{{ event.location }} · {{ event.slots }} slots</p>
+                  <p class="event-meta">{{ event.location }}</p>
+                  <p class="event-meta">{{ event.slots }} slots</p>
                 </div>
                 <span class="event-type" :style="{ background: event.bg, color: event.color }">{{ event.type }}</span>
               </div>
@@ -1225,17 +1237,17 @@ export default {
 .status-badge.matched     { background: #f0fdf4; color: #22c55e; }
 .status-badge.pending     { background: #fff7ed; color: #f97316; }
 .status-badge.reviewing   { background: #dbeafe; color: #1d4ed8; }
-.status-badge.shortlisted { background: #1A5F18; color: #a7f3a0; }
+.status-badge.shortlisted { background: #eff8ff; color: #1a5f8a; }
 .status-badge.interview   { background: #ede9fe; color: #8B5CF6; }
 .status-badge.hired       { background: #dcfce7; color: #16a34a; }
 .status-badge.rejected    { background: #fef2f2; color: #ef4444; }
 
 /* ── EVENTS ──────────────────────────────────────────────────────────────── */
-.events-list { display: flex; flex-direction: columns; gap: 10px; }
+.events-list { display: flex; flex-direction: column; gap: 10px; }
 .event-item  { display: flex; align-items: center; gap: 10px; }
 .event-date-box { min-width: 40px; height: 44px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0; }
 .event-day   { font-size: 15px; font-weight: 800; line-height: 1; }
-.event-month { font-size: 9px; font-weight: 600; text-transform: uppercase; }
+.event-month { font-size: 9px; font-weight: 60a0; text-transform: uppercase; }
 .event-info  { flex: 1; min-width: 0; }
 .event-title { font-size: 12px; font-weight: 600; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event-meta  { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }

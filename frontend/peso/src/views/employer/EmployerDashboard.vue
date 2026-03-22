@@ -2,8 +2,45 @@
   <div class="layout-wrapper">
     <EmployerSidebar />
     <div class="main-area">
-      <EmployerTopbar title="Dashboard" subtitle="Welcome back, Nexus Tech 👋" />
+      <EmployerTopbar title="Dashboard" subtitle="Welcome back 👋" />
       <div class="page">
+        <!-- SKELETON LOADER -->
+        <div v-if="isLoading">
+          <div class="period-bar skeleton" style="height: 52px; width: 100%; border-radius: 14px; margin-bottom: 16px;"></div>
+          <div class="stats-grid">
+            <div v-for="i in 4" :key="i" class="stat-card skeleton" style="height: 120px; border-radius: 14px;"></div>
+          </div>
+          <div class="mid-row" style="margin-top: 14px;">
+            <div class="card chart-card skeleton" style="height: 380px;"></div>
+            <div class="card funnel-card skeleton" style="height: 380px;"></div>
+          </div>
+          <div class="card potential-card skeleton" style="height: 400px; margin-top: 14px;"></div>
+          <div class="bottom-row" style="margin-top: 14px;">
+            <div class="card table-card skeleton" style="height: 300px;"></div>
+            <div class="card jobs-card skeleton" style="height: 300px;"></div>
+          </div>
+        </div>
+
+        <div v-else>
+        <!-- ── PERIOD FILTER BAR ──────────────────────────────────── -->
+        <div class="period-bar">
+          <div class="period-pills">
+            <button
+              v-for="p in periodOptions" :key="p.value"
+              :class="['period-pill', { active: activePeriod === p.value }]"
+              @click="setPeriod(p.value)"
+            >{{ p.label }}</button>
+          </div>
+          <transition name="fade-slide">
+            <div v-if="activePeriod === 'custom'" class="custom-range">
+              <input type="date" v-model="customFrom" class="date-input" :max="customTo || undefined"/>
+              <span class="date-sep">→</span>
+              <input type="date" v-model="customTo" class="date-input" :min="customFrom || undefined"/>
+              <button class="apply-btn" :disabled="!customFrom || !customTo" @click="fetchDashboard">Apply</button>
+            </div>
+          </transition>
+          <span v-if="lastUpdated" class="last-updated">Updated {{ lastUpdated }}</span>
+        </div>
 
         <!-- Stat Cards -->
         <div class="stats-grid">
@@ -28,7 +65,7 @@
             <div class="card-header">
               <div>
                 <h3>Applications Over Time</h3>
-                <p class="card-sub">Monthly applications received — {{ new Date().getFullYear() }}</p>
+                <p class="card-sub">Monthly applications received — {{ chartSubLabel }}</p>
               </div>
               <div class="legend">
                 <span class="legend-item"><span class="legend-line amber"></span> Applications</span>
@@ -37,7 +74,6 @@
             </div>
 
             <div class="svg-chart-wrap" ref="appWrap">
-              <!-- Tooltip -->
               <transition name="tip">
                 <div v-if="appTip" class="chart-tooltip" :style="{ left: appTip.x+'px', top: appTip.y+'px' }">
                   <div class="tooltip-label">{{ appTip.label }}</div>
@@ -65,14 +101,12 @@
                   </clipPath>
                 </defs>
 
-                <!-- Grid -->
                 <line v-for="(gl,i) in dynamicGridLines" :key="'g'+i"
                       :x1="50" :y1="gl.y" :x2="610" :y2="gl.y" stroke="#f1f5f9" stroke-width="1"/>
                 <text v-for="(gl,i) in dynamicGridLines" :key="'yl'+i"
                       :x="44" :y="gl.y+4" text-anchor="end" font-size="9"
                       fill="#cbd5e1" font-family="Plus Jakarta Sans, sans-serif">{{ gl.label }}</text>
 
-                <!-- Lines + areas clipped for draw-in animation -->
                 <g clip-path="url(#appClip)">
                   <path :d="appArea"   fill="url(#gradAmber)"/>
                   <path :d="hiredArea" fill="url(#gradGreen)"/>
@@ -80,12 +114,10 @@
                   <path :d="hiredLine" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
                 </g>
 
-                <!-- Crosshair -->
                 <line v-if="appTip"
                       :x1="getX(appTip.i)" y1="14" :x2="getX(appTip.i)" y2="158"
                       stroke="#1e293b" stroke-width="1" stroke-dasharray="3 3" pointer-events="none" opacity="0.3"/>
 
-                <!-- Dots — no mouse events, mousemove on SVG handles everything -->
                 <circle v-for="(pt,i) in appPoints" :key="'ad'+i"
                         :cx="pt.x" :cy="pt.y"
                         :r="appTip && appTip.i===i ? 5.5 : 3.5"
@@ -97,12 +129,10 @@
                         fill="#fff" stroke="#22c55e" stroke-width="2"
                         pointer-events="none" style="transition:r 0.12s ease"/>
 
-                <!-- X labels -->
                 <text v-for="(m,i) in chartData" :key="'xl'+i"
                       :x="getX(i)" :y="173" text-anchor="middle" font-size="9"
                       fill="#94a3b8" font-family="Plus Jakarta Sans, sans-serif">{{ m.label }}</text>
 
-                <!-- Hit bands — full-column transparent rects for easy hover -->
                 <rect v-for="(m,i) in chartData" :key="'hit'+i"
                       :x="getX(i) - colW/2" y="0" :width="colW" height="165"
                       fill="transparent" style="cursor:crosshair"/>
@@ -121,7 +151,7 @@
           <!-- Hiring Funnel -->
           <div class="card funnel-card">
             <div class="card-header">
-              <div><h3>Hiring Funnel</h3><p class="card-sub">This month</p></div>
+              <div><h3>Hiring Funnel</h3><p class="card-sub">{{ chartSubLabel }}</p></div>
             </div>
             <div class="funnel-list">
               <div v-for="(stage,i) in funnelStages" :key="stage.label" class="funnel-row">
@@ -159,15 +189,21 @@
               </h3>
               <p class="card-sub">Registered jobseekers whose skills match your job listings — but haven't applied yet</p>
             </div>
-            <div class="potential-controls">
-              <div class="search-box">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input v-model="potentialSearch" @input="resetPotentialPage" type="text" placeholder="Search by name or skill..." class="search-input"/>
+            <div class="potential-header-right">
+              <div class="potential-controls">
+                <div class="search-box">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                  <input v-model="potentialSearch" @input="resetPotentialPage" type="text" placeholder="Search by name or skill..." class="search-input"/>
+                </div>
+                <select v-model="potentialJobFilter" @change="resetPotentialPage" class="filter-select">
+                  <option value="">All Job Listings</option>
+                  <option v-for="j in activeJobs" :key="j.title" :value="j.title">{{ j.title }}</option>
+                </select>
               </div>
-              <select v-model="potentialJobFilter" @change="resetPotentialPage" class="filter-select">
-                <option value="">All Job Listings</option>
-                <option v-for="j in activeJobs" :key="j.title" :value="j.title">{{ j.title }}</option>
-              </select>
+              <router-link to="/employer/applicants?tab=potential" class="see-all-btn">
+                See All
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+              </router-link>
             </div>
           </div>
 
@@ -195,7 +231,6 @@
                 <th style="width:160px">Skill Match Score</th>
                 <th style="width:130px">Location</th>
                 <th style="width:110px">Status</th>
-                <th style="width:170px">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -247,27 +282,9 @@
                 <td>
                   <span class="not-applied-badge"><span class="na-dot"></span>Not Applied</span>
                 </td>
-                <td>
-                  <div class="action-group">
-                    <button class="view-profile-btn" @click="viewProfile(a)">
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      View Profile
-                    </button>
-                    <button class="invite-btn" @click="inviteApplicant(a)" :disabled="a.invited">
-                      <template v-if="!a.invited">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                        Invite
-                      </template>
-                      <template v-else>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        Invited
-                      </template>
-                    </button>
-                  </div>
-                </td>
               </tr>
               <tr v-if="filteredPotential.length===0">
-                <td colspan="7" class="empty-row">
+                <td colspan="6" class="empty-row">
                   <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5" style="display:block;margin:0 auto 8px"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
                   No jobseekers found matching your current filters.
                 </td>
@@ -278,7 +295,7 @@
           <div class="table-footer">
             <span class="table-count">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              Showing {{ Math.min((potentialPage-1)*potentialPerPage+1, filteredPotential.length) }}–{{ Math.min(potentialPage*potentialPerPage, filteredPotential.length) }} of {{ filteredPotential.length }} jobseekers
+              Showing {{ Math.min((potentialPage-1)*potentialPerPage+1, Math.max(filteredPotential.length,1)) }}–{{ Math.min(potentialPage*potentialPerPage, filteredPotential.length) }} of {{ filteredPotential.length }} jobseekers
             </span>
             <div class="pot-pagination">
               <button class="pot-page-btn" :disabled="potentialPage===1" @click="potentialPage--">
@@ -291,71 +308,6 @@
             </div>
           </div>
         </div>
-
-        <!-- Profile Modal -->
-        <transition name="modal">
-          <div v-if="profileModal" class="modal-overlay" @click.self="profileModal=null">
-            <div class="modal-box">
-              <div class="modal-header">
-                <div class="modal-avatar" :style="{ background: profileModal.color }">{{ profileModal.name[0] }}</div>
-                <div class="modal-title-block">
-                  <h4 class="modal-name">{{ profileModal.name }}</h4>
-                  <p class="modal-edu">{{ profileModal.education }}</p>
-                  <div class="modal-loc">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    {{ profileModal.location }}
-                  </div>
-                </div>
-                <button class="modal-close" @click="profileModal=null">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                </button>
-              </div>
-              <div class="modal-body">
-                <div class="modal-section">
-                  <p class="modal-section-label">Skills</p>
-                  <div class="skill-tag-group">
-                    <span v-for="tag in profileModal.skills" :key="tag" class="skill-tag matched-tag">{{ tag }}</span>
-                  </div>
-                </div>
-                <div class="modal-section">
-                  <p class="modal-section-label">Best Match For</p>
-                  <div class="listing-match-cell">
-                    <div class="listing-color-bar" :style="{ background: profileModal.jobColor }"></div>
-                    <div>
-                      <p class="listing-title">{{ profileModal.bestFor }}</p>
-                      <p class="listing-hint">Active listing · {{ profileModal.score }}% skill match</p>
-                    </div>
-                  </div>
-                </div>
-                <div class="modal-section">
-                  <p class="modal-section-label">Skill Match Score</p>
-                  <div class="score-cell" style="gap:10px">
-                    <div class="score-track" style="flex:1">
-                      <div class="score-fill" :style="{ width: profileModal.score+'%', background: scoreColor(profileModal.score) }"></div>
-                    </div>
-                    <span class="score-num" :style="{ color: scoreColor(profileModal.score) }">{{ profileModal.score }}%</span>
-                  </div>
-                </div>
-                <div class="modal-section">
-                  <p class="modal-section-label">Application Status</p>
-                  <span class="not-applied-badge"><span class="na-dot"></span>Not Applied</span>
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button class="invite-btn modal-invite" @click="inviteApplicant(profileModal); profileModal=null" :disabled="profileModal.invited">
-                  <template v-if="!profileModal.invited">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                    Invite to Apply for {{ profileModal.bestFor }}
-                  </template>
-                  <template v-else>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                    Invitation Already Sent
-                  </template>
-                </button>
-              </div>
-            </div>
-          </div>
-        </transition>
 
         <!-- Bottom Row -->
         <div class="bottom-row">
@@ -380,6 +332,9 @@
                   <td class="date-cell">{{ a.date }}</td>
                   <td><span class="status-badge" :class="a.statusClass">{{ a.status }}</span></td>
                 </tr>
+                <tr v-if="!recentApplicants.length">
+                  <td colspan="5" class="empty-row">No recent applicants yet.</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -400,18 +355,22 @@
                   <div class="fill-bar">
                     <div class="fill-inner"
                          :style="{
-                           width: jobsAnimated ? Math.min(job.applicants/job.slots*100,100)+'%' : '0%',
+                           width: jobsAnimated ? Math.min(job.applicants/Math.max(job.slots,1)*100,100)+'%' : '0%',
                            background: job.color,
                            transitionDelay: (i*0.08)+'s'
                          }"></div>
                   </div>
-                  <span class="fill-pct" :style="{ color: job.color }">{{ Math.round(job.applicants/job.slots*100) }}%</span>
+                  <span class="fill-pct" :style="{ color: job.color }">{{ Math.round(job.applicants/Math.max(job.slots,1)*100) }}%</span>
                 </div>
+              </div>
+              <div v-if="!activeJobs.length" class="empty-row" style="padding:24px;text-align:center;color:#94a3b8;font-size:13px;">
+                No active listings yet.
               </div>
             </div>
           </div>
         </div>
 
+        </div>
       </div>
     </div>
   </div>
@@ -428,11 +387,29 @@ export default {
 
   data() {
     return {
+      isLoading: true,
+      // ── Period filter ─────────────────────────────────────────────
+      activePeriod: 'monthly',
+      customFrom: '',
+      customTo: '',
+      lastUpdated: null,
+      periodOptions: [
+        { value: 'weekly',  label: 'Weekly'  },
+        { value: 'monthly', label: 'Monthly' },
+        { value: 'yearly',  label: 'Yearly'  },
+        { value: 'custom',  label: 'Custom'  },
+      ],
+
+      // ── Stats ─────────────────────────────────────────────────────
       stats: [
-        { label: 'Total Applicants',    value: '0', sub: 'Loading...', iconBg: '#eff8ff', iconColor: '#2872A1', trendVal: '0%', trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>` },
-        { label: 'Active Job Listings', value: '0', sub: 'Loading...', iconBg: '#eff6ff', iconColor: '#2563eb', trendVal: '0',   trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
-        { label: 'Hired This Month',    value: '0', sub: 'Loading...', iconBg: '#f0fdf4', iconColor: '#22c55e', trendVal: '0%', trendUp: true,  icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>` },
-        { label: 'Pending Review',      value: '0', sub: 'Loading...', iconBg: '#dbeafe', iconColor: '#1a5f8a', trendVal: '0%', trendUp: false, icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>` },
+        { label: 'Total Applicants',    value: '0', sub: '—', iconBg: '#eff8ff', iconColor: '#2872A1', trendVal: '0%', trendUp: true,
+          icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>` },
+        { label: 'Active Job Listings', value: '0', sub: '—', iconBg: '#eff6ff', iconColor: '#2563eb', trendVal: '0',   trendUp: true,
+          icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
+        { label: 'Hired This Period',   value: '0', sub: '—', iconBg: '#f0fdf4', iconColor: '#22c55e', trendVal: '0%', trendUp: true,
+          icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>` },
+        { label: 'Pending Review',      value: '0', sub: '—', iconBg: '#dbeafe', iconColor: '#1a5f8a', trendVal: '0%', trendUp: false,
+          icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>` },
       ],
 
       chartData: [],
@@ -450,102 +427,37 @@ export default {
       potentialJobFilter: '',
       potentialPage:      1,
       potentialPerPage:   5,
-      profileModal:       null,
-      recentApplicants:   [],
-      activeJobs:         [],
 
-      // ── animation flags ──────────────────────────────────────────────────
+      recentApplicants: [],
+      activeJobs:       [],
+
+      // ── animation flags ──────────────────────────────────────────
       appAnimated:    false,
       funnelAnimated: false,
       scoreAnimated:  false,
       jobsAnimated:   false,
 
-      // ── tooltip ───────────────────────────────────────────────────────────
-      appTip: null,  // { i, label, applications, hired, x, y }
+      appTip: null,
     }
   },
 
   async mounted() {
-    try {
-      const { data } = await employerApi.getDashboard()
-      const d = data.data
-
-      if (d?.stats) {
-        this.stats[0].value = String(d.stats.total_applications || 0)
-        this.stats[0].sub   = `+${d.recent_applications?.length || 0} new today`
-        this.stats[1].value = String(d.stats.open_jobs || 0)
-        this.stats[2].value = String(d.stats.application_status_counts?.hired || 0)
-        this.stats[3].value = String(d.stats.application_status_counts?.reviewing || 0)
-      }
-
-      if (d?.chart_data?.length)  this.chartData = d.chart_data
-
-      if (d?.active_jobs?.length) {
-        const colors = ['#2563eb','#8b5cf6','#d946ef','#22c55e','#2872A1']
-        const bgs    = ['#eff6ff','#faf5ff','#fdf4ff','#f0fdf4','#eff8ff']
-        this.activeJobs = d.active_jobs.slice(0,5).map((job,i) => ({
-          id: job.id, title: job.title,
-          applicants: job.applicants, slots: job.slots,
-          color: colors[i%colors.length], bg: bgs[i%bgs.length],
-        }))
-      }
-
-      if (d?.potential_applicants?.length) {
-        const colors = ['#2563eb','#8b5cf6','#d946ef','#22c55e','#2872A1','#f97316','#06b6d4','#10b981','#6366f1','#f43f5e']
-        this.topMatchApplicants = d.potential_applicants.map((a,i) => ({
-          id: a.id, name: a.name,
-          color:     colors[i%colors.length],
-          score:     a.score,
-          bestFor:   a.job_title,
-          jobColor:  this.getJobColor(a.job_title),
-          skills:    a.skills || [],
-          location:  a.location  || 'Unknown',
-          education: a.education || 'Not specified',
-          invited:   false,
-        }))
-      }
-
-      if (d?.recent_applications?.length) {
-        const colors = ['#2563eb','#f97316','#8b5cf6','#22c55e','#06b6d4']
-        this.recentApplicants = d.recent_applications.slice(0,5).map((a,i) => {
-          const js = a.jobseeker || {}
-          return {
-            name:        js.full_name || 'Unknown',
-            location:    js.address   || '',
-            skill:       (js.skills||[])[0]?.skill || 'N/A',
-            job:         a.job_listing?.title || 'Unknown',
-            date:        new Date(a.applied_at).toLocaleDateString('en-US',{ month:'short', day:'2-digit' }),
-            status:      (a.status?.charAt(0).toUpperCase()+a.status?.slice(1)) || 'Reviewing',
-            statusClass: a.status?.toLowerCase() || 'reviewing',
-            color:       colors[i%colors.length],
-          }
-        })
-      }
-
-      if (d?.stats?.application_status_counts) {
-        const c = d.stats.application_status_counts
-        this.funnelStages[0].count = d.stats.total_applications || 0
-        this.funnelStages[1].count = c.reviewing   || 0
-        this.funnelStages[2].count = c.shortlisted || 0
-        this.funnelStages[3].count = c.interview   || 0
-        this.funnelStages[4].count = c.hired        || 0
-      }
-
-    } catch (e) {
-      console.error('Dashboard fetch error:', e)
-    }
-
-    // Kick off entrance animations
-    this.$nextTick(() => {
-      setTimeout(() => { this.appAnimated    = true }, 120)
-      setTimeout(() => { this.funnelAnimated = true }, 200)
-      setTimeout(() => { this.scoreAnimated  = true }, 350)
-      setTimeout(() => { this.jobsAnimated   = true }, 280)
-    })
+    await this.fetchDashboard()
   },
 
   computed: {
-    // ── Chart helpers ──────────────────────────────────────────────────────
+    // ── Period label ──────────────────────────────────────────────
+    chartSubLabel() {
+      const map = {
+        weekly:  'This week',
+        monthly: `${new Date().getFullYear()}`,
+        yearly:  'Last 5 years',
+        custom:  'Custom range',
+      }
+      return map[this.activePeriod] || ''
+    },
+
+    // ── Chart helpers ─────────────────────────────────────────────
     chartMax()  { return Math.max(...this.chartData.flatMap(d => [d.applications, d.hired]), 1) },
     chartNice() { return this.niceMax(this.chartMax) },
 
@@ -570,7 +482,7 @@ export default {
     appArea()     { const p=this.appPoints;   return p.length ? this.buildPath(p)+` L${p[p.length-1].x},158 L${p[0].x},158 Z`:'' },
     hiredArea()   { const p=this.hiredPoints; return p.length ? this.buildPath(p)+` L${p[p.length-1].x},158 L${p[0].x},158 Z`:'' },
 
-    // ── Funnel ─────────────────────────────────────────────────────────────
+    // ── Funnel ────────────────────────────────────────────────────
     funnelMax()      { return Math.max(...this.funnelStages.map(s=>s.count), 1) },
     conversionRate() {
       const top = this.funnelStages[0].count
@@ -578,7 +490,7 @@ export default {
       return top ? Math.round(bot/top*100) : 0
     },
 
-    // ── Potential applicants pagination ────────────────────────────────────
+    // ── Potential applicants ──────────────────────────────────────
     filteredPotential() {
       let list = [...this.topMatchApplicants]
       if (this.potentialSearch) {
@@ -600,7 +512,118 @@ export default {
   },
 
   methods: {
-    // ── Chart X / Y ────────────────────────────────────────────────────────
+    // ── Period control ────────────────────────────────────────────
+    setPeriod(p) {
+      this.activePeriod = p
+      if (p !== 'custom') this.fetchDashboard()
+    },
+
+    // ── Fetch ─────────────────────────────────────────────────────
+    async fetchDashboard() {
+      try {
+        const params = { period: this.activePeriod }
+        if (this.activePeriod === 'custom') {
+          params.from = this.customFrom
+          params.to   = this.customTo
+        }
+
+        const { data } = await employerApi.getDashboard(params)
+        const d = data.data
+
+        if (d?.stats) {
+          const periodLabel = this.chartSubLabel
+          this.stats[0].value   = String(d.stats.total_applications || 0)
+          this.stats[0].sub     = periodLabel
+          this.stats[0].trendVal = (d.stats.trends?.applications ?? '0') + '%'
+          this.stats[0].trendUp  = (d.stats.trends?.applications ?? 0) >= 0
+
+          this.stats[1].value   = String(d.stats.open_jobs || 0)
+          this.stats[1].sub     = periodLabel
+          this.stats[1].trendVal = String(d.stats.trends?.jobs ?? '0')
+          this.stats[1].trendUp  = (d.stats.trends?.jobs ?? 0) >= 0
+
+          this.stats[2].value   = String(d.stats.application_status_counts?.hired || 0)
+          this.stats[2].sub     = periodLabel
+          this.stats[2].trendVal = (d.stats.trends?.hired ?? '0') + '%'
+          this.stats[2].trendUp  = (d.stats.trends?.hired ?? 0) >= 0
+
+          this.stats[3].value   = String(d.stats.application_status_counts?.reviewing || 0)
+          this.stats[3].sub     = periodLabel
+          this.stats[3].trendVal = (d.stats.trends?.reviewing ?? '0') + '%'
+          this.stats[3].trendUp  = (d.stats.trends?.reviewing ?? 0) >= 0
+        }
+
+        if (d?.chart_data?.length) this.chartData = d.chart_data
+
+        if (d?.active_jobs?.length) {
+          const colors = ['#2563eb','#8b5cf6','#d946ef','#22c55e','#2872A1']
+          const bgs    = ['#eff6ff','#faf5ff','#fdf4ff','#f0fdf4','#eff8ff']
+          this.activeJobs = d.active_jobs.slice(0,5).map((job,i) => ({
+            id: job.id, title: job.title,
+            applicants: job.applicants, slots: job.slots,
+            color: colors[i%colors.length], bg: bgs[i%bgs.length],
+          }))
+        }
+
+        if (d?.potential_applicants?.length) {
+          const colors = ['#2563eb','#8b5cf6','#d946ef','#22c55e','#2872A1','#f97316','#06b6d4','#10b981','#6366f1','#f43f5e']
+          this.topMatchApplicants = d.potential_applicants.map((a,i) => ({
+            id: a.id, name: a.name,
+            color:     colors[i%colors.length],
+            score:     a.score,
+            bestFor:   a.job_title,
+            jobColor:  this.getJobColor(a.job_title),
+            skills:    a.skills || [],
+            location:  a.location  || 'Unknown',
+            education: a.education || 'Not specified',
+          }))
+        }
+
+        if (d?.recent_applications?.length) {
+          const colors = ['#2563eb','#f97316','#8b5cf6','#22c55e','#06b6d4']
+          this.recentApplicants = d.recent_applications.slice(0,5).map((a,i) => {
+            const js = a.jobseeker || {}
+            return {
+              name:        js.full_name || 'Unknown',
+              location:    js.address   || '',
+              skill:       (js.skills||[])[0]?.skill || 'N/A',
+              job:         a.job_listing?.title || 'Unknown',
+              date:        new Date(a.applied_at).toLocaleDateString('en-US',{ month:'short', day:'2-digit', year:'numeric' }),
+              status:      (a.status?.charAt(0).toUpperCase()+a.status?.slice(1)) || 'Reviewing',
+              statusClass: a.status?.toLowerCase() || 'reviewing',
+              color:       colors[i%colors.length],
+            }
+          })
+        }
+
+        if (d?.stats?.application_status_counts) {
+          const c = d.stats.application_status_counts
+          this.funnelStages[0].count = d.stats.total_applications || 0
+          this.funnelStages[1].count = c.reviewing   || 0
+          this.funnelStages[2].count = c.shortlisted || 0
+          this.funnelStages[3].count = c.interview   || 0
+          this.funnelStages[4].count = c.hired       || 0
+        }
+
+        this.lastUpdated = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+
+      } catch (e) {
+        console.error('Dashboard fetch error:', e)
+      }
+
+      setTimeout(() => {
+        this.isLoading = false
+        // Kick off entrance animations
+        this.$nextTick(() => {
+          setTimeout(() => { this.appAnimated    = true }, 120)
+          setTimeout(() => { this.funnelAnimated = true }, 200)
+          setTimeout(() => { this.scoreAnimated  = true }, 350)
+          setTimeout(() => { this.jobsAnimated   = true }, 280)
+        })
+      }, 2000)
+    },
+
+    // ── Chart X / Y ──────────────────────────────────────────────
     getX(i)    { return 50 + i*(560/Math.max(this.chartData.length-1,1)) },
     valToY(v)  { return 158 - ((v/this.chartNice)*144) },
 
@@ -624,7 +647,6 @@ export default {
       return d
     },
 
-    // ── Tooltip — uses SVGElement.getScreenCTM() for accurate coords ───────
     _svgPoint(svgEl, clientX, clientY) {
       const pt = svgEl.createSVGPoint()
       pt.x = clientX; pt.y = clientY
@@ -658,7 +680,7 @@ export default {
       const raw = this.chartData[idx]
       const pos = this._tipPos(evt.clientX, evt.clientY, this.$refs.appWrap)
       this.appTip = {
-        i:            idx,
+        i: idx,
         label:        String(raw.label        ?? ''),
         applications: Number(raw.applications ?? 0),
         hired:        Number(raw.hired        ?? 0),
@@ -667,12 +689,10 @@ export default {
       }
     },
 
-    // ── Other methods ──────────────────────────────────────────────────────
-    viewProfile(a)    { this.profileModal = a },
-    inviteApplicant(a){ const f=this.topMatchApplicants.find(x=>x.name===a.name); if(f) f.invited=true },
-    resetPotentialPage(){ this.potentialPage=1 },
-    scoreColor(s)     { return s>=90 ? '#16a34a' : s>=80 ? '#2563eb' : '#f97316' },
-    getJobColor(title){
+    resetPotentialPage() { this.potentialPage = 1 },
+    scoreColor(s) { return s>=90 ? '#16a34a' : s>=80 ? '#2563eb' : '#f97316' },
+
+    getJobColor(title) {
       const map = {
         'Frontend Developer': '#2563eb',
         'Backend Developer':  '#8b5cf6',
@@ -693,7 +713,50 @@ export default {
 .main-area { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .page { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px; display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 
-/* ── STAT CARDS ──────────────────────────────────────────────────────────── */
+/* ── PERIOD FILTER BAR ───────────────────────────────────────────── */
+.period-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  background: #fff; border: 1px solid #f1f5f9; border-radius: 14px;
+  padding: 10px 16px;
+}
+.period-pills { display: flex; gap: 4px; }
+.period-pill {
+  padding: 6px 16px; border-radius: 8px; border: 1.5px solid #e2e8f0;
+  font-size: 12.5px; font-weight: 600; color: #64748b;
+  background: #f8fafc; cursor: pointer; font-family: inherit;
+  transition: all 0.15s;
+}
+.period-pill:hover { border-color: #94a3b8; color: #1e293b; }
+.period-pill.active { background: #eff8ff; color: #2872A1; border-color: #2872A1; }
+.custom-range { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.date-input {
+  border: 1.5px solid #e2e8f0; border-radius: 8px;
+  padding: 5px 10px; font-size: 12px; color: #1e293b;
+  font-family: inherit; outline: none; background: #f8fafc;
+  transition: border-color 0.15s;
+}
+.date-input:focus { border-color: #2872A1; background: #fff; }
+.date-sep { font-size: 12px; color: #94a3b8; }
+.apply-btn {
+  padding: 6px 14px; background: #2872A1; color: #fff; border: none;
+  border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: background 0.15s;
+}
+.apply-btn:hover:not(:disabled) { background: #1a5f8a; }
+.apply-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+.last-updated {
+  margin-left: auto; font-size: 11px; color: #94a3b8;
+  display: flex; align-items: center; gap: 4px;
+}
+.last-updated::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: #22c55e; display: inline-block;
+}
+.fade-slide-enter-active { transition: all 0.2s ease; }
+.fade-slide-leave-active { transition: all 0.15s ease; }
+.fade-slide-enter-from, .fade-slide-leave-to { opacity: 0; transform: translateX(-8px); }
+
+/* ── STAT CARDS ──────────────────────────────────────────────────── */
 .stats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; }
 .stat-card { background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #f1f5f9; }
 .stat-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
@@ -705,30 +768,30 @@ export default {
 .stat-label { font-size: 12.5px; color: #64748b; font-weight: 500; margin-bottom: 4px; }
 .stat-sub   { font-size: 11px; color: #94a3b8; }
 
-/* ── LAYOUT ──────────────────────────────────────────────────────────────── */
+/* ── LAYOUT ──────────────────────────────────────────────────────── */
 .mid-row    { display: grid; grid-template-columns: 1fr 260px; gap: 14px; }
 .bottom-row { display: grid; grid-template-columns: 1fr 280px; gap: 14px; }
 
-/* ── CARD BASE ───────────────────────────────────────────────────────────── */
+/* ── CARD BASE ───────────────────────────────────────────────────── */
 .card { background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #f1f5f9; }
-.card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; gap: 8px; }
 .card-header h3 { font-size: 14px; font-weight: 700; color: #1e293b; }
 .card-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-.see-all { font-size: 12px; color: #2872A1; text-decoration: none; font-weight: 600; white-space: nowrap; }
+.see-all { font-size: 12px; color: #2872A1; text-decoration: none; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 .see-all:hover { text-decoration: underline; }
 
-/* ── LEGEND ──────────────────────────────────────────────────────────────── */
-.legend { display: flex; align-items: center; gap: 14px; font-size: 11.5px; color: #64748b; flex-wrap: wrap; }
+/* ── LEGEND ──────────────────────────────────────────────────────── */
+.legend { display: flex; align-items: center; gap: 14px; font-size: 11.5px; color: #64748b; flex-wrap: wrap; flex-shrink: 0; }
 .legend-item { display: flex; align-items: center; gap: 6px; }
 .legend-line { display: inline-block; width: 22px; height: 3px; border-radius: 2px; }
 .legend-line.amber { background: #2872A1; }
 .legend-line.green { background: #22c55e; }
 
-/* ── CHART ───────────────────────────────────────────────────────────────── */
+/* ── CHART ───────────────────────────────────────────────────────── */
 .svg-chart-wrap { width: 100%; position: relative; }
 .svg-chart { width: 100%; height: 185px; display: block; overflow: visible; cursor: crosshair; }
 
-/* ── TOOLTIP ─────────────────────────────────────────────────────────────── */
+/* ── TOOLTIP ─────────────────────────────────────────────────────── */
 .chart-tooltip {
   position: absolute; pointer-events: none;
   background: #1e293b; color: #f8fafc;
@@ -746,7 +809,7 @@ export default {
 .tooltip-row strong { margin-left:auto; padding-left:14px; font-weight:700; color:#fff; }
 .tooltip-dot   { display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0; }
 
-/* ── CHART SUMMARY ───────────────────────────────────────────────────────── */
+/* ── CHART SUMMARY ───────────────────────────────────────────────── */
 .chart-summary { display: flex; align-items: center; margin-top: 14px; padding-top: 14px; border-top: 1px solid #f1f5f9; }
 .summary-item { display: flex; align-items: center; gap: 6px; flex: 1; justify-content: center; }
 .summary-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
@@ -758,7 +821,21 @@ export default {
 .green-val { color: #22c55e; }
 .summary-divider { width: 1px; height: 28px; background: #f1f5f9; }
 
-/* ── FUNNEL ──────────────────────────────────────────────────────────────── */
+/* ── SKELETON ────────────────────────────────────────────────────── */
+.skeleton {
+  background: #e2e8f0;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border: none !important;
+  box-shadow: none !important;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── FUNNEL ──────────────────────────────────────────────────────── */
 .funnel-list { display: flex; flex-direction: column; gap: 14px; }
 .funnel-row  { display: flex; flex-direction: column; gap: 5px; }
 .funnel-label-row { display: flex; justify-content: space-between; align-items: center; }
@@ -771,14 +848,25 @@ export default {
 .funnel-rate-label { font-size: 12px; color: #94a3b8; }
 .funnel-rate-val   { font-size: 16px; font-weight: 800; color: #22c55e; }
 
-/* ── POTENTIAL APPLICANTS TABLE ──────────────────────────────────────────── */
-.potential-card    { padding-bottom: 0; overflow: visible; }
-.potential-header  { flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
-.potential-controls{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* ── POTENTIAL APPLICANTS ────────────────────────────────────────── */
+.potential-card   { padding-bottom: 0; overflow: visible; }
+.potential-header { flex-wrap: wrap; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.potential-header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.potential-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .search-box { display: flex; align-items: center; gap: 6px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; }
 .search-input { border: none; background: transparent; font-size: 12px; color: #1e293b; outline: none; width: 180px; font-family: 'Plus Jakarta Sans', sans-serif; }
 .search-input::placeholder { color: #94a3b8; }
 .filter-select { font-size: 12px; color: #475569; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px 10px; outline: none; font-family: 'Plus Jakarta Sans', sans-serif; cursor: pointer; }
+
+.see-all-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; font-weight: 700; color: #2872A1;
+  background: #eff8ff; border: 1.5px solid #bae6fd;
+  border-radius: 8px; padding: 6px 12px;
+  text-decoration: none; white-space: nowrap; flex-shrink: 0;
+  transition: all 0.15s;
+}
+.see-all-btn:hover { background: #dbeafe; border-color: #2872A1; }
 
 .listing-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
 .listing-tab { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #64748b; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 5px 12px; cursor: pointer; transition: all 0.15s; font-family: 'Plus Jakarta Sans', sans-serif; }
@@ -797,28 +885,17 @@ export default {
 .pot-avatar { width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .skill-tag-group { display: flex; flex-wrap: wrap; gap: 4px; }
 .matched-tag { background: #eff8ff; color: #1a5f8a; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; white-space: nowrap; border: 1px solid #bae6fd; }
-
 .listing-match-cell { display: flex; align-items: center; gap: 10px; }
 .listing-color-bar  { width: 4px; height: 34px; border-radius: 99px; flex-shrink: 0; }
 .listing-title { font-size: 12.5px; font-weight: 700; color: #1e293b; }
 .listing-hint  { font-size: 10.5px; color: #94a3b8; margin-top: 2px; }
-
 .score-cell  { display: flex; align-items: center; gap: 8px; }
 .score-track { flex: 1; height: 6px; background: #f1f5f9; border-radius: 99px; overflow: hidden; min-width: 60px; }
 .score-fill  { height: 100%; border-radius: 99px; width: 0%; transition: width 0.75s cubic-bezier(.4,0,.2,1); }
 .score-num   { font-size: 12px; font-weight: 700; min-width: 32px; }
-
 .loc-cell { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #475569; white-space: nowrap; }
-
 .not-applied-badge { display: inline-flex; align-items: center; gap: 6px; background: #fef9ec; color: #92400e; font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 99px; border: 1px solid #fde68a; white-space: nowrap; }
 .na-dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
-
-.action-group { display: flex; align-items: center; gap: 6px; }
-.view-profile-btn { display: inline-flex; align-items: center; gap: 5px; background: #fff; color: #475569; font-size: 11.5px; font-weight: 600; padding: 6px 12px; border-radius: 8px; border: 1.5px solid #e2e8f0; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.15s; white-space: nowrap; }
-.view-profile-btn:hover { border-color: #94a3b8; color: #1e293b; }
-.invite-btn { display: inline-flex; align-items: center; gap: 5px; background: #2872A1; color: #fff; font-size: 11.5px; font-weight: 700; padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif; transition: all 0.15s; white-space: nowrap; }
-.invite-btn:hover:not(:disabled) { background: #1a5f8a; transform: translateY(-1px); }
-.invite-btn:disabled { background: #22c55e; cursor: default; opacity: 1; }
 
 .table-footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 14px 18px; border-top: 1px solid #f1f5f9; }
 .table-count  { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #94a3b8; }
@@ -829,27 +906,7 @@ export default {
 .pot-page-btn:disabled { opacity: 0.35; cursor: default; }
 .pot-page-active { background: #2872A1 !important; color: #fff !important; border-color: #2872A1 !important; }
 
-/* ── PROFILE MODAL ───────────────────────────────────────────────────────── */
-.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
-.modal-box { background: #fff; border-radius: 18px; width: 100%; max-width: 460px; box-shadow: 0 20px 60px rgba(0,0,0,0.18); overflow: hidden; }
-.modal-enter-active { transition: opacity 0.18s ease, transform 0.18s ease; }
-.modal-leave-active { transition: opacity 0.14s ease, transform 0.14s ease; }
-.modal-enter-from   { opacity:0; transform:scale(0.96) translateY(8px); }
-.modal-leave-to     { opacity:0; transform:scale(0.97); }
-.modal-header { display: flex; align-items: flex-start; gap: 14px; padding: 22px 22px 18px; border-bottom: 1px solid #f1f5f9; }
-.modal-avatar { width: 48px; height: 48px; border-radius: 50%; color: #fff; font-size: 18px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.modal-title-block { flex: 1; }
-.modal-name { font-size: 16px; font-weight: 800; color: #1e293b; margin-bottom: 2px; }
-.modal-edu  { font-size: 12px; color: #64748b; margin-bottom: 4px; }
-.modal-loc  { display: flex; align-items: center; gap: 4px; font-size: 11.5px; color: #94a3b8; }
-.modal-close { background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-.modal-close:hover { background: #f1f5f9; }
-.modal-body { padding: 20px 22px; display: flex; flex-direction: column; gap: 18px; }
-.modal-section-label { font-size: 10.5px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-.modal-footer { padding: 16px 22px 20px; border-top: 1px solid #f1f5f9; }
-.modal-invite { width: 100%; justify-content: center; padding: 10px; font-size: 13px; border-radius: 10px; }
-
-/* ── RECENT APPLICANTS TABLE ─────────────────────────────────────────────── */
+/* ── RECENT APPLICANTS TABLE ─────────────────────────────────────── */
 .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .data-table th { text-align: left; padding: 8px 10px; color: #94a3b8; font-weight: 600; font-size: 11px; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
 .data-table td { padding: 10px; color: #1e293b; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
@@ -862,13 +919,17 @@ export default {
 .skill-tag     { background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
 .job-cell      { color: #475569; }
 .date-cell     { color: #94a3b8; white-space: nowrap; }
+
+/* ── STATUS BADGES ───────────────────────────────────────────────── */
 .status-badge  { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .shortlisted { background: #eff8ff; color: #1a5f8a; }
 .reviewing   { background: #eff6ff; color: #3b82f6; }
 .interview   { background: #faf5ff; color: #8b5cf6; }
 .hired       { background: #f0fdf4; color: #22c55e; }
+.rejected    { background: #fef2f2; color: #ef4444; }
+.pending     { background: #fff7ed; color: #f97316; }
 
-/* ── ACTIVE LISTINGS ─────────────────────────────────────────────────────── */
+/* ── ACTIVE LISTINGS ─────────────────────────────────────────────── */
 .jobs-list { display: flex; flex-direction: column; gap: 12px; }
 .job-item  { display: flex; align-items: center; gap: 10px; }
 .job-icon  { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -880,7 +941,7 @@ export default {
 .fill-inner { height: 100%; border-radius: 99px; width: 0%; transition: width 0.75s cubic-bezier(.4,0,.2,1); }
 .fill-pct  { font-size: 11px; font-weight: 700; min-width: 28px; text-align: right; }
 
-/* ── ENTRANCE ANIMATIONS ─────────────────────────────────────────────────── */
+/* ── ENTRANCE ANIMATIONS ─────────────────────────────────────────── */
 @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 @keyframes slideInRight { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
 .table-row-anim { animation: slideUp 0.35s ease both; }

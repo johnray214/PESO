@@ -101,6 +101,31 @@ class EmployerProfileController extends Controller
         ]);
     }
 
+    public function uploadPhoto(Request $request)
+    {
+        $request->validate([
+            'photo' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
+        ]);
+
+        $employer = $request->user();
+
+        if ($employer->photo) {
+            Storage::disk('public')->delete($employer->photo);
+        }
+
+        $path = $request->file('photo')->store("employers/photos/{$employer->id}", 'public');
+
+        $employer->update(['photo' => $path]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Photo uploaded successfully',
+            'data'    => [
+                'photo' => Storage::disk('public')->url($path),
+            ],
+        ]);
+    }
+
     public function uploadDocuments(Request $request)
     {
         $employer = $request->user();

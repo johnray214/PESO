@@ -12,6 +12,13 @@
       <EmployerTopbar title="Applicants" subtitle="Review and manage people who applied to your job listings" />
       <div class="page">
 
+        <div v-if="isLoading">
+          <div class="filters-bar skeleton" style="height: 52px; width: 100%; border-radius: 12px; margin-bottom: 16px;"></div>
+          <div class="main-tabs skeleton" style="height: 42px; width: 400px; border-radius: 12px; margin-bottom: 16px;"></div>
+          <div class="table-card skeleton" style="height: 500px; width: 100%; border-radius: 14px;"></div>
+        </div>
+
+        <div v-else>
         <!-- Filters -->
         <div class="filters-bar">
           <div class="search-box">
@@ -248,6 +255,7 @@
             </div>
           </div>
         </template>
+        </div>
 
       </div>
     </div>
@@ -409,6 +417,7 @@ export default {
 
   data() {
     return {
+      isLoading: true,
       // Tab state
       activeTab: 'all',
       activeStatusTab: 'all',
@@ -550,9 +559,12 @@ export default {
     },
   },
 
-  mounted() {
+  async mounted() {
     // Cache-first: no-op if sidebar already loaded it
-    this.applicantsStore.fetch()
+    await this.applicantsStore.fetch()
+    setTimeout(() => {
+      this.isLoading = false
+    }, 2000)
   },
 }
 </script>
@@ -757,4 +769,17 @@ export default {
   animation: spin 0.7s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SKELETON ────────────────────────────────────────────────────── */
+.skeleton {
+  background: #e2e8f0;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border: none !important;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 </style>

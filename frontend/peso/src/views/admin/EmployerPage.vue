@@ -1,7 +1,27 @@
 <template>
   <div class="page">
-    <!-- Filters -->
-    <div class="filters-bar">
+    <!-- SKELETON -->
+    <template v-if="loading && !employers.length">
+      <div class="filters-bar" style="margin-bottom: 20px;">
+        <div class="skel" style="width: 300px; height: 38px; border-radius: 10px;"></div>
+        <div style="display:flex; gap:8px;">
+          <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
+          <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
+          <div class="skel" style="width: 90px; height: 36px; border-radius: 8px;"></div>
+        </div>
+      </div>
+      <div class="status-tabs" style="margin-bottom: 16px;">
+        <div v-for="i in 5" :key="i" class="skel" style="width: 100px; height: 34px; border-radius: 8px;"></div>
+      </div>
+      <div class="table-card" style="padding: 20px;">
+        <div v-for="i in 6" :key="i" class="skel" style="width: 100%; height: 50px; border-radius: 8px; margin-bottom: 10px;"></div>
+      </div>
+    </template>
+
+    <!-- ACTUAL CONTENT -->
+    <template v-else>
+      <!-- Filters -->
+      <div class="filters-bar">
       <div class="search-box">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
         <input v-model="search" type="text" placeholder="Search company, industry, contact…" class="search-input"/>
@@ -190,6 +210,7 @@
         </div>
       </div>
     </transition>
+    </template>
   </div>
 </template>
 
@@ -343,6 +364,13 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skel {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 400px 100%; animation: shimmer 1.4s infinite linear;
+  border-radius: 6px; flex-shrink: 0;
+}
 
 .page {
   font-family: 'Plus Jakarta Sans', sans-serif;

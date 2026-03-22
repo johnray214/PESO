@@ -1,5 +1,23 @@
 <template>
   <div class="page">
+    <!-- SKELETON -->
+    <template v-if="loading">
+      <div class="notifications-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="main-tabs" style="display: flex; gap: 10px;">
+          <div class="skel" style="width: 120px; height: 38px; border-radius: 8px;"></div>
+          <div class="skel" style="width: 140px; height: 38px; border-radius: 8px;"></div>
+        </div>
+        <div class="skel" style="width: 160px; height: 38px; border-radius: 10px;"></div>
+      </div>
+      <div class="tab-content" style="margin-top: 12px;">
+        <div class="notif-list" style="padding: 16px;">
+          <div v-for="i in 5" :key="i" class="skel" style="width: 100%; height: 70px; border-radius: 10px; margin-bottom: 10px;"></div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ACTUAL CONTENT -->
+    <template v-else>
     <div class="notifications-header" style="display: flex; justify-content: space-between; align-items: center;">
       <div class="main-tabs">
         <button class="main-tab" :class="{ active: activeTab === 'feed' }" @click="activeTab = 'feed'">Activity Feed</button>
@@ -12,9 +30,9 @@
     </div>
 
     <!-- NOTIFICATIONS LIST -->
-    <div class="tab-content" style="margin-top: 12px;">
-      
-      <!-- ACTIVITY FEED -->
+      <div class="tab-content" style="margin-top: 12px;">
+        
+        <!-- ACTIVITY FEED -->
       <div v-if="activeTab === 'feed'" class="notif-list">
         <div v-if="feedNotifs.length === 0" style="padding: 30px; text-align: center; color: #94a3b8; font-size: 13px;">No recent activity found.</div>
         <div v-for="notif in feedNotifs" :key="notif.id" :class="['notif-row', { unread: !notif.read }]" @click="markAsRead(notif)">
@@ -61,7 +79,8 @@
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </template>
 
     <!-- COMPOSE MODAL -->
     <transition name="modal">
@@ -144,6 +163,7 @@ export default {
     await this.fetchNotifications()
     const store = useAdminAppStore()
     await store.fetchNotifications()
+    this.loading = false
   },
   computed: {
     feedNotifs() {
@@ -154,6 +174,7 @@ export default {
     return {
       activeTab: 'feed',
       showModal: false,
+      loading: true,
       form: { recipients: 'jobseekers', filterSkill: '', filterLocation: '', subject: '', message: '', schedule: 'now', scheduleDate: '' },
       recipientOptions: [
         { value: 'jobseekers', label: 'All Jobseekers', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
@@ -230,6 +251,13 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skel {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 400px 100%; animation: shimmer 1.4s infinite linear;
+  border-radius: 6px; flex-shrink: 0;
+}
 
 .page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
 .btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }

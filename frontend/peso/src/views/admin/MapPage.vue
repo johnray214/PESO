@@ -18,6 +18,15 @@
     <div class="map-layout">
       <!-- Sidebar -->
       <div class="map-sidebar">
+        <!-- SKELETON -->
+        <template v-if="loading">
+          <div class="side-search skel" style="height: 38px; border-radius: 10px; margin-bottom: 10px; width: 100%;"></div>
+          <div class="side-filters skel" style="height: 60px; border-radius: 8px; margin-bottom: 10px; width: 100%;"></div>
+          <div v-for="i in 5" :key="i" class="skel" style="width: 100%; height: 60px; border-radius: 10px; margin-bottom: 7px;"></div>
+        </template>
+
+        <!-- ACTUAL CONTENT -->
+        <template v-else>
         <div class="side-search">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input v-model="search" type="text" placeholder="Search employer or job…" class="side-search-input"/>
@@ -98,6 +107,7 @@
             </div>
           </div>
         </div>
+        </template>
       </div>
 
       <!-- Map Area -->
@@ -222,6 +232,7 @@ export default {
       markers: {},
       tempMarker: null,
 
+      loading: true,
       mapLoading: true,
       mapError: null,
 
@@ -298,6 +309,8 @@ export default {
         }))
       } catch (err) {
         console.error('Error fetching employers for map:', err)
+      } finally {
+        this.loading = false
       }
     },
 
@@ -524,6 +537,13 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skel {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 400px 100%; animation: shimmer 1.4s infinite linear;
+  border-radius: 6px; flex-shrink: 0;
+}
 
 .page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
 

@@ -5,9 +5,9 @@
       <span class="topbar-sub">{{ subtitle }}</span>
     </div>
     <div class="topbar-right">
-      <!-- Bell Button -->
-      <div class="bell-wrap" ref="bellWrap">
-        <button class="icon-btn" @click="toggleNotifPanel">
+        <!-- Bell Button -->
+        <div class="bell-wrap" ref="bellWrap">
+          <button class="icon-btn" @click="toggleNotifPanel">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
             <path d="M13.73 21a2 2 0 01-3.46 0"/>
@@ -56,10 +56,13 @@
       <!-- User Pill with dropdown -->
       <div class="user-wrap" ref="userWrap">
         <button class="user-pill" @click="toggleUserMenu">
-          <div class="avatar-t">{{ companyInitial }}</div>
+          <div class="company-logo-nav" v-if="authStore.user?.photo">
+            <img :src="authStore.user.photo" alt="Logo" class="nav-logo-img" />
+          </div>
+          <div v-else class="avatar-t">{{ companyInitial }}</div>
           <div class="user-meta-t">
             <span class="uname-t">{{ companyName }}</span>
-            <span class="urole-t">Employer</span>
+            <span class="urole-t">Employer Account</span>
           </div>
           <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
@@ -68,7 +71,10 @@
         <transition name="panel">
           <div v-if="showUserMenu" class="user-dropdown">
             <div class="user-dropdown-header">
-              <div class="dropdown-avatar">{{ companyInitial }}</div>
+              <div class="company-logo-nav dropdown-pic" v-if="authStore.user?.photo">
+                <img :src="authStore.user.photo" alt="Logo" class="nav-logo-img" />
+              </div>
+              <div v-else class="dropdown-avatar">{{ companyInitial }}</div>
               <div>
                 <p class="dropdown-name">{{ companyName }}</p>
                 <p class="dropdown-role">Employer Account</p>
@@ -85,9 +91,10 @@
               <span v-if="notifStore.unreadCount > 0" class="dropdown-notif-badge">{{ notifStore.unreadCount }}</span>
             </router-link>
             <div class="dropdown-divider"></div>
-            <button class="dropdown-item logout-item" @click="handleLogout">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-              Logout
+            <button class="dropdown-item logout-item" @click="handleLogout" :disabled="loggingOut">
+              <span v-if="loggingOut" class="btn-spin"></span>
+              <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              {{ loggingOut ? 'Logging out…' : 'Logout' }}
             </button>
           </div>
         </transition>
@@ -113,8 +120,9 @@ export default {
   },
   data() {
     return {
-      showPanel:   false,
+      showPanel:    false,
       showUserMenu: false,
+      loggingOut:   false,
       typeColors: {
         applicant: { bg: '#eff8ff', color: '#2872A1', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
         job:       { bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
@@ -125,11 +133,14 @@ export default {
   },
   computed: {
     companyName() {
-      return this.authStore.user?.company_name || 'Employer'
+      const u = this.authStore.user
+      return u?.company_name || u?.name || u?.legal_name || 'Employer'
     },
     companyInitial() {
-      return (this.authStore.user?.company_name || 'E')[0].toUpperCase()
+      const name = this.authStore.user?.company_name || this.authStore.user?.name || this.authStore.user?.legal_name || 'E'
+      return name[0].toUpperCase()
     },
+
   },
   methods: {
     toggleNotifPanel() {
@@ -144,8 +155,13 @@ export default {
     async markRead(n)  { await this.notifStore.markRead(n) },
     async markAllRead(){ await this.notifStore.markAllRead() },
     async handleLogout() {
-      await this.authStore.logout()
-      this.$router.push('/employer/login')
+      this.loggingOut = true
+      try {
+        await this.authStore.logout()
+        window.location.href = '/employer/login'
+      } finally {
+        this.loggingOut = false
+      }
     },
     handleOutsideClick(e) {
       if (this.$refs.bellWrap && !this.$refs.bellWrap.contains(e.target)) this.showPanel    = false
@@ -153,6 +169,8 @@ export default {
     },
   },
   mounted() {
+    this.authStore.setAppReady()
+
     document.addEventListener('click', this.handleOutsideClick)
     // Kick off background fetch so badge is ready
     this.notifStore.fetch()
@@ -208,14 +226,17 @@ export default {
 .user-wrap { position: relative; }
 .user-pill { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 6px; background: #eff8ff; border-radius: 99px; border: none; cursor: pointer; font-family: inherit; transition: background 0.15s; }
 .user-pill:hover { background: #dbeafe; }
-.avatar-t { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.avatar-t { width: 38px; height: 38px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.company-logo-nav { width: 38px; height: 38px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: #fff; border: 1px solid #bae6fd; }
+.company-logo-nav.dropdown-pic { width: 46px; height: 46px; }
+.nav-logo-img { width: 100%; height: 100%; object-fit: cover; }
 .user-meta-t { display: flex; flex-direction: column; text-align: left; }
 .uname-t { font-size: 12px; font-weight: 600; color: #1e293b; line-height: 1.2; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .urole-t { font-size: 10px; color: #94a3b8; }
 .caret { color: #94a3b8; flex-shrink: 0; }
 .user-dropdown { position: absolute; top: calc(100% + 10px); right: 0; width: 230px; background: #fff; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.14); border: 1px solid #f1f5f9; z-index: 200; overflow: hidden; }
 .user-dropdown-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: #f8fafc; }
-.dropdown-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.dropdown-avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 18px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .dropdown-name { font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.2; }
 .dropdown-role { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 .dropdown-divider { height: 1px; background: #f1f5f9; }
@@ -223,9 +244,22 @@ export default {
 .dropdown-item:hover { background: #f8fafc; color: #1e293b; }
 .logout-item { color: #ef4444; }
 .logout-item:hover { background: #fef2f2; color: #dc2626; }
+.logout-item:disabled { opacity: 0.65; cursor: not-allowed; }
+.btn-spin { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(239,68,68,0.3); border-top-color: #ef4444; border-radius: 50%; animation: spin 0.65s linear infinite; flex-shrink: 0; }
 .dropdown-notif-badge { margin-left: auto; background: #2872A1; color: #fff; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 99px; }
 
 /* Transition */
 .panel-enter-active, .panel-leave-active { transition: opacity 0.15s, transform 0.15s; }
 .panel-enter-from, .panel-leave-to { opacity: 0; transform: translateY(-6px); }
+
+.skeleton {
+  background: #e2e8f0;
+  border-radius: 4px;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
+}
 </style>

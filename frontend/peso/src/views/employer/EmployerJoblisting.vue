@@ -12,8 +12,18 @@
       <EmployerTopbar title="Job Listings" subtitle="Create and manage your open positions" />
       <div class="page">
 
+        <!-- Filters + Add Skeleton -->
+        <div v-if="isLoading" class="filters-bar" style="align-items: center;">
+          <div class="skeleton" style="width: 250px; height: 42px; border-radius: 99px; flex: 1; max-width: 320px;"></div>
+          <div class="filter-group">
+            <div class="skeleton" style="width: 130px; height: 42px; border-radius: 99px;"></div>
+            <div class="skeleton" style="width: 130px; height: 42px; border-radius: 99px;"></div>
+            <div class="skeleton" style="width: 140px; height: 42px; border-radius: 99px;"></div>
+          </div>
+        </div>
+
         <!-- Filters + Add -->
-        <div class="filters-bar">
+        <div v-else class="filters-bar">
           <div class="search-box">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input v-model="search" type="text" placeholder="Search by job title, type…" class="search-input"/>
@@ -39,8 +49,49 @@
           </div>
         </div>
 
+        <!-- Skeleton Loading Grid -->
+        <div v-if="isLoading" class="jobs-grid">
+          <div v-for="i in 6" :key="'skel'+i" class="job-card">
+            <div class="job-card-header">
+              <div class="skeleton" style="width: 40px; height: 40px; border-radius: 12px;"></div>
+              <div class="skeleton" style="width: 50px; height: 20px; border-radius: 99px;"></div>
+            </div>
+            <div class="skeleton" style="width: 60%; height: 18px; margin-top: 5px;"></div>
+            <div class="job-tags" style="margin-top: 4px;">
+              <div class="skeleton" style="width: 60px; height: 18px; border-radius: 6px;"></div>
+              <div class="skeleton" style="width: 80px; height: 18px; border-radius: 6px;"></div>
+            </div>
+            <div class="skeleton" style="width: 100px; height: 15px; margin-top: 2px;"></div>
+            <div class="job-desc" style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+              <div class="skeleton" style="width: 100%; height: 10px;"></div>
+              <div class="skeleton" style="width: 85%; height: 10px;"></div>
+            </div>
+            <div class="job-skills" style="margin-top: 4px;">
+              <div class="skeleton" style="width: 50px; height: 17px; border-radius: 6px;"></div>
+              <div class="skeleton" style="width: 55px; height: 17px; border-radius: 6px;"></div>
+              <div class="skeleton" style="width: 45px; height: 17px; border-radius: 6px;"></div>
+            </div>
+            <div class="applicant-progress" style="margin-top: 6px;">
+              <div class="progress-labels">
+                <div class="skeleton" style="width: 50px; height: 12px;"></div>
+                <div class="skeleton" style="width: 40px; height: 12px;"></div>
+              </div>
+              <div class="skeleton" style="width: 100%; height: 5px; border-radius: 99px;"></div>
+            </div>
+            <div class="job-card-footer" style="margin-top: 4px;">
+              <div class="skeleton" style="width: 70px; height: 12px;"></div>
+              <div class="skeleton" style="width: 55px; height: 16px; border-radius: 99px;"></div>
+            </div>
+            <div class="job-card-actions" style="margin-top: 6px;">
+              <div class="skeleton" style="flex: 1; height: 28px; border-radius: 8px;"></div>
+              <div class="skeleton" style="flex: 1; height: 28px; border-radius: 8px;"></div>
+              <div class="skeleton" style="flex: 1; height: 28px; border-radius: 8px;"></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Jobs Grid -->
-        <div class="jobs-grid">
+        <div v-else class="jobs-grid">
           <div v-for="job in filteredJobs" :key="job.id" class="job-card">
             <div class="job-card-header">
               <div class="job-icon-lg" :style="{ background: job.bg }">
@@ -93,6 +144,10 @@
               <button class="card-btn close-btn" v-if="job.status === 'Open'" @click="closeJob(job)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 Close
+              </button>
+              <button class="card-btn remove-btn" @click="promptRemove(job)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                Remove
               </button>
             </div>
           </div>
@@ -304,6 +359,37 @@
     </transition>
 
   </div>
+
+  <!-- REMOVE CONFIRMATION MODAL -->
+  <transition name="modal">
+    <div v-if="removeTarget" class="modal-overlay" @click.self="removeTarget = null">
+      <div class="modal confirm-modal">
+        <div class="modal-header">
+          <div class="modal-icon-wrap" style="background:#fef2f2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </div>
+          <div>
+            <h3 class="modal-title">Remove Job Listing</h3>
+            <p class="modal-sub">This will remove the listing from your view.</p>
+          </div>
+          <button class="modal-close" @click="removeTarget = null">✕</button>
+        </div>
+        <div class="modal-body" style="padding:16px 24px">
+          <p style="font-size:13px;color:#475569;line-height:1.6">
+            Are you sure you want to remove <strong>{{ removeTarget?.title }}</strong>? This action cannot be undone from the employer portal.
+          </p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-ghost" @click="removeTarget = null">Cancel</button>
+          <button class="btn-remove" @click="confirmRemove" :disabled="removingJob">
+            <span v-if="removingJob" class="spinner-sm"></span>
+            {{ removingJob ? 'Removing…' : 'Yes, Remove' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  </transition>
+
 </template>
 
 <script>
@@ -319,9 +405,11 @@ export default {
   },
   data() {
     return {
+      isLoading: true,
       search: '', filterStatus: '', filterType: '',
       drawerOpen: false, selected: null,
       showModal: false, editingJob: null, savingJob: false,
+      removeTarget: null, removingJob: false,
       form: { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', status:'Open' },
       selectedSkills: [],
       skillCatalog: [],
@@ -337,12 +425,22 @@ export default {
   },
   computed: {
     filteredJobs() {
-      return this.jobs.filter(j => {
-        const matchSearch = !this.search || j.title.toLowerCase().includes(this.search.toLowerCase())
-        const matchStatus = !this.filterStatus || j.status === this.filterStatus
-        const matchType   = !this.filterType   || j.type   === this.filterType
-        return matchSearch && matchStatus && matchType
-      })
+      return this.jobs
+        .map(j => {
+          // Auto-close: if deadline passed and still Open, show as Closed
+          if (j.daysLeft <= 0 && j.status === 'Open') {
+            return { ...j, status: 'Closed' }
+          }
+          return j
+        })
+        .filter(j => {
+          // Hide jobs that are past deadline by more than 3 days
+          if (j.daysLeft < -3) return false
+          const matchSearch = !this.search || j.title.toLowerCase().includes(this.search.toLowerCase())
+          const matchStatus = !this.filterStatus || j.status === this.filterStatus
+          const matchType   = !this.filterType   || j.type   === this.filterType
+          return matchSearch && matchStatus && matchType
+        })
     },
     stripStats() {
       const j = this.jobs
@@ -408,6 +506,7 @@ export default {
       }
     },
     async fetchJobs() {
+      this.isLoading = true
       try {
         const params = {}
         if (this.search)       params.search = this.search
@@ -423,6 +522,10 @@ export default {
       } catch (e) { 
         console.error('Failed to fetch jobs:', e) 
         this.jobs = []
+      } finally {
+        setTimeout(() => {
+          this.isLoading = false
+        }, 2000)
       }
     },
     jobStatusClass(s) {
@@ -552,6 +655,19 @@ export default {
         this.showToastMsg('Failed to delete job', 'error')
       }
     },
+    promptRemove(job) {
+      this.removeTarget = job
+    },
+    async confirmRemove() {
+      if (!this.removeTarget || this.removingJob) return
+      this.removingJob = true
+      try {
+        await this.deleteJob(this.removeTarget)
+        this.removeTarget = null
+      } finally {
+        this.removingJob = false
+      }
+    },
     showToastMsg(text, type = 'success') {
       const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
       const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
@@ -578,6 +694,17 @@ export default {
 .btn-amber { display: flex; align-items: center; justify-content: center; gap: 6px; background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
 .btn-amber:hover:not(:disabled) { background: #1a5f8a; }
 .btn-amber:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.skeleton {
+  background: #e2e8f0;
+  border-radius: 4px;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
+}
 
 .spinner-sm {
   width: 14px; height: 14px; flex-shrink: 0;
@@ -623,6 +750,12 @@ export default {
 .edit-btn:hover  { background: #bae6fd; }
 .close-btn { background: #fef2f2; color: #ef4444; }
 .close-btn:hover { background: #fee2e2; }
+.remove-btn { background: #fef2f2; color: #ef4444; }
+.remove-btn:hover  { background: #fee2e2; }
+.btn-remove { display: flex; align-items: center; gap: 6px; background: #ef4444; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
+.btn-remove:hover:not(:disabled) { background: #dc2626; }
+.btn-remove:disabled { opacity: 0.65; cursor: not-allowed; }
+.confirm-modal { max-width: 420px; }
 
 /* DRAWER */
 .drawer-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.3); z-index: 100; display: flex; justify-content: flex-end; backdrop-filter: blur(2px); }

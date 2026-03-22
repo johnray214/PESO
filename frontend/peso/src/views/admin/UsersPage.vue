@@ -3,14 +3,32 @@
     <div class="main-area">
       <div class="page">
 
+        <!-- SKELETON -->
+        <template v-if="loading && !users.length">
+          <div class="users-header" style="justify-content: flex-end;">
+            <div class="skel" style="width: 110px; height: 36px; border-radius: 10px;"></div>
+          </div>
+          <div class="filters-bar" style="margin-bottom: 20px;">
+            <div class="skel" style="width: 300px; height: 38px; border-radius: 10px;"></div>
+            <div style="display:flex; gap:8px;">
+              <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
+              <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
+            </div>
+          </div>
+          <div class="table-card" style="padding: 20px;">
+            <div v-for="i in 6" :key="i" class="skel" style="width: 100%; height: 50px; border-radius: 8px; margin-bottom: 10px;"></div>
+          </div>
+        </template>
+
+        <!-- ACTUAL CONTENT -->
+        <template v-else>
         <div class="users-header">
           <button class="btn-primary" @click="openModal(null)">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Staff
           </button>
         </div>
-
-        <div class="filters-bar">
+          <div class="filters-bar">
           <div class="search-box">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             <input v-model="search" type="text" placeholder="Search by name, email, role…" class="search-input"/>
@@ -82,6 +100,7 @@
             </div>
           </div>
         </div>
+        </template>
       </div>
     </div>
 
@@ -243,7 +262,7 @@ export default {
       showPassword: false, showConfirm: false,
       errors: {},
       form: { firstName:'',middleName:'',lastName:'',email:'',role:'',sex:'',address:'',number:'',password:'',confirmPassword:'',status:'Active' },
-      savingUser: false, deletingUserLoading: false,
+      savingUser: false, deletingUserLoading: false, loading: true,
       toast: { show: false, text: '', type: 'success', icon: CHECK_SVG, _timer: null },
       avatarColors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'],
       users: []
@@ -274,7 +293,7 @@ export default {
           status:     u.status ? (u.status.charAt(0).toUpperCase() + u.status.slice(1)) : 'Active',
           avatarBg:   this.avatarColors[i % this.avatarColors.length],
         }))
-      } catch (e) { console.error(e) }
+      } catch (e) { console.error(e) } finally { this.loading = false }
     },
     initials(u) { return `${u.firstName?.[0]??''}${u.lastName?.[0]??''}`.toUpperCase() },
     openModal(user) {
@@ -388,6 +407,14 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skel {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 400px 100%; animation: shimmer 1.4s infinite linear;
+  border-radius: 6px; flex-shrink: 0;
+}
+
 .layout-wrapper { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; }
 .main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 .page { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }

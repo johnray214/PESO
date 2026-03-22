@@ -11,13 +11,14 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
   state: () => ({
     applicants: [],
     potentialApplicants: [],
+    counts: { applicants: 0, potential: 0 },
     loaded: false,
     loading: false,
   }),
 
   getters: {
-    totalApplicants:  (state) => state.applicants.length,
-    totalPotential:   (state) => state.potentialApplicants.length,
+    totalApplicants:  (state) => state.applicants.length || state.counts.applicants,
+    totalPotential:   (state) => state.potentialApplicants.length || state.counts.potential,
     reviewingCount:   (state) => state.applicants.filter((a) => a.status === 'Reviewing').length,
     shortlistedCount: (state) => state.applicants.filter((a) => a.status === 'Shortlisted').length,
     interviewCount:   (state) => state.applicants.filter((a) => a.status === 'Interview').length,
@@ -29,21 +30,14 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
     async fetch() {
       if (this.loading) return
 
-      // load from cache first so data shows instantly on reload
-      const cachedApplicants = localStorage.getItem('employer_applicants')
-      const cachedPotential  = localStorage.getItem('employer_potential_applicants')
-      if (cachedApplicants) {
+      // Load counts from cache for initial render
+      const cachedCounts = localStorage.getItem('employer_applicants_counts')
+      if (cachedCounts) {
         try {
-          const parsed = JSON.parse(cachedApplicants)
-          this.applicants = Array.isArray(parsed)
-            ? parsed.map((a) => ({ ...a, hasResume: a.hasResume ?? false }))
-            : []
+          this.counts = JSON.parse(cachedCounts)
         } catch {
-          this.applicants = []
+          this.counts = { applicants: 0, potential: 0 }
         }
-      }
-      if (cachedPotential) {
-        try { this.potentialApplicants = JSON.parse(cachedPotential) } catch { this.potentialApplicants = [] }
       }
 
       if (this.loaded) return
@@ -64,6 +58,8 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
         ])
 
         const apps = appRes.data.data?.data || appRes.data.data || []
+        const potential = potRes.data.data?.data || potRes.data.data || []
+
         this.applicants = apps.map((a, i) => {
           const js     = a.jobseeker || {}
           const skills = Array.isArray(js.skills) ? js.skills : []
@@ -85,10 +81,6 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
             hasResume:  !!js.has_resume,
           }
         })
-        // save to cache
-        localStorage.setItem('employer_applicants', JSON.stringify(this.applicants))
-
-        const potential = potRes.data.data?.data || potRes.data.data || []
         this.potentialApplicants = potential.map((a, i) => {
           const skillsData = a.skills || []
           const skills = Array.isArray(skillsData)
@@ -108,8 +100,11 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
             invited:   false,
           }
         })
-        // save to cache
-        localStorage.setItem('employer_potential_applicants', JSON.stringify(this.potentialApplicants))
+
+        // Update counts and save minimum data to cache
+        this.counts.applicants = apps.length
+        this.counts.potential = potential.length
+        localStorage.setItem('employer_applicants_counts', JSON.stringify(this.counts));
 
         this.loaded = true
       } catch (e) {
@@ -125,11 +120,8 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
       if (item) item.status = newStatus
       try {
         await employerApi.updateApplicationStatus(applicantId, newStatus.toLowerCase())
-        // update cache after status change
-        localStorage.setItem('employer_applicants', JSON.stringify(this.applicants))
       } catch (e) {
         if (item && prevStatus) item.status = prevStatus
-        localStorage.setItem('employer_applicants', JSON.stringify(this.applicants))
         console.error('[ApplicantsStore] updateStatus error:', e)
         throw e
       }
@@ -139,7 +131,6 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
       const item = this.potentialApplicants.find((a) => a.id === applicantId)
       if (item) {
         item.invited = true
-        localStorage.setItem('employer_potential_applicants', JSON.stringify(this.potentialApplicants))
       }
     },
   },

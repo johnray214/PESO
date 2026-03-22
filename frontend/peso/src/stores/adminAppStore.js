@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 
 export const useAdminAppStore = defineStore('adminApp', {
   state: () => ({
@@ -60,7 +61,11 @@ export const useAdminAppStore = defineStore('adminApp', {
       try {
         const { data } = await api.get('/admin/activity-feed')
         const list = data?.data ?? data ?? []
-        const readIds = JSON.parse(localStorage.getItem('admin_read_notifs') || '[]')
+        
+        const authStore = useAuthStore()
+        const readKey = 'admin_read_notifs_' + (authStore.user?.id || 'guest')
+        const readIds = JSON.parse(localStorage.getItem(readKey) || '[]')
+        
         this.notifications = list.map((n, i) => {
           const id = n.id ?? i
           const isRead = n.read ?? n.is_read ?? false
@@ -87,10 +92,13 @@ export const useAdminAppStore = defineStore('adminApp', {
       const n = this.notifications.find(x => x.id === notifId)
       if (n) {
         n.read = true
-        let readIds = JSON.parse(localStorage.getItem('admin_read_notifs') || '[]')
+        const authStore = useAuthStore()
+        const readKey = 'admin_read_notifs_' + (authStore.user?.id || 'guest')
+        let readIds = JSON.parse(localStorage.getItem(readKey) || '[]')
+        
         if (!readIds.includes(notifId)) {
           readIds.push(notifId)
-          localStorage.setItem('admin_read_notifs', JSON.stringify(readIds))
+          localStorage.setItem(readKey, JSON.stringify(readIds))
         }
         // update notifications cache
         localStorage.setItem('admin_notifications', JSON.stringify(this.notifications))
@@ -100,12 +108,15 @@ export const useAdminAppStore = defineStore('adminApp', {
 
     // ── Mark All Read ─────────────────────────────────────────────────────────
     markAllRead() {
-      let readIds = JSON.parse(localStorage.getItem('admin_read_notifs') || '[]')
+      const authStore = useAuthStore()
+      const readKey = 'admin_read_notifs_' + (authStore.user?.id || 'guest')
+      let readIds = JSON.parse(localStorage.getItem(readKey) || '[]')
+      
       this.notifications.forEach(n => {
         n.read = true
         if (!readIds.includes(n.id)) readIds.push(n.id)
       })
-      localStorage.setItem('admin_read_notifs', JSON.stringify(readIds))
+      localStorage.setItem(readKey, JSON.stringify(readIds))
       // update notifications cache
       localStorage.setItem('admin_notifications', JSON.stringify(this.notifications))
       api.post('/admin/activity-feed/read-all').catch(() => {})

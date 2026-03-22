@@ -1,19 +1,63 @@
 <template>
   <div class="layout-wrapper">
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <span class="toast-icon" v-html="toast.icon"></span>
+        <span class="toast-msg">{{ toast.text }}</span>
+      </div>
+    </transition>
     <EmployerSidebar />
     <div class="main-area">
       <EmployerTopbar title="Company Profile" subtitle="Manage your company information and account settings" />
       <div class="page">
-        <div class="profile-layout">
+        <div v-if="isLoading" class="profile-layout">
+          <!-- Left Col Skeletons -->
+          <div class="left-col">
+            <div class="card skeleton" style="height: 380px; border-radius: 14px;"></div>
+            <div class="card skeleton" style="height: 220px; border-radius: 14px;"></div>
+            <div class="card skeleton" style="height: 180px; border-radius: 14px;"></div>
+          </div>
+          <!-- Right Col Skeleton -->
+          <div class="right-col">
+            <div class="card skeleton" style="height: 600px; border-radius: 14px;"></div>
+          </div>
+        </div>
+
+        <div v-else class="profile-layout">
 
           <!-- Left Col -->
           <div class="left-col">
+            <input ref="photoInput" type="file" accept="image/*" style="display:none" @change="previewPhoto" />
+
             <div class="card profile-card">
               <div class="cover-banner"></div>
               <div class="profile-info">
+                
                 <div class="company-logo-wrap">
-                  <div class="company-logo">{{ (company.name || 'N')[0] }}</div>
+                  <div class="company-logo">
+                    <img v-if="photoPreview || company.photo" :src="photoPreview || company.photo" class="logo-img" alt="Company Logo" />
+                    <span v-else>{{ (company.name || 'N')[0] }}</span>
+                  </div>
+                  <!-- Camera Button -->
+                  <button class="camera-btn" title="Change Photo" @click="$refs.photoInput.click()" :disabled="uploadingPhoto">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                  </button>
                 </div>
+
+                <!-- Confirm/Cancel for photo -->
+                <transition name="fade">
+                  <div v-if="photoPreview" class="photo-actions" style="margin-top: 8px; display: flex; gap: 8px;">
+                    <button class="btn-amber" @click="confirmUpload" :disabled="uploadingPhoto">
+                      <span v-if="uploadingPhoto" class="spinner-sm"></span>
+                      <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      Save
+                    </button>
+                    <button class="btn-ghost" style="padding: 8px;" @click="cancelPhoto" :disabled="uploadingPhoto">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </div>
+                </transition>
+
                 <h2 class="company-name-lg">{{ company.name }}</h2>
                 <p class="company-tagline">{{ company.tagline }}</p>
                 <div class="company-meta-row">
@@ -105,27 +149,20 @@
                 <div v-if="!editAll">
                   <div class="section-block">
                     <h4 class="section-title">About the Company</h4>
-                    <p class="about-text">{{ company.about }}</p>
+                    <p class="about-text">{{ company.about || '—' }}</p>
                   </div>
                   <div class="section-block" style="margin-top: 16px;">
                     <h4 class="section-title">Company Details</h4>
                     <div class="details-grid">
-                      <div class="detail-item" style="grid-column: 1 / -1"><span class="detail-label">Tagline</span><span class="detail-val">{{ company.tagline }}</span></div>
                       <div class="detail-item"><span class="detail-label">Company Name</span><span class="detail-val">{{ company.legalName }}</span></div>
                       <div class="detail-item"><span class="detail-label">Industry</span><span class="detail-val">{{ company.industry }}</span></div>
-                      <div class="detail-item"><span class="detail-label">Company Size</span><span class="detail-val">{{ company.size }}</span></div>
-                      <div class="detail-item"><span class="detail-label">Founded</span><span class="detail-val">{{ company.founded }}</span></div>
-                      <div class="detail-item"><span class="detail-label">Business Type</span><span class="detail-val">{{ company.businessType }}</span></div>
-                      <div class="detail-item"><span class="detail-label">TIN / Registration</span><span class="detail-val">{{ company.tin }}</span></div>
-                      <div class="detail-item" style="grid-column: 1 / -1"><span class="detail-label">Head Office Address</span><span class="detail-val">{{ company.address }}</span></div>
+                      <div class="detail-item"><span class="detail-label">Company Size</span><span class="detail-val">{{ company.size || '—' }}</span></div>
+                      <div class="detail-item"><span class="detail-label">Founded</span><span class="detail-val">{{ company.founded || '—' }}</span></div>
+                      <div class="detail-item"><span class="detail-label">TIN / Registration</span><span class="detail-val">{{ company.tin || '—' }}</span></div>
+                      <div class="detail-item" style="grid-column: 1 / -1"><span class="detail-label">Head Office Address</span><span class="detail-val">{{ company.address || '—' }}</span></div>
                     </div>
                   </div>
-                  <div class="section-block" style="margin-top: 16px;">
-                    <h4 class="section-title">Benefits & Perks</h4>
-                    <div class="perks-grid">
-                      <div v-for="perk in company.perks" :key="perk" class="perk-chip">✓ {{ perk }}</div>
-                    </div>
-                  </div>
+
                 </div>
 
                 <!-- EDIT MODE -->
@@ -152,20 +189,16 @@
                     <div class="form-group">
                       <label class="form-label">Company Size</label>
                       <select v-model="editCompany.size" class="form-input">
-                        <option>1–10 employees</option>
-                        <option>11–50 employees</option>
-                        <option>50–100 employees</option>
-                        <option>100–500 employees</option>
-                        <option>500+ employees</option>
+                        <option value="1-10 employees">1-10 employees</option>
+                        <option value="11-50 employees">11-50 employees</option>
+                        <option value="50-100 employees">50-100 employees</option>
+                        <option value="100-500 employees">100-500 employees</option>
+                        <option value="500+ employees">500+ employees</option>
                       </select>
                     </div>
                     <div class="form-group">
                       <label class="form-label">Founded</label>
                       <input v-model="editCompany.founded" class="form-input" type="number"/>
-                    </div>
-                    <div class="form-group">
-                      <label class="form-label">Business Type</label>
-                      <input v-model="editCompany.businessType" class="form-input"/>
                     </div>
                     <div class="form-group">
                       <label class="form-label">TIN / Registration</label>
@@ -177,23 +210,9 @@
                     <input v-model="editCompany.address" class="form-input"/>
                   </div>
 
-                  <div class="edit-section-label" style="margin-top: 8px;">Benefits & Perks</div>
-                  <div class="perks-edit-grid">
-                    <div v-for="(perk, i) in editCompany.perks" :key="i" class="perk-edit-row">
-                      <input v-model="editCompany.perks[i]" class="form-input perk-input"/>
-                      <button class="perk-remove-btn" @click="removePerk(i)" title="Remove">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                  <button class="add-perk-btn" @click="addPerk">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                    Add Perk
-                  </button>
-
-                  <div class="edit-actions" style="margin-top: 12px;">
-                    <button class="btn-ghost-sm" @click="cancelEditAll">Cancel</button>
-                    <button class="btn-blue-sm" :disabled="saving" @click="saveAll">
+                  <div class="edit-actions" style="margin-top: 16px; display: flex; justify-content: flex-end; gap: 10px;">
+                    <button class="btn-ghost" @click="cancelEditAll">Cancel</button>
+                    <button class="btn-amber" :disabled="saving" @click="saveAll">
                       <span v-if="saving" class="spinner-sm"></span>
                       {{ saving ? 'Saving…' : 'Save All Changes' }}
                     </button>
@@ -292,6 +311,7 @@
 import api from '@/services/api'
 import EmployerSidebar from '@/components/EmployerSidebar.vue'
 import EmployerTopbar from '@/components/EmployerTopbar.vue'
+import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 const JOB_PALETTE = [
   { bg: '#eff6ff', color: '#2563eb' },
@@ -305,8 +325,14 @@ export default {
   name: 'EmployerProfile',
   components: { EmployerSidebar, EmployerTopbar },
 
+  setup() {
+    const authStore = useEmployerAuthStore()
+    return { authStore }
+  },
+
   data() {
     return {
+      isLoading: true,
       activeTab: 'Company Info',
       editAll: false,
       saving: false,
@@ -314,6 +340,10 @@ export default {
       passwordError: '',
 
       passwords: { current: '', new: '', confirm: '' },
+
+      uploadingPhoto: false,
+      photoPreview: null,
+      pendingFile: null,
 
       company: {
         name: '',
@@ -333,6 +363,7 @@ export default {
         website: '',
         contactPerson: '',
         perks: [],
+        photo: null,
       },
       editCompany: {},
 
@@ -344,6 +375,8 @@ export default {
       ],
 
       previewJobs: [],
+
+      toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
     }
   },
 
@@ -372,7 +405,13 @@ export default {
         email:         p.email         || '',
         website:       p.website       || '',
         contactPerson: p.contact_person || '',  // FIX #5: single field, no split
+        photo:         p.photo         || null,
         perks:         Array.isArray(p.perks) ? p.perks : [],
+      }
+
+      // Convert en-dash to hyphen for Company Size to fix selection issue
+      if (this.company.size) {
+        this.company.size = this.company.size.replace('–', '-');
       }
 
       // FIX #3: use stats object returned by resource
@@ -397,6 +436,10 @@ export default {
     }
 
     this.editCompany = { ...this.company, perks: [...(this.company.perks || [])] }
+
+    setTimeout(() => {
+      this.isLoading = false
+    }, 2000)
   },
 
   methods: {
@@ -422,17 +465,16 @@ export default {
           industry:      this.editCompany.industry,
           company_size:  this.editCompany.size,
           founded:       this.editCompany.founded,
-          business_type: this.editCompany.businessType,
           tin:           this.editCompany.tin,
           address_full:  this.editCompany.address,
           tagline:       this.editCompany.tagline,
-          perks:         this.editCompany.perks.filter(p => p.trim()),
         })
         Object.assign(this.company, {
           ...this.editCompany,
           perks: [...this.editCompany.perks],
         })
         this.editAll = false
+        this.showToastMsg('Profile updated successfully', 'success')
       } catch (e) {
         console.error('Failed to save profile:', e)
       } finally {
@@ -492,6 +534,7 @@ export default {
           website:       this.editCompany.website,
           contactPerson: this.editCompany.contactPerson,
         })
+        this.showToastMsg('Settings saved successfully', 'success')
       } catch (e) {
         console.error('Failed to save settings:', e)
         this.passwordError = e.response?.data?.message || 'Failed to save. Please try again.'
@@ -506,6 +549,45 @@ export default {
       this.passwordError = ''
     },
 
+    previewPhoto(e) {
+      const file = e.target.files[0]
+      if (!file) return
+      this.pendingFile  = file
+      this.photoPreview = URL.createObjectURL(file)
+      this.$refs.photoInput.value = ''
+    },
+
+    cancelPhoto() {
+      this.photoPreview = null
+      this.pendingFile  = null
+    },
+
+    async confirmUpload() {
+      if (!this.pendingFile) return
+      this.uploadingPhoto = true
+      try {
+        const form = new FormData()
+        form.append('photo', this.pendingFile)
+        const { data } = await api.post('/employer/profile/photo', form, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        })
+        const newPhotoUrl = data.data?.photo || this.photoPreview
+        this.company.photo = newPhotoUrl
+        if (this.authStore.user) {
+          this.authStore.user.photo = newPhotoUrl
+          localStorage.setItem('employer_user', JSON.stringify(this.authStore.user))
+        }
+        this.photoPreview = null
+        this.pendingFile  = null
+        this.showToastMsg('Profile photo updated successfully', 'success')
+      } catch (e) {
+        console.error('Failed to upload photo:', e)
+        this.showToastMsg('Failed to upload photo', 'error')
+      } finally {
+        this.uploadingPhoto = false
+      }
+    },
+
     openEditProfile() {
       this.activeTab   = 'Company Info'
       this.editCompany = { ...this.company, perks: [...this.company.perks] }
@@ -514,6 +596,13 @@ export default {
         const el = document.querySelector('.right-col')
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
+    },
+
+    showToastMsg(text, type = 'success') {
+      const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
+      const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK : X, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
     },
   },
 }
@@ -534,9 +623,22 @@ export default {
 /* PROFILE CARD */
 .cover-banner { height: 80px; background: linear-gradient(135deg, #2872A1, #08BDDE); position: relative; }
 .profile-info { padding: 0 18px 18px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; }
-.company-logo-wrap { position: relative; margin-top: -26px; }
-.company-logo { width: 52px; height: 52px; border-radius: 14px; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-.company-name-lg { font-size: 15px; font-weight: 800; color: #1e293b; }
+.company-logo-wrap { position: relative; margin-top: -30px; }
+.company-logo { width: 72px; height: 72px; border-radius: 50%; background: linear-gradient(135deg, #2872A1, #08BDDE); color: #fff; font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 4px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.08); overflow: hidden; }
+.logo-img { width: 100%; height: 100%; object-fit: cover; }
+.camera-btn { position: absolute; bottom: -4px; right: -4px; background: #fff; border: 1px solid #e2e8f0; color: #475569; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.15s; }
+.camera-btn:hover { background: #f8fafc; color: #1e293b; border-color: #cbd5e1; }
+.camera-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.photo-actions { display: flex; gap: 6px; margin-top: 4px; }
+.btn-confirm-sm { display: flex; align-items: center; gap: 4px; background: #22c55e; color: #fff; border: none; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.btn-confirm-sm:hover:not(:disabled) { background: #16a34a; }
+.btn-cancel-sm { display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #475569; border: none; border-radius: 6px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
+.btn-cancel-sm:hover:not(:disabled) { background: #e2e8f0; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; transform: translateY(-4px); }
+
+.company-name-lg { font-size: 16px; font-weight: 800; color: #1e293b; margin-top: 4px; }
 .company-tagline { font-size: 11.5px; color: #94a3b8; line-height: 1.4; }
 .company-meta-row { display: flex; flex-direction: column; gap: 5px; width: 100%; }
 .meta-chip { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #64748b; background: #f8fafc; padding: 5px 10px; border-radius: 8px; }
@@ -635,7 +737,36 @@ export default {
 .edit-profile-btn { display: flex; align-items: center; gap: 6px; margin-top: 4px; background: #eff8ff; color: #2872A1; border: 1px solid #bae6fd; border-radius: 99px; padding: 6px 16px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
 .edit-profile-btn:hover { background: #dbeafe; border-color: #93c5fd; }
 
+/* Toast & Loaders */
+.toast {
+  position: fixed; top: 20px; right: 24px; z-index: 9999;
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 18px; border-radius: 12px;
+  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+  min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif;
+}
+.toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+.toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.toast-icon { display: flex; align-items: center; flex-shrink: 0; }
+.toast-msg { word-break: break-word; line-height: 1.4; }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
+
 /* Spinner */
 .spinner-sm { width: 13px; height: 13px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; flex-shrink: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SKELETON ────────────────────────────────────────────────────── */
+.skeleton {
+  background: #e2e8f0;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border: none !important;
+  box-shadow: none !important;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 </style>

@@ -5,6 +5,12 @@
       <EmployerTopbar title="Notifications" subtitle="Stay updated on applicants and job activity" />
       <div class="page">
 
+        <div v-if="isLoading">
+          <div class="filters-bar skeleton" style="height: 52px; width: 100%; border-radius: 12px; margin-bottom: 16px;"></div>
+          <div class="notif-list-card skeleton" style="height: 500px; width: 100%; border-radius: 14px;"></div>
+        </div>
+
+        <div v-else>
         <!-- Tabs + Actions -->
         <div class="filters-bar">
           <div class="notif-tabs">
@@ -67,41 +73,9 @@
             </div>
           </div>
 
-          <!-- Sent Tab -->
-          <div v-if="activeTab === 'sent'">
-            <div v-for="n in sentNotifications" :key="n.id" class="notif-card sent-card">
-              <div class="notif-icon-wrap" style="background: #eff8ff;">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2872A1" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              </div>
-              <div class="notif-body">
-                <div class="notif-top-row">
-                  <p class="notif-title">{{ n.subject }}</p>
-                  <div class="notif-meta-right">
-                    <span class="sent-badge">Sent</span>
-                    <span class="notif-time">{{ n.time }}</span>
-                  </div>
-                </div>
-                <p class="notif-msg">{{ n.message }}</p>
-                <div class="sent-stats">
-                  <span class="sent-stat">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                    {{ n.recipients }} recipients
-                  </span>
-                  <span class="sent-stat">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                    {{ n.delivered }} delivered
-                  </span>
-                  <span class="sent-stat">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    {{ n.read_count }} read
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
         </div>
 
+        </div>
       </div>
     </div>
 
@@ -175,6 +149,7 @@ export default {
 
   data() {
     return {
+      isLoading:   true,
       activeTab:   'received',
       search:      '',
       filterType:  '',
@@ -182,7 +157,6 @@ export default {
       composeForm: { recipients: 'all', subject: '', message: '', schedule: 'now' },
       notifTabs: [
         { label: 'Received', value: 'received', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
-        { label: 'Sent',     value: 'sent',     icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>` },
       ],
       sentNotifications: [],
       typeConfig: {
@@ -225,9 +199,12 @@ export default {
     typeColor(type)    { return this.typeConfig[type] || this.typeConfig.system },
   },
 
-  mounted() {
+  async mounted() {
     // Store is cache-first: no-op if topbar already loaded it
-    this.notifStore.fetch()
+    await this.notifStore.fetch()
+    setTimeout(() => {
+      this.isLoading = false
+    }, 2000)
   },
 }
 </script>
@@ -311,4 +288,17 @@ export default {
 .modal-enter-active .modal, .modal-leave-active .modal { transition: transform 0.2s, opacity 0.2s; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
+
+/* ── SKELETON ────────────────────────────────────────────────────── */
+.skeleton {
+  background: #e2e8f0;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border: none !important;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
 </style>

@@ -199,6 +199,7 @@ Route::middleware(['auth:employer', \App\Http\Middleware\EnsureEmployer::class])
     Route::get('/profile', [EmployerProfileController::class, 'show']);
     Route::put('/profile', [EmployerProfileController::class, 'update']);
     Route::post('/profile/password', [EmployerProfileController::class, 'changePassword']);
+    Route::post('/profile/photo', [EmployerProfileController::class, 'uploadPhoto']);
     Route::post('/profile/documents', [EmployerProfileController::class, 'uploadDocuments']);
     
     // Notifications (specific routes MUST come before {id} wildcard)
