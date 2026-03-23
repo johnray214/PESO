@@ -122,4 +122,42 @@ class EmployerAuthController extends Controller
             'data' => $request->user(),
         ]);
     }
+
+    public function forgotPassword(Request $request)
+    {
+        $request->validate(['email' => 'required|email|exists:employers,email']);
+
+        $status = \Illuminate\Support\Facades\Password::broker('employers')->sendResetLink($request->only('email'));
+
+        if ($status === \Illuminate\Support\Facades\Password::RESET_LINK_SENT) {
+            return response()->json(['success' => true, 'message' => 'Password reset link sent to your email.']);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Failed to send reset link.'], 400);
+    }
+
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'token' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        $status = \Illuminate\Support\Facades\Password::broker('employers')->reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function ($user, $password) {
+                $user->forceFill([
+                    'password' => \Illuminate\Support\Facades\Hash::make($password)
+                ])->setRememberToken(\Illuminate\Support\Str::random(60));
+                $user->save();
+            }
+        );
+
+        if ($status === \Illuminate\Support\Facades\Password::PASSWORD_RESET) {
+            return response()->json(['success' => true, 'message' => 'Password has been securely reset.']);
+        }
+
+        return response()->json(['success' => false, 'message' => 'Failed to reset password, link might be invalid or expired.'], 400);
+    }
 }

@@ -86,13 +86,14 @@
             </div>
             <transition name="dropdown">
               <div v-if="showUserMenu" class="user-dropdown">
-                <button class="dropdown-item logout" @click="handleLogout">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <button class="dropdown-item logout" @click="handleLogout" :disabled="loggingOut">
+                  <span v-if="loggingOut" class="spinner-sm"></span>
+                  <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
                     <polyline points="16 17 21 12 16 7"/>
                     <line x1="21" y1="12" x2="9" y2="12"/>
                   </svg>
-                  Logout
+                  {{ loggingOut ? 'Logging out...' : 'Logout' }}
                 </button>
               </div>
             </transition>
@@ -111,7 +112,7 @@
 </template>
 
 <script>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAppStore } from '@/stores/adminAppStore'
@@ -125,7 +126,11 @@ export default {
     const authStore = useAuthStore()
     const appStore  = useAdminAppStore()
 
+    const loggingOut = ref(false)
+
     async function handleLogout() {
+      if (loggingOut.value) return
+      loggingOut.value = true
       await authStore.logout()
       window.location.href = '/admin/login'  // ✅ force full reload to wipe cache
     }
@@ -152,7 +157,7 @@ export default {
       return r.charAt(0).toUpperCase() + r.slice(1)
     })
 
-    return { handleLogout, pageTitle, pageSubtitle, authStore, appStore, userName, userInitial, userRole }
+    return { handleLogout, pageTitle, pageSubtitle, authStore, appStore, userName, userInitial, userRole, loggingOut }
   },
 
   data() {
@@ -226,6 +231,15 @@ export default {
   border-radius: 6px;
   flex-shrink: 0;
 }
+
+.spinner-sm {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(239, 68, 68, 0.3); border-top-color: #ef4444;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { 100% { transform: rotate(360deg); } }
 
 .dashboard-wrapper {
   display: flex; height: 100vh; overflow: hidden;

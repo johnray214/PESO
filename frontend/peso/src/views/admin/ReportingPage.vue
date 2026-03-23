@@ -219,19 +219,6 @@
           </div>
         </div>
 
-        <!-- Group By -->
-        <div class="builder-section" v-if="form.reportType">
-          <p class="builder-section-title">
-            Group By
-            <span class="section-tooltip" title="How to aggregate report rows. 'Month' = totals per month, 'Industry' = totals per industry, etc.">?</span>
-          </p>
-          <div class="groupby-row">
-            <button v-for="g in groupByOptions" :key="g.value"
-              class="groupby-btn" :class="{ active: form.groupBy === g.value }"
-              @click="form.groupBy = g.value">{{ g.label }}</button>
-          </div>
-          <p class="groupby-hint">Aggregates rows by selected dimension in the exported file</p>
-        </div>
 
         <!-- Export Format -->
         <div class="builder-section" v-if="form.reportType">
@@ -268,9 +255,12 @@
               </span>
             </button>
             <button class="btn-export" :class="`btn-export-${form.exportFormat}`"
-              :disabled="!reportGenerated || isGenerating" @click="exportReport">
-              <span v-html="activeExportFormat?.icon"></span>
-              Export {{ activeExportFormat?.label }}
+              :disabled="!reportGenerated || isGenerating || isExporting" @click="exportReport">
+              <span v-if="isExporting" class="spin-icon" style="display:inline-flex">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+              </span>
+              <span v-else v-html="activeExportFormat?.icon"></span>
+              {{ isExporting ? 'Exporting...' : 'Export ' + activeExportFormat?.label }}
             </button>
           </div>
         </div>
@@ -306,13 +296,18 @@
               <p class="preview-meta">
                 <template v-if="form.datePreset !== 'none'">{{ form.dateFrom }} — {{ form.dateTo }} · </template>
                 <template v-else>All dates · </template>
-                Grouped by {{ form.groupBy }} · {{ previewRows.length }} records
+                 Grouped by month · {{ previewRows.length }} records
               </p>
             </div>
             <div class="preview-export-btns">
-              <button class="btn-export-sm" :class="`btn-export-sm-${form.exportFormat}`" @click="exportReport">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                {{ activeExportFormat?.label }}
+              <button class="btn-export-sm" :class="`btn-export-sm-${form.exportFormat}`" :disabled="isExporting" @click="exportReport">
+                <span v-if="isExporting" class="spin-icon" style="display:inline-flex">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                </span>
+                <template v-else>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                </template>
+                {{ isExporting ? 'Exporting...' : activeExportFormat?.label }}
               </button>
             </div>
           </div>
@@ -345,10 +340,14 @@
           <div v-else class="preview-table-wrap">
             <table class="preview-table">
               <thead>
-                <tr><th v-for="col in selectedColumns" :key="col.key">{{ col.label }}</th></tr>
+                <tr>
+                  <th>No.</th>
+                  <th v-for="col in selectedColumns" :key="col.key">{{ col.label }}</th>
+                </tr>
               </thead>
               <tbody>
                 <tr v-for="(row, i) in previewRows" :key="i">
+                  <td style="font-weight: 600; color: #64748b; font-size: 12px; padding-left: 18px;">{{ i + 1 }}</td>
                   <td v-for="col in selectedColumns" :key="col.key">
                     <template v-if="col.key === 'status' || col.key === 'verificationStatus'">
                       <span class="tbl-badge" :class="badgeClass(row[col.key])">{{ row[col.key] }}</span>
@@ -414,6 +413,7 @@ export default {
       pageLoading: true,
       reportGenerated: false,
       isGenerating:    false,
+      isExporting:     false,
       errorMessage:    null, // ✅ ADDED: tracks API errors
 
       form: {
@@ -423,7 +423,6 @@ export default {
         datePreset:   '1y',
         filters:      {},
         columns:      [],
-        groupBy:      'Month',
         exportFormat: 'xlsx',
       },
 
@@ -452,9 +451,9 @@ export default {
 
       columnDefs: {
         placement:    [{ key:'month',label:'Month' },{ key:'name',label:'Applicant' },{ key:'company',label:'Employer' },{ key:'position',label:'Position' },{ key:'industry',label:'Industry' },{ key:'status',label:'Status' },{ key:'date',label:'Date' }],
-        registration: [{ key:'month',label:'Month' },{ key:'name',label:'Name' },{ key:'type',label:'Type' },{ key:'city',label:'City' },{ key:'skills',label:'Skills' },{ key:'date',label:'Date' }],
+        registration: [{ key:'month',label:'Month' },{ key:'name',label:'Name' },{ key:'sex',label:'Sex' },{ key:'type',label:'Type' },{ key:'city',label:'City' },{ key:'skills',label:'Skills' },{ key:'date',label:'Date' }],
         skills:       [{ key:'skill',label:'Skill' },{ key:'demand',label:'Demand %' },{ key:'supply',label:'Supply %' },{ key:'gap',label:'Gap' },{ key:'trend',label:'Trend' },{ key:'postings',label:'Postings' }],
-        events:       [{ key:'title',label:'Event' },{ key:'type',label:'Type' },{ key:'date',label:'Date' },{ key:'location',label:'Location' },{ key:'slots',label:'Slots' },{ key:'attended',label:'Attended' },{ key:'status',label:'Status' }],
+        events:       [{ key:'title',label:'Event' },{ key:'type',label:'Type' },{ key:'date',label:'Date' },{ key:'sex',label:'Sex' },{ key:'location',label:'Location' },{ key:'slots',label:'Slots' },{ key:'attended',label:'Attended' },{ key:'status',label:'Status' }],
         employer:     [{ key:'company',label:'Company' },{ key:'industry',label:'Industry' },{ key:'city',label:'City' },{ key:'verificationStatus',label:'Status' },{ key:'vacancies',label:'Vacancies' },{ key:'date',label:'Registered' }],
         skillmatch:   [{ key:'name',label:'Applicant' },{ key:'topSkill',label:'Top Skill' },{ key:'matchScore',label:'Match %' },{ key:'bestFor',label:'Best For' },{ key:'city',label:'City' }],
         feedback:     [{ key:'name',label:'Submitted By' },{ key:'type',label:'User Type' },{ key:'rating',label:'Rating' },{ key:'comment',label:'Comment' },{ key:'category',label:'Category' },{ key:'date',label:'Date' }],
@@ -473,20 +472,20 @@ export default {
       // Fallback sample data shown only on initial empty state (never used after first API success)
       sampleData: {
         placement: [
-          { month:'January',  name:'Maria Santos',    company:'Accenture PH',    position:'CSR',              industry:'BPO',       status:'Placed',     date:'Jan 14' },
-          { month:'January',  name:'Juan dela Cruz',  company:'Nexus Tech',      position:'Web Developer',    industry:'IT',        status:'Processing', date:'Jan 18' },
-          { month:'February', name:'Ana Reyes',       company:'MediCare Diag.', position:'Registered Nurse', industry:'Healthcare', status:'Placed',     date:'Feb 02' },
-          { month:'February', name:'Pedro Lim',       company:'SM Supermalls',   position:'Sales Associate',  industry:'Retail',    status:'Placed',     date:'Feb 10' },
-          { month:'March',    name:'Rosa Garcia',     company:'BrightPath BPO',  position:'Team Leader',      industry:'BPO',       status:'Processing', date:'Mar 05' },
-          { month:'March',    name:'Marco Dela Cruz', company:'Ayala Corp',      position:'Accountant',       industry:'Finance',   status:'Placed',     date:'Mar 08' },
+          { month:'January',  name:'Maria Santos',    company:'Accenture PH',    position:'CSR',              industry:'BPO',       status:'Placed',     date:'Jan 14, 2026' },
+          { month:'January',  name:'Juan dela Cruz',  company:'Nexus Tech',      position:'Web Developer',    industry:'IT',        status:'Processing', date:'Jan 18, 2026' },
+          { month:'February', name:'Ana Reyes',       company:'MediCare Diag.', position:'Registered Nurse', industry:'Healthcare', status:'Placed',     date:'Feb 02, 2026' },
+          { month:'February', name:'Pedro Lim',       company:'SM Supermalls',   position:'Sales Associate',  industry:'Retail',    status:'Placed',     date:'Feb 10, 2026' },
+          { month:'March',    name:'Rosa Garcia',     company:'BrightPath BPO',  position:'Team Leader',      industry:'BPO',       status:'Processing', date:'Mar 05, 2026' },
+          { month:'March',    name:'Marco Dela Cruz', company:'Ayala Corp',      position:'Accountant',       industry:'Finance',   status:'Placed',     date:'Mar 08, 2026' },
         ],
         registration: [
-          { month:'January',  name:'Maria Santos',  type:'Jobseeker', city:'Quezon City', skills:'Accounting',   date:'Jan 05' },
-          { month:'January',  name:'Nexus Tech',    type:'Employer',  city:'Pasig',       skills:'IT / Dev',     date:'Jan 12' },
-          { month:'February', name:'Ana Reyes',     type:'Jobseeker', city:'Marikina',    skills:'Nursing',      date:'Feb 01' },
-          { month:'February', name:'FreshMart',     type:'Employer',  city:'Marikina',    skills:'Retail',       date:'Feb 15' },
-          { month:'March',    name:'Pedro Lim',     type:'Jobseeker', city:'Caloocan',    skills:'Electrical',   date:'Mar 03' },
-          { month:'March',    name:'BuildRight Co.',type:'Employer',  city:'Valenzuela',  skills:'Construction', date:'Mar 07' },
+          { month:'January',  name:'Maria Santos',  sex:'Female', type:'Jobseeker', city:'Quezon City', skills:'Accounting',   date:'Jan 05, 2026' },
+          { month:'January',  name:'Nexus Tech',    sex:'—',      type:'Employer',  city:'Pasig',       skills:'IT / Dev',     date:'Jan 12, 2026' },
+          { month:'February', name:'Ana Reyes',     sex:'Female', type:'Jobseeker', city:'Marikina',    skills:'Nursing',      date:'Feb 01, 2026' },
+          { month:'February', name:'FreshMart',     sex:'—',      type:'Employer',  city:'Marikina',    skills:'Retail',       date:'Feb 15, 2026' },
+          { month:'March',    name:'Pedro Lim',     sex:'Male',   type:'Jobseeker', city:'Caloocan',    skills:'Electrical',   date:'Mar 03, 2026' },
+          { month:'March',    name:'BuildRight Co.',sex:'—',      type:'Employer',  city:'Valenzuela',  skills:'Construction', date:'Mar 07, 2026' },
         ],
         skills: [
           { skill:'Customer Service',    demand:85, supply:80, gap:'-5%',  trend:'↑ 18%', postings:214 },
@@ -497,18 +496,18 @@ export default {
           { skill:'Skilled Trades',      demand:55, supply:30, gap:'-25%', trend:'↑ 12%', postings:88  },
         ],
         events: [
-          { title:'Job Fair 2026 — QC',    type:'Job Fair', date:'Feb 12', location:'QC Sports Club',  slots:200, attended:185, status:'Completed' },
-          { title:'Livelihood Seminar',     type:'Seminar',  date:'Feb 18', location:'City Hall Annex', slots:80,  attended:72,  status:'Completed' },
-          { title:'Skills Training — BPO', type:'Training', date:'Mar 05', location:'TESDA Center',    slots:50,  attended:48,  status:'Completed' },
-          { title:'IT Job Fair',           type:'Job Fair', date:'Apr 15', location:'SM Megamall',     slots:300, attended:0,   status:'Upcoming'  },
-          { title:'Entrepreneurship Forum',type:'Seminar',  date:'Apr 20', location:'City Hall',       slots:100, attended:0,   status:'Upcoming'  },
+          { title:'Job Fair 2026 — QC',    type:'Job Fair', date:'Feb 12, 2026', sex:'—', location:'QC Sports Club',  slots:200, attended:185, status:'Completed' },
+          { title:'Livelihood Seminar',     type:'Seminar',  date:'Feb 18, 2026', sex:'—', location:'City Hall Annex', slots:80,  attended:72,  status:'Completed' },
+          { title:'Skills Training — BPO', type:'Training', date:'Mar 05, 2026', sex:'—', location:'TESDA Center',    slots:50,  attended:48,  status:'Ongoing'   },
+          { title:'IT Job Fair',           type:'Job Fair', date:'Apr 15, 2026', sex:'—', location:'SM Megamall',     slots:300, attended:0,   status:'Upcoming'  },
+          { title:'Entrepreneurship Forum',type:'Seminar',  date:'Apr 20, 2026', sex:'—', location:'City Hall',       slots:100, attended:0,   status:'Upcoming'  },
         ],
         employer: [
-          { company:'Nexus Tech Solutions', industry:'IT / Software', city:'Quezon City', verificationStatus:'Verified',  vacancies:12, date:'Jan 5'  },
-          { company:'BrightPath BPO Corp.', industry:'BPO',           city:'Pasig',       verificationStatus:'Verified',  vacancies:28, date:'Jan 28' },
-          { company:'FreshMart Retail',     industry:'Retail',         city:'Marikina',    verificationStatus:'Pending',   vacancies:8,  date:'Feb 1'  },
-          { company:'MediCare Diagnostics', industry:'Healthcare',     city:'Caloocan',    verificationStatus:'Rejected',  vacancies:0,  date:'Feb 20' },
-          { company:'BuildRight Const.',    industry:'Construction',   city:'Valenzuela',  verificationStatus:'Suspended', vacancies:0,  date:'Mar 7'  },
+          { company:'Nexus Tech Solutions', industry:'IT / Software', city:'Quezon City', verificationStatus:'Verified',  vacancies:12, date:'Jan 5, 2026'  },
+          { company:'BrightPath BPO Corp.', industry:'BPO',           city:'Pasig',       verificationStatus:'Verified',  vacancies:28, date:'Jan 28, 2026' },
+          { company:'FreshMart Retail',     industry:'Retail',         city:'Marikina',    verificationStatus:'Pending',   vacancies:8,  date:'Feb 1, 2026'  },
+          { company:'MediCare Diagnostics', industry:'Healthcare',     city:'Caloocan',    verificationStatus:'Rejected',  vacancies:0,  date:'Feb 20, 2026' },
+          { company:'BuildRight Const.',    industry:'Construction',   city:'Valenzuela',  verificationStatus:'Suspended', vacancies:0,  date:'Mar 7, 2026'  },
         ],
         skillmatch: [
           { name:'Maria Santos',  topSkill:'Vue.js',       matchScore:96, bestFor:'Software Developer',   city:'Quezon City' },
@@ -590,8 +589,8 @@ export default {
         else if (d.key === 'processing') v = rows.filter(r => r.status === 'Processing').length
         else if (d.key === 'jobseeker')  v = rows.filter(r => r.type === 'Jobseeker').length
         else if (d.key === 'employer')   v = rows.filter(r => r.type === 'Employer').length
-        else if (d.key === 'demand')     v = rows.filter(r => r.demand > 70).length
-        else if (d.key === 'gaps')       v = rows.filter(r => (r.demand - r.supply) > 20).length
+        else if (d.key === 'demand')     v = rows.filter(r => r.demand >= 70).length
+        else if (d.key === 'gaps')       v = rows.filter(r => (r.demand - r.supply) >= 20).length
         else if (d.key === 'completed')  v = rows.filter(r => r.status === 'Completed').length
         else if (d.key === 'upcoming')   v = rows.filter(r => r.status === 'Upcoming').length
         else if (d.key === 'verified')   v = rows.filter(r => r.verificationStatus === 'Verified').length
@@ -688,7 +687,6 @@ export default {
         datePreset:   '1y',
         filters:      {},
         columns:      [],
-        groupBy:      'Month',
         exportFormat: 'xlsx',
       }
       this.reportGenerated = false
@@ -697,9 +695,9 @@ export default {
       this.liveData        = {}
     },
 
-    // ✅ FIXED: correct API path + proper error handling (no silent catch)
     async exportReport() {
       if (!this.reportGenerated) return
+      this.isExporting = true
       try {
         const payload = {
           type:    this.form.reportType,
@@ -712,26 +710,34 @@ export default {
           payload.date_to   = this.form.dateTo
         }
 
-        // ✅ FIXED: /reports/export, not /admin/reports/export
-        const res = await api.post('/reports/export', payload, { responseType: 'blob' })
-        const url = URL.createObjectURL(new Blob([res.data]))
-        const a   = document.createElement('a')
+        const res = await api.post('/admin/reports/export', payload, { responseType: 'blob' })
+        const mimeType = this.form.exportFormat === 'pdf'
+          ? 'application/pdf'
+          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        const blob = new Blob([res.data], { type: mimeType })
+        const url  = URL.createObjectURL(blob)
+        const a    = document.createElement('a')
         a.href     = url
-        a.download = `${this.form.reportType}_report.${this.form.exportFormat}`
+        a.download = `${this.form.reportType}_report_${new Date().toISOString().slice(0,10)}.${this.form.exportFormat}`
+        document.body.appendChild(a)
         a.click()
+        document.body.removeChild(a)
         URL.revokeObjectURL(url)
       } catch (e) {
         console.error('Export failed:', e)
         this.errorMessage = 'Export failed. Please try again.'
+      } finally {
+        this.isExporting = false
       }
     },
 
-    // ✅ FIXED: added 'suspended' → badge-purple
     badgeClass(val) {
       if (!val) return ''
       const v = val.toLowerCase()
       if (['placed', 'completed', 'verified'].includes(v)) return 'badge-green'
-      if (['processing', 'upcoming', 'pending'].includes(v)) return 'badge-amber'
+      if (['processing', 'pending'].includes(v)) return 'badge-amber'
+      if (v === 'upcoming') return 'badge-blue'
+      if (v === 'ongoing') return 'badge-orange'
       if (['rejected', 'cancelled'].includes(v)) return 'badge-red'
       if (v === 'suspended') return 'badge-purple'
       return ''
@@ -899,7 +905,8 @@ export default {
 .badge-amber  { background:#fffbeb; color:#f59e0b; }
 .badge-red    { background:#fef2f2; color:#ef4444; }
 .badge-blue   { background:#eff6ff; color:#2563eb; }
-.badge-purple { background:#faf5ff; color:#8b5cf6; } /* ✅ ADDED: suspended */
+.badge-purple { background:#faf5ff; color:#8b5cf6; }
+.badge-orange { background:#fff7ed; color:#f97316; }
 .star-rating { color:#f59e0b; font-size:13px; letter-spacing:1px; }
 .skill-tag { display:inline-block; background:#f1f5f9; color:#475569; font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; margin:1px 2px 1px 0; }
 </style>

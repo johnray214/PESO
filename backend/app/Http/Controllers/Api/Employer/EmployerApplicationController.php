@@ -37,7 +37,7 @@ class EmployerApplicationController extends Controller
             $query->where('job_listing_id', $request->job_listing_id);
         }
 
-        $applications = $query->with(['jobseeker.skills', 'jobListing'])
+        $applications = $query->with(['jobseeker' => fn($q) => $q->withTrashed()->with('skills'), 'jobListing'])
             ->orderByDesc('applied_at')
             ->paginate(15);
 
@@ -53,7 +53,7 @@ class EmployerApplicationController extends Controller
         
         $application = Application::whereHas('jobListing', function ($q) use ($employer) {
             $q->where('employer_id', $employer->id);
-        })->with(['jobseeker.skills', 'jobListing'])->findOrFail($id);
+        })->with(['jobseeker' => fn($q) => $q->withTrashed()->with('skills'), 'jobListing'])->findOrFail($id);
         
         return response()->json([
             'success' => true,
@@ -70,7 +70,7 @@ class EmployerApplicationController extends Controller
 
         $application = Application::whereHas('jobListing', function ($q) use ($employer) {
             $q->where('employer_id', $employer->id);
-        })->with('jobseeker')->findOrFail($id);
+        })->with(['jobseeker' => fn($q) => $q->withTrashed()])->findOrFail($id);
 
         $path = $application->jobseeker->resume_path;
 
@@ -95,7 +95,7 @@ class EmployerApplicationController extends Controller
 
         $application = Application::whereHas('jobListing', function ($q) use ($employer) {
             $q->where('employer_id', $employer->id);
-        })->findOrFail($id);
+        })->with(['jobseeker' => fn($q) => $q->withTrashed(), 'jobListing', 'jobListing.employer'])->findOrFail($id);
 
         $oldStatus = $application->status;
         $application->update($validated);

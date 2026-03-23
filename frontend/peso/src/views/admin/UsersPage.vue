@@ -22,84 +22,99 @@
 
         <!-- ACTUAL CONTENT -->
         <template v-else>
-        <div class="users-header">
-          <button class="btn-primary" @click="openModal(null)">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            Add Staff
-          </button>
-        </div>
+          <div class="users-header">
+            <button class="btn-primary" @click="openModal(null)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Staff
+            </button>
+          </div>
           <div class="filters-bar">
-          <div class="search-box">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input v-model="search" type="text" placeholder="Search by name, email, role…" class="search-input"/>
-          </div>
-          <div class="filter-group">
-            <select v-model="filterRole" class="filter-select">
-              <option value="">All Roles</option>
-              <option>Admin</option>
-              <option>Staff</option>
-            </select>
-            <select v-model="filterStatus" class="filter-select">
-              <option value="">All Status</option>
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="table-card">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th><input type="checkbox" class="check"/></th>
-                <th>Name</th><th>Email</th><th>Role</th><th>Sex</th>
-                <th>Contact</th><th>Address</th><th>Status</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="u in filteredUsers" :key="u.id" class="table-row" @click="openModal(u)">
-                <td @click.stop><input type="checkbox" class="check"/></td>
-                <td>
-                  <div class="person-cell">
-                    <div class="avatar" :style="{ background: u.avatarBg }">{{ initials(u) }}</div>
-                    <div>
-                      <p class="person-name">{{ u.firstName }} {{ u.lastName }}</p>
-                      <p class="person-meta">{{ u.middleName || '—' }}</p>
-                    </div>
-                  </div>
-                </td>
-                <td class="email-cell">{{ u.email }}</td>
-                <td><span class="role-badge" :class="u.role === 'Admin' ? 'role-admin' : 'role-staff'">{{ u.role }}</span></td>
-                <td class="meta-cell">{{ u.sex }}</td>
-                <td class="meta-cell">{{ u.number }}</td>
-                <td class="address-cell">{{ u.address }}</td>
-                <td @click.stop><span class="status-badge" :class="u.status === 'Active' ? 'active-s' : 'inactive-s'">{{ u.status }}</span></td>
-                <td @click.stop>
-                  <div class="action-btns">
-                    <button class="act-btn edit" @click="openModal(u)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
-                    <button class="act-btn delete" @click.stop="deleteUser(u)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="filteredUsers.length === 0">
-                <td colspan="9" class="empty-cell">
-                  <div class="empty-state">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                    <p>No staff found</p>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="pagination">
-            <span class="page-info">Showing {{ filteredUsers.length }} of {{ users.length }} staff</span>
-            <div class="page-btns">
-              <button class="page-btn">‹</button>
-              <button class="page-btn active">1</button>
-              <button class="page-btn">›</button>
+            <div class="search-box">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input v-model="search" type="text" placeholder="Search by name, email, role…" class="search-input"/>
+            </div>
+            <div class="filter-group">
+              <select v-model="filterRole" class="filter-select">
+                <option value="">All Roles</option>
+                <option>Admin</option>
+                <option>Staff</option>
+              </select>
+              <select v-model="filterStatus" class="filter-select">
+                <option value="">All Status</option>
+                <option>Active</option>
+                <option>Inactive</option>
+              </select>
             </div>
           </div>
-        </div>
+
+          <div class="table-card">
+
+            <!-- PAGE CHANGE SKELETON -->
+            <template v-if="pageLoading">
+              <div style="padding: 16px 20px;">
+                <div v-for="i in 15" :key="i" class="skel" style="width: 100%; height: 48px; border-radius: 8px; margin-bottom: 8px;"></div>
+              </div>
+            </template>
+
+            <template v-else>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Name</th><th>Email</th><th>Role</th><th>Sex</th>
+                  <th>Contact</th><th>Address</th><th>Status</th><th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(u, index) in filteredUsers" :key="u.id" class="table-row" @click="openModal(u)">
+                  <td @click.stop style="font-weight: 600; color: #64748b; font-size: 12px; padding-left: 18px;">{{ (currentPage - 1) * 15 + index + 1 }}</td>
+                  <td>
+                    <div class="person-cell">
+                      <div class="avatar" :style="{ background: u.avatarBg }">{{ initials(u) }}</div>
+                      <div>
+                        <p class="person-name">{{ u.firstName }} {{ u.lastName }}</p>
+                        <p class="person-meta">{{ u.middleName || '—' }}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td class="email-cell">{{ u.email }}</td>
+                  <td><span class="role-badge" :class="u.role === 'Admin' ? 'role-admin' : 'role-staff'">{{ u.role }}</span></td>
+                  <td class="meta-cell">{{ u.sex }}</td>
+                  <td class="meta-cell">{{ u.number }}</td>
+                  <td class="address-cell">{{ u.address }}</td>
+                  <td @click.stop><span class="status-badge" :class="u.status === 'Active' ? 'active-s' : 'inactive-s'">{{ u.status }}</span></td>
+                  <td @click.stop>
+                    <div class="action-btns">
+                      <button class="act-btn edit" @click="openModal(u)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                      <button class="act-btn delete" @click.stop="deleteUser(u)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg></button>
+                    </div>
+                  </td>
+                </tr>
+                <tr v-if="filteredUsers.length === 0">
+                  <td colspan="9" class="empty-cell">
+                    <div class="empty-state">
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                      <p>No staff found</p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            </template>
+
+            <div class="pagination">
+              <span class="page-info">Showing {{ (currentPage - 1) * 15 + 1 }}–{{ Math.min(currentPage * 15, totalUsers) }} of {{ totalUsers }} staff</span>
+              <div class="page-btns">
+                <button class="page-btn" :disabled="currentPage === 1 || pageLoading" @click="changePage(currentPage - 1)">‹</button>
+                <button
+                  v-for="p in paginationPages" :key="p"
+                  class="page-btn" :class="{ active: currentPage === p }"
+                  :disabled="pageLoading"
+                  @click="changePage(p)">{{ p }}</button>
+                <button class="page-btn" :disabled="currentPage === lastPage || pageLoading" @click="changePage(currentPage + 1)">›</button>
+              </div>
+            </div>
+          </div>
         </template>
       </div>
     </div>
@@ -265,10 +280,21 @@ export default {
       savingUser: false, deletingUserLoading: false, loading: true,
       toast: { show: false, text: '', type: 'success', icon: CHECK_SVG, _timer: null },
       avatarColors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'],
-      users: []
+      users: [],
+      currentPage: 1,
+      lastPage: 1,
+      totalUsers: 0,
+      pageLoading: false,
     }
   },
   computed: {
+    paginationPages() {
+      const pages = []
+      const start = Math.max(1, this.currentPage - 2)
+      const end   = Math.min(this.lastPage, this.currentPage + 2)
+      for (let i = start; i <= end; i++) pages.push(i)
+      return pages
+    },
     filteredUsers() {
       return this.users.filter(u => {
         const q = this.search.toLowerCase()
@@ -278,10 +304,17 @@ export default {
     }
   },
   methods: {
-    async fetchUsers() {
+    async fetchUsers(isPaginating = false) {
+      if (isPaginating) { this.pageLoading = true } else { this.loading = true }
       try {
-        const { data } = await api.get('/admin/users')
-        const list = data.data?.data || data.data || data || []
+        const params = { page: this.currentPage }
+        const { data } = await api.get('/admin/users', { params })
+        // Backend returns { success, data: { data: [...], current_page, last_page, total } }
+        const payload = data.data || data
+        this.currentPage = payload.current_page || 1
+        this.lastPage    = payload.last_page    || 1
+        this.totalUsers  = payload.total        || 0
+        const list = payload.data || payload || []
         this.users = (Array.isArray(list) ? list : []).map((u, i) => ({
           ...u,
           firstName:  u.first_name  || u.firstName  || '',
@@ -293,7 +326,13 @@ export default {
           status:     u.status ? (u.status.charAt(0).toUpperCase() + u.status.slice(1)) : 'Active',
           avatarBg:   this.avatarColors[i % this.avatarColors.length],
         }))
-      } catch (e) { console.error(e) } finally { this.loading = false }
+      } catch (e) { console.error(e) } finally { this.loading = false; this.pageLoading = false }
+    },
+    changePage(page) {
+      if (page >= 1 && page <= this.lastPage && !this.pageLoading) {
+        this.currentPage = page
+        this.fetchUsers(true)
+      }
     },
     initials(u) { return `${u.firstName?.[0]??''}${u.lastName?.[0]??''}`.toUpperCase() },
     openModal(user) {
@@ -393,7 +432,7 @@ export default {
         await api.delete(`/admin/users/${this.deletingUser.id}`)
         this.users = this.users.filter(u => u.id !== this.deletingUser.id)
         this.showToastMsg('User deleted successfully', 'success')
-      } catch (e) { 
+      } catch (e) {
         console.error(e)
         this.showToastMsg('Failed to delete user', 'error')
       } finally {
@@ -415,9 +454,10 @@ export default {
   border-radius: 6px; flex-shrink: 0;
 }
 
-.layout-wrapper { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; }
-.main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.page { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.layout-wrapper { display: flex; min-height: 100vh; background: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; }
+.main-area { flex: 1; display: flex; flex-direction: column; }
+.page { flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.users-header { display: flex; justify-content: flex-end; }
 .filters-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .search-box { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; flex: 1; max-width: 360px; }
 .search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
@@ -434,7 +474,6 @@ export default {
 .table-row { cursor: pointer; transition: background 0.12s; }
 .table-row:hover { background: #f8fafc; }
 .data-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
-.check { accent-color: #2563eb; cursor: pointer; }
 .person-cell { display: flex; align-items: center; gap: 10px; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .person-name { font-size: 13px; font-weight: 600; color: #1e293b; }
@@ -459,9 +498,12 @@ export default {
 .pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-top: 1px solid #f1f5f9; }
 .page-info { font-size: 12px; color: #94a3b8; }
 .page-btns { display: flex; gap: 4px; }
-.page-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; color: #64748b; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
+.page-btn { width: 30px; height: 30px; border-radius: 7px; border: 1px solid #e2e8f0; background: #fff; font-size: 12px; color: #64748b; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .page-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
-.page-btn:hover:not(.active) { background: #f8fafc; }
+.page-btn:hover:not(.active):not(:disabled) { background: #f8fafc; }
+
+/* Modal */
 .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
 .modal { background: #fff; border-radius: 16px; width: 580px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15); max-height: 90vh; display: flex; flex-direction: column; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 20px 24px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
@@ -488,7 +530,6 @@ export default {
 .input-eye .form-input { width: 100%; padding-right: 36px; }
 .eye-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: #94a3b8; display: flex; align-items: center; }
 .eye-btn:hover { color: #475569; }
-
 .status-toggle { display: flex; gap: 8px; }
 .toggle-opt { padding: 8px 20px; border-radius: 8px; border: 2px solid #e2e8f0; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; background: #f8fafc; color: #64748b; transition: all 0.15s; }
 .toggle-opt.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
@@ -508,13 +549,7 @@ export default {
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
 
 /* Toast */
-.toast {
-  position: fixed; top: 20px; right: 24px; z-index: 9999;
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 18px; border-radius: 12px;
-  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-  min-width: 240px; max-width: 380px;
-}
+.toast { position: fixed; top: 20px; right: 24px; z-index: 9999; display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12); min-width: 240px; max-width: 380px; }
 .toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 .toast-icon { display: flex; align-items: center; flex-shrink: 0; }
@@ -522,12 +557,7 @@ export default {
 .toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
 
-/* Spinners */
-.spinner-sm {
-  width: 15px; height: 15px; flex-shrink: 0;
-  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
-}
+.spinner-sm { width: 15px; height: 15px; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 768px) {

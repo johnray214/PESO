@@ -34,7 +34,9 @@ class AdminEmployerController extends Controller
                 $q->withCount('applications');
             },
             'jobListings.applications' => function ($q) {
-                $q->where('status', 'hired')->with('jobseeker:id,first_name,last_name');
+                $q->where('status', 'hired')->with(['jobseeker' => function ($q) {
+                    $q->withTrashed()->select('id', 'first_name', 'last_name');
+                }]);
             }
         ]);
 
@@ -92,11 +94,48 @@ class AdminEmployerController extends Controller
 
         $employer = Employer::findOrFail($id);
 
-        if ($validated['status'] === 'verified' && $employer->status !== 'verified') {
+        $wasNotVerified = $employer->status !== 'verified';
+
+        if ($validated['status'] === 'verified' && $wasNotVerified) {
             $validated['verified_at'] = now();
         }
 
         $employer->update($validated);
+
+        if ($validated['status'] === 'verified' && $wasNotVerified) {
+            try {
+                $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+                $body = [
+                    'Messages' => [
+                        [
+                            'From' => [
+                                'Email' => env('MAILJET_FROM_EMAIL'),
+                                'Name' => env('MAILJET_FROM_NAME', 'PESO')
+                            ],
+                            'To' => [
+                                [
+                                    'Email' => $employer->email,
+                                    'Name' => trim($employer->contact_person ?: $employer->company_name)
+                                ]
+                            ],
+                            'TemplateID' => 7861214,
+                            'TemplateLanguage' => true,
+                            'Subject' => 'PESO: Your Employer Account Has Been Verified',
+                            'Variables' => [
+                                'company_name' => $employer->company_name
+                            ]
+                        ]
+                    ]
+                ];
+                $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+                
+                if (!$response->success()) {
+                    \Illuminate\Support\Facades\Log::error('Mailjet API Error: ' . json_encode($response->getData()));
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Mailjet Exception: ' . $e->getMessage());
+            }
+        }
 
         return response()->json([
             'success' => true,

@@ -19,6 +19,18 @@ const routes = [
     component: () => import('@/views/LoginView.vue'),
     meta: { guest: true },
   },
+  {
+    path: '/admin/forgot-password',
+    name: 'admin-forgot-password',
+    component: () => import('@/views/AdminForgot.vue'),
+    meta: { guest: true },
+  },
+  {
+    path: '/admin/reset-password',
+    name: 'admin-reset-password',
+    component: () => import('@/views/AdminReset.vue'),
+    meta: { guest: true },
+  },
 
   // Employer public pages
   {
@@ -40,6 +52,23 @@ const routes = [
     path: '/employer/forgot-password',
     name: 'employer-forgot-password',
     component: () => import('@/views/EmployerForgot.vue'),
+  },
+  {
+    path: '/employer/reset-password',
+    name: 'employer-reset-password',
+    component: () => import('@/views/EmployerReset.vue'),
+  },
+
+  // Jobseeker public pages
+  {
+    path: '/jobseeker/forgot-password',
+    name: 'jobseeker-forgot-password',
+    component: () => import('@/views/JobseekerForgot.vue'),
+  },
+  {
+    path: '/jobseeker/reset-password',
+    name: 'jobseeker-reset-password',
+    component: () => import('@/views/JobseekerReset.vue'),
   },
 
   // Admin/Staff dashboard
@@ -125,7 +154,7 @@ const routes = [
         name: 'audit-logs',
         component: () => import('@/views/admin/AuditLogsPage.vue'),
         meta: {
-          roles: [ROLES.ADMIN, ROLES.STAFF],
+          roles: [ROLES.ADMIN],
           subtitle: 'Read-only activity trail of all system actions',
         },
       },
@@ -143,7 +172,7 @@ const routes = [
         name: 'users',
         component: () => import('@/views/admin/UsersPage.vue'),
         meta: {
-          roles: [ROLES.ADMIN, ROLES.STAFF, ROLES.EMPLOYER],
+          roles: [ROLES.ADMIN],
           subtitle: 'Manage internal staff accounts and roles',
         },
       },
@@ -217,8 +246,11 @@ const router = createRouter({
 router.beforeEach(async (to, _from, next) => {
   const employerToken = localStorage.getItem('employer_token')
 
-  const isEmployerRoute     = to.matched.some(r => r.meta.employerOnly)
-  const isEmployerPublicPage = ['employer-login', 'employer-register'].includes(to.name)
+  const isEmployerRoute      = to.matched.some(r => r.meta.employerOnly)
+  const isEmployerPublicPage = [
+    'employer-login', 'employer-register',
+    'employer-forgot-password', 'employer-reset-password'
+  ].includes(to.name)
   const isAdminGuestPage     = to.meta.guest
 
   // employer routes — redirect to employer login if no token

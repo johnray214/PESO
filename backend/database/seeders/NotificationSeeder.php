@@ -26,53 +26,25 @@ class NotificationSeeder extends Seeder
         // Each notification that targets 'employers' will get a NotificationRead per employer.
         $templates = [
             [
-                'subject'    => 'New High-Match Applicant',
-                'message'    => 'A jobseeker with a 92% skill match applied to your job listing. Review the application now.',
-                'type_hint'  => 'match',
-                'recipients' => 'employers',
-                'offset_min' => 2,
-            ],
-            [
                 'subject'    => 'New Application Received',
-                'message'    => 'A jobseeker has applied to one of your active job listings. Check new applicants in your dashboard.',
+                'message'    => 'A jobseeker has applied to your Software Engineer position. Check new applicants in your dashboard.',
                 'type_hint'  => 'applicant',
                 'recipients' => 'employers',
-                'offset_min' => 25,
+                'offset_min' => 44, // 44 mins ago
             ],
             [
-                'subject'    => 'Applicant Withdrew Application',
-                'message'    => 'An applicant has withdrawn their application from one of your job listings.',
-                'type_hint'  => 'applicant',
-                'recipients' => 'employers',
-                'offset_min' => 80,
-            ],
-            [
-                'subject'    => 'Job Listing Expiring Soon',
-                'message'    => 'One of your active job listings is expiring in 3 days. Extend the deadline or close the listing.',
+                'subject'    => 'Job listing expiring',
+                'message'    => 'Your job listing is expiring in 3 days. Extend the deadline or close the listing.',
                 'type_hint'  => 'job',
                 'recipients' => 'employers',
                 'offset_min' => 200,
             ],
             [
-                'subject'    => 'Profile Verification Complete',
-                'message'    => 'Your employer profile has been verified by PESO. Your job listings are now visible to jobseekers.',
-                'type_hint'  => 'system',
-                'recipients' => 'employers',
-                'offset_min' => 1440,
-            ],
-            [
-                'subject'    => 'Potential Applicants Available',
-                'message'    => 'There are 5 jobseekers whose skills match your active job listings but have not yet applied.',
+                'subject'    => 'New High Match applicant',
+                'message'    => 'A jobseeker with a high skill match applied to your job listing. Review the application now.',
                 'type_hint'  => 'match',
                 'recipients' => 'employers',
                 'offset_min' => 480,
-            ],
-            [
-                'subject'    => 'Job Listing is Now Active',
-                'message'    => 'Your job listing has been approved and is now live on the portal.',
-                'type_hint'  => 'job',
-                'recipients' => 'employers',
-                'offset_min' => 2880,
             ],
         ];
 

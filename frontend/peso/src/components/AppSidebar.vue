@@ -78,7 +78,7 @@
 
           <transition name="dropdown">
             <ul v-if="usersOpen" class="sub-nav">
-              <li class="nav-li">
+              <li v-if="authStore.role === 'admin'" class="nav-li">
                 <router-link to="/dashboard/users" class="nav-item sub-item" exact-active-class="active">
                   <span class="sub-icon">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -113,12 +113,14 @@
 <script>
 import pesoLogo from '@/assets/PESOLOGO.jpg'
 import { useAdminAppStore } from '@/stores/adminAppStore'
+import { useAuthStore } from '@/stores/auth'
 
 export default {
   name: 'AppSidebar',
   setup() {
-    const appStore = useAdminAppStore()
-    return { appStore }
+    const appStore  = useAdminAppStore()
+    const authStore = useAuthStore()
+    return { appStore, authStore }
   },
   data() {
     return {
@@ -136,7 +138,6 @@ export default {
         { name: 'Notifications', path: '/dashboard/notifications', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
         { name: 'Reporting',     path: '/dashboard/reporting',     icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
         { name: 'Archive',       path: '/dashboard/archive',       icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>` },
-        { name: 'Audit Logs',    path: '/dashboard/audit-logs',    icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>` },
       ],
     }
   },

@@ -1030,7 +1030,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Form(
-                    key: _formKey,
+                    key: _formKey,  
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

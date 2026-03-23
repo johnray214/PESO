@@ -82,7 +82,7 @@
             <table class="data-table">
               <thead>
                 <tr>
-                  <th><input type="checkbox" class="check"/></th>
+                  <th>No.</th>
                   <th>Applicant</th>
                   <th>Skills</th>
                   <th>Applied For</th>
@@ -93,8 +93,8 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="a in pagedApplicants" :key="a.id" class="table-row" @click="openDrawer(a)">
-                  <td @click.stop><input type="checkbox" class="check"/></td>
+                <tr v-for="(a, index) in pagedApplicants" :key="a.id" class="table-row" @click="openDrawer(a)">
+                  <td @click.stop style="font-weight: 600; color: #64748b; font-size: 12px; padding-left: 18px;">{{ (appliedPage - 1) * perPage + index + 1 }}</td>
                   <td>
                     <div class="person-cell">
                       <div class="avatar" :style="{ background: a.avatarBg }">{{ a.name[0] }}</div>
