@@ -114,12 +114,12 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
       }
     },
 
-    async updateStatus(applicantId, newStatus) {
+    async updateStatus(applicantId, newStatus, extraData = {}) {
       const item = this.applicants.find((a) => a.id === applicantId)
       const prevStatus = item?.status
       if (item) item.status = newStatus
       try {
-        await employerApi.updateApplicationStatus(applicantId, newStatus.toLowerCase())
+        await employerApi.updateApplicationStatus(applicantId, newStatus.toLowerCase(), extraData)
       } catch (e) {
         if (item && prevStatus) item.status = prevStatus
         console.error('[ApplicantsStore] updateStatus error:', e)

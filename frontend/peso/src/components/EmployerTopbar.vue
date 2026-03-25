@@ -61,15 +61,25 @@
       <!-- User Pill with dropdown -->
       <div class="user-wrap" ref="userWrap">
         <button class="user-pill" @click="toggleUserMenu">
-          <div class="company-logo-nav" v-if="authStore.user?.photo">
-            <img :src="authStore.user.photo" alt="Logo" class="nav-logo-img" />
-          </div>
-          <div v-else class="avatar-t">{{ companyInitial }}</div>
-          <div class="user-meta-t">
-            <span class="uname-t">{{ companyName }}</span>
-            <span class="urole-t">Employer Account</span>
-          </div>
-          <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          <template v-if="!authStore.isAppReady">
+            <div class="company-logo-nav skeleton"></div>
+            <div class="user-meta-t" style="gap: 4px; padding: 2px 0;">
+              <div class="skeleton" style="width: 90px; height: 14px; border-radius: 4px;"></div>
+              <div class="skeleton" style="width: 60px; height: 10px; border-radius: 2px;"></div>
+            </div>
+            <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </template>
+          <template v-else>
+            <div class="company-logo-nav" v-if="authStore.user?.photo">
+              <img :src="authStore.user.photo" alt="Logo" class="nav-logo-img" />
+            </div>
+            <div v-else class="avatar-t">{{ companyInitial }}</div>
+            <div class="user-meta-t">
+              <span class="uname-t">{{ companyName }}</span>
+              <span class="urole-t">Employer Account</span>
+            </div>
+            <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </template>
         </button>
 
         <!-- User Dropdown -->

@@ -17,7 +17,7 @@ export const employerApi = {
   downloadApplicationResume: (id) =>
     api.get(`/employer/applications/${id}/resume`, { responseType: 'blob' }),
   getApplication: (id) => api.get(`/employer/applications/${id}`),
-  updateApplicationStatus: (id, status) => api.patch(`/employer/applications/${id}/status`, { status }),
+  updateApplicationStatus: (id, status, extraData = {}) => api.patch(`/employer/applications/${id}/status`, { status, ...extraData }),
   getPotentialApplicants: (params) => api.get('/employer/potential-applicants', { params }),
 
   // Notifications

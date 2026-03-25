@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="api-base" content="http://127.0.0.1:8000/api">
+<title>SACCGEA ID Card Generator</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* PESO-style palette (vibrant blue banner + white content, Batangas City PESO ref.) */
+  :root {
+    --primary-blue: #0033cc;
+    --dark-blue:    #001a66;
+    --light-sky:    #e6f2ff;
+    --page-tint:    #f0f7ff;
+    --accent-yellow:#ffcc00;
+    --accent-red:   #ee1c25;
+
+    --navy:    var(--page-tint);
+    --panel:   #ffffff;
+    --surface: #e8f2fc;
+    --border:  #b8cce8;
+    --accent:  var(--primary-blue);
+    --accent2: #004de6;
+    --muted:   #5a6882;
+    --label:   var(--dark-blue);
+    --text:    #333333;
+    --white:   #ffffff;
+    --green:   #15803d;
+    --red:     var(--accent-red);
+    --amber:   #b45309;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--navy);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+    color: var(--text);
+    /* Light mesh / halftone feel (banner-style) */
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(0, 51, 204, 0.06) 1px, transparent 0),
+      radial-gradient(ellipse 90% 45% at 50% -5%, rgba(0, 51, 204, 0.12) 0%, transparent 55%),
+      linear-gradient(165deg, rgba(230, 242, 255, 0.65) 0%, transparent 42%),
+      linear-gradient(-12deg, transparent 60%, rgba(0, 26, 102, 0.04) 100%);
+    background-size: 22px 22px, 100% 100%, 100% 100%, 100% 100%;
+  }
+
+  /* ── HEADER BAR ── */
+  .topbar {
+    width: 100%;
+    background: linear-gradient(90deg, var(--primary-blue) 0%, #002699 45%, var(--dark-blue) 100%);
+    border-bottom: 3px solid var(--accent-yellow);
+    padding: 0 40px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 26, 102, 0.22);
+  }
+
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .topbar-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent-yellow);
+    box-shadow: 0 0 10px rgba(255, 204, 0, 0.85);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(255, 204, 0, 0.85); }
+    50%       { opacity: 0.65; box-shadow: 0 0 4px rgba(255, 204, 0, 0.45); }
+  }
+
+  .topbar-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--white);
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+
+  .topbar-sub {
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.88);
+    letter-spacing: 0.5px;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    width: 100%;
+    max-width: 920px;
+    padding: 36px 24px;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 28px;
+  }
+
+  /* ── FORM PANEL ── */
+  .form-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-top: 4px solid var(--primary-blue);
+    border-radius: 16px;
+    padding: 28px 24px;
+    width: 300px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.9) inset,
+      0 12px 40px rgba(0, 26, 102, 0.08);
+  }
+
+  .panel-heading {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--primary-blue);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── PHOTO UPLOAD ZONE ── */
+  .upload-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 20px;
+    background: var(--surface);
+    transition: border-color 0.2s;
+  }
+
+  .upload-zone:hover { border-color: var(--accent2); }
+
+  .upload-zone-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .upload-inner {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  /* thumbnail */
+  .thumb {
+    width: 68px;
+    height: 68px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--navy);
+    overflow: hidden;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+  .thumb-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .thumb-empty svg { opacity: 0.3; }
+
+  .thumb-empty span {
+    font-size: 9px;
+    color: var(--muted);
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  .upload-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    flex: 1;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .btn-pick {
+    flex: 1;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn-pick:hover { background: var(--accent2); transform: translateY(-1px); }
+
+  .btn-save {
+    flex: 1;
+    background: transparent;
+    color: var(--green);
+    border: 1.5px solid var(--green);
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn-save:hover { background: rgba(34,197,94,0.1); transform: translateY(-1px); }
+
+  .btn-discard {
+    flex: 1;
+    background: transparent;
+    color: var(--red);
+    border: 1.5px solid var(--red);
+    border-radius: 7px;
+    padding: 8px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn-discard:hover { background: rgba(239,68,68,0.1); transform: translateY(-1px); }
+
+  .photo-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0.3px;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+
+  /* ── FORM FIELDS ── */
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .field label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--label);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .field input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    width: 100%;
+  }
+
+  .field input::placeholder { color: var(--muted); font-weight: 400; opacity: 0.85; }
+
+  .field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 51, 204, 0.18);
+  }
+
+  .last-position-note {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    line-height: 1.5;
+    margin: -6px 0 10px;
+  }
+
+  .last-position-note strong {
+    color: var(--label);
+    font-weight: 600;
+  }
+
+  /* number spin hide */
+  .field input[type=number]::-webkit-inner-spin-button,
+  .field input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+  /* divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0 20px;
+  }
+
+  /* ── DOWNLOAD BUTTON ── */
+  .btn-download {
+    width: 100%;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--dark-blue) 100%);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 13px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(0, 51, 204, 0.35);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-download::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%);
+    pointer-events: none;
+  }
+
+  .btn-download:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 28px rgba(0, 51, 204, 0.45);
+  }
+
+  .btn-download:active { transform: translateY(0); }
+
+  .btn-download svg {
+    transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
+    flex-shrink: 0;
+  }
+
+  .btn-download:hover svg { transform: translateY(3px); }
+
+  .btn-download.loading {
+    opacity: 0.75;
+    pointer-events: none;
+  }
+
+  .btn-download.loading svg {
+    animation: spin 0.7s linear infinite;
+  }
+
+  .btn-download:disabled,
+  .btn-download.btn-locked {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: 0 2px 10px rgba(0, 51, 204, 0.12);
+  }
+
+  .btn-download:disabled:hover,
+  .btn-download.btn-locked:hover {
+    transform: none;
+    box-shadow: 0 2px 10px rgba(0, 51, 204, 0.12);
+  }
+
+  .btn-download:disabled:hover svg,
+  .btn-download.btn-locked:hover svg {
+    transform: none;
+  }
+
+  .save-hint {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--muted);
+    line-height: 1.45;
+    margin-bottom: 12px;
+  }
+
+  .save-hint strong {
+    color: var(--label);
+    font-weight: 600;
+  }
+
+  .save-validation {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--amber);
+    margin: 0 0 12px;
+    line-height: 1.45;
+  }
+
+  .save-validation:empty {
+    display: none;
+  }
+
+  .btn-save-employee {
+    width: 100%;
+    background: transparent;
+    color: var(--primary-blue);
+    border: 1.5px solid var(--primary-blue);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    transition: background 0.15s, transform 0.1s;
+  }
+
+  .btn-save-employee:hover {
+    background: rgba(0, 51, 204, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .btn-save-employee:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .btn-save-employee.loading {
+    pointer-events: none;
+    opacity: 0.8;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+
+  /* ── PREVIEW PANEL ── */
+  .preview-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .preview-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--label);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    align-self: flex-start;
+  }
+
+  /* ─── THE CARD (UNCHANGED STRUCTURE) ─── */
+  .id-card {
+    position: relative;
+    width: 298px;
+    height: 430px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(0, 26, 102, 0.12),
+      0 20px 50px rgba(0, 26, 102, 0.15),
+      0 4px 16px rgba(0, 0, 0, 0.08);
+  }
+
+  .id-card .bg-img {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: fill;
+    z-index: 0;
+  }
+
+  /* ── PHOTO OVERLAY — UNTOUCHED ── */
+  .photo-overlay {
+    position: absolute;
+    top: 72px;
+    left: 97px;
+    width: 171px;
+    height: 172px;
+    overflow: hidden;
+    z-index: 2;
+    background: #ffffff;
+    border: none;
+  }
+
+  .photo-overlay img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;    /* shows full photo, no crop */
+    display: block;
+    padding: 12px;           /* whitespace border around photo — increase to add more gap */
+    background: #ffffff;
+    box-sizing: border-box;
+  }
+
+  /* ── NAME TEXT ── */
+  .card-name {
+    position: absolute;
+    top: 270px;
+    left: 50px;
+    right: 6px;
+    text-align: center;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 14px;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    line-height: 1.25;
+    z-index: 3;
+  }
+
+  /* ── POSITION TEXT ── */
+  .card-position {
+    position: absolute;
+    top: 290px;
+    left: 50px;
+    right: 6px;
+    text-align: center;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    font-size: 12px;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    z-index: 3;
+  }
+
+  /* ── OFFICE TEXT ── */
+  .card-office {
+    position: absolute;
+    top: 308px;
+    left: 50px;
+    right: 6px;
+    text-align: center;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    color: var(--primary-blue);
+    text-transform: uppercase;
+    z-index: 3;
+  }
+
+  /* ── ID NUMBER TEXT ── */
+  .card-id {
+    position: absolute;
+    top: 332px;
+    left: 160px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    color: #000000;
+    z-index: 3;
+  }
+
+  /* ── SAVE SUCCESS MODAL ── */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: rgba(5, 10, 22, 0.78);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.22s ease, visibility 0.22s ease;
+  }
+
+  .modal-backdrop.is-open {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .modal-backdrop[hidden] {
+    display: none !important;
+  }
+
+  .modal-dialog {
+    position: relative;
+    width: 100%;
+    max-width: 360px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 26px 24px;
+    text-align: center;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+    transform: translateY(10px) scale(0.98);
+    transition: transform 0.22s ease;
+  }
+
+  .modal-backdrop.is-open .modal-dialog {
+    transform: translateY(0) scale(1);
+  }
+
+  .modal-close {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+  }
+
+  .modal-close:hover {
+    color: var(--text);
+    background: rgba(0, 26, 102, 0.06);
+  }
+
+  .modal-success-icon {
+    width: 52px;
+    height: 52px;
+    margin: 0 auto 16px;
+    color: var(--green);
+  }
+
+  .modal-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--dark-blue);
+    letter-spacing: 0.3px;
+    margin-bottom: 10px;
+  }
+
+  .modal-body {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1.55;
+    margin-bottom: 8px;
+  }
+
+  .modal-id-line {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent2);
+    margin-bottom: 22px;
+    letter-spacing: 0.3px;
+  }
+
+  .modal-btn-ok {
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 700;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    color: #fff;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--dark-blue) 100%);
+    box-shadow: 0 4px 18px rgba(0, 51, 204, 0.35);
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+
+  .modal-btn-ok:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 22px rgba(0, 51, 204, 0.45);
+  }
+
+  .logo {
+  position: absolute;
+  height: 59px;
+  width: 66px;
+  border-radius: 90%;
+  top: 10px;       
+  left:1px;      
+  z-index: 4;
+
+}
+
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-brand">
+    <div class="topbar-dot"></div>
+    <span class="topbar-title">SACCGEA</span>
+    <span class="topbar-sub">/ ID Card Generator</span>
+  </div>
+  <span class="topbar-sub">Santiago City Government Employees Association</span>
+</div>
+
+<div class="main">
+
+  <!-- FORM PANEL -->
+  <div class="form-panel">
+    <div class="panel-heading">Your ID details</div>
+
+    <!-- PHOTO UPLOAD -->
+    <div class="upload-zone">
+      <span class="upload-zone-label">ID Photo</span>
+      <div class="upload-inner">
+
+        <div class="thumb" id="thumbWrap">
+          <div class="thumb-empty">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b7fa8" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="3"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+            <span>No photo</span>
+          </div>
+        </div>
+
+        <div class="upload-controls">
+          <div class="btn-row">
+            <button class="btn-pick" id="btnPick" onclick="document.getElementById('photoInput').click()">Select Photo</button>
+          </div>
+          <div class="btn-row" id="confirmRow" style="display:none;">
+            <button class="btn-save"    id="btnSave"    onclick="confirmPhoto()">Apply</button>
+            <button class="btn-discard" id="btnDiscard" onclick="cancelPhoto()">Discard</button>
+          </div>
+          <div class="photo-status-pill" id="statusPill">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">No photo selected</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+    <input type="file" id="photoInput" accept="image/*" style="display:none;">
+
+    <!-- FIELDS -->
+    <div class="field-group">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="inputName" placeholder="Your complete name" oninput="update(); markFormDirty();">
+      </div>
+      <div class="field">
+        <label>Position</label>
+        <input type="text" id="inputPosition" placeholder="Clerk II" oninput="update(); markFormDirty();">
+      </div>
+      <p class="last-position-note" id="lastPositionNote" hidden></p>
+      <div class="field">
+        <label>Office</label>
+        <input type="text" id="inputOffice" placeholder="City Mayor's Office" oninput="update(); markFormDirty();">
+      </div>
+    </div>
+
+    <p class="save-hint" id="saveHint"></p>
+    <p class="save-validation" id="saveValidation" role="status" aria-live="polite"></p>
+
+    <button type="button" class="btn-save-employee" id="btnSaveEmployee" disabled onclick="saveEmployeeToServer()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+        <polyline points="17 21 17 13 7 13 7 21"/>
+        <polyline points="7 3 7 8 15 8"/>
+      </svg>
+      Save my ID card
+    </button>
+
+    <div class="divider"></div>
+
+    <button type="button" class="btn-download btn-locked" id="btnDownload" disabled onclick="downloadCard()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v13M5 14l7 7 7-7"/>
+        <line x1="3" y1="21" x2="21" y2="21"/>
+      </svg>
+      Download ID Card
+    </button>
+  </div>
+
+  <!-- PREVIEW PANEL -->
+  <div class="preview-panel">
+    <span class="preview-label">Live Preview</span>
+    <div class="id-card">
+      <img class="logo" src="LOGO.jpg" alt="Logo">
+      <img class="bg-img" src="PESOID.png" alt="ID Template">
+      <div class="photo-overlay" id="photoOverlay"></div>
+      <div class="card-name"     id="cardName">YOUR NAME</div>
+      <div class="card-position" id="cardPosition">POSITION</div>
+      <div class="card-office"   id="cardOffice">OFFICE</div>
+      <div class="card-id"       id="cardID">—</div>
+    </div>
+  </div>
+
+</div>
+
+<div id="saveSuccessModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="saveSuccessTitle" onclick="if (event.target === this) closeSaveSuccessModal()">
+  <div class="modal-dialog" onclick="event.stopPropagation()">
+    <button type="button" class="modal-close" aria-label="Close" onclick="closeSaveSuccessModal()">×</button>
+    <svg class="modal-success-icon" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="26" cy="26" r="24" stroke="currentColor" stroke-width="2.5" opacity="0.35"/>
+      <path d="M15 27l7 7 14-14" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h2 id="saveSuccessTitle" class="modal-title">Save successful</h2>
+    <p class="modal-body">You can now download your ID card using the button below.</p>
+    <p class="modal-id-line" id="saveSuccessIdLine"></p>
+    <button type="button" class="modal-btn-ok" onclick="closeSaveSuccessModal()">OK</button>
+  </div>
+</div>
+
+<script>
+  (function initCardBg() {
+    var img = document.querySelector('.bg-img');
+    if (typeof window.__ID_CARD_BG__ === 'string') {
+      img.src = window.__ID_CARD_BG__;
+    }
+  })();
+
+  const _apiMeta = document.querySelector('meta[name="api-base"]');
+  const API_BASE = (_apiMeta && _apiMeta.content) ? _apiMeta.content.trim() : 'http://127.0.0.1:8000/api';
+
+  /** Laravel returns redirects for validation/errors unless the client expects JSON — required for file:// + fetch. */
+  const API_JSON_HEADERS = {
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
+  };
+
+  function formatIdExample() {
+    var y = new Date().getFullYear();
+    return String(y).slice(-2) + '-001';
+  }
+
+  function getDefaultSaveHintHtml() {
+    var y = new Date().getFullYear();
+    var ex = formatIdExample();
+    return '<strong>1.</strong> Add your <strong>ID photo</strong> (Select Photo → Apply), then enter name, <strong>new</strong> position, and office, then tap <strong>Save my ID card</strong>. Each name may have one active registration per position; if you are already on file, your <strong>last registered position</strong> appears below—change Position to your <strong>new</strong> role to create another ID. Your ID number is assigned when you save (for example <strong>' + ex + '</strong> in ' + y + ').<br><strong>2.</strong> After a successful save, <strong>Download ID Card</strong> unlocks.';
+  }
+
+  let pendingDataURL   = null;
+  let confirmedDataURL = null;
+  let pendingPhotoFile = null;
+  let confirmedPhotoFile = null;
+  /** Set after a successful save; cleared when the form changes. Shown on the card preview. */
+  let lastSavedIdCode = null;
+  /** { name: string, employee: object|null } — latest server row for this full name (last position on file). */
+  let remoteEmployeeCache = null;
+  let remoteLookupGen = 0;
+  let remoteLookupTimer = null;
+
+  function apiBaseNormalized() {
+    return API_BASE.replace(/\/$/, '');
+  }
+
+  async function fetchEmployeeByFullName(full_name) {
+    var url = apiBaseNormalized() + '/employees/by-name?full_name=' + encodeURIComponent(full_name);
+    var r = await fetch(url, { headers: API_JSON_HEADERS });
+    if (r.status === 404) return null;
+    if (!r.ok) return null;
+    return r.json();
+  }
+
+  function scheduleRemoteEmployeeLookup() {
+    var name = document.getElementById('inputName').value.trim();
+    clearTimeout(remoteLookupTimer);
+    if (!name) {
+      remoteEmployeeCache = null;
+      refreshLastPositionNote();
+      refreshSaveReadiness();
+      return;
+    }
+    var gen = ++remoteLookupGen;
+    remoteLookupTimer = setTimeout(async function() {
+      try {
+        var emp = await fetchEmployeeByFullName(name);
+        if (gen !== remoteLookupGen) return;
+        remoteEmployeeCache = { name: name, employee: emp };
+      } catch (e) {
+        if (gen !== remoteLookupGen) return;
+        remoteEmployeeCache = { name: name, employee: null };
+      }
+      if (gen === remoteLookupGen) {
+        refreshLastPositionNote();
+        refreshSaveReadiness();
+      }
+    }, 400);
+  }
+
+  /** Position already used in any past registration for this name (case-insensitive). */
+  function positionAlreadyRegistered() {
+    if (!remoteEmployeeCache || !remoteEmployeeCache.employee) return false;
+    var name = document.getElementById('inputName').value.trim();
+    var pos  = document.getElementById('inputPosition').value.trim();
+    if (!name || !pos) return false;
+    if (name.toLowerCase() !== String(remoteEmployeeCache.name).toLowerCase()) return false;
+    var titles = remoteEmployeeCache.employee.registered_job_titles;
+    if (!titles || !titles.length) return false;
+    var p = pos.toLowerCase();
+    for (var i = 0; i < titles.length; i++) {
+      if (String(titles[i] || '').trim().toLowerCase() === p) return true;
+    }
+    return false;
+  }
+
+  function refreshLastPositionNote() {
+    var el = document.getElementById('lastPositionNote');
+    if (!el) return;
+    var name = document.getElementById('inputName').value.trim();
+    if (!remoteEmployeeCache || !remoteEmployeeCache.employee ||
+        !name || name.toLowerCase() !== String(remoteEmployeeCache.name).toLowerCase()) {
+      el.hidden = true;
+      el.textContent = '';
+      return;
+    }
+    var last = String(remoteEmployeeCache.employee.job_title || '—').trim();
+    el.innerHTML = 'Last registered position on file: <strong></strong> — change Position to your <strong>new</strong> official title to submit a new ID card.';
+    el.querySelector('strong').textContent = last;
+    el.hidden = false;
+  }
+
+  function setDownloadEnabled(ok) {
+    const b = document.getElementById('btnDownload');
+    if (!b) return;
+    b.disabled = !ok;
+    b.classList.toggle('btn-locked', !ok);
+    const hint = document.getElementById('saveHint');
+    if (!hint) return;
+    if (ok) {
+      hint.innerHTML = 'Saved. Your ID number is on the card preview. <strong>Download ID Card</strong> is ready. If you change anything, save again before downloading.';
+    } else {
+      hint.innerHTML = getDefaultSaveHintHtml();
+    }
+  }
+
+  function refreshCardIdLine() {
+    document.getElementById('cardID').textContent = lastSavedIdCode || '—';
+  }
+
+  function onSaveSuccessModalKeydown(e) {
+    if (e.key === 'Escape') closeSaveSuccessModal();
+  }
+
+  function showSaveSuccessModal(idCode) {
+    var modal = document.getElementById('saveSuccessModal');
+    var idLine = document.getElementById('saveSuccessIdLine');
+    if (!modal) return;
+    if (idLine) {
+      idLine.textContent = idCode && idCode !== '—' ? 'Your ID number: ' + idCode : '';
+      idLine.style.display = idLine.textContent ? 'block' : 'none';
+    }
+    modal.removeAttribute('hidden');
+    requestAnimationFrame(function() {
+      modal.classList.add('is-open');
+    });
+    document.addEventListener('keydown', onSaveSuccessModalKeydown);
+  }
+
+  function closeSaveSuccessModal() {
+    var modal = document.getElementById('saveSuccessModal');
+    if (!modal) return;
+    document.removeEventListener('keydown', onSaveSuccessModalKeydown);
+    modal.classList.remove('is-open');
+    setTimeout(function() {
+      modal.setAttribute('hidden', '');
+    }, 220);
+  }
+
+  function markFormDirty() {
+    lastSavedIdCode = null;
+    refreshCardIdLine();
+    setDownloadEnabled(false);
+    refreshSaveReadiness();
+  }
+
+  function hasRequiredFields() {
+    var name = document.getElementById('inputName').value.trim();
+    var pos  = document.getElementById('inputPosition').value.trim();
+    var off  = document.getElementById('inputOffice').value.trim();
+    return !!(name && pos && off);
+  }
+
+  /** New cards always require a photo applied in this session (no reusing server images). */
+  function hasPhotoReady() {
+    return !!confirmedPhotoFile;
+  }
+
+  function refreshSaveReadiness() {
+    var btn  = document.getElementById('btnSaveEmployee');
+    var line = document.getElementById('saveValidation');
+    if (!btn || !line) return;
+    var loading = btn.classList.contains('loading');
+    var fieldsOk = hasRequiredFields();
+    var photoOk = hasPhotoReady();
+    var blockedByPosition = fieldsOk && positionAlreadyRegistered();
+    var ok = fieldsOk && photoOk && !blockedByPosition;
+    btn.disabled = loading || !ok;
+    if (loading) {
+      btn.title = '';
+      return;
+    }
+    if (!fieldsOk) {
+      btn.title = 'Fill in name, position, and office first.';
+      line.textContent = 'Fill in Name, Position, and Office before you can save your ID card.';
+      return;
+    }
+    if (blockedByPosition) {
+      btn.title = 'Use a position you have not registered before.';
+      line.textContent = 'This position is already on file for your name. Enter your new position to create another ID card.';
+      return;
+    }
+    if (!photoOk) {
+      btn.title = 'Select a photo and tap Apply before saving.';
+      line.textContent = 'Select your ID photo and tap Apply before you can save your ID card.';
+      return;
+    }
+    btn.title = '';
+    line.textContent = '';
+  }
+
+  function setStatus(text, color) {
+    document.getElementById('statusText').textContent = text;
+    document.getElementById('statusDot').style.background = color;
+    document.getElementById('statusText').style.color = color;
+  }
+
+  function update() {
+    const name     = document.getElementById('inputName').value.trim();
+    const position = document.getElementById('inputPosition').value.trim();
+    const office   = document.getElementById('inputOffice').value.trim();
+
+    document.getElementById('cardName').textContent     = name     ? name.toUpperCase()     : 'YOUR NAME';
+    document.getElementById('cardPosition').textContent = position ? position.toUpperCase() : 'POSITION';
+    document.getElementById('cardOffice').textContent   = office   ? office.toUpperCase()   : 'OFFICE';
+    refreshCardIdLine();
+    refreshSaveReadiness();
+    refreshLastPositionNote();
+    scheduleRemoteEmployeeLookup();
+  }
+
+  document.getElementById('photoInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    pendingPhotoFile = file;
+    markFormDirty();
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      pendingDataURL = evt.target.result;
+
+      // update thumbnail
+      document.getElementById('thumbWrap').innerHTML =
+        `<img src="${pendingDataURL}" alt="Preview">`;
+
+      // show confirm/discard row, hide pick
+      document.getElementById('confirmRow').style.display = 'flex';
+      document.getElementById('btnPick').style.display    = 'none';
+
+      setStatus('Awaiting confirmation', 'var(--amber)');
+
+      // dim preview on card
+      document.getElementById('photoOverlay').innerHTML =
+        `<img src="${pendingDataURL}" alt="Photo" style="opacity:0.55;">`;
+    };
+    reader.readAsDataURL(file);
+    this.value = '';
+  });
+
+  function confirmPhoto() {
+    confirmedDataURL = pendingDataURL;
+    pendingDataURL   = null;
+    confirmedPhotoFile = pendingPhotoFile;
+    pendingPhotoFile   = null;
+
+    document.getElementById('photoOverlay').innerHTML =
+      `<img src="${confirmedDataURL}" alt="Photo">`;
+
+    document.getElementById('confirmRow').style.display = 'none';
+    document.getElementById('btnPick').style.display    = 'block';
+    setStatus('Photo saved', 'var(--green)');
+    markFormDirty();
+  }
+
+  function cancelPhoto() {
+    pendingDataURL   = null;
+    pendingPhotoFile = null;
+
+    document.getElementById('confirmRow').style.display = 'none';
+    document.getElementById('btnPick').style.display    = 'block';
+
+    const overlay = document.getElementById('photoOverlay');
+    if (confirmedDataURL) {
+      overlay.innerHTML = `<img src="${confirmedDataURL}" alt="Photo">`;
+      document.getElementById('thumbWrap').innerHTML =
+        `<img src="${confirmedDataURL}" alt="Preview">`;
+      setStatus('Photo saved', 'var(--green)');
+    } else {
+      overlay.innerHTML = '';
+      document.getElementById('thumbWrap').innerHTML = `
+        <div class="thumb-empty">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b7fa8" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="3"/>
+            <circle cx="8.5" cy="8.5" r="1.5"/>
+            <path d="M21 15l-5-5L5 21"/>
+          </svg>
+          <span>No photo</span>
+        </div>`;
+      setStatus('No photo selected', 'var(--muted)');
+    }
+    markFormDirty();
+  }
+
+  async function saveEmployeeToServer() {
+    const full_name = document.getElementById('inputName').value.trim();
+    const job_title = document.getElementById('inputPosition').value.trim();
+    const office    = document.getElementById('inputOffice').value.trim();
+
+    if (!full_name || !job_title || !office) {
+      alert('Please enter your name, position, and office before saving.');
+      return;
+    }
+
+    if (positionAlreadyRegistered()) {
+      alert('You already have an ID card with this position. Enter a new position that is not already on file.');
+      return;
+    }
+
+    if (!confirmedPhotoFile) {
+      alert('Please select your ID photo and tap Apply before saving.');
+      return;
+    }
+
+    const btn = document.getElementById('btnSaveEmployee');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    const fd = new FormData();
+    fd.append('full_name', full_name);
+    fd.append('job_title', job_title);
+    fd.append('office', office);
+    fd.append('photo', confirmedPhotoFile, confirmedPhotoFile.name || 'photo.jpg');
+
+    try {
+      const base = apiBaseNormalized();
+      const res = await fetch(base + '/employees', {
+        method: 'POST',
+        headers: API_JSON_HEADERS,
+        body: fd
+      });
+      const data = await res.json().catch(function() { return {}; });
+
+      if (!res.ok) {
+        let msg = data.message || 'Save failed.';
+        if (data.errors) {
+          const lines = [];
+          for (const k in data.errors) {
+            if (Object.prototype.hasOwnProperty.call(data.errors, k)) {
+              lines.push(k + ': ' + data.errors[k].join(' '));
+            }
+          }
+          if (lines.length) msg = lines.join('\n');
+        }
+        alert(msg);
+        return;
+      }
+
+      var refreshed = await fetchEmployeeByFullName(data.full_name);
+      remoteEmployeeCache = { name: data.full_name, employee: refreshed || data };
+      refreshLastPositionNote();
+      lastSavedIdCode = data.effective_id_display || data.id_display || lastSavedIdCode || '—';
+      refreshCardIdLine();
+      setDownloadEnabled(true);
+      showSaveSuccessModal(lastSavedIdCode);
+    } catch (err) {
+      console.error(err);
+      alert('Could not reach the server. Is Laravel running (' + API_BASE + ')?\n\n' + (err && err.message ? err.message : ''));
+    } finally {
+      btn.classList.remove('loading');
+      refreshSaveReadiness();
+    }
+  }
+
+  async function downloadCard() {
+    const btn  = document.getElementById('btnDownload');
+    if (btn.disabled) return;
+
+    const card = document.querySelector('.id-card');
+
+    btn.classList.add('loading');
+    btn.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a10 10 0 1 0 10 10"/>
+      </svg>
+      Generating…`;
+
+    try {
+      const canvas = await html2canvas(card, {
+        scale: 3,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: null
+      });
+      const link  = document.createElement('a');
+      const name  = (document.getElementById('inputName').value.trim() || 'ID_CARD')
+                      .toUpperCase().replace(/\s+/g, '_');
+      link.download = `SACCGEA_${name}.png`;
+      link.href     = canvas.toDataURL('image/png');
+      link.click();
+    } catch(err) {
+      alert('Download failed. Please try again.');
+      console.error(err);
+    }
+
+    btn.classList.remove('loading');
+    btn.innerHTML = `
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v13M5 14l7 7 7-7"/>
+        <line x1="3" y1="21" x2="21" y2="21"/>
+      </svg>
+      Download ID Card`;
+  }
+
+  setDownloadEnabled(false);
+  update();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</body>
+</html>

@@ -88,9 +88,11 @@ class EmployerApplicationController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $employer = $request->user();
+        \Illuminate\Support\Facades\Log::info("UpdateStatus Payload:", $request->all());
         
         $validated = $request->validate([
-            'status' => ['required', Rule::in(['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'])],
+            'status'     => ['required', Rule::in(['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'])],
+            'start_date' => ['nullable', 'date'],
         ]);
 
         $application = Application::whereHas('jobListing', function ($q) use ($employer) {
@@ -114,17 +116,142 @@ class EmployerApplicationController extends Controller
                     $message = "Your application for {$job->title} at {$company} has been received and is under review.";
                     break;
                 case 'shortlisted':
+                    $subject = 'Application in process';
+                    $message = "Your application for {$job->title} at {$company} is now being processed.";
+                    
+                    try {
+                        $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+                        $body = [
+                            'Messages' => [
+                                [
+                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO') ],
+                                    'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
+                                    'TemplateID' => 7861619,
+                                    'TemplateLanguage' => true,
+                                    'Subject' => 'You have been Shortlisted',
+                                    'Variables' => [
+                                        'first_name' => $jobseeker->first_name,
+                                        'job_title' => $job->title,
+                                        'company_name' => $company,
+                                        'job_location' => $job->location ?? 'Not specified'
+                                    ]
+                                ]
+                            ]
+                        ];
+                        $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+                        if (!$response->success()) {
+                            \Illuminate\Support\Facades\Log::error('Mailjet API Error Shortlisted Email: ' . json_encode($response->getData()));
+                        }
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('Mailjet Exception Shortlisted Email: ' . $e->getMessage());
+                    }
+                    break;
                 case 'interview':
                     $subject = 'Application in process';
                     $message = "Your application for {$job->title} at {$company} is now being processed.";
+
+                    try {
+                        $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+                        $body = [
+                            'Messages' => [
+                                [
+                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO') ],
+                                    'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
+                                    'TemplateID' => 7861384,
+                                    'TemplateLanguage' => true,
+                                    'Subject' => 'Interview Scheduled',
+                                    'Variables' => [
+                                        'first_name' => $jobseeker->first_name,
+                                        'company_name' => $company,
+                                        'job_title' => $job->title,
+                                        'interview_date' => !empty($request->input('interview_date')) ? \Carbon\Carbon::parse($request->input('interview_date'))->format('F d, Y') : 'TBA',
+                                        'interview_time' => !empty($request->input('interview_time')) ? \Carbon\Carbon::parse($request->input('interview_time'))->format('h:i A') : 'TBA',
+                                        'interview_format' => $request->input('interview_format') ?? 'In-person',
+                                        'interview_location' => $request->input('interview_location') ?? 'TBA',
+                                        'interviewer_name' => $request->input('interviewer_name') ?? 'Hiring Manager'
+                                    ]
+                                ]
+                            ]
+                        ];
+                        $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+                        if (!$response->success()) {
+                            \Illuminate\Support\Facades\Log::error('Mailjet API Error Interview Email: ' . json_encode($response->getData()));
+                        }
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('Mailjet Exception Interview Email: ' . $e->getMessage());
+                    }
                     break;
                 case 'hired':
                     $subject = 'Application successful';
                     $message = "Congratulations! You have been hired for {$job->title} at {$company}.";
+
+                    try {
+                        $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+                        $body = [
+                            'Messages' => [
+                                [
+                                    'From' => [
+                                        'Email' => env('MAILJET_FROM_EMAIL'),
+                                        'Name'  => env('MAILJET_FROM_NAME', 'PESO')
+                                    ],
+                                    'To' => [
+                                        [
+                                            'Email' => $jobseeker->email,
+                                            'Name'  => trim($jobseeker->first_name . ' ' . $jobseeker->last_name)
+                                        ]
+                                    ],
+                                    'TemplateID'       => 7861483,
+                                    'TemplateLanguage' => true,
+                                    'Subject'          => 'Congratulations — You have been hired!',
+                                    'Variables'        => [
+                                        'first_name'      => $jobseeker->first_name,
+                                        'company_name'    => $company,
+                                        'job_title'       => $job->title,
+                                        'start_date'      => !empty($request->input('start_date')) ? \Carbon\Carbon::parse($request->input('start_date'))->format('F d, Y') : 'To be discussed',
+                                        'salary'          => $job->salary_range ?? 'Negotiable',
+                                        'employment_type' => $job->job_type ?? 'Full-time'
+                                    ]
+                                ]
+                            ]
+                        ];
+                        $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+                        if (!$response->success()) {
+                            \Illuminate\Support\Facades\Log::error('Mailjet API Error Hired Email: ' . json_encode($response->getData()));
+                        }
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('Mailjet Exception Hired Email: ' . $e->getMessage());
+                    }
                     break;
                 case 'rejected':
                     $subject = 'Application update';
                     $message = "Your application for {$job->title} at {$company} was not selected. Please consider applying to other opportunities.";
+
+                    try {
+                        $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+                        $body = [
+                            'Messages' => [
+                                [
+                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO') ],
+                                    'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
+                                    'TemplateID' => 7865387,
+                                    'TemplateLanguage' => true,
+                                    'Subject' => 'Application Update: Not Selected',
+                                    'Variables' => [
+                                        'first_name' => $jobseeker->first_name,
+                                        'company_name' => $company,
+                                        'job_title' => $job->title,
+                                        'update_date' => now()->format('F d, Y')
+                                    ]
+                                ]
+                            ]
+                        ];
+                        $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+                        if (!$response->success()) {
+                            \Illuminate\Support\Facades\Log::error('Mailjet API Error Rejected Email: ' . json_encode($response->getData()));
+                        }
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('Mailjet Exception Rejected Email: ' . $e->getMessage());
+                    }
                     break;
                 default:
                     $subject = 'Application update';

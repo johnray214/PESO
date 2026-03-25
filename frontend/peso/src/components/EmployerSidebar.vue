@@ -66,14 +66,23 @@
 
     <div class="sidebar-footer">
       <div class="company-card">
-        <div class="company-logo-nav" v-if="authStore.user?.photo">
-          <img :src="authStore.user.photo" alt="Company Logo" class="nav-logo-img" />
-        </div>
-        <div v-else class="company-avatar">{{ companyInitial }}</div>
-        <div class="company-info">
-          <span class="company-name">{{ companyName }}</span>
-          <span class="company-role">Employer Account</span>
-        </div>
+        <template v-if="!authStore.isAppReady">
+          <div class="company-logo-nav skeleton"></div>
+          <div class="company-info" style="gap: 4px; justify-content: center;">
+            <div class="skeleton" style="width: 100px; height: 14px; border-radius: 4px;"></div>
+            <div class="skeleton" style="width: 70px; height: 10px; border-radius: 2px;"></div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="company-logo-nav" v-if="authStore.user?.photo">
+            <img :src="authStore.user.photo" alt="Company Logo" class="nav-logo-img" />
+          </div>
+          <div v-else class="company-avatar">{{ companyInitial }}</div>
+          <div class="company-info">
+            <span class="company-name">{{ companyName }}</span>
+            <span class="company-role">Employer Account</span>
+          </div>
+        </template>
         <button class="logout-btn" title="Logout" @click="handleLogout" :disabled="loggingOut">
           <span v-if="loggingOut" class="btn-spin"></span>
           <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
