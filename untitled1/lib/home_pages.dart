@@ -1321,6 +1321,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     'Contract',
     'Freelance',
   ];
+
+  String? _preferredEmploymentTypeFromSession() {
+    final raw = (UserSession().jobExperience ?? '').toLowerCase();
+    for (final type in _employmentTypes) {
+      if (raw.contains(type.toLowerCase())) return type;
+    }
+    return null;
+  }
   @override
   void initState() {
     super.initState();
@@ -1350,6 +1358,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       final f = _searchFocus.hasFocus;
       if (f != _searchFocused) setState(() => _searchFocused = f);
     });
+    final preferredType = _preferredEmploymentTypeFromSession();
+    if (preferredType != null) {
+      _selectedEmploymentTypes.add(preferredType);
+    }
     _greetingText = '${getPhilippinesGreeting()},';
     _fetchJobs();
     _loadAvatar();

@@ -19,27 +19,41 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
   bool _busy = false;
 
   String? _goal;
-  final _locationController = TextEditingController(text: 'Santiago City, Isabela');
+  final _streetController = TextEditingController();
   String? _experienceLevel;
   final Set<String> _selectedSkills = {};
   Map<String, List<String>> _skillCatalog = {};
   final Map<String, int> _skillNameToId = {};
   bool _skillsLoading = true;
+  final _skillSearchController = TextEditingController();
+  String _skillQuery = '';
+
+  List<Map<String, String>> _provinces = [];
+  List<Map<String, String>> _cities = [];
+  List<Map<String, String>> _barangays = [];
+  String? _provinceCode;
+  String? _provinceName;
+  String? _cityCode;
+  String? _cityName;
+  String? _barangayCode;
+  String? _barangayName;
+  bool _locationLoading = false;
 
   static const _goals = [
-    'Full-time work',
-    'Part-time / flexible',
-    'First job / fresh grad',
-    'Returning to work',
-    'Contract / project',
+    'Full-time',
+    'Part-time',
+    'Contract',
+    'Freelance',
   ];
 
   static const _experienceLevels = [
-    'High school',
-    'Vocational / technical',
-    'College undergraduate',
-    'College graduate',
-    'With prior work experience',
+    'No Formal Education',
+    'Elementary Level',
+    'Elementary Graduate',
+    'Secondary Level',
+    'Secondary Graduate',
+    'Tertiary Level',
+    'Tertiary Graduate',
   ];
 
   static const _fallbackSkills = [
@@ -53,11 +67,39 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
     'Driving',
   ];
 
+  List<String> _visibleSkills(List<String> source) {
+    final filtered = source.where((s) {
+      if (_skillQuery.isEmpty) return true;
+      return s.toLowerCase().contains(_skillQuery);
+    }).toList();
+    if (_skillQuery.isEmpty && filtered.length > 120) {
+      return filtered.take(120).toList();
+    }
+    return filtered;
+  }
+
   @override
   void initState() {
     super.initState();
-    _experienceLevel = _experienceLevels[3];
+    _goal = _mapGoalFromJobExperience(UserSession().jobExperience);
+    final sessionEducation = UserSession().educationLevel;
+    _experienceLevel = _experienceLevels.contains(sessionEducation)
+        ? sessionEducation
+        : _experienceLevels.last;
+    _skillSearchController.addListener(() {
+      if (!mounted) return;
+      setState(() => _skillQuery = _skillSearchController.text.trim().toLowerCase());
+    });
     _loadSkills();
+    _loadLocations();
+  }
+
+  String? _mapGoalFromJobExperience(String? raw) {
+    final text = (raw ?? '').toLowerCase();
+    for (final goal in _goals) {
+      if (text.contains(goal.toLowerCase())) return goal;
+    }
+    return null;
   }
 
   Future<void> _loadSkills() async {
@@ -89,9 +131,69 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
     }
   }
 
+  Map<String, String>? _extractLocationItem(dynamic raw) {
+    if (raw is! Map) return null;
+    final code = (raw['code'] ??
+            raw['id'] ??
+            raw['province_code'] ??
+            raw['city_code'] ??
+            raw['barangay_code'])
+        ?.toString()
+        .trim();
+    final name = (raw['name'] ??
+            raw['province_name'] ??
+            raw['city_name'] ??
+            raw['barangay_name'] ??
+            raw['label'])
+        ?.toString()
+        .trim();
+    if (code == null || code.isEmpty || name == null || name.isEmpty) return null;
+    return {'code': code, 'name': name};
+  }
+
+  Future<void> _loadLocations() async {
+    setState(() => _locationLoading = true);
+    final all = await ApiService.getAllLocations();
+    if (!mounted) return;
+    final provincesRaw = all['provinces'] as List<dynamic>? ?? [];
+    final citiesRaw = all['cities'] as List<dynamic>? ?? [];
+    final barangaysRaw = all['barangays'] as List<dynamic>? ?? [];
+
+    final provinces = provincesRaw
+        .map(_extractLocationItem)
+        .whereType<Map<String, String>>()
+        .toList()
+      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
+    final cities = citiesRaw
+        .map(_extractLocationItem)
+        .whereType<Map<String, String>>()
+        .toList()
+      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
+    final barangays = barangaysRaw
+        .map(_extractLocationItem)
+        .whereType<Map<String, String>>()
+        .toList()
+      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
+
+    setState(() {
+      _provinces = provinces;
+      _cities = cities;
+      _barangays = barangays;
+      _provinceCode = UserSession().provinceCode;
+      _provinceName = UserSession().provinceName;
+      _cityCode = UserSession().cityCode;
+      _cityName = UserSession().cityName;
+      _barangayCode = UserSession().barangayCode;
+      _barangayName = UserSession().barangayName;
+      _streetController.text = UserSession().streetAddress ?? '';
+      _locationLoading = false;
+    });
+  }
+
   @override
   void dispose() {
-    _locationController.dispose();
+    _streetController.dispose();
+    _skillSearchController.dispose();
     super.dispose();
   }
 
@@ -101,14 +203,19 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
 
     setState(() => _busy = true);
     final goal = _goal ?? _goals.first;
-    final loc = _locationController.text.trim();
     final exp = _experienceLevel ?? _experienceLevels.first;
 
     final res = await ApiService.updateProfile(
       token: token,
       jobExperience: 'Seeking: $goal',
       educationLevel: exp,
-      cityName: loc.isNotEmpty ? loc : 'Santiago City',
+      provinceCode: _provinceCode,
+      provinceName: _provinceName,
+      cityCode: _cityCode,
+      cityName: _cityName,
+      barangayCode: _barangayCode,
+      barangayName: _barangayName,
+      streetAddress: _streetController.text.trim(),
     );
 
     if (res['success'] == true) {
@@ -342,11 +449,66 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
               height: 1.45),
         ),
         const SizedBox(height: 20),
+        if (_locationLoading) ...[
+          const LinearProgressIndicator(color: Color(0xFF2563EB), minHeight: 3),
+          const SizedBox(height: 12),
+        ],
+        _selectorField(
+          label: 'Province',
+          icon: Icons.location_city_outlined,
+          value: _provinceName,
+          placeholder: _provinces.isEmpty ? 'Loading provinces...' : 'Select province',
+          enabled: !_busy && _provinces.isNotEmpty,
+          onTap: () async {
+            final picked = await _pickOption(title: 'Select Province', options: _provinces);
+            if (picked == null) return;
+            setState(() {
+              _provinceCode = picked['code'];
+              _provinceName = picked['name'];
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        _selectorField(
+          label: 'City / Municipality',
+          icon: Icons.location_on_outlined,
+          value: _cityName,
+          placeholder: _cities.isEmpty ? 'Loading cities...' : 'Select city / municipality',
+          enabled: !_busy && _cities.isNotEmpty,
+          onTap: () async {
+            final picked = await _pickOption(
+              title: 'Select City / Municipality',
+              options: _cities,
+            );
+            if (picked == null) return;
+            setState(() {
+              _cityCode = picked['code'];
+              _cityName = picked['name'];
+            });
+          },
+        ),
+        const SizedBox(height: 12),
+        _selectorField(
+          label: 'Barangay',
+          icon: Icons.home_work_outlined,
+          value: _barangayName,
+          placeholder: _barangays.isEmpty ? 'Loading barangays...' : 'Select barangay',
+          enabled: !_busy && _barangays.isNotEmpty,
+          onTap: () async {
+            final picked = await _pickOption(title: 'Select Barangay', options: _barangays);
+            if (picked == null) return;
+            setState(() {
+              _barangayCode = picked['code'];
+              _barangayName = picked['name'];
+            });
+          },
+        ),
+        const SizedBox(height: 12),
         TextField(
-          controller: _locationController,
+          controller: _streetController,
           decoration: InputDecoration(
-            labelText: 'City / municipality',
-            prefixIcon: const Icon(Icons.location_on_outlined, color: Color(0xFF2563EB)),
+            labelText: 'Street / House No. / Landmark (Optional)',
+            prefixIcon: const Icon(Icons.pin_drop_outlined, color: Color(0xFF2563EB)),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
@@ -369,7 +531,22 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
         ),
         const Spacer(),
         FilledButton(
-          onPressed: _busy ? null : _saveProfileAndContinue,
+          onPressed: _busy
+              ? null
+              : () {
+                  if (_provinceCode == null || _cityCode == null || _barangayCode == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Please select province, city/municipality, and barangay.',
+                        ),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    return;
+                  }
+                  _saveProfileAndContinue();
+                },
           style: FilledButton.styleFrom(
             backgroundColor: const Color(0xFF2563EB),
             minimumSize: const Size(double.infinity, 52),
@@ -401,6 +578,7 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
       }
       flat.sort();
     }
+    final visibleSkills = _visibleSkills(flat);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -419,13 +597,35 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           style: GoogleFonts.poppins(fontSize: 14, color: const Color(0xFF64748B),
               height: 1.45),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _skillSearchController,
+          decoration: InputDecoration(
+            hintText: 'Search skills (e.g. customer service, welding)',
+            prefixIcon: const Icon(Icons.search_rounded),
+            filled: true,
+            fillColor: Colors.white,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         Expanded(
           child: SingleChildScrollView(
             child: Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: flat.map((s) {
+              children: visibleSkills.map((s) {
                 final sel = _selectedSkills.contains(s);
                 return FilterChip(
                   label: Text(s),
@@ -450,6 +650,14 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
             ),
           ),
         ),
+        if (_skillQuery.isEmpty && flat.length > 120) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Showing top 120 skills. Use search to find more.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.poppins(fontSize: 12.5, color: const Color(0xFF64748B)),
+          ),
+        ],
         const SizedBox(height: 8),
         Text(
           '${_selectedSkills.length} selected',
@@ -589,6 +797,112 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<Map<String, String>?> _pickOption({
+    required String title,
+    required List<Map<String, String>> options,
+  }) async {
+    final queryController = TextEditingController();
+    List<Map<String, String>> filtered = List<Map<String, String>>.from(options);
+    return showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocalState) {
+            return AlertDialog(
+              title: Text(title),
+              content: SizedBox(
+                width: 420,
+                height: 430,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: queryController,
+                      decoration: const InputDecoration(
+                        prefixIcon: Icon(Icons.search_rounded),
+                        hintText: 'Search...',
+                      ),
+                      onChanged: (q) {
+                        final needle = q.trim().toLowerCase();
+                        setLocalState(() {
+                          filtered = options
+                              .where((o) => (o['name'] ?? '').toLowerCase().contains(needle))
+                              .toList();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? const Center(child: Text('No matching results'))
+                          : ListView.builder(
+                              itemCount: filtered.length,
+                              itemBuilder: (_, index) {
+                                final item = filtered[index];
+                                return ListTile(
+                                  dense: true,
+                                  title: Text(item['name'] ?? ''),
+                                  onTap: () => Navigator.of(ctx).pop(item),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    ).whenComplete(queryController.dispose);
+  }
+
+  Widget _selectorField({
+    required String label,
+    required IconData icon,
+    required String? value,
+    required String placeholder,
+    required bool enabled,
+    required VoidCallback onTap,
+  }) {
+    final display = (value ?? '').trim();
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, color: const Color(0xFF2563EB)),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                display.isNotEmpty ? display : placeholder,
+                style: TextStyle(
+                  color: display.isNotEmpty ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                ),
+              ),
+            ),
+            Icon(
+              Icons.expand_more_rounded,
+              color: enabled ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
+            ),
+          ],
+        ),
       ),
     );
   }
