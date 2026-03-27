@@ -33,7 +33,6 @@
               <template v-else>
                 <select v-model="potentialJobFilter" @change="potentialPage = 1" class="filter-select"><option value="">All Job Listings</option><option v-for="j in jobOptions" :key="j" :value="j">{{ j }}</option></select>
               </template>
-              <button class="btn-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Export</button>
             </div>
           </div>
 
@@ -392,7 +391,7 @@ export default {
       isLoading: true,
       activeTab: 'all', activeStatusTab: 'all',
       search: '', filterJob: '', filterStatus: '',
-      appliedPage: 1, perPage: 5,
+      appliedPage: 1, perPage: 15,
       drawerOpen: false, drawerTab: 'Profile', selected: null,
       openingResume: false,
       hireModal: { show: false, applicant: null, startDate: '', companyName: '', salary: '', employmentType: '' },

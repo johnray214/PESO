@@ -20,7 +20,7 @@
         </div>
         <div class="nav-actions">
           <router-link to="/employer/login" class="btn-outline-nav">Log In</router-link>
-          <router-link to="/employer/login" class="btn-primary-nav ripple-btn" @click="ripple">Get Started for Free</router-link>
+          <router-link to="/employer/register" class="btn-primary-nav ripple-btn" @click="ripple">Register</router-link>
         </div>
       </div>
     </nav>
@@ -41,7 +41,7 @@
           <h1 class="hero-title">Find the <span class="hero-accent">Right Talent</span><br/>for Your Business</h1>
           <p class="hero-sub">Connect with job-ready applicants from the Public Employment Service Office. Post jobs, review applicants, and hire with confidence — all in one place.</p>
           <div class="hero-cta">
-            <router-link to="/employer/login" class="cta-primary ripple-btn">
+            <router-link to="/employer/register" class="cta-primary ripple-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               Get Started for Free
             </router-link>
@@ -199,7 +199,7 @@
             </ul>
           </div>
           <div class="split-image-wrap reveal-right" :class="{ visible: splitVisible }">
-            <img   >
+            <img :src="matchPic" alt="Applicant matching feature" class="match-img" />
           </div>
         </div>
       </div>
@@ -237,10 +237,32 @@
       <div class="section-inner">
         <div class="split-layout reverse">
           <div class="split-image-wrap reveal" :class="{ visible: split2Visible }">
-            <div class="image-placeholder">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-              <p>Image placeholder</p>
-              <span>Replace with team photo or office</span>
+            <div class="carousel-wrap">
+              <img
+                v-for="(img, i) in carouselImages"
+                :key="i"
+                :src="img"
+                :class="['carousel-img', { active: carouselIndex === i }]"
+                alt="Local hiring platform"
+              />
+
+              <!-- Arrows -->
+              <button class="carousel-arrow left" @click="prevSlide">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+              </button>
+              <button class="carousel-arrow right" @click="nextSlide">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+              </button>
+
+              <!-- Dots -->
+              <div class="carousel-dots">
+                <button
+                  v-for="(img, i) in carouselImages"
+                  :key="i"
+                  :class="['carousel-dot', { active: carouselIndex === i }]"
+                  @click="goToSlide(i)"
+                ></button>
+              </div>
             </div>
           </div>
           <div class="split-text reveal-right" :class="{ visible: split2Visible }">
@@ -250,7 +272,7 @@
             </div>
             <h2 class="section-title" style="text-align:left">A hiring platform built<br/><span class="accent">for local businesses</span></h2>
             <p class="section-sub" style="text-align:left">Whether you're a small shop or a growing company, PESO connects you with local talent who are ready to work and live in your community.</p>
-            <router-link to="/employer/login" class="cta-primary ripple-btn" style="display:inline-flex; margin-top:8px">
+            <router-link to="/employer/register" class="cta-primary ripple-btn" style="display:inline-flex; margin-top:8px">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Create Employer Account
             </router-link>
@@ -301,7 +323,7 @@
         </div>
         <div class="footer-links-group">
           <p class="footer-group-title">Account</p>
-          <router-link class="footer-link" to="/employer/login">Get Started</router-link>
+          <router-link class="footer-link" to="/employer/register">Get Started</router-link>
           <router-link class="footer-link" to="/employer/login">Login</router-link>
         </div>
         <div class="footer-links-group">
@@ -330,6 +352,10 @@
 
 <script>
 import pesoLogo from '@/assets/PESOLOGO.jpg'
+import matchPic from '@/assets/matchpic.png'     
+import carousel1 from '@/assets/carousel1.png'
+import carousel2 from '@/assets/carousel2.png'
+import carousel3 from '@/assets/carousel3.png'
 
 export default {
   name: 'EmployerLanding',
@@ -346,6 +372,11 @@ export default {
       benefitsVisible: false,
       split2Visible:   false,
       ctaVisible:      false,
+
+      matchPic,
+      carouselImages: [carousel1, carousel2, carousel3],
+      carouselIndex: 0,
+      carouselTimer: null,
 
       heroStats: [
         { val: '5,000+', label: 'Active Jobseekers' },
@@ -426,13 +457,29 @@ export default {
         obs.observe(this.$refs[ref])
       }
     })
+
+    this.carouselTimer = setInterval(() => {
+      this.carouselIndex = (this.carouselIndex + 1) % this.carouselImages.length
+    }, 3000)
   },
 
   beforeUnmount() {
     window.removeEventListener('scroll', this.onScroll)
+    clearInterval(this.carouselTimer)
   },
 
   methods: {
+
+    prevSlide() {
+      this.carouselIndex = (this.carouselIndex - 1 + this.carouselImages.length) % this.carouselImages.length
+    },
+    nextSlide() {
+      this.carouselIndex = (this.carouselIndex + 1) % this.carouselImages.length
+    },
+    goToSlide(i) {
+      this.carouselIndex = i
+    },
+
     onScroll() {
       this.scrolled = window.scrollY > 40
 
@@ -834,4 +881,87 @@ export default {
 
 /* ripple-btn base */
 .ripple-btn { position: relative; overflow: hidden; }
+
+/* CAROUSEL */
+.carousel-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 800 / 519;
+  overflow: hidden;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.12);
+}
+.carousel-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+.carousel-img.active {
+  opacity: 1;
+}
+
+.match-img {
+  width: 100%;
+  height: 900px;
+  object-fit: contain;
+  border-radius: 20px;
+}
+.split-image-wrap {
+  min-height: 700px;    /* adjust as needed */
+}
+
+/* Carousel arrows */
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.92);
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+.carousel-arrow:hover {
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  transform: translateY(-50%) scale(1.08);
+}
+.carousel-arrow.left  { left: 12px; }
+.carousel-arrow.right { right: 12px; }
+
+/* Dots */
+.carousel-dots {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 7px;
+  z-index: 10;
+}
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.5);
+  cursor: pointer;
+  transition: background 0.25s, transform 0.25s;
+  padding: 0;
+}
+.carousel-dot.active {
+  background: #fff;
+  transform: scale(1.35);
+}
 </style>
