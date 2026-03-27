@@ -25,7 +25,7 @@ class AdminActivityFeedController extends Controller
         // 1. New jobseeker registrations
         Jobseeker::select('id', 'first_name', 'last_name', 'created_at', 'status')
             ->orderByDesc('created_at')
-            ->limit(10)
+            ->limit(5)
             ->get()
             ->each(function ($j) use (&$feed) {
                 $name = trim($j->first_name . ' ' . $j->last_name);
@@ -42,45 +42,76 @@ class AdminActivityFeedController extends Controller
         // 2. New employer registrations
         Employer::select('id', 'company_name', 'status', 'created_at')
             ->orderByDesc('created_at')
-            ->limit(10)
+            ->limit(5)
             ->get()
             ->each(function ($e) use (&$feed) {
                 $isPending = $e->status === 'pending';
                 $feed->push([
                     'id'      => 'emp_' . $e->id,
                     'type'    => 'Registration',
-                    'title'   => 'New Employer Registered',
-                    'message' => "{$e->company_name} registered as a new employer." . ($isPending ? ' Pending verification.' : ''),
+                    'title'   => 'New Employer registered',
+                    'message' => "{$e->company_name} signed up and needs verification/approval",
                     'time'    => $e->created_at,
                     'read'    => !$isPending,
                 ]);
             });
 
-        // 3. Recent applications
+        // 3. New Job Listing posted
+        \App\Models\JobListing::with('employer:id,company_name')
+            ->select('id', 'employer_id', 'title', 'created_at', 'status')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get()
+            ->each(function ($jl) use (&$feed) {
+                $empName = $jl->employer->company_name ?? 'An employer';
+                $feed->push([
+                    'id'      => 'jl_' . $jl->id,
+                    'type'    => 'System',
+                    'title   '=> 'New Job Listing posted',
+                    'message' => "{$empName} posted a new job listing for {$jl->title}.",
+                    'time'    => $jl->created_at,
+                    'read'    => false,
+                ]);
+            });
+
+        // 4 & 5. Recent applications (New and Status Changed)
         Application::with([
                 'jobseeker:id,first_name,last_name',
                 'jobListing:id,title',
             ])
-            ->select('id', 'jobseeker_id', 'job_listing_id', 'status', 'applied_at', 'created_at')
-            ->orderByDesc('applied_at')
+            ->select('id', 'jobseeker_id', 'job_listing_id', 'status', 'applied_at', 'updated_at', 'created_at')
+            ->orderByDesc('updated_at')
             ->limit(10)
             ->get()
             ->each(function ($app) use (&$feed) {
                 $js   = $app->jobseeker;
                 $name = $js ? trim($js->first_name . ' ' . $js->last_name) : 'A jobseeker';
                 $job  = $app->jobListing?->title ?? 'a position';
-                $feed->push([
-                    'id'      => 'app_' . $app->id,
-                    'type'    => 'Status',
-                    'title'   => 'New Application',
-                    'message' => "{$name} applied for {$job}.",
-                    'time'    => $app->applied_at ?? $app->created_at,
-                    'read'    => in_array($app->status, ['hired', 'rejected']),
-                ]);
+
+                // If recently created
+                if ($app->created_at->diffInHours($app->updated_at) < 1 && $app->status === 'pending') {
+                    $feed->push([
+                        'id'      => 'app_new_' . $app->id,
+                        'type'    => 'Status',
+                        'title'   => 'New Application',
+                        'message' => "{$name} applied for {$job}.",
+                        'time'    => $app->applied_at ?? $app->created_at,
+                        'read'    => false,
+                    ]);
+                } else {
+                    $feed->push([
+                        'id'      => 'app_upd_' . $app->id,
+                        'type'    => 'Status',
+                        'title'   => 'Application status changed',
+                        'message' => "Application for {$job} by {$name} is now {$app->status}.",
+                        'time'    => $app->updated_at,
+                        'read'    => true, // status changes might be "read" implicitly to avoid clutter
+                    ]);
+                }
             });
 
-        // 4. Events (upcoming and recent)
-        Event::select('id', 'title', 'event_date', 'created_at', 'status')
+        // 6. Events (upcoming and recent)
+        Event::select('id', 'title', 'location', 'event_date', 'created_at', 'status')
             ->orderByDesc('created_at')
             ->limit(5)
             ->get()
@@ -90,10 +121,11 @@ class AdminActivityFeedController extends Controller
                 } catch (\Throwable $e) {
                     $dateStr = 'TBD';
                 }
+                $loc = $ev->location ?? 'Online';
                 $feed->push([
                     'id'      => 'ev_' . $ev->id,
                     'type'    => 'Event',
-                    'title'   => 'Event: ' . $ev->title,
+                    'title'   => "Event: {$ev->title} — {$loc}",
                     'message' => "Event scheduled for {$dateStr}.",
                     'time'    => $ev->created_at,
                     'read'    => $ev->status === 'completed',
@@ -107,6 +139,7 @@ class AdminActivityFeedController extends Controller
             ->values()
             ->map(fn($item) => array_merge($item, [
                 'time' => $this->formatRelative($item['time']),
+                'title' => $item['title'] ?? $item['title   '] ?? 'Notification' // fix typo 
             ]));
 
         return response()->json([

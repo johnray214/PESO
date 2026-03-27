@@ -37,9 +37,14 @@
                         :style="{ color: typeColors[n.type]?.color || typeColors.system.color }"></span>
                 </div>
                 <div class="panel-item-body">
-                  <p class="panel-item-title">{{ n.title }}</p>
+                  <div class="panel-item-top">
+                    <p class="panel-item-title">{{ n.title }}</p>
+                    <div class="panel-item-meta">
+                      <span class="panel-type-tag" :style="{ background: typeColors[n.type]?.bg, color: typeColors[n.type]?.color }">{{ n.type }}</span>
+                      <span class="panel-item-time">{{ n.time }}</span>
+                    </div>
+                  </div>
                   <p class="panel-item-msg">{{ n.message }}</p>
-                  <span class="panel-item-time">{{ n.time }}</span>
                 </div>
                 <span v-if="!n.read" class="panel-unread-dot"></span>
               </div>
@@ -56,15 +61,25 @@
       <!-- User Pill with dropdown -->
       <div class="user-wrap" ref="userWrap">
         <button class="user-pill" @click="toggleUserMenu">
-          <div class="company-logo-nav" v-if="authStore.user?.photo">
-            <img :src="authStore.user.photo" alt="Logo" class="nav-logo-img" />
-          </div>
-          <div v-else class="avatar-t">{{ companyInitial }}</div>
-          <div class="user-meta-t">
-            <span class="uname-t">{{ companyName }}</span>
-            <span class="urole-t">Employer Account</span>
-          </div>
-          <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          <template v-if="!authStore.isAppReady">
+            <div class="company-logo-nav skeleton"></div>
+            <div class="user-meta-t" style="gap: 4px; padding: 2px 0;">
+              <div class="skeleton" style="width: 90px; height: 14px; border-radius: 4px;"></div>
+              <div class="skeleton" style="width: 60px; height: 10px; border-radius: 2px;"></div>
+            </div>
+            <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </template>
+          <template v-else>
+            <div class="company-logo-nav" v-if="authStore.user?.photo">
+              <img :src="authStore.user.photo" alt="Logo" class="nav-logo-img" />
+            </div>
+            <div v-else class="avatar-t">{{ companyInitial }}</div>
+            <div class="user-meta-t">
+              <span class="uname-t">{{ companyName }}</span>
+              <span class="urole-t">Employer Account</span>
+            </div>
+            <svg class="caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </template>
         </button>
 
         <!-- User Dropdown -->
@@ -209,10 +224,13 @@ export default {
 .panel-item:hover { background: #f8fafc; }
 .panel-item.unread { background: #fafcff; }
 .panel-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.panel-item-body { flex: 1; min-width: 0; }
-.panel-item-title { font-size: 12.5px; font-weight: 700; color: #1e293b; line-height: 1.3; }
-.panel-item-msg { font-size: 11.5px; color: #64748b; margin-top: 2px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.panel-item-time { font-size: 10.5px; color: #94a3b8; margin-top: 3px; display: block; }
+.panel-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.panel-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.panel-item-title { font-size: 12.5px; font-weight: 700; color: #1e293b; line-height: 1.3; margin: 0; }
+.panel-item-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.panel-type-tag { font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: capitalize; }
+.panel-item-msg { font-size: 11.5px; color: #64748b; line-height: 1.4; margin: 0; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
+.panel-item-time { font-size: 10.5px; color: #94a3b8; white-space: nowrap; }
 .panel-unread-dot { width: 7px; height: 7px; border-radius: 50%; background: #2872A1; flex-shrink: 0; margin-top: 4px; }
 .panel-footer { padding: 12px 16px; border-top: 1px solid #f1f5f9; text-align: center; }
 .panel-see-all { font-size: 12.5px; font-weight: 600; color: #2872A1; text-decoration: none; }

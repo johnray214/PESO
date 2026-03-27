@@ -55,4 +55,43 @@ class User extends Authenticatable
     {
         return $this->first_name . ' ' . ($this->middle_name ? $this->middle_name . ' ' : '') . $this->last_name;
     }
+
+    public function sendPasswordResetNotification($token)
+    {
+        $frontendUrl = env('FRONTEND_URL', 'http://localhost:8080');
+        $resetUrl = $frontendUrl . '/admin/reset-password?token=' . $token . '&email=' . urlencode($this->email);
+        $name = $this->first_name . ' ' . $this->last_name;
+
+        try {
+            $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+            $body = [
+                'Messages' => [
+                    [
+                        'From' => [
+                            'Email' => env('MAILJET_FROM_EMAIL', 'yujohnray96@gmail.com'),
+                            'Name'  => env('MAILJET_FROM_NAME', 'PESO')
+                        ],
+                        'To' => [
+                            [
+                                'Email' => $this->email,
+                                'Name'  => $name
+                            ]
+                        ],
+                        'TemplateID' => 7861338,
+                        'TemplateLanguage' => true,
+                        'Subject' => 'Reset Your Password — PESO',
+                        'Variables' => [
+                            'first_name'   => $name,
+                            'email'        => $this->email,
+                            'reset_url'    => $resetUrl,
+                            'request_time' => now()->format('F j, Y, g:i A')
+                        ]
+                    ]
+                ]
+            ];
+            $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Mailjet Exception (Admin Password Reset): ' . $e->getMessage());
+        }
+    }
 }

@@ -8,7 +8,6 @@
           <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
           <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
           <div class="skel" style="width: 120px; height: 36px; border-radius: 8px;"></div>
-          <div class="skel" style="width: 90px; height: 36px; border-radius: 8px;"></div>
         </div>
       </div>
       <div class="status-tabs" style="margin-bottom: 16px;">
@@ -23,207 +22,210 @@
     <template v-else>
       <!-- Filters -->
       <div class="filters-bar">
-      <div class="search-box">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input v-model="search" type="text" placeholder="Search applicant, skill, location…" class="search-input"/>
+        <div class="search-box">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input v-model="search" type="text" placeholder="Search applicant, skill, location…" class="search-input"/>
+        </div>
+        <div class="filter-group">
+          <select v-model="filterStatus" class="filter-select">
+            <option value="">All Status</option>
+            <option value="reviewing">Reviewing</option>
+            <option value="shortlisted">Shortlisted</option>
+            <option value="interview">Interview</option>
+            <option value="hired">Hired</option>
+            <option value="rejected">Rejected</option>
+          </select>
+          <select v-model="filterSkill" class="filter-select">
+            <option value="">All Skills</option>
+            <option v-for="sk in skillOptions" :key="sk" :value="sk">{{ sk }}</option>
+          </select>
+          <select v-model="filterDate" class="filter-select">
+            <option value="">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+          </select>
+        </div>
       </div>
-      <div class="filter-group">
-        <select v-model="filterStatus" class="filter-select">
-          <option value="">All Status</option>
-          <option value="reviewing">Reviewing</option>
-          <option value="shortlisted">Shortlisted</option>
-          <option value="interview">Interview</option>
-          <option value="hired">Hired</option>
-          <option value="rejected">Rejected</option>
-        </select>
-        <select v-model="filterSkill" class="filter-select">
-          <option value="">All Skills</option>
-          <option v-for="sk in skillOptions" :key="sk" :value="sk">{{ sk }}</option>
-        </select>
-        <select v-model="filterDate" class="filter-select">
-          <option value="">All Time</option>
-          <option value="today">Today</option>
-          <option value="week">This Week</option>
-          <option value="month">This Month</option>
-        </select>
-        <button class="btn-icon" title="Export CSV">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Export
+
+      <!-- Status Tabs -->
+      <div class="status-tabs">
+        <button
+          v-for="tab in statusTabs"
+          :key="tab.value"
+          :class="['tab-btn', { active: activeTab === tab.value }]"
+          @click="activeTab = tab.value"
+        >
+          {{ tab.label }}
+          <span class="tab-count" :class="tab.value">{{ tab.count }}</span>
         </button>
       </div>
-    </div>
 
-    <!-- Status Tabs -->
-    <div class="status-tabs">
-      <button
-        v-for="tab in statusTabs"
-        :key="tab.value"
-        :class="['tab-btn', { active: activeTab === tab.value }]"
-        @click="activeTab = tab.value"
-      >
-        {{ tab.label }}
-        <span class="tab-count" :class="tab.value">{{ tab.count }}</span>
-      </button>
-    </div>
+      <!-- Table -->
+      <div class="table-card">
 
-    <!-- Table -->
-    <div class="table-card">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th><input type="checkbox" class="check"/></th>
-            <th>Applicant</th>
-            <th>Skills</th>
-            <th>Job Applied</th>
-            <th>Employer</th>
-            <th>Date</th>
-            <th>Status</th>
-            <th>Files</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="a in filteredApplicants"
-            :key="a.id"
-            class="table-row"
-            @click="openDrawer(a)"
-          >
-            <td @click.stop><input type="checkbox" class="check"/></td>
-            <td>
-              <div class="person-cell">
-                <div class="avatar" :style="{ background: a.avatarBg }">{{ initials(a.name) }}</div>
-                <div>
-                  <p class="person-name">{{ a.name }}</p>
-                  <p class="person-meta">{{ a.location }}</p>
+        <!-- PAGE CHANGE SKELETON — replaces tbody rows only -->
+        <template v-if="pageLoading">
+          <div style="padding: 16px 20px;">
+            <div v-for="i in 15" :key="i" class="skel" style="width: 100%; height: 48px; border-radius: 8px; margin-bottom: 8px;"></div>
+          </div>
+        </template>
+
+        <template v-else>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>No.</th>
+                <th>Applicant</th>
+                <th>Skills</th>
+                <th>Job Applied</th>
+                <th>Employer</th>
+                <th>Date</th>
+                <th>Status</th>
+                <th>Files</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(a, index) in filteredApplicants"
+                :key="a.id"
+                class="table-row"
+                @click="openDrawer(a)"
+              >
+                <td @click.stop style="font-weight: 600; color: #64748b; font-size: 12px; padding-left: 18px;">{{ (currentPage - 1) * 15 + index + 1 }}</td>
+                <td>
+                  <div class="person-cell">
+                    <div class="avatar" :style="{ background: a.avatarBg }">{{ initials(a.name) }}</div>
+                    <div>
+                      <p class="person-name">{{ a.name }}</p>
+                      <p class="person-meta">{{ a.location }}</p>
+                    </div>
+                  </div>
+                </td>
+                <td>
+                  <div class="skill-tags">
+                    <span v-for="sk in a.skills.slice(0,2)" :key="sk" class="skill-tag">{{ sk }}</span>
+                    <span v-if="a.skills.length > 2" class="skill-more">+{{ a.skills.length - 2 }}</span>
+                  </div>
+                </td>
+                <td class="job-cell">{{ a.jobApplied }}</td>
+                <td class="employer-cell">{{ a.employer }}</td>
+                <td class="date-cell">{{ a.date }}</td>
+                <td @click.stop>
+                  <span class="status-badge" :class="statusClass(a.status)">{{ a.status }}</span>
+                </td>
+                <td @click.stop>
+                  <div class="file-icons">
+                    <button class="file-btn" :class="{ has: a.files.resume }" title="Resume">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </button>
+                    <button class="file-btn" :class="{ has: a.files.cert }" title="Certificate">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
+                    </button>
+                    <button class="file-btn" :class="{ has: a.files.clearance }" title="Clearance">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </button>
+                  </div>
+                </td>
+                <td @click.stop>
+                  <button class="act-btn view" @click="openDrawer(a)" title="View">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </template>
+
+        <!-- Pagination — always visible -->
+        <div v-if="lastPage > 1" class="pagination">
+          <span class="page-info">Showing {{ (currentPage - 1) * 15 + 1 }}–{{ Math.min(currentPage * 15, totalApplicants) }} of {{ totalApplicants }} applicants</span>
+          <div class="page-btns">
+            <button class="page-btn" :disabled="currentPage === 1 || pageLoading" @click="changePage(currentPage - 1)">‹</button>
+            <button
+              v-for="p in paginationPages"
+              :key="p"
+              class="page-btn"
+              :class="{ active: currentPage === p }"
+              :disabled="pageLoading"
+              @click="changePage(p)"
+            >
+              {{ p }}
+            </button>
+            <button class="page-btn" :disabled="currentPage === lastPage || pageLoading" @click="changePage(currentPage + 1)">›</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- DRAWER -->
+      <transition name="drawer">
+        <div v-if="drawerOpen" class="drawer-overlay" @click.self="drawerOpen = false">
+          <div class="drawer">
+            <div class="drawer-header">
+              <div class="drawer-avatar" :style="{ background: selected?.avatarBg }">
+                {{ selected ? initials(selected.name) : '' }}
+              </div>
+              <div class="drawer-title-wrap">
+                <h2 class="drawer-name">{{ selected?.name }}</h2>
+                <p class="drawer-loc">{{ selected?.location }}</p>
+              </div>
+              <span v-if="selected" class="status-badge lg" :class="statusClass(selected.status)">{{ selected?.status }}</span>
+              <button class="drawer-close" @click="drawerOpen = false">✕</button>
+            </div>
+
+            <!-- Drawer Tabs -->
+            <div class="drawer-tabs">
+              <button v-for="dt in drawerTabList" :key="dt" :class="['dtab', { active: drawerTab === dt }]" @click="drawerTab = dt">{{ dt }}</button>
+            </div>
+
+            <div class="drawer-body">
+              <!-- Profile Tab -->
+              <div v-if="drawerTab === 'Profile'">
+                <div class="info-grid">
+                  <div class="info-item"><span class="info-label">Full Name</span><span class="info-val">{{ selected?.name }}</span></div>
+                  <div class="info-item"><span class="info-label">Location</span><span class="info-val">{{ selected?.location }}</span></div>
+                  <div class="info-item"><span class="info-label">Contact</span><span class="info-val">{{ selected?.contact }}</span></div>
+                  <div class="info-item"><span class="info-label">Email</span><span class="info-val">{{ selected?.email }}</span></div>
+                  <div class="info-item"><span class="info-label">Education</span><span class="info-val">{{ selected?.education }}</span></div>
+                  <div class="info-item"><span class="info-label">Experience</span><span class="info-val">{{ selected?.experience }}</span></div>
+                </div>
+                <div class="section-label">Skills</div>
+                <div class="skill-tags mt4">
+                  <span v-for="sk in selected?.skills" :key="sk" class="skill-tag">{{ sk }}</span>
+                </div>
+                <div class="section-label">Job Applied For</div>
+                <div class="applied-job-box">
+                  <p class="applied-job">{{ selected?.jobApplied }}</p>
+                  <p class="applied-employer">{{ selected?.employer }}</p>
                 </div>
               </div>
-            </td>
-            <td>
-              <div class="skill-tags">
-                <span v-for="sk in a.skills.slice(0,2)" :key="sk" class="skill-tag">{{ sk }}</span>
-                <span v-if="a.skills.length > 2" class="skill-more">+{{ a.skills.length - 2 }}</span>
-              </div>
-            </td>
-            <td class="job-cell">{{ a.jobApplied }}</td>
-            <td class="employer-cell">{{ a.employer }}</td>
-            <td class="date-cell">{{ a.date }}</td>
-            <td @click.stop>
-              <span class="status-badge" :class="statusClass(a.status)">{{ a.status }}</span>
-            </td>
-            <td @click.stop>
-              <div class="file-icons">
-                <button class="file-btn" :class="{ has: a.files.resume }" title="Resume">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                </button>
-                <button class="file-btn" :class="{ has: a.files.cert }" title="Certificate">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11"/></svg>
-                </button>
-                <button class="file-btn" :class="{ has: a.files.clearance }" title="Clearance">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                </button>
-              </div>
-            </td>
-            <td @click.stop>
-              <div class="action-btns">
-                <button class="act-btn edit" @click="openDrawer(a)" title="View">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-                </button>
-                <button class="act-btn delete" @click.stop="archiveApplicant(a)" title="Archive">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
 
-      <!-- Pagination -->
-      <div v-if="lastPage > 1" class="pagination">
-        <span class="page-info">Showing {{ applicants.length }} of {{ totalApplicants }} applicants</span>
-        <div class="page-btns">
-          <button class="page-btn" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">‹</button>
-          <button
-            v-for="p in paginationPages"
-            :key="p"
-            class="page-btn"
-            :class="{ active: currentPage === p }"
-            @click="changePage(p)"
-          >
-            {{ p }}
-          </button>
-          <button class="page-btn" :disabled="currentPage === lastPage" @click="changePage(currentPage + 1)">›</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- DRAWER -->
-    <transition name="drawer">
-      <div v-if="drawerOpen" class="drawer-overlay" @click.self="drawerOpen = false">
-        <div class="drawer">
-          <div class="drawer-header">
-            <div class="drawer-avatar" :style="{ background: selected?.avatarBg }">
-              {{ selected ? initials(selected.name) : '' }}
-            </div>
-            <div class="drawer-title-wrap">
-              <h2 class="drawer-name">{{ selected?.name }}</h2>
-              <p class="drawer-loc">{{ selected?.location }}</p>
-            </div>
-            <span v-if="selected" class="status-badge lg" :class="statusClass(selected.status)">{{ selected?.status }}</span>
-            <button class="drawer-close" @click="drawerOpen = false">✕</button>
-          </div>
-
-          <!-- Drawer Tabs -->
-          <div class="drawer-tabs">
-            <button v-for="dt in drawerTabList" :key="dt" :class="['dtab', { active: drawerTab === dt }]" @click="drawerTab = dt">{{ dt }}</button>
-          </div>
-
-          <div class="drawer-body">
-            <!-- Profile Tab -->
-            <div v-if="drawerTab === 'Profile'">
-              <div class="info-grid">
-                <div class="info-item"><span class="info-label">Full Name</span><span class="info-val">{{ selected?.name }}</span></div>
-                <div class="info-item"><span class="info-label">Location</span><span class="info-val">{{ selected?.location }}</span></div>
-                <div class="info-item"><span class="info-label">Contact</span><span class="info-val">{{ selected?.contact }}</span></div>
-                <div class="info-item"><span class="info-label">Email</span><span class="info-val">{{ selected?.email }}</span></div>
-                <div class="info-item"><span class="info-label">Education</span><span class="info-val">{{ selected?.education }}</span></div>
-                <div class="info-item"><span class="info-label">Experience</span><span class="info-val">{{ selected?.experience }}</span></div>
-              </div>
-              <div class="section-label">Skills</div>
-              <div class="skill-tags mt4">
-                <span v-for="sk in selected?.skills" :key="sk" class="skill-tag">{{ sk }}</span>
-              </div>
-              <div class="section-label">Job Applied For</div>
-              <div class="applied-job-box">
-                <p class="applied-job">{{ selected?.jobApplied }}</p>
-                <p class="applied-employer">{{ selected?.employer }}</p>
-              </div>
-            </div>
-
-            <!-- Files Tab -->
-            <div v-if="drawerTab === 'Files'">
-              <div class="files-list">
-                <div v-for="file in fileList" :key="file.label" class="file-row">
-                  <div class="file-icon-lg" :class="{ uploaded: selected?.files[file.key] }">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <!-- Files Tab -->
+              <div v-if="drawerTab === 'Files'">
+                <div class="files-list">
+                  <div v-for="file in fileList" :key="file.label" class="file-row">
+                    <div class="file-icon-lg" :class="{ uploaded: selected?.files[file.key] }">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    </div>
+                    <div class="file-info">
+                      <p class="file-name">{{ file.label }}</p>
+                      <p class="file-status">{{ selected?.files[file.key] ? 'Uploaded' : 'Not uploaded' }}</p>
+                    </div>
+                    <button
+                      v-if="selected?.files[file.key]"
+                      type="button"
+                      class="btn-view"
+                      @click.stop="viewApplicantDocument(file.key)"
+                    >View</button>
                   </div>
-                  <div class="file-info">
-                    <p class="file-name">{{ file.label }}</p>
-                    <p class="file-status">{{ selected?.files[file.key] ? 'Uploaded' : 'Not uploaded' }}</p>
-                  </div>
-                  <button
-                    v-if="selected?.files[file.key]"
-                    type="button"
-                    class="btn-view"
-                    @click.stop="viewApplicantDocument(file.key)"
-                  >View</button>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </transition>
+      </transition>
     </template>
   </div>
 </template>
@@ -246,13 +248,13 @@ export default {
       drawerOpen: false,
       drawerTab: 'Profile',
       selected: null,
-      showAddModal: false,
       loading: false,
+      pageLoading: false,  // separate flag for pagination skeleton
       drawerTabList: ['Profile', 'Files'],
       fileList: [
-        { label: 'Resume / CV', key: 'resume' },
-        { label: 'Certificate / Diploma', key: 'cert' },
-        { label: 'Barangay Clearance', key: 'clearance' },
+        { label: 'Resume / CV',           key: 'resume'    },
+        { label: 'Certificate / Diploma',  key: 'cert'      },
+        { label: 'Barangay Clearance',     key: 'clearance' },
       ],
       statusTabs: [
         { label: 'All',         value: 'all',         count: 0 },
@@ -273,7 +275,7 @@ export default {
     paginationPages() {
       const pages = []
       const start = Math.max(1, this.currentPage - 2)
-      const end = Math.min(this.lastPage, this.currentPage + 2)
+      const end   = Math.min(this.lastPage, this.currentPage + 2)
       for (let i = start; i <= end; i++) pages.push(i)
       return pages
     },
@@ -291,8 +293,14 @@ export default {
     },
   },
   methods: {
-    async fetchApplicants() {
-      this.loading = true
+    async fetchApplicants(isPaginating = false) {
+      // Use pageLoading for pagination changes, loading for initial mount
+      if (isPaginating) {
+        this.pageLoading = true
+      } else {
+        this.loading = true
+      }
+
       try {
         const params = { page: this.currentPage }
         if (this.search)       params.search    = this.search
@@ -305,32 +313,32 @@ export default {
         const colors = ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b82f6','#14b8a6']
 
         const payload = data.data || {}
-        this.currentPage   = payload.current_page || 1
-        this.lastPage      = payload.last_page    || 1
-        this.totalApplicants = payload.total      || 0
+        this.currentPage     = payload.current_page || 1
+        this.lastPage        = payload.last_page    || 1
+        this.totalApplicants = payload.total        || 0
 
         this.applicants = (payload.data || []).map((a, i) => {
           const js = a.jobseeker   || {}
           const jl = a.job_listing || {}
           return {
-            id:         a.id,
+            id:          a.id,
             jobseekerId: js.id ?? null,
-            name:       `${js.first_name || ''} ${js.last_name || ''}`.trim() || 'Unknown',
-            location:   js.address         || 'N/A',
-            contact:    js.contact         || 'N/A',
-            email:      js.email           || 'N/A',
-            education:  js.education_level || 'N/A',
-            experience: js.job_experience || 'N/A',
-            skills:     js.skills?.map(s => s.skill) || [],
-            jobApplied: jl.title                        || 'Unknown',
-            employer:   jl.employer?.company_name       || 'Unknown',
-            date:       new Date(a.created_at || a.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-            status:     a.status || 'reviewing',
-            avatarBg:   colors[i % colors.length],
-            notes:      a.notes || '',
-            files:      {
-              resume: !!js.resume_path,
-              cert: !!js.certificate_path,
+            name:        `${js.first_name || ''} ${js.last_name || ''}`.trim() || 'Unknown',
+            location:    js.address         || 'N/A',
+            contact:     js.contact         || 'N/A',
+            email:       js.email           || 'N/A',
+            education:   js.education_level || 'N/A',
+            experience:  js.job_experience  || 'N/A',
+            skills:      js.skills?.map(s => s.skill) || [],
+            jobApplied:  jl.title                  || 'Unknown',
+            employer:    jl.employer?.company_name  || 'Unknown',
+            date:        new Date(a.created_at || a.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            status:      a.status || 'reviewing',
+            avatarBg:    colors[i % colors.length],
+            notes:       a.notes || '',
+            files: {
+              resume:    !!js.resume_path,
+              cert:      !!js.certificate_path,
               clearance: !!js.barangay_clearance_path,
             },
           }
@@ -339,7 +347,8 @@ export default {
       } catch (e) {
         console.error(e)
       } finally {
-        this.loading = false
+        this.loading     = false
+        this.pageLoading = false
       }
     },
 
@@ -353,9 +362,9 @@ export default {
     },
 
     changePage(page) {
-      if (page >= 1 && page <= this.lastPage) {
+      if (page >= 1 && page <= this.lastPage && !this.pageLoading) {
         this.currentPage = page
-        this.fetchApplicants()
+        this.fetchApplicants(true)  // pass true = paginating
       }
     },
 
@@ -363,19 +372,17 @@ export default {
       return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     },
 
-    /* ── FIX: every status maps directly to its own CSS class name ── */
     statusClass(status) {
       if (!status) return ''
-      return status.toLowerCase()   // 'reviewing' | 'shortlisted' | 'interview' | 'hired' | 'rejected'
+      return status.toLowerCase()
     },
 
     openDrawer(applicant) {
-      this.selected  = { ...applicant }
-      this.drawerTab = 'Profile'
+      this.selected   = { ...applicant }
+      this.drawerTab  = 'Profile'
       this.drawerOpen = true
     },
 
-    /** Open PDF in new tab via authenticated API (avoids /storage 403). */
     async viewApplicantDocument(fileKey) {
       const jid = this.selected?.jobseekerId
       if (!jid) {
@@ -391,11 +398,9 @@ export default {
           { responseType: 'blob' },
         )
         const blob = new Blob([res.data], { type: 'application/pdf' })
-        const url = URL.createObjectURL(blob)
-        const win = window.open(url, '_blank', 'noopener,noreferrer')
-        if (!win) {
-          alert('Pop-up blocked. Allow pop-ups for this site to view the PDF.')
-        }
+        const url  = URL.createObjectURL(blob)
+        const win  = window.open(url, '_blank', 'noopener,noreferrer')
+        if (!win) alert('Pop-up blocked. Allow pop-ups for this site to view the PDF.')
         setTimeout(() => URL.revokeObjectURL(url), 120000)
       } catch (e) {
         console.error(e)
@@ -418,15 +423,6 @@ export default {
           this.selected.status = status
           this.selected.notes  = applicant.notes
         }
-        this.updateTabCounts()
-      } catch (e) { console.error(e) }
-    },
-
-    async archiveApplicant(a) {
-      try {
-        await api.delete(`/admin/applications/${a.id}`)
-        this.applicants = this.applicants.filter(ap => ap.id !== a.id)
-        this.drawerOpen = false
         this.updateTabCounts()
       } catch (e) { console.error(e) }
     },
@@ -466,43 +462,6 @@ export default {
   gap: 16px;
 }
 
-/* HEADER */
-.btn-primary {
-  display: flex; align-items: center; gap: 6px;
-  background: #2563eb; color: #fff;
-  border: none; border-radius: 10px;
-  padding: 9px 16px; font-size: 13px; font-weight: 600;
-  cursor: pointer; font-family: inherit;
-  transition: background 0.15s;
-}
-.btn-primary:hover { background: #1d4ed8; }
-.btn-primary.full-w { width: 100%; justify-content: center; }
-
-/* STATS STRIP */
-.stats-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px;
-}
-.strip-stat {
-  background: #fff;
-  border-radius: 0;
-  padding: 18px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  border: 1px solid #e2e8f0;
-  border-left: 4px solid var(--accent, #94a3b8);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-.strip-stat:hover {
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-  border-color: #cbd5e1;
-}
-.strip-val   { font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
-.strip-label { font-size: 11.5px; color: #64748b; margin-top: 6px; font-weight: 500; }
-
 /* FILTERS */
 .filters-bar {
   display: flex; align-items: center; justify-content: space-between;
@@ -521,13 +480,6 @@ export default {
   padding: 8px 12px; font-size: 12.5px; color: #475569;
   cursor: pointer; outline: none; font-family: inherit;
 }
-.btn-icon {
-  display: flex; align-items: center; gap: 6px;
-  background: #fff; border: 1px solid #e2e8f0;
-  border-radius: 8px; padding: 8px 12px;
-  font-size: 12.5px; color: #475569; cursor: pointer; font-family: inherit;
-}
-.btn-icon:hover { background: #f8fafc; }
 
 /* STATUS TABS */
 .status-tabs { display: flex; gap: 4px; }
@@ -538,10 +490,9 @@ export default {
   cursor: pointer; border-radius: 8px; font-family: inherit;
   transition: all 0.15s;
 }
-.tab-btn:hover { background: #f1f5f9; }
+.tab-btn:hover  { background: #f1f5f9; }
 .tab-btn.active { background: #eff6ff; color: #2563eb; font-weight: 700; }
 
-/* Tab count pills — match the badge colors */
 .tab-count {
   font-size: 10px; font-weight: 700; padding: 2px 7px;
   border-radius: 99px; background: #f1f5f9; color: #64748b;
@@ -566,8 +517,6 @@ export default {
 .table-row:hover { background: #f8fafc; }
 .data-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
 
-.check { accent-color: #2563eb; cursor: pointer; }
-
 .person-cell { display: flex; align-items: center; gap: 10px; }
 .avatar {
   width: 34px; height: 34px; border-radius: 50%;
@@ -585,14 +534,13 @@ export default {
 .employer-cell { color: #64748b; font-size: 12px; }
 .date-cell     { color: #94a3b8; font-size: 12px; white-space: nowrap; }
 
-/* ── STATUS BADGES ── */
+/* STATUS BADGES */
 .status-badge {
   padding: 4px 10px; border-radius: 99px;
   font-size: 11px; font-weight: 600; white-space: nowrap;
   text-transform: capitalize;
 }
 .status-badge.lg { padding: 5px 14px; font-size: 12px; }
-
 .reviewing   { background: #dbeafe; color: #1d4ed8; }
 .shortlisted { background: #eff8ff; color: #1a5f8a; }
 .interview   { background: #ede9fe; color: #8B5CF6; }
@@ -610,16 +558,14 @@ export default {
 .file-btn.has   { background: #eff6ff; border-color: #bfdbfe; color: #2563eb; }
 .file-btn:hover { background: #eff6ff; border-color: #93c5fd; color: #2563eb; }
 
-/* ACTION BUTTONS */
-.action-btns { display: flex; gap: 4px; }
+/* ACTION BUTTON */
 .act-btn {
   width: 28px; height: 28px; border-radius: 7px; border: none;
-  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s;
 }
-.act-btn.edit        { background: #eff6ff; color: #2563eb; }
-.act-btn.edit:hover  { background: #dbeafe; }
-.act-btn.delete      { background: #fef2f2; color: #ef4444; }
-.act-btn.delete:hover { background: #fee2e2; }
+.act-btn.view       { background: #eff6ff; color: #2563eb; }
+.act-btn.view:hover { background: #dbeafe; }
 
 /* PAGINATION */
 .pagination {
@@ -633,9 +579,11 @@ export default {
   border: 1px solid #e2e8f0; background: #fff;
   font-size: 12px; color: #64748b; cursor: pointer; font-family: inherit;
   display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
 }
-.page-btn.active          { background: #2563eb; color: #fff; border-color: #2563eb; }
-.page-btn:hover:not(.active) { background: #f8fafc; }
+.page-btn:disabled           { opacity: 0.4; cursor: not-allowed; }
+.page-btn.active             { background: #2563eb; color: #fff; border-color: #2563eb; }
+.page-btn:hover:not(.active):not(:disabled) { background: #f8fafc; }
 
 /* DRAWER */
 .drawer-overlay {
@@ -683,8 +631,7 @@ export default {
 .info-val   { font-size: 13px; font-weight: 500; color: #1e293b; }
 
 .section-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.06em; margin: 16px 0 8px; }
-.mt4  { margin-top: 4px; }
-.mt12 { margin-top: 12px; }
+.mt4 { margin-top: 4px; }
 
 .applied-job-box  { background: #f8fafc; border-radius: 10px; padding: 12px 14px; border: 1px solid #f1f5f9; }
 .applied-job      { font-size: 14px; font-weight: 700; color: #1e293b; }
@@ -703,32 +650,10 @@ export default {
   color: #94a3b8; flex-shrink: 0;
 }
 .file-icon-lg.uploaded { background: #dbeafe; color: #2563eb; }
-.file-info    { flex: 1; }
-.file-name    { font-size: 13px; font-weight: 600; color: #1e293b; }
-.file-status  { font-size: 11px; color: #94a3b8; margin-top: 2px; }
-.btn-view     { background: #eff6ff; color: #2563eb; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-upload   { background: #f1f5f9; color: #64748b; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
-
-/* STATUS OPTIONS (drawer) */
-.status-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.status-option {
-  padding: 10px; border-radius: 10px; border: 2px solid transparent;
-  font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
-  transition: all 0.15s; background: #f8fafc; color: #64748b;
-}
-.status-option.active.reviewing   { background: #dbeafe; color: #1d4ed8; border-color: #1d4ed8; }
-.status-option.active.shortlisted { background: #1A5F18; color: #a7f3a0; border-color: #1A5F18; }
-.status-option.active.interview   { background: #ede9fe; color: #8B5CF6; border-color: #8B5CF6; }
-.status-option.active.hired       { background: #dcfce7; color: #16a34a; border-color: #16a34a; }
-.status-option.active.rejected    { background: #fef2f2; color: #ef4444; border-color: #ef4444; }
-
-.notes-area {
-  width: 100%; border: 1px solid #e2e8f0; border-radius: 10px;
-  padding: 10px 12px; font-size: 13px; color: #1e293b;
-  font-family: inherit; resize: vertical; outline: none;
-  background: #f8fafc;
-}
-.notes-area:focus { border-color: #93c5fd; background: #fff; }
+.file-info   { flex: 1; }
+.file-name   { font-size: 13px; font-weight: 600; color: #1e293b; }
+.file-status { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.btn-view    { background: #eff6ff; color: #2563eb; border: none; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 
 /* DRAWER TRANSITION */
 .drawer-enter-active, .drawer-leave-active { transition: opacity 0.2s; }

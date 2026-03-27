@@ -68,7 +68,7 @@ class EmployerDashboardController extends Controller
         $recentApplications = Application::whereHas('jobListing', fn ($q) =>
                 $q->where('employer_id', $employer->id)
             )
-            ->with(['jobseeker.skills', 'jobListing:id,title'])
+            ->with(['jobseeker' => fn($q) => $q->withTrashed()->with('skills'), 'jobListing:id,title'])
             ->orderByDesc('applied_at')
             ->limit(10)
             ->get();

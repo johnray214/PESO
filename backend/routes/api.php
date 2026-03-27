@@ -48,16 +48,23 @@ use App\Http\Controllers\Api\Jobseeker\JobseekerEventRegistrationController;
 
 // Admin Auth
 Route::post('/admin/login', [AdminAuthController::class, 'login']);
+Route::post('/admin/forgot-password', [AdminAuthController::class, 'forgotPassword']);
+Route::post('/admin/reset-password', [AdminAuthController::class, 'resetPassword']);
 Route::post('/peso-employee/login', [AdminAuthController::class, 'login']); // Alias for frontend
 
 // Employer Auth
 Route::post('/employer/login', [EmployerAuthController::class, 'login']);
 Route::post('/employer/register', [EmployerAuthController::class, 'register']);
+Route::post('/employer/forgot-password', [EmployerAuthController::class, 'forgotPassword']);
+Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPassword']);
 
 // Jobseeker Auth
 Route::post('/jobseeker/login', [JobseekerAuthController::class, 'login']);
 Route::post('/jobseeker/register', [JobseekerAuthController::class, 'register']);
-Route::post('/jobseeker/verify-email/{id}/{hash}', [JobseekerAuthController::class, 'verifyEmail']);
+Route::post('/jobseeker/verify-otp', [JobseekerAuthController::class, 'verifyOtp']);
+Route::post('/jobseeker/resend-otp', [JobseekerAuthController::class, 'resendOtp']);
+Route::post('/jobseeker/forgot-password', [JobseekerAuthController::class, 'forgotPassword']);
+Route::post('/jobseeker/reset-password', [JobseekerAuthController::class, 'resetPassword']);
 
 // Public Job Listings
 Route::get('/public/jobs', [JobseekerJobListingController::class, 'index']);

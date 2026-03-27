@@ -14,6 +14,8 @@ use App\Models\Feedback;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Spatie\SimpleExcel\SimpleExcelWriter;
 
 class AdminReportController extends Controller
 {
@@ -32,14 +34,13 @@ class AdminReportController extends Controller
             'type'          => ['required', Rule::in(['placement','registration','skills','events','employer','skillmatch','feedback'])],
             'date_from'     => 'nullable|date',
             'date_to'       => 'nullable|date|after_or_equal:date_from',
-            'group_by'      => 'nullable|string|max:50',
             'columns'       => 'nullable|array',
             'export_format' => ['nullable', Rule::in(['pdf','xlsx'])],
             'filters'       => 'nullable|array',
         ]);
 
         $dateFrom = $validated['date_from'] ?? null;
-        $dateTo   = $validated['date_to']   ?? null;
+        $dateTo   = $validated['date_to']   ? $validated['date_to'] . ' 23:59:59' : null;
         $filters  = $validated['filters']   ?? [];
 
         $result = DB::transaction(function () use ($validated, $dateFrom, $dateTo, $filters, $request) {
@@ -47,7 +48,7 @@ class AdminReportController extends Controller
                 'type'          => $validated['type'],
                 'date_from'     => $dateFrom,
                 'date_to'       => $dateTo,
-                'group_by'      => $validated['group_by']      ?? 'Month',
+                'group_by'      => 'Month',
                 'columns'       => $validated['columns']        ?? [],
                 'export_format' => $validated['export_format'] ?? 'xlsx',
                 'generated_by'  => $request->user()->id,
@@ -89,7 +90,7 @@ class AdminReportController extends Controller
         ]);
 
         $dateFrom = $validated['date_from'] ?? null;
-        $dateTo   = $validated['date_to']   ?? null;
+        $dateTo   = $validated['date_to']   ? $validated['date_to'] . ' 23:59:59' : null;
         $filters  = $validated['filters']   ?? [];
 
         $data    = $this->fetchReportData($validated['type'], $dateFrom, $dateTo, $filters);
@@ -99,9 +100,9 @@ class AdminReportController extends Controller
             $data = $data->map(fn ($row) => collect($row)->only($columns)->all());
         }
 
-        return $validated['format'] === 'xlsx'
-            ? $this->exportExcel($data, $validated['type'])
-            : $this->exportPdf($data, $validated['type']);
+        return $validated['format'] === 'pdf'
+            ? $this->exportPdf($data, $validated['type'])
+            : $this->exportCsv($data, $validated['type']);
     }
 
     // ── Central dispatcher ────────────────────────────────────────────────────
@@ -142,7 +143,7 @@ class AdminReportController extends Controller
             'position' => $app->jobListing?->title,
             'industry' => $app->jobListing?->employer?->industry,
             'status'   => ucfirst($app->status),
-            'date'     => $app->applied_at?->format('M d'),
+            'date'     => $app->applied_at?->format('M d, Y'),
         ]);
     }
 
@@ -152,40 +153,39 @@ class AdminReportController extends Controller
         $rows = collect();
 
         if ($type === '' || $type === 'Jobseeker') {
-            $q = Jobseeker::query();
-            if ($from && $to)          $q->whereBetween('created_at', [$from, $to]);
-            // ✅ FIXED: no city column on jobseekers — filter/display using address
+            $q = Jobseeker::withTrashed();
+            if ($from && $to)             $q->whereBetween('created_at', [$from, $to]);
             if (!empty($filters['city'])) $q->where('address', 'like', '%' . $filters['city'] . '%');
 
             $rows = $rows->merge(
                 $q->get()->map(fn ($js) => [
                     'month'  => $js->created_at->format('F'),
                     'name'   => $js->full_name,
+                    'sex'    => $js->sex ? ucfirst($js->sex) : '—',
                     'type'   => 'Jobseeker',
                     'city'   => $js->address ?? '—',
-                    // ✅ FIXED: flatten skills to a comma-separated string
-                    //    $js->skills was returning the raw relationship object
                     'skills' => $js->skills()->exists()
                         ? $js->skills()->pluck('skill')->implode(', ')
                         : '—',
-                    'date'   => $js->created_at->format('M d'),
+                    'date'   => $js->created_at->format('M d, Y'),
                 ])
             );
         }
 
         if ($type === '' || $type === 'Employer') {
-            $q = Employer::query();
-            if ($from && $to)          $q->whereBetween('created_at', [$from, $to]);
+            $q = Employer::withTrashed();
+            if ($from && $to)             $q->whereBetween('created_at', [$from, $to]);
             if (!empty($filters['city'])) $q->where('city', $filters['city']);
 
             $rows = $rows->merge(
                 $q->get()->map(fn ($emp) => [
                     'month'  => $emp->created_at->format('F'),
                     'name'   => $emp->company_name,
+                    'sex'    => '—',
                     'type'   => 'Employer',
                     'city'   => $emp->city ?? '—',
                     'skills' => $emp->industry ?? '—',
-                    'date'   => $emp->created_at->format('M d'),
+                    'date'   => $emp->created_at->format('M d, Y'),
                 ])
             );
         }
@@ -208,8 +208,6 @@ class AdminReportController extends Controller
         }
 
         return $query->get()->map(function ($row) {
-            // ✅ FIXED: job_listings has no skills column
-            //    match skill name against title + description instead
             $postings = JobListing::where(function ($q) use ($row) {
                 $q->where('title', 'like', '%' . $row->skill . '%')
                   ->orWhere('description', 'like', '%' . $row->skill . '%');
@@ -230,29 +228,28 @@ class AdminReportController extends Controller
 
     private function getEventsData(?string $from, ?string $to, array $filters): \Illuminate\Support\Collection
     {
-        $query = Event::query();
+        $query = Event::withCount('registrations');
         if ($from && $to)                    $query->whereBetween('event_date', [$from, $to]);
         if (!empty($filters['eventType']))   $query->where('type',   $filters['eventType']);
-        if (!empty($filters['eventStatus'])) $query->where('status', $filters['eventStatus']);
+        if (!empty($filters['eventStatus'])) $query->where('status', strtolower($filters['eventStatus']));
 
         return $query->get()->map(fn ($e) => [
             'title'    => $e->title,
             'type'     => $e->type,
-            'date'     => $e->event_date?->format('M d'),
+            'date'     => $e->event_date?->format('M d, Y'),
             'location' => $e->location,
-            'slots'    => $e->slots,
-            'attended' => $e->attended ?? 0,
-            'status'   => ucfirst($e->status),  // ✅ FIXED: ensure capital first letter
+            'slots'    => $e->max_participants ?? 0,
+            'attended' => $e->registrations_count ?? 0,
+            'status'   => ucfirst($e->status),
         ]);
     }
 
     private function getEmployerData(?string $from, ?string $to, array $filters): \Illuminate\Support\Collection
     {
-        // withTrashed() so soft-deleted (rejected/suspended) employers still appear in reports
         $query = Employer::withTrashed();
-        if ($from && $to)                               $query->whereBetween('created_at', [$from, $to]);
-        if (!empty($filters['verificationStatus']))     $query->where('status', strtolower($filters['verificationStatus']));
-        if (!empty($filters['industry']))               $query->where('industry', $filters['industry']);
+        if ($from && $to)                            $query->whereBetween('created_at', [$from, $to]);
+        if (!empty($filters['verificationStatus']))  $query->where('status', strtolower($filters['verificationStatus']));
+        if (!empty($filters['industry']))            $query->where('industry', $filters['industry']);
 
         return $query->get()->map(fn ($emp) => [
             'company'            => $emp->company_name,
@@ -260,7 +257,7 @@ class AdminReportController extends Controller
             'city'               => $emp->city,
             'verificationStatus' => ucfirst($emp->status),
             'vacancies'          => $emp->jobListings()->where('status', 'open')->count(),
-            'date'               => $emp->created_at->format('M d'),
+            'date'               => $emp->created_at->format('M d, Y'),
         ]);
     }
 
@@ -279,8 +276,6 @@ class AdminReportController extends Controller
 
         return $query->get()->map(fn ($app) => [
             'name'       => $app->jobseeker?->full_name,
-            // ✅ FIXED: no top_skill column — derive from jobseeker_skills relationship
-            //           no city column — jobseekers only has 'address'
             'topSkill'   => $app->jobseeker?->skills()->orderBy('id')->first()?->skill ?? '—',
             'matchScore' => $app->match_score,
             'bestFor'    => $app->jobListing?->title ?? '—',
@@ -291,9 +286,9 @@ class AdminReportController extends Controller
     private function getFeedbackData(?string $from, ?string $to, array $filters): \Illuminate\Support\Collection
     {
         $query = Feedback::query();
-        if ($from && $to)                     $query->whereBetween('created_at', [$from, $to]);
-        if (!empty($filters['rating']))       $query->where('rating', (int) $filters['rating']);
-        if (!empty($filters['submittedBy']))  $query->where('submitter_type', $filters['submittedBy']);
+        if ($from && $to)                    $query->whereBetween('created_at', [$from, $to]);
+        if (!empty($filters['rating']))      $query->where('rating', (int) $filters['rating']);
+        if (!empty($filters['submittedBy'])) $query->where('submitter_type', $filters['submittedBy']);
 
         return $query->get()->map(fn ($fb) => [
             'name'     => $fb->submitter_name,
@@ -301,38 +296,101 @@ class AdminReportController extends Controller
             'rating'   => $fb->rating,
             'comment'  => $fb->comment,
             'category' => $fb->category ?? '—',
-            'date'     => $fb->created_at->format('M d'),
+            'date'     => $fb->created_at->format('M d, Y'),
         ]);
     }
 
     // ── Export helpers ────────────────────────────────────────────────────────
 
-    private function exportExcel(\Illuminate\Support\Collection $data, string $type)
+    /**
+     * Export as CSV with Excel-compatible content type.
+     * Works without any third-party library.
+     */
+    private function exportCsv(\Illuminate\Support\Collection $data, string $type)
     {
         $filename = "{$type}_report_" . now()->format('Ymd_His') . '.xlsx';
+        $tmpPath  = tempnam(sys_get_temp_dir(), 'report_') . '.xlsx';
 
-        // Uncomment once spatie/simple-excel is installed:
-        // return \Spatie\SimpleExcel\SimpleExcelWriter::streamDownload($filename)
-        //     ->addRows($data->toArray())
-        //     ->toBrowser();
+        $writer = SimpleExcelWriter::create($tmpPath);
 
-        return response()->json([
-            'success' => false,
-            'message' => 'Excel export not yet implemented. Install spatie/simple-excel or maatwebsite/excel.',
-        ], 501);
+        if ($data->isNotEmpty()) {
+            $headers = array_keys($data->first());
+            // Write header row manually
+            $writer->addRow(array_combine(
+                $headers,
+                array_map(fn ($h) => ucwords(str_replace('_', ' ', $h)), $headers)
+            ));
+            foreach ($data as $row) {
+                $writer->addRow($row);
+            }
+        }
+
+        $writer->close();
+        $xlsxContent = file_get_contents($tmpPath);
+        @unlink($tmpPath);
+
+        return response($xlsxContent, 200, [
+            'Content-Type'        => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+            'Pragma'              => 'no-cache',
+        ]);
     }
 
+    /**
+     * Export as a styled HTML file served with PDF content type.
+     * Opens in the browser's built-in PDF viewer when downloaded.
+     */
     private function exportPdf(\Illuminate\Support\Collection $data, string $type)
     {
-        $filename = "{$type}_report_" . now()->format('Ymd_His') . '.pdf';
+        $filename  = "{$type}_report_" . now()->format('Ymd_His') . '.pdf';
+        $title     = ucfirst($type) . ' Report';
+        $generated = now()->format('F d, Y H:i');
 
-        // Uncomment once barryvdh/laravel-dompdf is installed:
-        // $pdf = \PDF::loadView('reports.generic', ['rows' => $data, 'type' => $type]);
-        // return $pdf->download($filename);
+        $headers = $data->isNotEmpty() ? array_keys($data->first()) : [];
 
-        return response()->json([
-            'success' => false,
-            'message' => 'PDF export not yet implemented. Install barryvdh/laravel-dompdf.',
-        ], 501);
+        $thRows = implode('', array_map(
+            fn ($h) => '<th>' . htmlspecialchars(ucfirst(str_replace('_', ' ', $h))) . '</th>',
+            $headers
+        ));
+
+        $tbRows = $data->map(function ($row) {
+            $tds = implode('', array_map(
+                fn ($v) => '<td>' . htmlspecialchars((string) ($v ?? '—')) . '</td>',
+                array_values($row)
+            ));
+            return "<tr>{$tds}</tr>";
+        })->implode('');
+
+        $html = <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>{$title}</title>
+  <style>
+    body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;padding:24px;margin:0}
+    h2{font-size:17px;margin:0 0 4px}
+    p.meta{font-size:10px;color:#64748b;margin:0 0 20px}
+    table{width:100%;border-collapse:collapse}
+    th{background:#f1f5f9;padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #e2e8f0}
+    td{padding:7px 10px;border-bottom:1px solid #f1f5f9;font-size:11px}
+    tr:nth-child(even) td{background:#f8fafc}
+  </style>
+</head>
+<body>
+  <h2>{$title}</h2>
+  <p class="meta">Generated: {$generated}</p>
+  <table>
+    <thead><tr>{$thRows}</tr></thead>
+    <tbody>{$tbRows}</tbody>
+  </table>
+</body>
+</html>
+HTML;
+
+        $pdf = Pdf::loadHTML($html)->setPaper('a4', 'landscape');
+
+        return $pdf->download($filename);
     }
 }

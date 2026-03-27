@@ -22,16 +22,16 @@ class AdminDashboardController extends Controller
         [$from, $to, $prevFrom, $prevTo] = $this->resolvePeriod($period, $request);
 
         // ── Stat Cards ───────────────────────────────────────────────
-        $totalJobseekers  = Jobseeker::whereBetween('created_at', [$from, $to])->count();
-        $totalEmployers   = Employer::whereBetween('created_at',  [$from, $to])->count();
-        $totalJobListings = JobListing::whereBetween('created_at', [$from, $to])->count();
+        $totalJobseekers  = Jobseeker::withTrashed()->whereBetween('created_at', [$from, $to])->count();
+        $totalEmployers   = Employer::withTrashed()->whereBetween('created_at',  [$from, $to])->count();
+        $totalJobListings = JobListing::withTrashed()->whereBetween('created_at', [$from, $to])->count();
         $totalPlacements  = Application::where('status', 'hired')
                                 ->whereBetween('updated_at', [$from, $to])->count();
 
         // Previous period for trend comparison
-        $prevJobseekers  = Jobseeker::whereBetween('created_at', [$prevFrom, $prevTo])->count();
-        $prevEmployers   = Employer::whereBetween('created_at',  [$prevFrom, $prevTo])->count();
-        $prevListings    = JobListing::whereBetween('created_at', [$prevFrom, $prevTo])->count();
+        $prevJobseekers  = Jobseeker::withTrashed()->whereBetween('created_at', [$prevFrom, $prevTo])->count();
+        $prevEmployers   = Employer::withTrashed()->whereBetween('created_at',  [$prevFrom, $prevTo])->count();
+        $prevListings    = JobListing::withTrashed()->whereBetween('created_at', [$prevFrom, $prevTo])->count();
         $prevPlacements  = Application::where('status', 'hired')
                                 ->whereBetween('updated_at', [$prevFrom, $prevTo])->count();
 
@@ -141,17 +141,20 @@ class AdminDashboardController extends Controller
         ])->values();
 
         // ── Recent Applicants ─────────────────────────────────────────
-        $recentApplicants = Application::with(['jobseeker', 'jobListing'])
+        $recentApplicants = Application::with([
+            'jobseeker' => fn($q) => $q->withTrashed(),
+            'jobListing' => fn($q) => $q->withTrashed()
+        ])
             ->orderByDesc('applied_at')
             ->limit(5)
             ->get()
             ->map(fn($a) => [
-                'name'        => $a->jobseeker->fullName(),
-                'location'    => $a->jobseeker->city ?? '',
-                'skill'       => $a->jobseeker->skills()->pluck('skill')->first() 
-                                    ?? $a->jobseeker->primary_skill 
-                                    ?? 'General',
-                'job'         => $a->jobListing->title ?? '',
+                'name'        => $a->jobseeker ? $a->jobseeker->fullName() : 'Unknown',
+                'location'    => optional($a->jobseeker)->city ?? '',
+                'skill'       => $a->jobseeker 
+                                    ? ($a->jobseeker->skills()->pluck('skill')->first() ?? $a->jobseeker->primary_skill ?? 'General')
+                                    : 'General',
+                'job'         => optional($a->jobListing)->title ?? 'Unknown Job',
                 'date'        => optional($a->applied_at)->format('M d, Y'),
                 'status'      => ucfirst($a->status),
                 'statusClass' => strtolower($a->status),
@@ -272,8 +275,8 @@ class AdminDashboardController extends Controller
         $buckets = $this->buildBuckets($period, $from, $to);
 
         foreach ($buckets as &$b) {
-            $b['jobseekers'] = Jobseeker::whereBetween('created_at', [$b['start'], $b['end']])->count();
-            $b['employers']  = Employer::whereBetween('created_at',  [$b['start'], $b['end']])->count();
+            $b['jobseekers'] = Jobseeker::withTrashed()->whereBetween('created_at', [$b['start'], $b['end']])->count();
+            $b['employers']  = Employer::withTrashed()->whereBetween('created_at',  [$b['start'], $b['end']])->count();
             unset($b['start'], $b['end']);
         }
 

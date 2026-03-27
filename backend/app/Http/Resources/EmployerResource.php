@@ -68,7 +68,7 @@ class EmployerResource extends JsonResource
                 'member_since'     => $this->created_at?->year,
             ],
 
-            // ── Jobs Preview ──────────────────────────────────────────
+            // ── Jobs Preview ───────────────────aa───────────────────────
             // FIX #4: include bg + color so Vue doesn't crash on undefined
             'jobs' => $this->whenLoaded('jobs', function () {
                 $palette = [

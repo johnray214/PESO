@@ -195,7 +195,10 @@ async function handleSubmit() {
 
             <!-- Password -->
             <div class="field">
-              <label class="field-label" for="inp-pw">Password</label>
+              <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                <label class="field-label" for="inp-pw">Password</label>
+                <router-link to="/admin/forgot-password" class="forgot-link">Forgot password?</router-link>
+              </div>
               <div class="inp-shell">
                 <!-- lock SVG -->
                 <svg class="inp-ico" width="15" height="15" viewBox="0 0 24 24" fill="none"
@@ -602,6 +605,7 @@ async function handleSubmit() {
   box-shadow: 0 3px 8px rgba(37,99,235,0.28);
 }
 .submit-btn:disabled { opacity: 0.62; cursor: default; }
+.submit-btn:disabled { opacity: 0.62; cursor: default; }
 .btn-inner {
   display: flex;
   align-items: center;
@@ -614,6 +618,16 @@ async function handleSubmit() {
   color: #fff;
   letter-spacing: 0.01em;
 }
+
+/* Forgot Password Link */
+.forgot-link {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--blue-600);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.forgot-link:hover { color: var(--blue-800); text-decoration: underline; }
 
 /* Spinner */
 .spin-ring {
