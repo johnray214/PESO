@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.100:8000/api';
+  static const String baseUrl = 'https://pesobackend-production.up.railway.app/api';
 
   /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
   static String get apiOrigin {
@@ -21,15 +21,44 @@ class ApiService {
     return '$apiOrigin/storage/$clean';
   }
 
+  /// Relative public-disk path or already-absolute URL (from API `employer_photo_url`).
+  ///
+  /// Laravel builds absolute URLs with the **incoming request host** (`PublicStorageUrl`).
+  /// If that host (e.g. `127.0.0.1`) does not match [baseUrl] (e.g. `10.0.2.2` on Android
+  /// emulator, or a LAN IP on a device), [Image.network] fails silently → initials only.
+  /// For paths under `/storage`, we always use [apiOrigin] so images match the API host.
+  static String? storageOrAbsoluteUrl(String? ref) {
+    if (ref == null) return null;
+    final t = ref.trim();
+    if (t.isEmpty) return null;
+
+    if (t.startsWith('http://') || t.startsWith('https://')) {
+      final uri = Uri.tryParse(t);
+      if (uri != null && uri.path.startsWith('/storage')) {
+        final origin = Uri.parse(apiOrigin);
+        return Uri(
+          scheme: origin.scheme,
+          host: origin.host,
+          port: origin.hasPort ? origin.port : null,
+          path: uri.path,
+          query: uri.hasQuery ? uri.query : null,
+        ).toString();
+      }
+      return t;
+    }
+
+    return publicStorageUrl(t);
+  }
+
   static Future<Map<String, dynamic>> register({
     required String firstName,
     required String lastName,
     required String email,
     required String password,
     required String passwordConfirmation,
-    String? contact,
+    required String contact,
     String? address,
-    String? sex, // 'male' | 'female'
+    required String sex, // 'male' | 'female'
     String? dateOfBirth, // 'YYYY-MM-DD'
   }) async {
     try {

@@ -1786,23 +1786,10 @@ class _ApplicationCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: job.companyColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: Text(
-                          job.companyInitial,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
+                    CompanyLogoBox(
+                      job: job,
+                      size: 48,
+                      boxShadow: const [],
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -2271,23 +2258,10 @@ class _SavedJobCard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: job.companyColor,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Center(
-                        child: Text(
-                          job.companyInitial,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
+                    CompanyLogoBox(
+                      job: job,
+                      size: 48,
+                      boxShadow: const [],
                     ),
                     const SizedBox(width: 12),
                     Expanded(

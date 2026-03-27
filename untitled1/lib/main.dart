@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -8,9 +9,30 @@ import 'api_service.dart';
 import 'home_pages.dart';
 import 'user_session.dart';
 import 'job_action_service.dart';
+import 'onboarding_intro_slides.dart';
+import 'onboarding_post_auth.dart';
+import 'onboarding_prefs.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (FlutterErrorDetails details) {
+    final message = details.exceptionAsString();
+    if (kIsWeb && message.contains('_viewInsets.isNonNegative')) {
+      debugPrint('Ignored web insets assertion: $message');
+      return;
+    }
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stackTrace) {
+    final message = error.toString();
+    if (kIsWeb && message.contains('_viewInsets.isNonNegative')) {
+      debugPrint('Ignored web insets assertion: $message');
+      return true;
+    }
+    return false;
+  };
+
   await dotenv.load(fileName: ".env");
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -124,19 +146,46 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     _mascotCtrl.forward();
 
-    // Auto-navigate to WelcomePage
-    Future.delayed(const Duration(milliseconds: 3400), () {
+    // Auto-navigate: intro slides (first launch) → auth entry
+    Future.delayed(const Duration(milliseconds: 3400), () async {
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 700),
-          pageBuilder: (_, __, ___) => const WelcomePage(),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
-        ),
-      );
+      final introDone = await OnboardingPrefs.isIntroDone();
+      if (!mounted) return;
+      if (!introDone) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 700),
+            pageBuilder: (_, __, ___) => IntroOnboardingPage(
+              onComplete: (introContext) {
+                Navigator.of(introContext).pushReplacement(
+                  PageRouteBuilder(
+                    transitionDuration: const Duration(milliseconds: 500),
+                    pageBuilder: (_, __, ___) => const AuthEntryPage(),
+                    transitionsBuilder: (_, animation, __, child) {
+                      return FadeTransition(opacity: animation, child: child);
+                    },
+                  ),
+                );
+              },
+            ),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 700),
+            pageBuilder: (_, __, ___) => const AuthEntryPage(),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+      }
     });
   }
 
@@ -478,6 +527,323 @@ class _SplashDotsState extends State<_SplashDots> with SingleTickerProviderState
           }),
         );
       },
+    );
+  }
+}
+
+// ─── Auth Entry Page ──────────────────────────────────────────────────────────
+class AuthEntryPage extends StatefulWidget {
+  const AuthEntryPage({super.key});
+
+  @override
+  State<AuthEntryPage> createState() => _AuthEntryPageState();
+}
+
+class _AuthEntryPageState extends State<AuthEntryPage>
+    with TickerProviderStateMixin {
+  bool _isSignUpMode = false;
+
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      // Longer staged timeline:
+      // 1) welcome fades in
+      // 2) stays highlighted (~3s)
+      // 3) then header moves and auth panel enters
+      duration: const Duration(milliseconds: 3500),
+    );
+    _ctrl.forward();
+  }   
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.of(context).size.height;
+
+    final headerFade = CurvedAnimation(
+      parent: _ctrl,
+      // Quick fade in at start.
+      curve: const Interval(0.0, 0.12, curve: Curves.easeOut),
+    );
+    final headerMove = CurvedAnimation(
+      parent: _ctrl,
+      // Hold for ~3s first, then move up.
+      curve: const Interval(0.68, 0.90, curve: Curves.easeInOutCubic),
+    );
+    final authPop = CurvedAnimation(
+      parent: _ctrl,
+      // Enter right after the header starts moving.
+      curve: const Interval(0.82, 1.0, curve: Curves.easeOutBack),
+    );
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      body: SafeArea(
+        child: AnimatedBuilder(
+          animation: _ctrl,
+          builder: (context, _) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final maxH = constraints.maxHeight.isFinite
+                    ? constraints.maxHeight
+                    : h;
+                final headerTranslateY = lerpDouble(
+                  0,
+                  -maxH * 0.33,
+                  headerMove.value,
+                );
+                final headerOpacity = headerFade.value;
+
+                final authTranslateY = lerpDouble(
+                  // Start off-screen.
+                  maxH * 0.60,
+                  0,
+                  authPop.value,
+                );
+                // `easeOutBack` can overshoot >1.0; Opacity requires 0..1.
+                final authOpacity = authPop.value.clamp(0.0, 1.0).toDouble();
+
+                final iconScale = lerpDouble(1.18, 1.0, headerMove.value)!;
+                final titleColor = Color.lerp(
+                  const Color(0xFF2563EB),
+                  const Color(0xFF0F172A),
+                  headerMove.value,
+                )!;
+                final subtitleColor = Color.lerp(
+                  const Color(0xFF2563EB),
+                  const Color(0xFF64748B),
+                  headerMove.value,
+                )!;
+                // Hide subtitle during the highlighted intro, then reveal smoothly
+                // as the header settles near the top.
+                final subtitleReveal = CurvedAnimation(
+                  parent: _ctrl,
+                  curve: const Interval(0.78, 0.96, curve: Curves.easeOutCubic),
+                ).value;
+                final subtitleOpacity =
+                    subtitleReveal.clamp(0.0, 1.0).toDouble();
+                final subtitleYOffset =
+                    lerpDouble(8, 0, subtitleReveal) ?? 0;
+
+                return Stack(
+                  children: [
+                    // Header + welcome copy
+                    Align(
+                      alignment: Alignment.center,
+                      child: Transform.translate(
+                        offset: Offset(0, headerTranslateY ?? 0),
+                        child: Opacity(
+                          opacity: headerOpacity,
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Transform.scale(
+                                  scale: iconScale,
+                                  child: Icon(
+                                    Icons.verified_user_rounded,
+                                    size: 64,
+                                    color:
+                                        const Color(0xFF2563EB).withOpacity(0.9),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                                Text(
+                                  'Welcome to PESO',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w800,
+                                    color: titleColor,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 8),
+                                Transform.translate(
+                                  offset: Offset(0, subtitleYOffset),
+                                  child: Opacity(
+                                    opacity: subtitleOpacity,
+                                    child: Text(
+                                      'Sign in to continue, or create an account to start applying for jobs and events.',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        height: 1.4,
+                                        color: subtitleColor,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Buttons + on-screen auth form
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Transform.translate(
+                        offset: Offset(0, authTranslateY ?? 0),
+                        child: Opacity(
+                          opacity: authOpacity,
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.fromLTRB(24, 0, 24, 10),
+                            child: SizedBox(
+                              width: double.infinity,
+                              height: h * 0.70,
+                              child: Material(
+                                color: Colors.transparent,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [Colors.white, Color(0xFFF8FBFF)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: const Color(0xFFE6ECF5),
+                                      width: 1.0,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF0F172A)
+                                            .withOpacity(0.09),
+                                        blurRadius: 30,
+                                        offset: const Offset(0, 14),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Padding(
+                                    padding:
+                                        const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Expanded(
+                                          child: SingleChildScrollView(
+                                            physics:
+                                                const BouncingScrollPhysics(),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                      4, 6, 4, 20),
+                                              child: LoginModal(
+                                                key: ValueKey<bool>(
+                                                    _isSignUpMode),
+                                                isSignUp: _isSignUpMode,
+                                                renderAsModal: false,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 52,
+                                          child: FilledButton(
+                                            onPressed: () {
+                                              setState(
+                                                  () => _isSignUpMode = false);
+                                            },
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor:
+                                                  !_isSignUpMode
+                                                      ? const Color(0xFF2563EB)
+                                                      : Colors.transparent,
+                                              foregroundColor:
+                                                  !_isSignUpMode
+                                                      ? Colors.white
+                                                      : const Color(0xFF2563EB),
+                                              side: BorderSide(
+                                                color: const Color(0xFF2563EB)
+                                                    .withOpacity(
+                                                  _isSignUpMode ? 1 : 0,
+                                                ),
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Sign in',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 52,
+                                          child: FilledButton(
+                                            onPressed: () {
+                                              setState(
+                                                  () => _isSignUpMode = true);
+                                            },
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor:
+                                                  _isSignUpMode
+                                                      ? const Color(0xFF2563EB)
+                                                      : Colors.transparent,
+                                              foregroundColor:
+                                                  _isSignUpMode
+                                                      ? Colors.white
+                                                      : const Color(0xFF2563EB),
+                                              side: BorderSide(
+                                                color: const Color(0xFF2563EB)
+                                                    .withOpacity(
+                                                  !_isSignUpMode ? 1 : 0,
+                                                ),
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Create account',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        ),
+      ),
     );
   }
 }
@@ -1068,11 +1434,9 @@ class _AboutPageState extends State<AboutPage> {
   }
 
   void _showLoginModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const LoginModal(),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AuthEntryPage()),
     );
   }
 
@@ -1339,7 +1703,11 @@ class _AboutPageState extends State<AboutPage> {
 // ─── Login Modal ──────────────────────────────────────────────────────────────
 class LoginModal extends StatefulWidget {
   final bool isSignUp;
-  const LoginModal({super.key, this.isSignUp = false});
+  /// When false, this widget renders as a plain embedded form (no bottom-sheet,
+  /// no slide animation, no close button).
+  final bool renderAsModal;
+
+  const LoginModal({super.key, this.isSignUp = false, this.renderAsModal = true});
 
   @override
   State<LoginModal> createState() => _LoginModalState();
@@ -1356,10 +1724,11 @@ class _LoginModalState extends State<LoginModal>
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
   final _dobController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSignUpMode = false;
-  String? _selectedSex; // 'male' | 'female'
+  String? _selectedSex; // 'male' | 'female' — required on sign-up
   DateTime? _selectedDob;
   bool _isSubmitting = false;
   String? _authError;
@@ -1374,7 +1743,12 @@ class _LoginModalState extends State<LoginModal>
         Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(
             CurvedAnimation(
                 parent: _animationController, curve: Curves.easeOutCubic));
-    _animationController.forward();
+    if (widget.renderAsModal) {
+      _animationController.forward();
+    } else {
+      // When embedding in the auth page, we don't want the bottom-sheet slide.
+      _animationController.value = 1.0;
+    }
   }
 
   @override
@@ -1386,6 +1760,7 @@ class _LoginModalState extends State<LoginModal>
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     _dobController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -1422,12 +1797,13 @@ class _LoginModalState extends State<LoginModal>
     );
 
     final result = await ApiService.register(
-      firstName: _firstNameController.text,
-      lastName: _lastNameController.text,
-      email: _emailController.text,
+      firstName: _firstNameController.text.trim(),
+      lastName: _lastNameController.text.trim(),
+      email: _emailController.text.trim(),
       password: _passwordController.text,
       passwordConfirmation: _confirmPasswordController.text,
-      sex: _selectedSex,
+      contact: _phoneController.text.trim(),
+      sex: _selectedSex!,
       dateOfBirth: _dobController.text.isEmpty ? null : _dobController.text,
     );
 
@@ -1450,11 +1826,13 @@ class _LoginModalState extends State<LoginModal>
       // Load job action state after login
       await JobActionService().loadFromBackend();
       if (!mounted) return;
-      // Navigate directly to home — no need to re-login
-      Navigator.pop(context); // close modal
+      await OnboardingPrefs.setPostAuthPending();
+      if (!mounted) return;
+      // Close modal, then post-auth onboarding → Home
+      if (widget.renderAsModal) Navigator.pop(context);
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const HomePage()),
+        MaterialPageRoute(builder: (context) => const PostAuthOnboardingScreen()),
       );
     } else {
       String errorMessage = 'Registration failed';
@@ -1485,94 +1863,102 @@ class _LoginModalState extends State<LoginModal>
   }
 
   InputDecoration _fieldDec(String label, IconData icon, {Widget? suffix}) {
+    final fill = widget.renderAsModal
+        ? const Color(0xFFF8F9FA)
+        : Colors.white;
+    final enabledBorderColor = widget.renderAsModal
+        ? Colors.grey[300]!
+        : const Color(0xFFD8E1EC);
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
+      labelStyle:
+          TextStyle(color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
       prefixIcon: Icon(icon, color: const Color(0xFF2563EB)),
       suffixIcon: suffix,
       filled: true,
-      fillColor: const Color(0xFFF8F9FA),
+      fillColor: fill,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!)),
+          borderSide: BorderSide(color: enabledBorderColor)),
       enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!)),
+          borderSide: BorderSide(color: enabledBorderColor)),
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2)),
+          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+    final content = SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          left: 24,
+          right: 24,
+          top: widget.renderAsModal ? 16 : 4,
         ),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              left: 24,
-              right: 24,
-              top: 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2))),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+                if (widget.renderAsModal)
+                  Container(
+                      width: 40,
+                      height: 4,
                       decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12)),
-                      child: Icon(
-                          _isSignUpMode
-                              ? Icons.person_add_rounded
-                              : Icons.login_rounded,
-                          color: const Color(0xFF2563EB),
-                          size: 28),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        _isSignUpMode ? 'Create Account' : 'Welcome Back',
-                        style: const TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                            letterSpacing: 0.5),
+                          color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2))),
+                SizedBox(height: widget.renderAsModal ? 24 : 8),
+                if (widget.renderAsModal) ...[
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12)),
+                        child: Icon(
+                            _isSignUpMode
+                                ? Icons.person_add_rounded
+                                : Icons.login_rounded,
+                            color: const Color(0xFF2563EB),
+                            size: 28),
                       ),
-                    ),
-                    IconButton(
-                        icon: const Icon(Icons.close_rounded),
-                        color: Colors.grey[600],
-                        onPressed: () => Navigator.pop(context)),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    _isSignUpMode
-                        ? 'Join PESO and discover employment opportunities'
-                        : 'Sign in to access your account',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Text(
+                          _isSignUpMode
+                              ? 'Create Account'
+                              : 'Welcome Back',
+                          style: const TextStyle(
+                              fontSize: 26,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: 0.5),
+                        ),
+                      ),
+                      IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          color: Colors.grey[600],
+                          onPressed: () => Navigator.pop(context)),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 32),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      _isSignUpMode
+                          ? 'Join PESO and discover employment opportunities'
+                          : 'Sign in to access your account',
+                      style: TextStyle(
+                          fontSize: 14, color: Colors.grey[600]),
+                    ),
+                  ),
+                ],
+
+                SizedBox(height: widget.renderAsModal ? 32 : 16),
                 Form(
                   key: _formKey,
                   child: Column(
@@ -1593,6 +1979,26 @@ class _LoginModalState extends State<LoginModal>
                           decoration: _fieldDec('Last Name', Icons.person_outline_rounded),
                           validator: (v) {
                             if (v == null || v.trim().isEmpty) return 'Please enter your last name';
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        TextFormField(
+                          controller: _phoneController,
+                          keyboardType: TextInputType.phone,
+                          decoration: _fieldDec(
+                            'Phone number (11 digits)',
+                            Icons.phone_outlined,
+                          ),
+                          validator: (v) {
+                            final value = v?.trim() ?? '';
+                            if (value.isEmpty) {
+                              return 'Please enter your mobile number';
+                            }
+                            final phPattern = RegExp(r'^0\d{10}$');
+                            if (!phPattern.hasMatch(value)) {
+                              return 'Enter 11-digit PH number (e.g. 09XXXXXXXXX)';
+                            }
                             return null;
                           },
                         ),
@@ -1636,6 +2042,40 @@ class _LoginModalState extends State<LoginModal>
                           return null;
                         },
                       ),
+                      if (!_isSignUpMode) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Forgot password is not yet available.',
+                                  ),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 0,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Forgot password?',
+                              style: TextStyle(
+                                color: Color(0xFF2563EB),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       if (!_isSignUpMode && _authError != null) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -1672,6 +2112,7 @@ class _LoginModalState extends State<LoginModal>
                         ),
                         const SizedBox(height: 20),
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Expanded(
                               child: TextFormField(
@@ -1686,12 +2127,18 @@ class _LoginModalState extends State<LoginModal>
                               flex: 2,
                               child: DropdownButtonFormField<String>(
                                 value: _selectedSex,
-                                decoration: _fieldDec('Sex (optional)', Icons.person_outline),
+                                decoration: _fieldDec('Sex', Icons.person_outline),
                                 items: const [
                                   DropdownMenuItem(value: 'male', child: Text('Male')),
                                   DropdownMenuItem(value: 'female', child: Text('Female')),
                                 ],
                                 onChanged: (value) => setState(() => _selectedSex = value),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Required';
+                                  }
+                                  return null;
+                                },
                               ),
                             ),
                           ],
@@ -1728,10 +2175,17 @@ class _LoginModalState extends State<LoginModal>
                                   // Load job action state after login
                                   await JobActionService().loadFromBackend();
                                   if (!mounted) return;
-                                  Navigator.pop(context);
+                                  if (widget.renderAsModal) Navigator.pop(context);
+                                  final needsOnboarding =
+                                      await OnboardingPrefs.needsPostAuth();
+                                  if (!mounted) return;
                                   Navigator.pushReplacement(
                                     context,
-                                    MaterialPageRoute(builder: (context) => const HomePage()),
+                                    MaterialPageRoute(
+                                      builder: (context) => needsOnboarding
+                                          ? const PostAuthOnboardingScreen()
+                                          : const HomePage(),
+                                    ),
                                   );
                                 } else {
                                     final msg = result['message'] as String? ??
@@ -1751,58 +2205,99 @@ class _LoginModalState extends State<LoginModal>
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 0,
                           ),
-                          child: _isSubmitting && !_isSignUpMode
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    SizedBox(
-                                      width: 22,
-                                      height: 22,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.5,
-                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          child: !widget.renderAsModal
+                              ? (_isSubmitting
+                                  ? const Text(
+                                      'Please wait...',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
                                       ),
+                                    )
+                                  : const Text(
+                                      'Continue',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ))
+                              : _isSubmitting && !_isSignUpMode
+                                  ? Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child:
+                                              CircularProgressIndicator(
+                                            strokeWidth: 2.5,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                              Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        const Text(
+                                          'Signing in...',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Text(
+                                      _isSignUpMode ? 'Sign Up' : 'Sign In',
+                                      style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w700),
                                     ),
-                                    const SizedBox(width: 12),
-                                    const Text(
-                                      'Signing in...',
-                                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                    ),
-                                  ],
-                                )
-                              : Text(
-                            _isSignUpMode ? 'Sign Up' : 'Sign In',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                          ),
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                              _isSignUpMode
-                                  ? 'Already have an account? '
-                                  : "Don't have an account? ",
-                              style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-                          TextButton(
-                            onPressed: _switchMode,
-                            child: Text(_isSignUpMode ? 'Sign In' : 'Sign Up',
-                                style: const TextStyle(
-                                    color: Color(0xFF2563EB),
-                                    fontWeight: FontWeight.w700,
+                      if (widget.renderAsModal)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                                _isSignUpMode
+                                    ? 'Already have an account? '
+                                    : "Don't have an account? ",
+                                style: TextStyle(
+                                    color: Colors.grey[600],
                                     fontSize: 14)),
-                          ),
-                        ],
-                      ),
+                            TextButton(
+                              onPressed: _switchMode,
+                              child: Text(
+                                  _isSignUpMode ? 'Sign In' : 'Sign Up',
+                                  style: const TextStyle(
+                                      color: Color(0xFF2563EB),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14)),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
+    );
+
+    if (!widget.renderAsModal) return content;
+
+    return SlideTransition(
+      position: _slideAnimation,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
+        child: content,
       ),
     );
   }

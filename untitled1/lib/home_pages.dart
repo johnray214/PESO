@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -13,6 +15,7 @@ import 'event_models.dart';
 import 'user_session.dart';
 import 'api_service.dart';
 import 'job_action_service.dart';
+import 'micro_interactions.dart';
 import 'package:http/http.dart' as http;
 
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
@@ -45,6 +48,685 @@ class MapFocusRequest {
 final ValueNotifier<int?> homeNavRequestNotifier = ValueNotifier<int?>(null);
 final ValueNotifier<MapFocusRequest?> mapFocusRequestNotifier =
     ValueNotifier<MapFocusRequest?>(null);
+
+Widget _pesoEventDetailRow(IconData icon, String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20, color: const Color(0xFF2563EB)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(fontSize: 15, color: Colors.grey[800], height: 1.4),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Reliable live updates after register/unregister (StatefulBuilder can miss rebuilds on web).
+class _EventDetailDialog extends StatefulWidget {
+  final PesoEvent initialEvent;
+  final VoidCallback onRegistrationChanged;
+  /// Host context (e.g. Home) for SnackBars after the dialog closes.
+  final BuildContext hostContext;
+
+  const _EventDetailDialog({
+    required this.initialEvent,
+    required this.onRegistrationChanged,
+    required this.hostContext,
+  });
+
+  @override
+  State<_EventDetailDialog> createState() => _EventDetailDialogState();
+}
+
+class _EventDetailDialogState extends State<_EventDetailDialog> {
+  late PesoEvent _event;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _event = widget.initialEvent;
+  }
+
+  Future<void> _onPrimaryAction(BuildContext dialogContext) async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) {
+      Navigator.of(dialogContext).pop();
+      ScaffoldMessenger.of(widget.hostContext).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to register for events.'),
+          backgroundColor: Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    final Map<String, dynamic> res = _event.isRegistered
+        ? await ApiService.unregisterFromEvent(token: token, eventId: _event.id)
+        : await ApiService.registerForEvent(token: token, eventId: _event.id);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (res['success'] == true) {
+      final data = res['data'];
+      final pc = data is Map<String, dynamic> ? (data['participants_count'] as num?)?.toInt() : null;
+      final nextRegistered = !_event.isRegistered;
+      setState(() {
+        _event = _event.copyWith(
+          isRegistered: nextRegistered,
+          participantsCount: pc ??
+              (nextRegistered
+                  ? _event.participantsCount + 1
+                  : (_event.participantsCount > 0 ? _event.participantsCount - 1 : 0)),
+        );
+      });
+      microInteractionSuccess();
+      widget.onRegistrationChanged();
+      ScaffoldMessenger.of(widget.hostContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            _event.isRegistered ? 'Registered for ${_event.title}' : 'Cancelled registration',
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(widget.hostContext).showSnackBar(
+        SnackBar(
+          content: Text(res['message']?.toString() ?? 'Something went wrong'),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryDisabled = _busy || (!_event.isRegistered && _event.isFull);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      _event.typeLabel,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2563EB),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _event.isRegistered
+                          ? const Color(0xFF10B981).withOpacity(0.15)
+                          : const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _event.isRegistered
+                            ? const Color(0xFF10B981).withOpacity(0.35)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
+                    child: Text(
+                      _event.isRegistered ? 'Registered' : 'Not registered',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: _event.isRegistered ? const Color(0xFF059669) : const Color(0xFF64748B),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.grey[100],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                _event.title,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _pesoEventDetailRow(Icons.calendar_today_rounded, _event.formattedDate),
+              if (_event.eventTime != null) _pesoEventDetailRow(Icons.access_time_rounded, _event.eventTime!),
+              _pesoEventDetailRow(Icons.location_on_rounded, _event.location),
+              _pesoEventDetailRow(Icons.people_outline_rounded, _event.slotsLabel),
+              if (_event.organizer != null) _pesoEventDetailRow(Icons.business_rounded, _event.organizer!),
+              const SizedBox(height: 16),
+              Text(
+                'Description',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.grey[700],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _event.description,
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.5,
+                  color: Colors.grey[800],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _busy ? null : () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF64748B),
+                        side: const BorderSide(color: Color(0xFFE2E8F0)),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Close'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: primaryDisabled ? null : () => _onPrimaryAction(context),
+                      style: FilledButton.styleFrom(
+                        backgroundColor:
+                            _event.isRegistered ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _busy
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              _event.isRegistered ? 'Cancel registration' : 'Register',
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Events bottom sheet keeps its own [Future] so register/cancel updates the list
+/// immediately (parent [_reloadEventsFuture] alone does not rebuild an open sheet).
+class _EventsBottomSheet extends StatefulWidget {
+  final BuildContext homeContext;
+  final VoidCallback onParentReloadEvents;
+  final List<PesoEvent> Function(Map<String, dynamic>) parseEventsPayload;
+
+  const _EventsBottomSheet({
+    required this.homeContext,
+    required this.onParentReloadEvents,
+    required this.parseEventsPayload,
+  });
+
+  @override
+  State<_EventsBottomSheet> createState() => _EventsBottomSheetState();
+}
+
+class _EventsBottomSheetState extends State<_EventsBottomSheet> {
+  late Future<Map<String, dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = ApiService.getEventsWithRegistration();
+  }
+
+  void _afterRegistrationChanged() {
+    widget.onParentReloadEvents();
+    setState(() {
+      _future = ApiService.getEventsWithRegistration();
+    });
+  }
+
+  void _openEventDetail(PesoEvent e) {
+    showDialog(
+      context: context,
+      builder: (ctx) => _EventDetailDialog(
+        initialEvent: e,
+        onRegistrationChanged: _afterRegistrationChanged,
+        hostContext: widget.homeContext,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.75,
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2563EB).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: const Icon(
+                    Icons.event_rounded,
+                    color: Color(0xFF2563EB),
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Events',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Job fairs, seminars, and career events',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Flexible(
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(32),
+                      child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+                    ),
+                  );
+                }
+                final data = snapshot.data;
+                if (data == null || data['success'] != true) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            data?['message'] ?? 'Failed to load events',
+                            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                final events = widget.parseEventsPayload(data);
+                if (events.isEmpty) {
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.event_available_rounded, size: 64, color: Colors.grey[300]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No upcoming events',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Check back soon for job fairs and career events.',
+                            style: TextStyle(fontSize: 14, color: Colors.grey[400]),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  itemCount: events.length,
+                  itemBuilder: (context, index) {
+                    final e = events[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.grey[200]!),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _openEventDetail(e),
+                          borderRadius: BorderRadius.circular(16),
+                          child: IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Container(
+                                  width: 82,
+                                  color: const Color(0xFF2563EB),
+                                  alignment: Alignment.center,
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                      horizontal: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.1),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          e.dateBadgeDay,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w800,
+                                            height: 1.05,
+                                            color: Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          e.dateBadgeMonthUpper,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w800,
+                                            letterSpacing: 0.5,
+                                            color: Color(0xFF2563EB),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          e.dateBadgeYear,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Container(
+                                    color: const Color(0xFFF8FAFC),
+                                    padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Align(
+                                                alignment: Alignment.centerLeft,
+                                                child: Container(
+                                                  padding: const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 4,
+                                                  ),
+                                                  decoration: BoxDecoration(
+                                                    color: const Color(0xFF2563EB).withOpacity(0.12),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Text(
+                                                    e.typeLabel,
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                    style: const TextStyle(
+                                                      fontSize: 12,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Color(0xFF2563EB),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            AnimatedSwitcher(
+                                              duration: const Duration(milliseconds: 240),
+                                              switchInCurve: Curves.easeOutCubic,
+                                              switchOutCurve: Curves.easeInCubic,
+                                              transitionBuilder: (child, anim) => FadeTransition(
+                                                opacity: anim,
+                                                child: ScaleTransition(scale: anim, child: child),
+                                              ),
+                                              child: Container(
+                                                key: ValueKey<bool>(e.isRegistered),
+                                                constraints: const BoxConstraints(maxWidth: 118),
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 5,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: e.isRegistered
+                                                      ? const Color(0xFFE8F5E9)
+                                                      : Colors.white,
+                                                  borderRadius: BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                    color: e.isRegistered
+                                                        ? const Color(0xFF81C784).withOpacity(0.6)
+                                                        : const Color(0xFFE2E8F0),
+                                                  ),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      e.isRegistered
+                                                          ? Icons.check_circle_rounded
+                                                          : Icons.circle_outlined,
+                                                      size: 14,
+                                                      color: e.isRegistered
+                                                          ? const Color(0xFF2E7D32)
+                                                          : const Color(0xFF757575),
+                                                    ),
+                                                    const SizedBox(width: 5),
+                                                    Flexible(
+                                                      child: Text(
+                                                        e.isRegistered
+                                                            ? 'Registered'
+                                                            : 'Not registered',
+                                                        maxLines: 2,
+                                                        textAlign: TextAlign.right,
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          fontWeight: FontWeight.w700,
+                                                          height: 1.2,
+                                                          color: e.isRegistered
+                                                              ? const Color(0xFF2E7D32)
+                                                              : const Color(0xFF757575),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          e.title,
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF0F172A),
+                                          ),
+                                        ),
+                                        if (e.eventTime != null) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            e.eventTime!,
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.location_on_outlined,
+                                                size: 14, color: Colors.grey[600]),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                e.location,
+                                                style: TextStyle(
+                                                    fontSize: 13, color: Colors.grey[600]),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        if (e.organizer != null) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'by ${e.organizer}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[500],
+                                              fontStyle: FontStyle.italic,
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          e.slotsLabel,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 // ─── User Location (Demo) ─────────────────────────────────────────────────────
 const double userLatitude = 16.689315116453432;
@@ -253,6 +935,16 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   late Future<Map<String, dynamic>> _eventsFuture;
+  /// Tracks event list length to pulse FAB when new events appear (count increases).
+  int _lastSeenEventCount = -1;
+  double _fabPulseScale = 1.0;
+
+  void _pulseEventsFab() {
+    setState(() => _fabPulseScale = 1.12);
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) setState(() => _fabPulseScale = 1.0);
+    });
+  }
 
   List<PesoEvent> _parseEventsPayload(Map<String, dynamic> data) {
     final raw = data['data'] as List<dynamic>? ?? [];
@@ -313,615 +1005,16 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _showEventDetailModal(BuildContext context, PesoEvent e) {
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        PesoEvent local = e;
-        var busy = false;
-        return StatefulBuilder(
-          builder: (ctx, setModal) {
-            Future<void> onPrimaryAction() async {
-              final token = UserSession().token;
-              if (token == null || token.isEmpty) {
-                Navigator.of(ctx).pop();
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please log in to register for events.'),
-                    backgroundColor: Color(0xFFEF4444),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-                return;
-              }
-              setModal(() => busy = true);
-              final Map<String, dynamic> res = local.isRegistered
-                  ? await ApiService.unregisterFromEvent(token: token, eventId: local.id)
-                  : await ApiService.registerForEvent(token: token, eventId: local.id);
-              setModal(() => busy = false);
-              if (!ctx.mounted) return;
-              if (res['success'] == true) {
-                final data = res['data'];
-                final pc = data is Map<String, dynamic>
-                    ? (data['participants_count'] as num?)?.toInt()
-                    : null;
-                setModal(() {
-                  final nextRegistered = !local.isRegistered;
-                  local = local.copyWith(
-                    isRegistered: nextRegistered,
-                    participantsCount: pc ??
-                        (nextRegistered
-                            ? local.participantsCount + 1
-                            : (local.participantsCount > 0 ? local.participantsCount - 1 : 0)),
-                  );
-                });
-                _reloadEventsFuture();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        local.isRegistered
-                            ? 'Registered for ${local.title}'
-                            : 'Cancelled registration',
-                      ),
-                      backgroundColor: const Color(0xFF10B981),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              } else {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  SnackBar(
-                    content: Text(res['message']?.toString() ?? 'Something went wrong'),
-                    backgroundColor: const Color(0xFFEF4444),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              }
-            }
-
-            final primaryDisabled =
-                busy || (!local.isRegistered && local.isFull);
-
-            return Dialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              local.typeLabel,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF2563EB),
-                              ),
-                            ),
-                          ),
-                          if (local.isRegistered) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: const Text(
-                                'Registered',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF059669),
-                                ),
-                              ),
-                            ),
-                          ],
-                          const Spacer(),
-                          IconButton(
-                            icon: const Icon(Icons.close_rounded),
-                            onPressed: () => Navigator.of(ctx).pop(),
-                            style: IconButton.styleFrom(
-                              backgroundColor: Colors.grey[100],
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        local.title,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _detailRow(Icons.calendar_today_rounded, local.formattedDate),
-                      if (local.eventTime != null) _detailRow(Icons.access_time_rounded, local.eventTime!),
-                      _detailRow(Icons.location_on_rounded, local.location),
-                      _detailRow(Icons.people_outline_rounded, local.slotsLabel),
-                      if (local.organizer != null) _detailRow(Icons.business_rounded, local.organizer!),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Description',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        local.description,
-                        style: TextStyle(
-                          fontSize: 15,
-                          height: 1.5,
-                          color: Colors.grey[800],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: busy ? null : () => Navigator.of(ctx).pop(),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: const Color(0xFF64748B),
-                                side: const BorderSide(color: Color(0xFFE2E8F0)),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: const Text('Close'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: primaryDisabled ? null : () => onPrimaryAction(),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: local.isRegistered
-                                    ? const Color(0xFFEF4444)
-                                    : const Color(0xFF2563EB),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                              child: busy
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : Text(
-                                      local.isRegistered ? 'Cancel registration' : 'Register',
-                                    ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _detailRow(IconData icon, String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: const Color(0xFF2563EB)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(fontSize: 15, color: Colors.grey[800], height: 1.4),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _showEventsSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(ctx).size.height * 0.75,
-          ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: const Icon(
-                        Icons.event_rounded,
-                        color: Color(0xFF2563EB),
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    const Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Events',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                            ),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Job fairs, seminars, and career events',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF64748B),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Flexible(
-                child: FutureBuilder<Map<String, dynamic>>(
-                  future: _eventsFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: CircularProgressIndicator(color: Color(0xFF2563EB)),
-                        ),
-                      );
-                    }
-                    final data = snapshot.data;
-                    if (data == null || data['success'] != true) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey[400]),
-                              const SizedBox(height: 16),
-                              Text(
-                                data?['message'] ?? 'Failed to load events',
-                                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-                    final events = _parseEventsPayload(data);
-                    if (events.isEmpty) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.event_available_rounded, size: 64, color: Colors.grey[300]),
-                              const SizedBox(height: 16),
-                              Text(
-                                'No upcoming events',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[500],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Check back soon for job fairs and career events.',
-                                style: TextStyle(fontSize: 14, color: Colors.grey[400]),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-                    return ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      itemCount: events.length,
-                      itemBuilder: (context, index) {
-                        final e = events[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: Colors.grey[200]!),
-                          ),
-                          clipBehavior: Clip.antiAlias,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => _showEventDetailModal(context, e),
-                              borderRadius: BorderRadius.circular(16),
-                              child: IntrinsicHeight(
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    // Full-height blue rail + centered white date badge (reference design)
-                                    Container(
-                                      width: 82,
-                                      color: const Color(0xFF2563EB),
-                                      alignment: Alignment.center,
-                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          vertical: 12,
-                                          horizontal: 10,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: BorderRadius.circular(12),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(0.1),
-                                              blurRadius: 10,
-                                              offset: const Offset(0, 2),
-                                            ),
-                                          ],
-                                        ),
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Text(
-                                              e.dateBadgeDay,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontSize: 22,
-                                                fontWeight: FontWeight.w800,
-                                                height: 1.05,
-                                                color: Color(0xFF2563EB),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              e.dateBadgeMonthUpper,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w800,
-                                                letterSpacing: 0.5,
-                                                color: Color(0xFF2563EB),
-                                              ),
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              e.dateBadgeYear,
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Container(
-                                        color: const Color(0xFFF8FAFC),
-                                        padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Row(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Expanded(
-                                                  child: Align(
-                                                    alignment: Alignment.centerLeft,
-                                                    child: Container(
-                                                      padding: const EdgeInsets.symmetric(
-                                                        horizontal: 10,
-                                                        vertical: 4,
-                                                      ),
-                                                      decoration: BoxDecoration(
-                                                        color: const Color(0xFF2563EB).withOpacity(0.12),
-                                                        borderRadius: BorderRadius.circular(8),
-                                                      ),
-                                                      child: Text(
-                                                        e.typeLabel,
-                                                        maxLines: 2,
-                                                        overflow: TextOverflow.ellipsis,
-                                                        style: const TextStyle(
-                                                          fontSize: 12,
-                                                          fontWeight: FontWeight.w600,
-                                                          color: Color(0xFF2563EB),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  constraints: const BoxConstraints(maxWidth: 118),
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 5,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: e.isRegistered
-                                                        ? const Color(0xFFE8F5E9)
-                                                        : Colors.white,
-                                                    borderRadius: BorderRadius.circular(8),
-                                                    border: Border.all(
-                                                      color: e.isRegistered
-                                                          ? const Color(0xFF81C784).withOpacity(0.6)
-                                                          : const Color(0xFFE2E8F0),
-                                                    ),
-                                                  ),
-                                                  child: Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      Icon(
-                                                        e.isRegistered
-                                                            ? Icons.check_circle_rounded
-                                                            : Icons.circle_outlined,
-                                                        size: 14,
-                                                        color: e.isRegistered
-                                                            ? const Color(0xFF2E7D32)
-                                                            : const Color(0xFF757575),
-                                                      ),
-                                                      const SizedBox(width: 5),
-                                                      Flexible(
-                                                        child: Text(
-                                                          e.isRegistered
-                                                              ? 'Registered'
-                                                              : 'Not registered',
-                                                          maxLines: 2,
-                                                          textAlign: TextAlign.right,
-                                                          style: TextStyle(
-                                                            fontSize: 10,
-                                                            fontWeight: FontWeight.w700,
-                                                            height: 1.2,
-                                                            color: e.isRegistered
-                                                                ? const Color(0xFF2E7D32)
-                                                                : const Color(0xFF757575),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            const SizedBox(height: 10),
-                                            Text(
-                                              e.title,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                                color: Color(0xFF0F172A),
-                                              ),
-                                            ),
-                                            if (e.eventTime != null) ...[
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                e.eventTime!,
-                                                style: TextStyle(
-                                                  fontSize: 13,
-                                                  color: Colors.grey[600],
-                                                ),
-                                              ),
-                                            ],
-                                            const SizedBox(height: 6),
-                                            Row(
-                                              children: [
-                                                Icon(Icons.location_on_outlined,
-                                                    size: 14, color: Colors.grey[600]),
-                                                const SizedBox(width: 4),
-                                                Expanded(
-                                                  child: Text(
-                                                    e.location,
-                                                    style: TextStyle(
-                                                        fontSize: 13, color: Colors.grey[600]),
-                                                    maxLines: 1,
-                                                    overflow: TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                            if (e.organizer != null) ...[
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'by ${e.organizer}',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey[500],
-                                                  fontStyle: FontStyle.italic,
-                                                ),
-                                              ),
-                                            ],
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              e.slotsLabel,
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[600],
-                                                fontWeight: FontWeight.w500,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
+        return _EventsBottomSheet(
+          homeContext: context,
+          onParentReloadEvents: _reloadEventsFuture,
+          parseEventsPayload: _parseEventsPayload,
         );
       },
     );
@@ -965,7 +1058,24 @@ class _HomePageState extends State<HomePage> {
                           snapshot.data!['data'] != null
                       ? (snapshot.data!['data'] as List).length
                       : 0;
-                  return Material(
+                  if (snapshot.connectionState == ConnectionState.done &&
+                      snapshot.hasData &&
+                      snapshot.data!['success'] == true) {
+                    if (_lastSeenEventCount != count) {
+                      final prev = _lastSeenEventCount;
+                      _lastSeenEventCount = count;
+                      if (prev >= 0 && count > prev) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _pulseEventsFab();
+                        });
+                      }
+                    }
+                  }
+                  return AnimatedScale(
+                    scale: _fabPulseScale,
+                    duration: const Duration(milliseconds: 240),
+                    curve: Curves.easeOutBack,
+                    child: Material(
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: _showEventsSheet,
@@ -1030,6 +1140,7 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                     ),
+                  ),
                   );
                 },
               ),
@@ -1110,6 +1221,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
     final isSelected = _selectedIndex == index;
+    final iconColor = isSelected ? const Color(0xFF2563EB) : Colors.white.withOpacity(0.7);
     return GestureDetector(
       onTap: () => setState(() => _selectedIndex = index),
       child: AnimatedScale(
@@ -1119,11 +1231,29 @@ class _HomePageState extends State<HomePage> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isSelected ? activeIcon : inactiveIcon,
-              color: isSelected ? const Color(0xFF2563EB) : Colors.white.withOpacity(0.7),
-              size: 22,
-            ),
+            if (index == 2)
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected
+                      ? const Color(0xFF2563EB).withOpacity(0.14)
+                      : Colors.white.withOpacity(0.22),
+                ),
+                alignment: Alignment.center,
+                child: Icon(
+                  isSelected ? activeIcon : inactiveIcon,
+                  color: iconColor,
+                  size: 18,
+                ),
+              )
+            else
+              Icon(
+                isSelected ? activeIcon : inactiveIcon,
+                color: iconColor,
+                size: 22,
+              ),
             if (isSelected) ...[
               const SizedBox(width: 6),
               Text(
@@ -1152,8 +1282,10 @@ class HomeTab extends StatefulWidget {
   State<HomeTab> createState() => _HomeTabState();
 }
 
-class _HomeTabState extends State<HomeTab> {
+class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  bool _searchFocused = false;
   String _searchText = '';
   String _sortOption = 'Latest';
   final Set<String> _selectedEmploymentTypes = <String>{};
@@ -1166,6 +1298,11 @@ class _HomeTabState extends State<HomeTab> {
   final _jobActionService = JobActionService();
   List<int>? _avatarBytes;
   int _unreadNotificationCount = 0;
+  /// -1 before first successful read; ring when count increases vs previous.
+  int _previousUnreadForBell = -1;
+  late AnimationController _bellRingController;
+  late Animation<double> _bellAngle;
+  int _jobListSerial = 0;
   String _greetingText = '';
   Timer? _notificationPollTimer;
   Timer? _greetingTimer;
@@ -1187,12 +1324,43 @@ class _HomeTabState extends State<HomeTab> {
   @override
   void initState() {
     super.initState();
+    _bellRingController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 820),
+    );
+    _bellAngle = TweenSequence<double>([
+      TweenSequenceItem<double>(
+          tween: Tween<double>(begin: 0, end: 0.14), weight: 1),
+      TweenSequenceItem<double>(
+          tween: Tween<double>(begin: 0.14, end: -0.16), weight: 1),
+      TweenSequenceItem<double>(
+          tween: Tween<double>(begin: -0.16, end: 0.11), weight: 1),
+      TweenSequenceItem<double>(
+          tween: Tween<double>(begin: 0.11, end: -0.07), weight: 1),
+      TweenSequenceItem<double>(
+          tween: Tween<double>(begin: -0.07, end: 0), weight: 1),
+    ]).animate(
+        CurvedAnimation(parent: _bellRingController, curve: Curves.easeInOut));
+    _bellRingController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _bellRingController.reset();
+      }
+    });
+    _searchFocus.addListener(() {
+      final f = _searchFocus.hasFocus;
+      if (f != _searchFocused) setState(() => _searchFocused = f);
+    });
     _greetingText = '${getPhilippinesGreeting()},';
     _fetchJobs();
     _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
     _loadUnreadNotifications();
     _startLiveUpdates();
+  }
+
+  void _ringBell() {
+    HapticFeedback.lightImpact();
+    _bellRingController.forward(from: 0);
   }
 
   Future<void> _loadAvatar() async {
@@ -1211,6 +1379,8 @@ class _HomeTabState extends State<HomeTab> {
     _notificationPollTimer?.cancel();
     _greetingTimer?.cancel();
     _jobActionService.removeListener(_onJobActionsChanged);
+    _bellRingController.dispose();
+    _searchFocus.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -1250,6 +1420,7 @@ class _HomeTabState extends State<HomeTab> {
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
       if (!mounted) return;
+      _previousUnreadForBell = -1;
       if (_unreadNotificationCount != 0) {
         setState(() => _unreadNotificationCount = 0);
       }
@@ -1260,8 +1431,14 @@ class _HomeTabState extends State<HomeTab> {
       final count =
           await ApiService.getJobseekerUnreadNotificationCount(token);
       if (!mounted) return;
+      final prevBell = _previousUnreadForBell;
+      final shouldRing = prevBell >= 0 && count > prevBell;
+      _previousUnreadForBell = count;
       if (_unreadNotificationCount != count) {
         setState(() => _unreadNotificationCount = count);
+      }
+      if (shouldRing) {
+        _ringBell();
       }
     } finally {
       _isUnreadLoading = false;
@@ -1287,6 +1464,7 @@ class _HomeTabState extends State<HomeTab> {
             .map((e) => Job.fromJson(e as Map<String, dynamic>))
             .toList();
         if (showPageLoader) _isLoading = false;
+        _jobListSerial++;
       });
     } else {
       if (showPageLoader) {
@@ -1333,6 +1511,7 @@ class _HomeTabState extends State<HomeTab> {
     if (!mounted) return;
 
     if (error == null) {
+      microInteractionSuccess();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
@@ -1370,6 +1549,7 @@ class _HomeTabState extends State<HomeTab> {
     if (!mounted) return;
 
     if (error == null) {
+      microInteractionSuccess();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(wasSaved
@@ -1665,29 +1845,34 @@ class _HomeTabState extends State<HomeTab> {
                           });
                           setState(() {});
                         },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 9),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFFDBEAFE)
-                                : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
+                        child: AnimatedScale(
+                          scale: isSelected ? 1.04 : 1.0,
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 9),
+                            decoration: BoxDecoration(
                               color: isSelected
-                                  ? const Color(0xFF93C5FD)
-                                  : const Color(0xFFE2E8F0),
-                              width: isSelected ? 1.5 : 1,
+                                  ? const Color(0xFFDBEAFE)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF93C5FD)
+                                    : const Color(0xFFE2E8F0),
+                                width: isSelected ? 1.5 : 1,
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            type,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: isSelected
-                                  ? const Color(0xFF1D4ED8)
-                                  : const Color(0xFF0F172A),
+                            child: Text(
+                              type,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? const Color(0xFF1D4ED8)
+                                    : const Color(0xFF0F172A),
+                              ),
                             ),
                           ),
                         ),
@@ -1750,29 +1935,34 @@ class _HomeTabState extends State<HomeTab> {
                           });
                           setState(() {});
                         },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 9),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFFDBEAFE)
-                                : const Color(0xFFF1F5F9),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
+                        child: AnimatedScale(
+                          scale: isSelected ? 1.04 : 1.0,
+                          duration: const Duration(milliseconds: 180),
+                          curve: Curves.easeOutCubic,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 9),
+                            decoration: BoxDecoration(
                               color: isSelected
-                                  ? const Color(0xFF93C5FD)
-                                  : const Color(0xFFE2E8F0),
-                              width: isSelected ? 1.5 : 1,
+                                  ? const Color(0xFFDBEAFE)
+                                  : const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF93C5FD)
+                                    : const Color(0xFFE2E8F0),
+                                width: isSelected ? 1.5 : 1,
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            skill,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: isSelected
-                                  ? const Color(0xFF1D4ED8)
-                                  : const Color(0xFF0F172A),
+                            child: Text(
+                              skill,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: isSelected
+                                    ? const Color(0xFF1D4ED8)
+                                    : const Color(0xFF0F172A),
+                              ),
                             ),
                           ),
                         ),
@@ -2010,12 +2200,22 @@ class _HomeTabState extends State<HomeTab> {
                     Stack(
                       clipBehavior: Clip.none,
                       children: [
-                        IconButton(
-                          onPressed: _openNotifications,
-                          icon: const Icon(
-                            Icons.notifications_none_rounded,
-                            color: Colors.white,
-                            size: 26,
+                        AnimatedBuilder(
+                          animation: _bellAngle,
+                          builder: (context, child) {
+                            return Transform.rotate(
+                              angle: _bellAngle.value,
+                              alignment: Alignment.topCenter,
+                              child: child,
+                            );
+                          },
+                          child: IconButton(
+                            onPressed: _openNotifications,
+                            icon: const Icon(
+                              Icons.notifications_none_rounded,
+                              color: Colors.white,
+                              size: 26,
+                            ),
                           ),
                         ),
                         if (_unreadNotificationCount > 0)
@@ -2086,20 +2286,32 @@ class _HomeTabState extends State<HomeTab> {
                   Row(
                     children: [
                       Expanded(
-                        child: Container(
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeOutCubic,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _searchFocused
+                                  ? const Color(0xFF2563EB)
+                                  : Colors.transparent,
+                              width: _searchFocused ? 2 : 0,
+                            ),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.04),
-                                blurRadius: 8,
+                                color: (_searchFocused
+                                        ? const Color(0xFF2563EB)
+                                        : Colors.black)
+                                    .withOpacity(_searchFocused ? 0.12 : 0.04),
+                                blurRadius: _searchFocused ? 14 : 8,
                                 offset: const Offset(0, 2),
                               ),
                             ],
                           ),
                           child: TextField(
+                            focusNode: _searchFocus,
                             controller: _searchController,
                             onChanged: (v) => setState(() => _searchText = v),
                             style: const TextStyle(
@@ -2248,7 +2460,10 @@ class _HomeTabState extends State<HomeTab> {
               child: Stack(
                 children: [
                   RefreshIndicator(
-                onRefresh: () => _fetchJobs(showPageLoader: false),
+                onRefresh: () async {
+                  await _fetchJobs(showPageLoader: false);
+                  if (mounted) microInteractionSelection();
+                },
                 color: const Color(0xFF2563EB),
                 child: jobs.isEmpty
                     ? ListView(
@@ -2302,6 +2517,7 @@ class _HomeTabState extends State<HomeTab> {
                           final isSaved = _jobActionService.isSaved(job.id);
                           final isApplied = _jobActionService.isApplied(job.id);
                           return _JobCard(
+                            key: ValueKey('${job.id}_$_jobListSerial'),
                             job: job,
                             formattedDate: _formatDate(job.postedDate),
                             isSaved: isSaved,
@@ -2309,7 +2525,20 @@ class _HomeTabState extends State<HomeTab> {
                             onTap: () => _showJobDetails(context, job),
                             onSave: () => _toggleSaveJob(job),
                             onApply: () => _showJobDetails(context, job),
-                          );
+                          )
+                              .animate()
+                              .fadeIn(
+                                duration: 320.ms,
+                                delay: (index * 42).ms,
+                                curve: Curves.easeOutCubic,
+                              )
+                              .slideY(
+                                begin: 0.07,
+                                end: 0,
+                                duration: 320.ms,
+                                delay: (index * 42).ms,
+                                curve: Curves.easeOutCubic,
+                              );
                         },
                       ),
               ),
@@ -2365,7 +2594,7 @@ class _HomeTabState extends State<HomeTab> {
 }
 
 // ─── Job Card Widget ──────────────────────────────────────────────────────────
-class _JobCard extends StatelessWidget {
+class _JobCard extends StatefulWidget {
   final Job job;
   final String formattedDate;
   final VoidCallback onTap;
@@ -2375,6 +2604,7 @@ class _JobCard extends StatelessWidget {
   final bool isApplied;
 
   const _JobCard({
+    super.key,
     required this.job,
     required this.formattedDate,
     required this.onTap,
@@ -2385,7 +2615,40 @@ class _JobCard extends StatelessWidget {
   });
 
   @override
+  State<_JobCard> createState() => _JobCardState();
+}
+
+class _JobCardState extends State<_JobCard> {
+  double _savePulse = 1.0;
+  double _applyPulse = 1.0;
+
+  @override
+  void didUpdateWidget(covariant _JobCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isSaved && widget.isSaved) _pulseSave();
+    if (!oldWidget.isApplied && widget.isApplied) _pulseApply();
+  }
+
+  void _pulseSave() {
+    setState(() => _savePulse = 1.06);
+    Future.delayed(const Duration(milliseconds: 170), () {
+      if (mounted) setState(() => _savePulse = 1.0);
+    });
+  }
+
+  void _pulseApply() {
+    setState(() => _applyPulse = 1.05);
+    Future.delayed(const Duration(milliseconds: 170), () {
+      if (mounted) setState(() => _applyPulse = 1.0);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final job = widget.job;
+    final formattedDate = widget.formattedDate;
+    final isSaved = widget.isSaved;
+    final isApplied = widget.isApplied;
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -2407,7 +2670,7 @@ class _JobCard extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: onTap,
+          onTap: widget.onTap,
           borderRadius: BorderRadius.circular(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2434,36 +2697,21 @@ class _JobCard extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Company icon with glow
-                        Container(
-                          width: 52,
-                          height: 52,
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                job.companyColor,
-                                job.companyColor.withOpacity(0.75),
+                        Hero(
+                          tag: 'job_logo_${job.id}',
+                          child: Material(
+                            color: Colors.transparent,
+                            child: CompanyLogoBox(
+                              job: job,
+                              size: 52,
+                              borderRadius: 18,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: job.companyColor.withOpacity(0.35),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 5),
+                                ),
                               ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: job.companyColor.withOpacity(0.35),
-                                blurRadius: 12,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Text(
-                              job.companyInitial,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                              ),
                             ),
                           ),
                         ),
@@ -2648,45 +2896,50 @@ class _JobCard extends StatelessWidget {
                       children: [
                         // Save button
                         GestureDetector(
-                          onTap: onSave,
-                          child: AnimatedContainer(
+                          onTap: widget.onSave,
+                          child: AnimatedScale(
+                            scale: _savePulse,
                             duration: const Duration(milliseconds: 180),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: isSaved
-                                  ? const Color(0xFF2563EB).withOpacity(0.08)
-                                  : const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
+                            curve: Curves.elasticOut,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
                                 color: isSaved
-                                    ? const Color(0xFF2563EB)
-                                    : const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  isSaved
-                                      ? Icons.bookmark_rounded
-                                      : Icons.bookmark_outline_rounded,
-                                  size: 18,
+                                    ? const Color(0xFF2563EB).withOpacity(0.08)
+                                    : const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
                                   color: isSaved
                                       ? const Color(0xFF2563EB)
-                                      : const Color(0xFF64748B),
+                                      : const Color(0xFFE2E8F0),
                                 ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  isSaved ? 'Saved' : 'Save',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isSaved
+                                        ? Icons.bookmark_rounded
+                                        : Icons.bookmark_outline_rounded,
+                                    size: 18,
                                     color: isSaved
                                         ? const Color(0xFF2563EB)
                                         : const Color(0xFF64748B),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    isSaved ? 'Saved' : 'Save',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: isSaved
+                                          ? const Color(0xFF2563EB)
+                                          : const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -2694,50 +2947,55 @@ class _JobCard extends StatelessWidget {
                         // Apply button
                         Expanded(
                           child: GestureDetector(
-                            onTap: isApplied ? null : onApply,
-                            child: AnimatedContainer(
+                            onTap: isApplied ? null : widget.onApply,
+                            child: AnimatedScale(
+                              scale: _applyPulse,
                               duration: const Duration(milliseconds: 180),
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  colors: isApplied
-                                      ? [const Color(0xFF10B981), const Color(0xFF059669)]
-                                      : [const Color(0xFF2563EB), const Color(0xFF1D4ED8)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: (isApplied
-                                            ? const Color(0xFF10B981)
-                                            : const Color(0xFF2563EB))
-                                        .withOpacity(0.35),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
+                              curve: Curves.elasticOut,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: isApplied
+                                        ? [const Color(0xFF10B981), const Color(0xFF059669)]
+                                        : [const Color(0xFF2563EB), const Color(0xFF1D4ED8)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
                                   ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    isApplied ? 'Applied' : 'Apply Now',
-                                    style: const TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: (isApplied
+                                              ? const Color(0xFF10B981)
+                                              : const Color(0xFF2563EB))
+                                          .withOpacity(0.35),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      isApplied ? 'Applied' : 'Apply Now',
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Icon(
+                                      isApplied
+                                          ? Icons.check_circle_outline_rounded
+                                          : Icons.arrow_forward_rounded,
+                                      size: 17,
                                       color: Colors.white,
                                     ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Icon(
-                                    isApplied
-                                        ? Icons.check_circle_outline_rounded
-                                        : Icons.arrow_forward_rounded,
-                                    size: 17,
-                                    color: Colors.white,
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -2836,6 +3094,13 @@ class _MapTabState extends State<MapTab> {
           if (lat == null || lng == null) continue;
 
           final company = emp['company_name']?.toString() ?? 'Employer';
+          final photoUrlRaw = emp['photo_url']?.toString().trim();
+          final photoRaw = emp['photo']?.toString().trim();
+          final imageUrl = (photoUrlRaw != null && photoUrlRaw.isNotEmpty)
+              ? photoUrlRaw
+              : (photoRaw != null && photoRaw.isNotEmpty)
+                  ? (ApiService.storageOrAbsoluteUrl(photoRaw) ?? '')
+                  : '';
           final address = emp['address_full']?.toString();
           final city = emp['city']?.toString();
           final province = emp['province']?.toString();
@@ -2847,10 +3112,14 @@ class _MapTabState extends State<MapTab> {
           final jobsRaw = emp['job_listings'] as List<dynamic>? ?? [];
           final jobs = jobsRaw.map((j) {
             final map = j as Map<String, dynamic>;
-            // Provide employer context for Job.fromJson
+            // Provide employer context + absolute photo URL for CompanyLogoBox.
             return Job.fromJson({
               ...map,
-              'employer': {'company_name': company},
+              if (imageUrl.isNotEmpty) 'employer_photo_url': imageUrl,
+              'employer': {
+                'company_name': company,
+                if (photoRaw != null && photoRaw.isNotEmpty) 'photo': photoRaw,
+              },
             });
           }).toList();
 
@@ -2859,7 +3128,7 @@ class _MapTabState extends State<MapTab> {
               id: 'emp_${emp['id']}',
               name: company,
               description: locationText.isNotEmpty ? locationText : (emp['tagline']?.toString() ?? ''),
-              imageUrl: '',
+              imageUrl: imageUrl,
               latitude: lat,
               longitude: lng,
               availableJobs: jobs,
@@ -3073,6 +3342,7 @@ class _MapTabState extends State<MapTab> {
                     final color = business.id == 'sm_savemore'
                         ? const Color(0xFFE11D48)
                         : const Color(0xFF7C3AED);
+                    final pinSize = isSelected ? 44.0 : 36.0;
                     return Marker(
                       point: LatLng(business.latitude, business.longitude),
                       width: 120,
@@ -3085,29 +3355,60 @@ class _MapTabState extends State<MapTab> {
                         },
                         child: Column(
                           children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: isSelected ? 44 : 36,
-                              height: isSelected ? 44 : 36,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: isSelected ? 4 : 3,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: color.withOpacity(0.4),
-                                    blurRadius: isSelected ? 15 : 8,
-                                    spreadRadius: isSelected ? 3 : 1,
+                            AnimatedScale(
+                              scale: isSelected ? 1.1 : 1.0,
+                              duration: const Duration(milliseconds: 220),
+                              curve: Curves.easeOutBack,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: pinSize,
+                                height: pinSize,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: isSelected ? 4 : 3,
                                   ),
-                                ],
-                              ),
-                              child: Icon(
-                                Icons.store_rounded,
-                                color: Colors.white,
-                                size: isSelected ? 22 : 18,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: color.withOpacity(0.4),
+                                      blurRadius: isSelected ? 15 : 8,
+                                      spreadRadius: isSelected ? 3 : 1,
+                                    ),
+                                  ],
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: ClipOval(
+                                  child: business.imageUrl.isNotEmpty
+                                      ? Image.network(
+                                          business.imageUrl,
+                                          width: pinSize,
+                                          height: pinSize,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Container(
+                                            width: pinSize,
+                                            height: pinSize,
+                                            color: color,
+                                            alignment: Alignment.center,
+                                            child: Icon(
+                                              Icons.store_rounded,
+                                              color: Colors.white,
+                                              size: isSelected ? 22 : 18,
+                                            ),
+                                          ),
+                                        )
+                                      : Container(
+                                          width: pinSize,
+                                          height: pinSize,
+                                          color: color,
+                                          alignment: Alignment.center,
+                                          child: Icon(
+                                            Icons.store_rounded,
+                                            color: Colors.white,
+                                            size: isSelected ? 22 : 18,
+                                          ),
+                                        ),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -3238,18 +3539,38 @@ class _MapTabState extends State<MapTab> {
                             itemBuilder: (context, index) {
                               final business = _filteredBusinesses[index];
                               return ListTile(
-                                leading: Container(
-                                  width: 40,
-                                  height: 40,
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF2563EB).withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: const Icon(
-                                    Icons.store_rounded,
-                                    color: Color(0xFF2563EB),
-                                    size: 20,
-                                  ),
+                                leading: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: business.imageUrl.isNotEmpty
+                                      ? Image.network(
+                                          business.imageUrl,
+                                          width: 40,
+                                          height: 40,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Container(
+                                            width: 40,
+                                            height: 40,
+                                            color: const Color(0xFF2563EB).withOpacity(0.1),
+                                            child: const Icon(
+                                              Icons.store_rounded,
+                                              color: Color(0xFF2563EB),
+                                              size: 20,
+                                            ),
+                                          ),
+                                        )
+                                      : Container(
+                                          width: 40,
+                                          height: 40,
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF2563EB).withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(10),
+                                          ),
+                                          child: const Icon(
+                                            Icons.store_rounded,
+                                            color: Color(0xFF2563EB),
+                                            size: 20,
+                                          ),
+                                        ),
                                 ),
                                 title: Text(
                                   business.name,
@@ -3318,22 +3639,49 @@ class _MapTabState extends State<MapTab> {
                             children: [
                               Row(
                                 children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      color: (index % 2 == 0)
-                                          ? const Color(0xFFE11D48).withOpacity(0.1)
-                                          : const Color(0xFF7C3AED).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Icon(
-                                      Icons.store_rounded,
-                                      color: (index % 2 == 0)
-                                          ? const Color(0xFFE11D48)
-                                          : const Color(0xFF7C3AED),
-                                      size: 24,
-                                    ),
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: business.imageUrl.isNotEmpty
+                                        ? Image.network(
+                                            business.imageUrl,
+                                            width: 44,
+                                            height: 44,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Container(
+                                              width: 44,
+                                              height: 44,
+                                              decoration: BoxDecoration(
+                                                color: (index % 2 == 0)
+                                                    ? const Color(0xFFE11D48).withOpacity(0.1)
+                                                    : const Color(0xFF7C3AED).withOpacity(0.1),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              child: Icon(
+                                                Icons.store_rounded,
+                                                color: (index % 2 == 0)
+                                                    ? const Color(0xFFE11D48)
+                                                    : const Color(0xFF7C3AED),
+                                                size: 24,
+                                              ),
+                                            ),
+                                          )
+                                        : Container(
+                                            width: 44,
+                                            height: 44,
+                                            decoration: BoxDecoration(
+                                              color: (index % 2 == 0)
+                                                  ? const Color(0xFFE11D48).withOpacity(0.1)
+                                                  : const Color(0xFF7C3AED).withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Icon(
+                                              Icons.store_rounded,
+                                              color: (index % 2 == 0)
+                                                  ? const Color(0xFFE11D48)
+                                                  : const Color(0xFF7C3AED),
+                                              size: 24,
+                                            ),
+                                          ),
                                   ),
                                   const SizedBox(width: 12),
                                   Expanded(
@@ -3539,18 +3887,38 @@ class _BusinessPopupCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.store_rounded,
-                  color: Color(0xFF2563EB),
-                  size: 28,
-                ),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: business.imageUrl.isNotEmpty
+                    ? Image.network(
+                        business.imageUrl,
+                        width: 56,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 56,
+                          height: 56,
+                          color: const Color(0xFF2563EB).withOpacity(0.1),
+                          child: const Icon(
+                            Icons.store_rounded,
+                            color: Color(0xFF2563EB),
+                            size: 28,
+                          ),
+                        ),
+                      )
+                    : Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Icon(
+                          Icons.store_rounded,
+                          color: Color(0xFF2563EB),
+                          size: 28,
+                        ),
+                      ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -3707,18 +4075,38 @@ class _BusinessDetailSheet extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            child: const Icon(
-                              Icons.store_rounded,
-                              color: Color(0xFF2563EB),
-                              size: 36,
-                            ),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: business.imageUrl.isNotEmpty
+                                ? Image.network(
+                                    business.imageUrl,
+                                    width: 72,
+                                    height: 72,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Container(
+                                      width: 72,
+                                      height: 72,
+                                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                                      child: const Icon(
+                                        Icons.store_rounded,
+                                        color: Color(0xFF2563EB),
+                                        size: 36,
+                                      ),
+                                    ),
+                                  )
+                                : Container(
+                                    width: 72,
+                                    height: 72,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(18),
+                                    ),
+                                    child: const Icon(
+                                      Icons.store_rounded,
+                                      color: Color(0xFF2563EB),
+                                      size: 36,
+                                    ),
+                                  ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -3931,23 +4319,10 @@ class _JobListItem extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: job.companyColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Center(
-                    child: Text(
-                      job.companyInitial,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
+                CompanyLogoBox(
+                  job: job,
+                  size: 48,
+                  boxShadow: const [],
                 ),
                 const SizedBox(width: 14),
                 Expanded(

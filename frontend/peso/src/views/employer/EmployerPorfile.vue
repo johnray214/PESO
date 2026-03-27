@@ -309,6 +309,7 @@
 
 <script>
 import api from '@/services/api'
+import { normalizeStorageUrl } from '@/utils/storageUrl'
 import EmployerSidebar from '@/components/EmployerSidebar.vue'
 import EmployerTopbar from '@/components/EmployerTopbar.vue'
 import { useEmployerAuthStore } from '@/stores/employerAuth'
@@ -405,7 +406,7 @@ export default {
         email:         p.email         || '',
         website:       p.website       || '',
         contactPerson: p.contact_person || '',  // FIX #5: single field, no split
-        photo:         p.photo         || null,
+        photo:         normalizeStorageUrl(p.photo) || null,
         perks:         Array.isArray(p.perks) ? p.perks : [],
       }
 
@@ -568,10 +569,10 @@ export default {
       try {
         const form = new FormData()
         form.append('photo', this.pendingFile)
-        const { data } = await api.post('/employer/profile/photo', form, {
-          headers: { 'Content-Type': 'multipart/form-data' }
-        })
-        const newPhotoUrl = data.data?.photo || this.photoPreview
+        const res = await api.post('/employer/profile/photo', form)
+        const body = res.data
+        const rawPhoto = body?.data?.photo ?? body?.photo
+        const newPhotoUrl = normalizeStorageUrl(rawPhoto) || this.photoPreview
         this.company.photo = newPhotoUrl
         if (this.authStore.user) {
           this.authStore.user.photo = newPhotoUrl
