@@ -199,7 +199,7 @@ class JobseekerAuthController extends Controller
                 'Messages' => [
                     [
                         'From' => [
-                            'Email' => env('MAILJET_FROM_EMAIL', 'yujohnray96@gmail.com'),
+                            'Email' => env('MAILJET_FROM_EMAIL', 'peso@posuechague.site'),
                             'Name'  => env('MAILJET_FROM_NAME', 'PESO')
                         ],
                         'To' => [

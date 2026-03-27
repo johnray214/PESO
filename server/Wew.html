@@ -3,11 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="api-base" content="http://127.0.0.1:8000/api">
+<meta name="api-base" content="https://pesobackend-production.up.railway.app/api">
 <title>SACCGEA ID Card Generator</title>
+<link rel="icon" type="image/x-icon" href="./favicon.ico">
+<link rel="shortcut icon" href="./favicon.ico">
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* PESO-style palette (vibrant blue banner + white content, Batangas City PESO ref.) */
   :root {
     --primary-blue: #0033cc;
     --dark-blue:    #001a66;
@@ -42,7 +43,6 @@
     align-items: center;
     padding: 0;
     color: var(--text);
-    /* Light mesh / halftone feel (banner-style) */
     background-image:
       radial-gradient(circle at 1px 1px, rgba(0, 51, 204, 0.06) 1px, transparent 0),
       radial-gradient(ellipse 90% 45% at 50% -5%, rgba(0, 51, 204, 0.12) 0%, transparent 55%),
@@ -67,11 +67,7 @@
     box-shadow: 0 4px 20px rgba(0, 26, 102, 0.22);
   }
 
-  .topbar-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .topbar-brand { display: flex; align-items: center; gap: 10px; }
 
   .topbar-dot {
     width: 8px; height: 8px;
@@ -87,31 +83,25 @@
   }
 
   .topbar-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--white);
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
+    font-size: 13px; font-weight: 700; color: var(--white);
+    letter-spacing: 1.5px; text-transform: uppercase;
   }
 
   .topbar-sub {
-    font-size: 11px;
-    font-weight: 400;
-    color: rgba(255, 255, 255, 0.88);
-    letter-spacing: 0.5px;
+    font-size: 11px; font-weight: 400;
+    color: rgba(255,255,255,0.88); letter-spacing: 0.5px;
   }
 
   /* ── MAIN LAYOUT ── */
   .main {
     display: flex;
     flex-wrap: wrap;
-    gap: 0;
+    gap: 28px;
     width: 100%;
     max-width: 920px;
     padding: 36px 24px;
     justify-content: center;
     align-items: flex-start;
-    gap: 28px;
   }
 
   /* ── FORM PANEL ── */
@@ -127,613 +117,475 @@
     flex-direction: column;
     gap: 0;
     box-shadow:
-      0 1px 0 rgba(255, 255, 255, 0.9) inset,
-      0 12px 40px rgba(0, 26, 102, 0.08);
+      0 1px 0 rgba(255,255,255,0.9) inset,
+      0 12px 40px rgba(0,26,102,0.08);
   }
 
   .panel-heading {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--primary-blue);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    margin-bottom: 20px;
-    padding-bottom: 12px;
+    font-size: 10px; font-weight: 700; color: var(--primary-blue);
+    letter-spacing: 2px; text-transform: uppercase;
+    margin-bottom: 20px; padding-bottom: 12px;
     border-bottom: 1px solid var(--border);
   }
 
   /* ── PHOTO UPLOAD ZONE ── */
   .upload-zone {
     border: 1.5px dashed var(--border);
-    border-radius: 10px;
     padding: 16px;
     margin-bottom: 20px;
     background: var(--surface);
     transition: border-color 0.2s;
   }
-
   .upload-zone:hover { border-color: var(--accent2); }
 
   .upload-zone-label {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--label);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 12px;
-    display: block;
+    font-size: 10px; font-weight: 600; color: var(--label);
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 12px; display: block;
   }
 
-  .upload-inner {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-  }
+  .upload-inner { display: flex; gap: 12px; align-items: center; }
 
-  /* thumbnail */
   .thumb {
-    width: 68px;
-    height: 68px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--navy);
-    overflow: hidden;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 68px; height: 68px;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: var(--navy); overflow: hidden; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
   }
-
   .thumb img { width: 100%; height: 100%; object-fit: cover; }
 
   .thumb-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
   }
-
   .thumb-empty svg { opacity: 0.3; }
-
   .thumb-empty span {
-    font-size: 9px;
-    color: var(--muted);
-    font-weight: 500;
-    text-align: center;
-    line-height: 1.3;
+    font-size: 9px; color: var(--muted); font-weight: 500;
+    text-align: center; line-height: 1.3;
   }
 
-  .upload-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    flex: 1;
-  }
-
-  .btn-row {
-    display: flex;
-    gap: 6px;
-  }
+  .upload-controls { display: flex; flex-direction: column; gap: 7px; flex: 1; }
+  .btn-row { display: flex; gap: 6px; }
 
   .btn-pick {
-    flex: 1;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 7px;
-    padding: 8px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
-    letter-spacing: 0.3px;
+    flex: 1; background: var(--accent); color: #fff; border: none;
+    border-radius: 7px; padding: 8px 10px; font-size: 11px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif; cursor: pointer; letter-spacing: 0.3px;
     transition: background 0.15s, transform 0.1s;
   }
   .btn-pick:hover { background: var(--accent2); transform: translateY(-1px); }
 
-  .btn-save {
-    flex: 1;
-    background: transparent;
-    color: var(--green);
-    border: 1.5px solid var(--green);
-    border-radius: 7px;
-    padding: 8px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
+  .btn-save-photo {
+    flex: 1; background: transparent; color: var(--green);
+    border: 1.5px solid var(--green); border-radius: 7px;
+    padding: 8px 10px; font-size: 11px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif; cursor: pointer;
     transition: background 0.15s, transform 0.1s;
   }
-  .btn-save:hover { background: rgba(34,197,94,0.1); transform: translateY(-1px); }
+  .btn-save-photo:hover { background: rgba(34,197,94,0.1); transform: translateY(-1px); }
 
   .btn-discard {
-    flex: 1;
-    background: transparent;
-    color: var(--red);
-    border: 1.5px solid var(--red);
-    border-radius: 7px;
-    padding: 8px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
+    flex: 1; background: transparent; color: var(--red);
+    border: 1.5px solid var(--red); border-radius: 7px;
+    padding: 8px 10px; font-size: 11px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif; cursor: pointer;
     transition: background 0.15s, transform 0.1s;
   }
   .btn-discard:hover { background: rgba(239,68,68,0.1); transform: translateY(-1px); }
 
   .photo-status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--muted);
-    letter-spacing: 0.3px;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 600; color: var(--muted); letter-spacing: 0.3px;
   }
-
-  .status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--muted);
-    flex-shrink: 0;
-  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
 
   /* ── FORM FIELDS ── */
-  .field-group {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin-bottom: 20px;
-  }
+  .field-group { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
 
-  .field {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
+  .field { display: flex; flex-direction: column; gap: 5px; }
 
   .field label {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--label);
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    font-size: 10px; font-weight: 700; color: var(--label);
+    text-transform: uppercase; letter-spacing: 1px;
   }
 
   .field input {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 9px 12px;
-    font-size: 13px;
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 500;
-    color: var(--text);
-    outline: none;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    width: 100%;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; font-size: 13px;
+    font-family: 'DM Sans', sans-serif; font-weight: 500; color: var(--text);
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s; width: 100%;
   }
-
+  .field textarea {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; font-size: 13px;
+    font-family: 'DM Sans', sans-serif; font-weight: 500; color: var(--text);
+    outline: none; transition: border-color 0.2s, box-shadow 0.2s; width: 100%;
+    resize: none; overflow: hidden;
+    line-height: 1.35;
+    min-height: 38px;
+  }
   .field input::placeholder { color: var(--muted); font-weight: 400; opacity: 0.85; }
+  .field textarea::placeholder { color: var(--muted); font-weight: 400; opacity: 0.85; }
+  .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,51,204,0.18); }
+  .field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,51,204,0.18); }
 
-  .field input:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(0, 51, 204, 0.18);
+  /* two-column row */
+  .field-row { display: flex; gap: 10px; }
+  .field-row .field-grow { flex: 1; }
+  .field-row .field-short { width: 68px; flex-shrink: 0; }
+
+  .field-suffix-label {
+    font-weight: 400; text-transform: none;
+    letter-spacing: 0; color: var(--muted);
   }
 
   .last-position-note {
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--muted);
-    line-height: 1.5;
-    margin: -6px 0 10px;
+    font-size: 11px; font-weight: 500; color: var(--muted);
+    line-height: 1.5; margin: -6px 0 10px;
   }
+  .last-position-note strong { color: var(--label); font-weight: 600; }
 
-  .last-position-note strong {
-    color: var(--label);
-    font-weight: 600;
-  }
-
-  /* number spin hide */
-  .field input[type=number]::-webkit-inner-spin-button,
-  .field input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
-
-  /* divider */
-  .divider {
-    height: 1px;
-    background: var(--border);
-    margin: 4px 0 20px;
-  }
+  .divider { height: 1px; background: var(--border); margin: 4px 0 20px; }
 
   /* ── DOWNLOAD BUTTON ── */
   .btn-download {
     width: 100%;
     background: linear-gradient(135deg, var(--accent) 0%, var(--dark-blue) 100%);
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    padding: 13px 16px;
-    font-size: 13px;
-    font-weight: 700;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
-    letter-spacing: 0.5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
+    color: #fff; border: none; border-radius: 10px;
+    padding: 13px 16px; font-size: 13px; font-weight: 700;
+    font-family: 'DM Sans', sans-serif; cursor: pointer; letter-spacing: 0.5px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
     transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
-    box-shadow: 0 4px 20px rgba(0, 51, 204, 0.35);
-    position: relative;
-    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0,51,204,0.35);
+    position: relative; overflow: hidden;
   }
-
   .btn-download::before {
-    content: '';
-    position: absolute;
-    inset: 0;
+    content: ''; position: absolute; inset: 0;
     background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%);
     pointer-events: none;
   }
-
-  .btn-download:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 28px rgba(0, 51, 204, 0.45);
-  }
-
+  .btn-download:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(0,51,204,0.45); }
   .btn-download:active { transform: translateY(0); }
-
-  .btn-download svg {
-    transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
-    flex-shrink: 0;
-  }
-
+  .btn-download svg { transition: transform 0.3s cubic-bezier(.34,1.56,.64,1); flex-shrink: 0; }
   .btn-download:hover svg { transform: translateY(3px); }
-
-  .btn-download.loading {
-    opacity: 0.75;
-    pointer-events: none;
+  .btn-download.loading { opacity: 0.75; pointer-events: none; }
+  .btn-download.loading svg { animation: spin 0.7s linear infinite; }
+  .btn-download:disabled, .btn-download.btn-locked {
+    opacity: 0.45; cursor: not-allowed; transform: none;
+    box-shadow: 0 2px 10px rgba(0,51,204,0.12);
   }
-
-  .btn-download.loading svg {
-    animation: spin 0.7s linear infinite;
+  .btn-download:disabled:hover, .btn-download.btn-locked:hover {
+    transform: none; box-shadow: 0 2px 10px rgba(0,51,204,0.12);
   }
+  .btn-download:disabled:hover svg, .btn-download.btn-locked:hover svg { transform: none; }
 
-  .btn-download:disabled,
-  .btn-download.btn-locked {
-    opacity: 0.45;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: 0 2px 10px rgba(0, 51, 204, 0.12);
-  }
+  .save-hint { font-size: 10px; font-weight: 500; color: var(--muted); line-height: 1.45; margin-bottom: 12px; }
+  .save-hint strong { color: var(--label); font-weight: 600; }
 
-  .btn-download:disabled:hover,
-  .btn-download.btn-locked:hover {
-    transform: none;
-    box-shadow: 0 2px 10px rgba(0, 51, 204, 0.12);
-  }
-
-  .btn-download:disabled:hover svg,
-  .btn-download.btn-locked:hover svg {
-    transform: none;
-  }
-
-  .save-hint {
-    font-size: 10px;
-    font-weight: 500;
-    color: var(--muted);
-    line-height: 1.45;
-    margin-bottom: 12px;
-  }
-
-  .save-hint strong {
-    color: var(--label);
-    font-weight: 600;
-  }
-
-  .save-validation {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--amber);
-    margin: 0 0 12px;
-    line-height: 1.45;
-  }
-
-  .save-validation:empty {
-    display: none;
-  }
+  .save-validation { font-size: 11px; font-weight: 600; color: var(--amber); margin: 0 0 12px; line-height: 1.45; }
+  .save-validation:empty { display: none; }
 
   .btn-save-employee {
-    width: 100%;
-    background: transparent;
-    color: var(--primary-blue);
-    border: 1.5px solid var(--primary-blue);
-    border-radius: 10px;
-    padding: 12px 16px;
-    font-size: 12px;
-    font-weight: 700;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
-    letter-spacing: 0.4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 14px;
-    transition: background 0.15s, transform 0.1s;
+    width: 100%; background: transparent; color: var(--primary-blue);
+    border: 1.5px solid var(--primary-blue); border-radius: 10px;
+    padding: 12px 16px; font-size: 12px; font-weight: 700;
+    font-family: 'DM Sans', sans-serif; cursor: pointer; letter-spacing: 0.4px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-bottom: 14px; transition: background 0.15s, transform 0.1s;
   }
+  .btn-save-employee:hover { background: rgba(0,51,204,0.08); transform: translateY(-1px); }
+  .btn-save-employee:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-save-employee.loading { pointer-events: none; opacity: 0.8; }
 
-  .btn-save-employee:hover {
-    background: rgba(0, 51, 204, 0.08);
-    transform: translateY(-1px);
-  }
-
-  .btn-save-employee:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .btn-save-employee.loading {
-    pointer-events: none;
-    opacity: 0.8;
-  }
-
-  @keyframes spin {
-    from { transform: rotate(0deg); }
-    to   { transform: rotate(360deg); }
-  }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
   /* ── PREVIEW PANEL ── */
-  .preview-panel {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-  }
-
+  .preview-panel { display: flex; flex-direction: column; align-items: center; gap: 14px; }
   .preview-label {
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--label);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    align-self: flex-start;
+    font-size: 10px; font-weight: 700; color: var(--label);
+    letter-spacing: 2px; text-transform: uppercase; align-self: flex-start;
   }
 
-  /* ─── THE CARD (UNCHANGED STRUCTURE) ─── */
+  /* ── THE CARD ── */
   .id-card {
-    position: relative;
-    width: 298px;
-    height: 430px;
-    overflow: hidden;
+    position: relative; width: 298px; height: 430px; overflow: hidden;
     box-shadow:
-      0 0 0 1px rgba(0, 26, 102, 0.12),
-      0 20px 50px rgba(0, 26, 102, 0.15),
-      0 4px 16px rgba(0, 0, 0, 0.08);
+      0 0 0 1px rgba(0,26,102,0.12),
+      0 20px 50px rgba(0,26,102,0.15),
+      0 4px 16px rgba(0,0,0,0.08);
   }
-
   .id-card .bg-img {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    object-fit: fill;
-    z-index: 0;
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%; object-fit: fill; z-index: 0;
   }
 
-  /* ── PHOTO OVERLAY — UNTOUCHED ── */
+  /* ── PHOTO OVERLAY ── */
   .photo-overlay {
-    position: absolute;
-    top: 72px;
-    left: 97px;
-    width: 171px;
-    height: 172px;
-    overflow: hidden;
-    z-index: 2;
-    background: #ffffff;
-    border: none;
+    position: absolute; top: 72px; left: 97px;
+    width: 172px; height: 172px;
+    overflow: hidden; z-index: 2; background: #ffffff;
   }
-
   .photo-overlay img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;    /* shows full photo, no crop */
-    display: block;
-    padding: 12px;           /* whitespace border around photo — increase to add more gap */
-    background: #ffffff;
-    box-sizing: border-box;
+    width: 100%; height: 100%; object-fit: contain; display: block;
+    background: #ffffff; box-sizing: border-box;
   }
 
-  /* ── NAME TEXT ── */
+  /* ── NAME BLOCK ── */
   .card-name {
     position: absolute;
-    top: 270px;
-    left: 50px;
-    right: 6px;
+    top: 258px;
+    /* Center within the card's right (white) area */
+    left: 97px; right: 30px;
     text-align: center;
+    z-index: 3;
+    line-height: 1.2;
+  }
+
+  /* Line 1: First Name — large & bold */
+  .card-name .first-name {
+    display: block;
     font-family: 'Montserrat', sans-serif;
-    font-weight: 800;
+    font-weight: 1000;
+    font-size: 17px;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden; /* prevents height changes that could disturb the next line */
+  }
+
+  /* Line 2: MI. Last Name Suffix — smaller, NOT bold */
+  .card-name .last-mi {
+    display: block;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 625;
     font-size: 14px;
     color: #1a1a1a;
     text-transform: uppercase;
-    line-height: 1.25;
-    z-index: 3;
   }
 
-  /* ── POSITION TEXT ── */
+  /* ── POSITION — slightly bigger ── */
   .card-position {
-    position: absolute;
-    top: 290px;
-    left: 50px;
-    right: 6px;
-    text-align: center;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 800;
-    font-size: 12px;
-    color: #1a1a1a;
-    text-transform: uppercase;
-    z-index: 3;
+    position: absolute; top: 300px; left: 97px; right: 30px;
+    text-align: center; font-family: 'Montserrat', sans-serif;
+    font-weight: 625; font-size: 13.5px; color: #1a1a1a;
+    text-transform: uppercase; z-index: 3;
+    white-space: pre-line; /* allow manual line break from user-entered newline */
+    line-height: 1.0;
+    max-height: 2em; /* allow up to ~2 lines without overlapping Office */
+    overflow: hidden;
   }
 
-  /* ── OFFICE TEXT ── */
+  /* ── OFFICE ── */
   .card-office {
-    position: absolute;
-    top: 308px;
-    left: 50px;
-    right: 6px;
-    text-align: center;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 600;
-    font-size: 11px;
-    color: var(--primary-blue);
-    text-transform: uppercase;
-    z-index: 3;
+    position: absolute; top: 316px; left: 97px; right: 30px;
+    text-align: center; font-family: 'Montserrat', sans-serif;
+    font-weight: 625; font-size: 11px; color: var(--primary-blue);
+    text-transform: uppercase; z-index: 3;
+    white-space: nowrap;
   }
 
-  /* ── ID NUMBER TEXT ── */
+  /* ── ID NUMBER ── */
   .card-id {
-    position: absolute;
-    top: 332px;
-    left: 160px;
+    position: absolute; top: 334px; left: 170px;
     font-family: 'Montserrat', sans-serif;
-    font-weight: 600;
-    font-size: 11px;
-    color: #000000;
-    z-index: 3;
+    font-weight: 600; font-size: 10px; color: #000000; z-index: 3;
   }
 
   /* ── SAVE SUCCESS MODAL ── */
   .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-    background: rgba(5, 10, 22, 0.78);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    opacity: 0;
-    visibility: hidden;
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(5,10,22,0.78);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    opacity: 0; visibility: hidden;
     transition: opacity 0.22s ease, visibility 0.22s ease;
   }
-
-  .modal-backdrop.is-open {
-    opacity: 1;
-    visibility: visible;
-  }
-
-  .modal-backdrop[hidden] {
-    display: none !important;
-  }
+  .modal-backdrop.is-open { opacity: 1; visibility: visible; }
+  .modal-backdrop[hidden] { display: none !important; }
 
   .modal-dialog {
-    position: relative;
-    width: 100%;
-    max-width: 360px;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 28px 26px 24px;
-    text-align: center;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
-    transform: translateY(10px) scale(0.98);
-    transition: transform 0.22s ease;
+    position: relative; width: 100%; max-width: 360px;
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px 26px 24px; text-align: center;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.55);
+    transform: translateY(10px) scale(0.98); transition: transform 0.22s ease;
   }
-
-  .modal-backdrop.is-open .modal-dialog {
-    transform: translateY(0) scale(1);
-  }
+  .modal-backdrop.is-open .modal-dialog { transform: translateY(0) scale(1); }
 
   .modal-close {
-    position: absolute;
-    top: 10px;
-    right: 12px;
-    width: 32px;
-    height: 32px;
-    border: none;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--muted);
-    font-size: 22px;
-    line-height: 1;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    position: absolute; top: 10px; right: 12px;
+    width: 32px; height: 32px; border: none; border-radius: 8px;
+    background: transparent; color: var(--muted); font-size: 22px; line-height: 1;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
     transition: color 0.15s, background 0.15s;
   }
+  .modal-close:hover { color: var(--text); background: rgba(0,26,102,0.06); }
 
-  .modal-close:hover {
-    color: var(--text);
-    background: rgba(0, 26, 102, 0.06);
-  }
-
-  .modal-success-icon {
-    width: 52px;
-    height: 52px;
-    margin: 0 auto 16px;
-    color: var(--green);
-  }
+  .modal-success-icon { width: 52px; height: 52px; margin: 0 auto 16px; color: var(--green); }
 
   .modal-title {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 18px;
-    font-weight: 800;
-    color: var(--dark-blue);
-    letter-spacing: 0.3px;
-    margin-bottom: 10px;
+    font-family: 'Montserrat', sans-serif; font-size: 18px; font-weight: 800;
+    color: var(--dark-blue); letter-spacing: 0.3px; margin-bottom: 10px;
   }
 
-  .modal-body {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text);
-    line-height: 1.55;
-    margin-bottom: 8px;
-  }
-
-  .modal-id-line {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--accent2);
-    margin-bottom: 22px;
-    letter-spacing: 0.3px;
-  }
+  .modal-body { font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.55; margin-bottom: 8px; }
+  .modal-id-line { font-size: 12px; font-weight: 600; color: var(--accent2); margin-bottom: 22px; letter-spacing: 0.3px; }
 
   .modal-btn-ok {
-    width: 100%;
-    border: none;
+    width: 100%; border: none; border-radius: 10px; padding: 12px 16px;
+    font-size: 13px; font-weight: 700; font-family: 'DM Sans', sans-serif;
+    cursor: pointer; color: #fff;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--dark-blue) 100%);
+    box-shadow: 0 4px 18px rgba(0,51,204,0.35); transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .modal-btn-ok:hover { transform: translateY(-1px); box-shadow: 0 6px 22px rgba(0,51,204,0.45); }
+
+  .confirm-modal-grid {
+    text-align: left;
+    margin: 12px 0 18px;
+    border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 12px 16px;
-    font-size: 13px;
+    background: var(--surface);
+    padding: 10px 12px;
+    max-height: 230px;
+    overflow: auto;
+  }
+  .confirm-item {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    padding: 4px 0;
+  }
+  .confirm-item strong { color: var(--label); }
+  .confirm-id-note {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .confirm-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    text-align: left;
+    font-size: 12px;
+    color: var(--text);
+    margin: 2px 0 14px;
+  }
+  .confirm-check input { margin-top: 2px; }
+  .confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .btn-confirm-no {
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    padding: 11px 10px;
+    font-size: 12px;
     font-weight: 700;
     font-family: 'DM Sans', sans-serif;
     cursor: pointer;
+  }
+  .btn-confirm-yes {
+    border: none;
+    border-radius: 10px;
     color: #fff;
     background: linear-gradient(135deg, var(--accent) 0%, var(--dark-blue) 100%);
-    box-shadow: 0 4px 18px rgba(0, 51, 204, 0.35);
-    transition: transform 0.12s, box-shadow 0.12s;
+    padding: 11px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
+  .btn-confirm-yes[disabled] { opacity: 0.55; cursor: not-allowed; }
+  .btn-confirm-yes.loading { pointer-events: none; }
+  .btn-confirm-yes .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255,255,255,0.45);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .btn-confirm-yes.loading .spinner { display: inline-block; }
 
-  .modal-btn-ok:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 6px 22px rgba(0, 51, 204, 0.45);
+  .toast-wrap {
+    position: fixed;
+    left: 50%;
+    top: calc(56px + 10px);
+    transform: translateX(-50%);
+    z-index: 260;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(560px, calc(100% - 24px));
+    pointer-events: none;
+  }
+  .toast {
+    pointer-events: auto;
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid rgba(21,128,61,0.28);
+    background: #ecfdf3;
+    color: #14532d;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.16);
+    padding: 11px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+    animation: toastIn 0.28s ease forwards;
+  }
+  .toast.is-exiting { animation: toastOut 0.2s ease forwards; }
+  .toast-msg { font-weight: 700; line-height: 1.35; }
+  .toast-close {
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: rgba(20,83,45,0.85);
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font-size: 18px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .toast-close:hover { background: rgba(20,83,45,0.08); }
+
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes toastOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(-8px) scale(0.98); }
   }
 
   .logo {
-  position: absolute;
-  height: 59px;
-  width: 66px;
-  border-radius: 90%;
-  top: 10px;       
-  left:1px;      
-  z-index: 4;
+    position: absolute; height: 59px; width: 66px;
+    border-radius: 90%; top: 10px; left: 1px; z-index: 4;
+  }
 
-}
-
+  @media (max-width: 700px) {
+    .confirm-item { grid-template-columns: 86px 1fr; }
+    .toast-wrap { top: calc(56px + 8px); width: calc(100% - 16px); }
+  }
 </style>
 </head>
 <body>
@@ -753,7 +605,6 @@
   <!-- FORM PANEL -->
   <div class="form-panel">
     <div class="panel-heading">Your ID details</div>
-
     <!-- PHOTO UPLOAD -->
     <div class="upload-zone">
       <span class="upload-zone-label">ID Photo</span>
@@ -775,10 +626,10 @@
             <button class="btn-pick" id="btnPick" onclick="document.getElementById('photoInput').click()">Select Photo</button>
           </div>
           <div class="btn-row" id="confirmRow" style="display:none;">
-            <button class="btn-save"    id="btnSave"    onclick="confirmPhoto()">Apply</button>
-            <button class="btn-discard" id="btnDiscard" onclick="cancelPhoto()">Discard</button>
+            <button class="btn-save-photo" onclick="confirmPhoto()">Apply</button>
+            <button class="btn-discard"    onclick="cancelPhoto()">Discard</button>
           </div>
-          <div class="photo-status-pill" id="statusPill">
+          <div class="photo-status-pill">
             <span class="status-dot" id="statusDot"></span>
             <span id="statusText">No photo selected</span>
           </div>
@@ -790,25 +641,51 @@
 
     <!-- FIELDS -->
     <div class="field-group">
+
+      <!-- First Name -->
       <div class="field">
-        <label>Name</label>
-        <input type="text" id="inputName" placeholder="Your complete name" oninput="update(); markFormDirty();">
+        <label>First Name</label>
+        <input type="text" id="inputFirstName" placeholder="First Name" oninput="update(); markFormDirty();">
       </div>
+
+      <!-- Last Name + M.I. side by side -->
+      <div class="field-row">
+         <div class="field field-short">
+          <label>M.I.</label>
+          <!-- oninput handled by JS to enforce single-letter, no dot -->
+          <input type="text" id="inputMI" placeholder="M.I" maxlength="1">
+        </div>
+        <div class="field field-grow">
+          <label>Last Name</label>
+          <input type="text" id="inputLastName" placeholder="Last Name" oninput="update(); markFormDirty();">
+        </div>
+      </div>
+
+      <!-- Suffix (optional) -->
+      <div class="field">
+        <label>Suffix <span class="field-suffix-label">(optional)</span></label>
+        <input type="text" id="inputSuffix" placeholder="Jr. / Sr. / III" oninput="update(); markFormDirty();" maxlength="10">
+      </div>
+
+      <!-- Position -->
       <div class="field">
         <label>Position</label>
-        <input type="text" id="inputPosition" placeholder="Clerk II" oninput="update(); markFormDirty();">
+        <textarea id="inputPosition" placeholder="Clerk II" rows="2" oninput="update(); markFormDirty();"></textarea>
       </div>
       <p class="last-position-note" id="lastPositionNote" hidden></p>
+
+      <!-- Office -->
       <div class="field">
         <label>Office</label>
         <input type="text" id="inputOffice" placeholder="City Mayor's Office" oninput="update(); markFormDirty();">
       </div>
+
     </div>
 
     <p class="save-hint" id="saveHint"></p>
     <p class="save-validation" id="saveValidation" role="status" aria-live="polite"></p>
 
-    <button type="button" class="btn-save-employee" id="btnSaveEmployee" disabled onclick="saveEmployeeToServer()">
+    <button type="button" class="btn-save-employee" id="btnSaveEmployee" disabled onclick="openSaveConfirmModal()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
         <polyline points="17 21 17 13 7 13 7 21"/>
@@ -835,7 +712,17 @@
       <img class="logo" src="LOGO.jpg" alt="Logo">
       <img class="bg-img" src="PESOID.png" alt="ID Template">
       <div class="photo-overlay" id="photoOverlay"></div>
-      <div class="card-name"     id="cardName">YOUR NAME</div>
+
+      <!--
+        Card name layout:
+          Line 1 (big + bold)     → First Name          e.g. JOHN RAY
+          Line 2 (small + regular)→ M.I. Last Name Suffix  e.g. C. SANTOS JR.
+      -->
+      <div class="card-name">
+        <span class="first-name" id="cardFirstName">YOUR NAME</span>
+        <span class="last-mi"    id="cardLastMI"></span>
+      </div>
+
       <div class="card-position" id="cardPosition">POSITION</div>
       <div class="card-office"   id="cardOffice">OFFICE</div>
       <div class="card-id"       id="cardID">—</div>
@@ -844,10 +731,38 @@
 
 </div>
 
-<div id="saveSuccessModal" class="modal-backdrop" hidden role="dialog" aria-modal="true" aria-labelledby="saveSuccessTitle" onclick="if (event.target === this) closeSaveSuccessModal()">
+<!-- SAVE CONFIRM MODAL -->
+<div id="saveConfirmModal" class="modal-backdrop" hidden role="dialog" aria-modal="true"
+     aria-labelledby="saveConfirmTitle"
+     onclick="if(event.target===this) closeSaveConfirmModal()">
+  <div class="modal-dialog" onclick="event.stopPropagation()">
+    <button type="button" class="modal-close" aria-label="Close" onclick="closeSaveConfirmModal()">×</button>
+    <h2 id="saveConfirmTitle" class="modal-title">Confirm details before saving</h2>
+    <p class="modal-body">Please review all fields. This will save data to the database.</p>
+
+    <div class="confirm-modal-grid" id="confirmSummary"></div>
+    <label class="confirm-check">
+      <input type="checkbox" id="confirmChecked" onchange="refreshConfirmSaveButton()">
+      <span>I confirm all information is correct.</span>
+    </label>
+
+    <div class="confirm-actions">
+      <button type="button" class="btn-confirm-no" onclick="closeSaveConfirmModal()">No</button>
+      <button type="button" class="btn-confirm-yes" id="btnConfirmYes" disabled onclick="confirmAndSaveFromModal()">
+        <span class="spinner" aria-hidden="true"></span>
+        <span id="btnConfirmYesText">Yes, Save my ID card</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- SAVE SUCCESS MODAL -->
+<div id="saveSuccessModal" class="modal-backdrop" hidden role="dialog" aria-modal="true"
+     aria-labelledby="saveSuccessTitle"
+     onclick="if(event.target===this) closeSaveSuccessModal()">
   <div class="modal-dialog" onclick="event.stopPropagation()">
     <button type="button" class="modal-close" aria-label="Close" onclick="closeSaveSuccessModal()">×</button>
-    <svg class="modal-success-icon" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg class="modal-success-icon" viewBox="0 0 52 52" fill="none" aria-hidden="true">
       <circle cx="26" cy="26" r="24" stroke="currentColor" stroke-width="2.5" opacity="0.35"/>
       <path d="M15 27l7 7 14-14" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
@@ -858,49 +773,99 @@
   </div>
 </div>
 
+<div class="toast-wrap" id="toastWrap" aria-live="polite" aria-atomic="true"></div>
+
 <script>
-  (function initCardBg() {
+  /* ── background override ── */
+  (function() {
     var img = document.querySelector('.bg-img');
-    if (typeof window.__ID_CARD_BG__ === 'string') {
-      img.src = window.__ID_CARD_BG__;
-    }
+    if (typeof window.__ID_CARD_BG__ === 'string') img.src = window.__ID_CARD_BG__;
   })();
 
   const _apiMeta = document.querySelector('meta[name="api-base"]');
-  const API_BASE = (_apiMeta && _apiMeta.content) ? _apiMeta.content.trim() : 'http://127.0.0.1:8000/api';
+  const API_BASE = (_apiMeta && _apiMeta.content) ? _apiMeta.content.trim() : 'https://pesobackend-production.up.railway.app/api';
+  const API_JSON_HEADERS = { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' };
 
-  /** Laravel returns redirects for validation/errors unless the client expects JSON — required for file:// + fetch. */
-  const API_JSON_HEADERS = {
-    'Accept': 'application/json',
-    'X-Requested-With': 'XMLHttpRequest'
-  };
+  /* ══════════════════════════════════════════
+     MIDDLE INITIAL — enforce single letter only
+     No dots, no numbers, no spaces. Max 1 char.
+  ══════════════════════════════════════════ */
+  document.getElementById('inputMI').addEventListener('input', function() {
+    var cleaned = this.value.replace(/[^a-zA-Z]/g, '').slice(0, 1);
+    if (this.value !== cleaned) this.value = cleaned;
+    update();
+    markFormDirty();
+  });
+
+  /* ══════════════════════════════════════════
+     STATE
+  ══════════════════════════════════════════ */
+  let pendingDataURL     = null;
+  let confirmedDataURL   = null;
+  let pendingPhotoFile   = null;
+  let confirmedPhotoFile = null;
+  let lastSavedIdCode    = null;
+  let remoteEmployeeCache = null;
+  let remoteLookupGen    = 0;
+  let remoteLookupTimer  = null;
+
+  /* ══════════════════════════════════════════
+     HELPERS
+  ══════════════════════════════════════════ */
+  function apiBaseNormalized() { return API_BASE.replace(/\/$/, ''); }
+
+  /**
+   * Returns the MI with a dot appended, e.g. "C" → "C."
+   * Returns empty string if MI is blank.
+   */
+  function getMIFormatted() {
+    var mi = document.getElementById('inputMI').value.trim();
+    return mi ? mi.toUpperCase() + '.' : '';
+  }
+
+  /**
+   * Builds the full name string sent to the server.
+   * Format: First Name  MI.  Last Name  Suffix
+   * Example: "John Ray C. Santos Jr."
+   */
+  function getFullName() {
+    var fn  = document.getElementById('inputFirstName').value.trim();
+    var mi  = getMIFormatted();
+    var ln  = document.getElementById('inputLastName').value.trim();
+    var sfx = document.getElementById('inputSuffix').value.trim();
+    return [fn, mi, ln, sfx].filter(Boolean).join(' ');
+  }
 
   function formatIdExample() {
-    var y = new Date().getFullYear();
-    return String(y).slice(-2) + '-001';
+    return String(new Date().getFullYear()).slice(-2) + '-001';
   }
 
   function getDefaultSaveHintHtml() {
     var y = new Date().getFullYear();
     var ex = formatIdExample();
-    return '<strong>1.</strong> Add your <strong>ID photo</strong> (Select Photo → Apply), then enter name, <strong>new</strong> position, and office, then tap <strong>Save my ID card</strong>. Each name may have one active registration per position; if you are already on file, your <strong>last registered position</strong> appears below—change Position to your <strong>new</strong> role to create another ID. Your ID number is assigned when you save (for example <strong>' + ex + '</strong> in ' + y + ').<br><strong>2.</strong> After a successful save, <strong>Download ID Card</strong> unlocks.';
+    return '<strong>1.</strong> Add your <strong>ID photo</strong> (Select Photo → Apply), enter your name, <strong>new</strong> position, and office, then tap <strong>Save my ID card</strong>. Each name may have one registration per position; your <strong>last registered position</strong> appears below if on file—change Position to your <strong>new</strong> role to create another ID. ID number is assigned on save (e.g. <strong>' + ex + '</strong> in ' + y + ').<br><strong>2.</strong> After a successful save, <strong>Download ID Card</strong> unlocks.';
   }
 
-  let pendingDataURL   = null;
-  let confirmedDataURL = null;
-  let pendingPhotoFile = null;
-  let confirmedPhotoFile = null;
-  /** Set after a successful save; cleared when the form changes. Shown on the card preview. */
-  let lastSavedIdCode = null;
-  /** { name: string, employee: object|null } — latest server row for this full name (last position on file). */
-  let remoteEmployeeCache = null;
-  let remoteLookupGen = 0;
-  let remoteLookupTimer = null;
-
-  function apiBaseNormalized() {
-    return API_BASE.replace(/\/$/, '');
+  /**
+   * Server-side / validation normalization for Position:
+   * - Treat user-entered line breaks as regular spaces
+   * - Collapse repeated whitespace
+   */
+  function getPositionForServer() {
+    var raw = '';
+    var el = document.getElementById('inputPosition');
+    raw = el ? String(el.value || '') : '';
+    raw = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // Replace any newline with spaces (server job titles are single-line).
+    raw = raw.replace(/\n/g, ' ');
+    // Collapse extra whitespace.
+    raw = raw.replace(/\s+/g, ' ').trim();
+    return raw;
   }
 
+  /* ══════════════════════════════════════════
+     REMOTE EMPLOYEE LOOKUP
+  ══════════════════════════════════════════ */
   async function fetchEmployeeByFullName(full_name) {
     var url = apiBaseNormalized() + '/employees/by-name?full_name=' + encodeURIComponent(full_name);
     var r = await fetch(url, { headers: API_JSON_HEADERS });
@@ -910,7 +875,7 @@
   }
 
   function scheduleRemoteEmployeeLookup() {
-    var name = document.getElementById('inputName').value.trim();
+    var name = getFullName();
     clearTimeout(remoteLookupTimer);
     if (!name) {
       remoteEmployeeCache = null;
@@ -935,11 +900,10 @@
     }, 400);
   }
 
-  /** Position already used in any past registration for this name (case-insensitive). */
   function positionAlreadyRegistered() {
     if (!remoteEmployeeCache || !remoteEmployeeCache.employee) return false;
-    var name = document.getElementById('inputName').value.trim();
-    var pos  = document.getElementById('inputPosition').value.trim();
+    var name = getFullName();
+    var pos  = getPositionForServer();
     if (!name || !pos) return false;
     if (name.toLowerCase() !== String(remoteEmployeeCache.name).toLowerCase()) return false;
     var titles = remoteEmployeeCache.employee.registered_job_titles;
@@ -954,12 +918,10 @@
   function refreshLastPositionNote() {
     var el = document.getElementById('lastPositionNote');
     if (!el) return;
-    var name = document.getElementById('inputName').value.trim();
+    var name = getFullName();
     if (!remoteEmployeeCache || !remoteEmployeeCache.employee ||
         !name || name.toLowerCase() !== String(remoteEmployeeCache.name).toLowerCase()) {
-      el.hidden = true;
-      el.textContent = '';
-      return;
+      el.hidden = true; el.textContent = ''; return;
     }
     var last = String(remoteEmployeeCache.employee.job_title || '—').trim();
     el.innerHTML = 'Last registered position on file: <strong></strong> — change Position to your <strong>new</strong> official title to submit a new ID card.';
@@ -967,6 +929,9 @@
     el.hidden = false;
   }
 
+  /* ══════════════════════════════════════════
+     DOWNLOAD / SAVE STATE
+  ══════════════════════════════════════════ */
   function setDownloadEnabled(ok) {
     const b = document.getElementById('btnDownload');
     if (!b) return;
@@ -974,44 +939,13 @@
     b.classList.toggle('btn-locked', !ok);
     const hint = document.getElementById('saveHint');
     if (!hint) return;
-    if (ok) {
-      hint.innerHTML = 'Saved. Your ID number is on the card preview. <strong>Download ID Card</strong> is ready. If you change anything, save again before downloading.';
-    } else {
-      hint.innerHTML = getDefaultSaveHintHtml();
-    }
+    hint.innerHTML = ok
+      ? 'Saved. Your ID number is on the card preview. <strong>Download ID Card</strong> is ready. If you change anything, save again before downloading.'
+      : getDefaultSaveHintHtml();
   }
 
   function refreshCardIdLine() {
     document.getElementById('cardID').textContent = lastSavedIdCode || '—';
-  }
-
-  function onSaveSuccessModalKeydown(e) {
-    if (e.key === 'Escape') closeSaveSuccessModal();
-  }
-
-  function showSaveSuccessModal(idCode) {
-    var modal = document.getElementById('saveSuccessModal');
-    var idLine = document.getElementById('saveSuccessIdLine');
-    if (!modal) return;
-    if (idLine) {
-      idLine.textContent = idCode && idCode !== '—' ? 'Your ID number: ' + idCode : '';
-      idLine.style.display = idLine.textContent ? 'block' : 'none';
-    }
-    modal.removeAttribute('hidden');
-    requestAnimationFrame(function() {
-      modal.classList.add('is-open');
-    });
-    document.addEventListener('keydown', onSaveSuccessModalKeydown);
-  }
-
-  function closeSaveSuccessModal() {
-    var modal = document.getElementById('saveSuccessModal');
-    if (!modal) return;
-    document.removeEventListener('keydown', onSaveSuccessModalKeydown);
-    modal.classList.remove('is-open');
-    setTimeout(function() {
-      modal.setAttribute('hidden', '');
-    }, 220);
   }
 
   function markFormDirty() {
@@ -1021,38 +955,34 @@
     refreshSaveReadiness();
   }
 
+  /** Required: First Name, Last Name, Position, Office. MI and Suffix are optional. */
   function hasRequiredFields() {
-    var name = document.getElementById('inputName').value.trim();
-    var pos  = document.getElementById('inputPosition').value.trim();
-    var off  = document.getElementById('inputOffice').value.trim();
-    return !!(name && pos && off);
+    var fn  = document.getElementById('inputFirstName').value.trim();
+    var ln  = document.getElementById('inputLastName').value.trim();
+    var pos = getPositionForServer();
+    var off = document.getElementById('inputOffice').value.trim();
+    return !!(fn && ln && pos && off);
   }
 
-  /** New cards always require a photo applied in this session (no reusing server images). */
-  function hasPhotoReady() {
-    return !!confirmedPhotoFile;
-  }
+  function hasPhotoReady() { return !!confirmedPhotoFile; }
 
   function refreshSaveReadiness() {
     var btn  = document.getElementById('btnSaveEmployee');
     var line = document.getElementById('saveValidation');
     if (!btn || !line) return;
-    var loading = btn.classList.contains('loading');
+    var loading  = btn.classList.contains('loading');
     var fieldsOk = hasRequiredFields();
-    var photoOk = hasPhotoReady();
-    var blockedByPosition = fieldsOk && positionAlreadyRegistered();
-    var ok = fieldsOk && photoOk && !blockedByPosition;
+    var photoOk  = hasPhotoReady();
+    var blocked  = fieldsOk && positionAlreadyRegistered();
+    var ok = fieldsOk && photoOk && !blocked;
     btn.disabled = loading || !ok;
-    if (loading) {
-      btn.title = '';
-      return;
-    }
+    if (loading) { btn.title = ''; return; }
     if (!fieldsOk) {
-      btn.title = 'Fill in name, position, and office first.';
-      line.textContent = 'Fill in Name, Position, and Office before you can save your ID card.';
+      btn.title = 'Fill in first name, last name, position, and office first.';
+      line.textContent = 'Fill in First Name, Last Name, Position, and Office before you can save.';
       return;
     }
-    if (blockedByPosition) {
+    if (blocked) {
       btn.title = 'Use a position you have not registered before.';
       line.textContent = 'This position is already on file for your name. Enter your new position to create another ID card.';
       return;
@@ -1064,21 +994,122 @@
     }
     btn.title = '';
     line.textContent = '';
+    refreshConfirmSaveButton();
   }
 
+  /* ══════════════════════════════════════════
+     PHOTO STATUS
+  ══════════════════════════════════════════ */
   function setStatus(text, color) {
     document.getElementById('statusText').textContent = text;
     document.getElementById('statusDot').style.background = color;
     document.getElementById('statusText').style.color = color;
   }
 
-  function update() {
-    const name     = document.getElementById('inputName').value.trim();
-    const position = document.getElementById('inputPosition').value.trim();
-    const office   = document.getElementById('inputOffice').value.trim();
+  /* ══════════════════════════════════════════
+     LIVE CARD UPDATE
+  ══════════════════════════════════════════ */
+  function fitCardFirstNameText() {
+    var el = document.getElementById('cardFirstName');
+    if (!el) return;
 
-    document.getElementById('cardName').textContent     = name     ? name.toUpperCase()     : 'YOUR NAME';
+    var maxFont = 19;
+    var minFont = 11.5;
+
+    // Placeholder state: keep the design default size.
+    if (!el.textContent || el.textContent === 'YOUR NAME') {
+      el.style.fontSize = maxFont + 'px';
+      return;
+    }
+
+    var avail = el.clientWidth;
+    if (!avail) return;
+
+    var font = maxFont;
+    el.style.fontSize = font + 'px';
+    var guard = 0;
+
+    // Shrink until the first name fits on one line.
+    while (el.scrollWidth > avail && font > minFont && guard < 40) {
+      font = Math.max(minFont, font - 0.5);
+      el.style.fontSize = font + 'px';
+      guard++;
+    }
+  }
+
+  function fitCardPositionText() {
+    var el = document.getElementById('cardPosition');
+    if (!el) return;
+
+    var officeEl = document.getElementById('cardOffice');
+    if (!officeEl) return;
+
+    var maxFont = 13.5;
+    var minFont = 8.0;
+
+    // Placeholder state: keep the design default size.
+    if (!el.textContent || el.textContent === 'POSITION') {
+      el.style.fontSize = maxFont + 'px';
+      return;
+    }
+
+    // Ensure line geometry stays consistent while we resize.
+    el.style.lineHeight = '1.0';
+
+    var font = maxFont;
+    var guard = 0;
+    el.style.fontSize = font + 'px';
+
+    // Keep Position within the vertical space above Office.
+    // (So it can wrap to 2 lines, but still won't overlap the Office row.)
+    while (guard < 40) {
+      var posTop = el.getBoundingClientRect().top;
+      var offTop = officeEl.getBoundingClientRect().top;
+      var available = offTop - posTop - 1; // 1px breathing room
+      var posHeight = el.getBoundingClientRect().height;
+
+      // If the text is clipped by the 2-line max-height, we should shrink more
+      // so it has a better chance to fit cleanly into 1–2 lines.
+      var isClipped = el.scrollHeight > el.clientHeight + 0.5;
+
+      if ((posHeight <= available + 0.5 && !isClipped) || font <= minFont) break;
+
+      var step = isClipped ? 0.75 : 0.5;
+      font = Math.max(minFont, font - step);
+      el.style.fontSize = font + 'px';
+      guard++;
+    }
+  }
+
+  function update() {
+    var firstName = document.getElementById('inputFirstName').value.trim();
+    var mi        = getMIFormatted();          // "C." or ""
+    var lastName  = document.getElementById('inputLastName').value.trim();
+    var suffix    = document.getElementById('inputSuffix').value.trim();
+    // Keep raw Position value so Enter line-breaks are preserved in preview.
+    var position  = document.getElementById('inputPosition').value;
+    var office    = document.getElementById('inputOffice').value.trim();
+
+    /* ── Card name ──
+       Line 1: First Name          → big + bold
+       Line 2: MI. Last Name Suffix → small + regular
+       e.g.  JOHN RAY
+             C. SANTOS JR.
+    */
+    if (firstName || lastName) {
+      document.getElementById('cardFirstName').textContent =
+        firstName ? firstName.toUpperCase() : '';
+      fitCardFirstNameText();
+      var bottom = [mi, lastName, suffix].filter(Boolean);
+      document.getElementById('cardLastMI').textContent =
+        bottom.length ? bottom.join(' ').toUpperCase() : '';
+    } else {
+      document.getElementById('cardFirstName').textContent = 'YOUR NAME';
+      document.getElementById('cardLastMI').textContent    = '';
+    }
+
     document.getElementById('cardPosition').textContent = position ? position.toUpperCase() : 'POSITION';
+    fitCardPositionText();
     document.getElementById('cardOffice').textContent   = office   ? office.toUpperCase()   : 'OFFICE';
     refreshCardIdLine();
     refreshSaveReadiness();
@@ -1086,27 +1117,22 @@
     scheduleRemoteEmployeeLookup();
   }
 
+  /* ══════════════════════════════════════════
+     PHOTO HANDLING
+  ══════════════════════════════════════════ */
   document.getElementById('photoInput').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
     pendingPhotoFile = file;
     markFormDirty();
-
     const reader = new FileReader();
     reader.onload = function(evt) {
       pendingDataURL = evt.target.result;
-
-      // update thumbnail
       document.getElementById('thumbWrap').innerHTML =
         `<img src="${pendingDataURL}" alt="Preview">`;
-
-      // show confirm/discard row, hide pick
       document.getElementById('confirmRow').style.display = 'flex';
       document.getElementById('btnPick').style.display    = 'none';
-
       setStatus('Awaiting confirmation', 'var(--amber)');
-
-      // dim preview on card
       document.getElementById('photoOverlay').innerHTML =
         `<img src="${pendingDataURL}" alt="Photo" style="opacity:0.55;">`;
     };
@@ -1115,14 +1141,10 @@
   });
 
   function confirmPhoto() {
-    confirmedDataURL = pendingDataURL;
-    pendingDataURL   = null;
-    confirmedPhotoFile = pendingPhotoFile;
-    pendingPhotoFile   = null;
-
+    confirmedDataURL   = pendingDataURL;   pendingDataURL   = null;
+    confirmedPhotoFile = pendingPhotoFile; pendingPhotoFile = null;
     document.getElementById('photoOverlay').innerHTML =
       `<img src="${confirmedDataURL}" alt="Photo">`;
-
     document.getElementById('confirmRow').style.display = 'none';
     document.getElementById('btnPick').style.display    = 'block';
     setStatus('Photo saved', 'var(--green)');
@@ -1130,12 +1152,9 @@
   }
 
   function cancelPhoto() {
-    pendingDataURL   = null;
-    pendingPhotoFile = null;
-
+    pendingDataURL = null; pendingPhotoFile = null;
     document.getElementById('confirmRow').style.display = 'none';
     document.getElementById('btnPick').style.display    = 'block';
-
     const overlay = document.getElementById('photoOverlay');
     if (confirmedDataURL) {
       overlay.innerHTML = `<img src="${confirmedDataURL}" alt="Photo">`;
@@ -1158,42 +1177,58 @@
     markFormDirty();
   }
 
-  async function saveEmployeeToServer() {
-    const full_name = document.getElementById('inputName').value.trim();
-    const job_title = document.getElementById('inputPosition').value.trim();
-    const office    = document.getElementById('inputOffice').value.trim();
+  /* ══════════════════════════════════════════
+     SAVE TO SERVER
+  ══════════════════════════════════════════ */
+  async function saveEmployeeToServer(yesButton) {
+    var firstName = document.getElementById('inputFirstName').value.trim();
+    var miRaw     = document.getElementById('inputMI').value.trim().toUpperCase(); // single letter, no dot stored
+    var lastName  = document.getElementById('inputLastName').value.trim();
+    var suffix    = document.getElementById('inputSuffix').value.trim();
+    var job_title = getPositionForServer();
+    var office    = document.getElementById('inputOffice').value.trim();
 
-    if (!full_name || !job_title || !office) {
-      alert('Please enter your name, position, and office before saving.');
+    // Full name for server: "John Ray C. Santos Jr."
+    var miFormatted = miRaw ? miRaw + '.' : '';
+    var full_name = [firstName, miFormatted, lastName, suffix].filter(Boolean).join(' ');
+
+    if (!firstName || !lastName || !job_title || !office) {
+      alert('Please enter your first name, last name, position, and office before saving.');
       return;
     }
-
     if (positionAlreadyRegistered()) {
       alert('You already have an ID card with this position. Enter a new position that is not already on file.');
       return;
     }
-
     if (!confirmedPhotoFile) {
       alert('Please select your ID photo and tap Apply before saving.');
       return;
     }
 
     const btn = document.getElementById('btnSaveEmployee');
+    const yesBtn = yesButton || null;
+    const yesText = document.getElementById('btnConfirmYesText');
+    if (yesBtn) {
+      yesBtn.classList.add('loading');
+      yesBtn.disabled = true;
+      if (yesText) yesText.textContent = 'Saving...';
+    }
     btn.classList.add('loading');
     btn.disabled = true;
 
     const fd = new FormData();
-    fd.append('full_name', full_name);
-    fd.append('job_title', job_title);
-    fd.append('office', office);
-    fd.append('photo', confirmedPhotoFile, confirmedPhotoFile.name || 'photo.jpg');
+    fd.append('first_name',     firstName);
+    fd.append('middle_initial', miRaw);      // single letter e.g. "C" — backend stores without dot
+    fd.append('last_name',      lastName);
+    fd.append('suffix',         suffix);
+    fd.append('full_name',      full_name);  // convenience: "John Ray C. Santos Jr."
+    fd.append('job_title',      job_title);
+    fd.append('office',         office);
+    fd.append('photo',          confirmedPhotoFile, confirmedPhotoFile.name || 'photo.jpg');
 
     try {
-      const base = apiBaseNormalized();
-      const res = await fetch(base + '/employees', {
-        method: 'POST',
-        headers: API_JSON_HEADERS,
-        body: fd
+      const res  = await fetch(apiBaseNormalized() + '/employees', {
+        method: 'POST', headers: API_JSON_HEADERS, body: fd
       });
       const data = await res.json().catch(function() { return {}; });
 
@@ -1202,9 +1237,8 @@
         if (data.errors) {
           const lines = [];
           for (const k in data.errors) {
-            if (Object.prototype.hasOwnProperty.call(data.errors, k)) {
+            if (Object.prototype.hasOwnProperty.call(data.errors, k))
               lines.push(k + ': ' + data.errors[k].join(' '));
-            }
           }
           if (lines.length) msg = lines.join('\n');
         }
@@ -1218,47 +1252,175 @@
       lastSavedIdCode = data.effective_id_display || data.id_display || lastSavedIdCode || '—';
       refreshCardIdLine();
       setDownloadEnabled(true);
-      showSaveSuccessModal(lastSavedIdCode);
+      closeSaveConfirmModal();
+      showToast('Saved successfully. You may now download your ID card.');
     } catch (err) {
       console.error(err);
       alert('Could not reach the server. Is Laravel running (' + API_BASE + ')?\n\n' + (err && err.message ? err.message : ''));
     } finally {
+      if (yesBtn) {
+        yesBtn.classList.remove('loading');
+      }
+      if (yesText) yesText.textContent = 'Yes, Save my ID card';
       btn.classList.remove('loading');
       refreshSaveReadiness();
     }
   }
 
+  function buildConfirmSummaryHtml() {
+    var firstName = document.getElementById('inputFirstName').value.trim() || '—';
+    var mi        = getMIFormatted() || '—';
+    var lastName  = document.getElementById('inputLastName').value.trim() || '—';
+    var suffix    = document.getElementById('inputSuffix').value.trim() || '—';
+    var position  = getPositionForServer() || '—';
+    var office    = document.getElementById('inputOffice').value.trim() || '—';
+    return ''
+      + '<div class="confirm-item"><strong>First Name</strong><span>' + escapeHtml(firstName) + '</span></div>'
+      + '<div class="confirm-item"><strong>M.I.</strong><span>' + escapeHtml(mi) + '</span></div>'
+      + '<div class="confirm-item"><strong>Last Name</strong><span>' + escapeHtml(lastName) + '</span></div>'
+      + '<div class="confirm-item"><strong>Suffix</strong><span>' + escapeHtml(suffix) + '</span></div>'
+      + '<div class="confirm-item"><strong>Position</strong><span>' + escapeHtml(position) + '</span></div>'
+      + '<div class="confirm-item"><strong>Office</strong><span>' + escapeHtml(office) + '</span></div>'
+      + '<div class="confirm-item"><strong>ID No.</strong><span>(Only shown after save)</span></div>'
+      + '<p class="confirm-id-note">ID number is auto-generated when record is successfully saved.</p>';
+  }
+
+  function escapeHtml(v) {
+    return String(v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function onSaveConfirmModalKeydown(e) { if (e.key === 'Escape') closeSaveConfirmModal(); }
+
+  function openSaveConfirmModal() {
+    if (!hasRequiredFields() || !hasPhotoReady() || positionAlreadyRegistered()) {
+      refreshSaveReadiness();
+      return;
+    }
+    var modal = document.getElementById('saveConfirmModal');
+    var summary = document.getElementById('confirmSummary');
+    var check = document.getElementById('confirmChecked');
+    if (!modal || !summary || !check) return;
+    summary.innerHTML = buildConfirmSummaryHtml();
+    check.checked = false;
+    refreshConfirmSaveButton();
+    modal.removeAttribute('hidden');
+    requestAnimationFrame(function() { modal.classList.add('is-open'); });
+    document.addEventListener('keydown', onSaveConfirmModalKeydown);
+  }
+
+  function closeSaveConfirmModal() {
+    var modal = document.getElementById('saveConfirmModal');
+    if (!modal) return;
+    document.removeEventListener('keydown', onSaveConfirmModalKeydown);
+    modal.classList.remove('is-open');
+    setTimeout(function() { modal.setAttribute('hidden', ''); }, 220);
+  }
+
+  function refreshConfirmSaveButton() {
+    var yesBtn = document.getElementById('btnConfirmYes');
+    var check  = document.getElementById('confirmChecked');
+    if (!yesBtn || !check) return;
+    var loading = yesBtn.classList.contains('loading');
+    var valid = hasRequiredFields() && hasPhotoReady() && !positionAlreadyRegistered();
+    yesBtn.disabled = loading || !check.checked || !valid;
+  }
+
+  async function confirmAndSaveFromModal() {
+    var yesBtn = document.getElementById('btnConfirmYes');
+    var check = document.getElementById('confirmChecked');
+    if (!yesBtn || !check || yesBtn.disabled || !check.checked) return;
+    await saveEmployeeToServer(yesBtn);
+  }
+
+  function showToast(message) {
+    var wrap = document.getElementById('toastWrap');
+    if (!wrap) return;
+    var t = document.createElement('div');
+    t.className = 'toast';
+    var msg = document.createElement('div');
+    msg.className = 'toast-msg';
+    msg.textContent = message;
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'toast-close';
+    close.setAttribute('aria-label', 'Close notification');
+    close.textContent = '×';
+    t.appendChild(msg);
+    t.appendChild(close);
+    wrap.appendChild(t);
+    var removeWithAnim = function() {
+      if (!t || !t.parentNode || t.classList.contains('is-exiting')) return;
+      t.classList.add('is-exiting');
+      setTimeout(function() {
+        if (t && t.parentNode) t.parentNode.removeChild(t);
+      }, 210);
+    };
+    var timer = setTimeout(removeWithAnim, 5000);
+    close.addEventListener('click', function() {
+      clearTimeout(timer);
+      removeWithAnim();
+    });
+  }
+
+  /* ══════════════════════════════════════════
+     MODAL
+  ══════════════════════════════════════════ */
+  function onSaveSuccessModalKeydown(e) { if (e.key === 'Escape') closeSaveSuccessModal(); }
+
+  function showSaveSuccessModal(idCode) {
+    var modal  = document.getElementById('saveSuccessModal');
+    var idLine = document.getElementById('saveSuccessIdLine');
+    if (!modal) return;
+    if (idLine) {
+      idLine.textContent = idCode && idCode !== '—' ? 'Your ID number: ' + idCode : '';
+      idLine.style.display = idLine.textContent ? 'block' : 'none';
+    }
+    modal.removeAttribute('hidden');
+    requestAnimationFrame(function() { modal.classList.add('is-open'); });
+    document.addEventListener('keydown', onSaveSuccessModalKeydown);
+  }
+
+  function closeSaveSuccessModal() {
+    var modal = document.getElementById('saveSuccessModal');
+    if (!modal) return;
+    document.removeEventListener('keydown', onSaveSuccessModalKeydown);
+    modal.classList.remove('is-open');
+    setTimeout(function() { modal.setAttribute('hidden', ''); }, 220);
+  }
+
+  /* ══════════════════════════════════════════
+     DOWNLOAD
+  ══════════════════════════════════════════ */
   async function downloadCard() {
-    const btn  = document.getElementById('btnDownload');
+    const btn = document.getElementById('btnDownload');
     if (btn.disabled) return;
-
     const card = document.querySelector('.id-card');
-
     btn.classList.add('loading');
     btn.innerHTML = `
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 2a10 10 0 1 0 10 10"/>
       </svg>
       Generating…`;
-
     try {
       const canvas = await html2canvas(card, {
-        scale: 3,
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: null
+        scale: 5, useCORS: true, allowTaint: false, backgroundColor: null
       });
-      const link  = document.createElement('a');
-      const name  = (document.getElementById('inputName').value.trim() || 'ID_CARD')
-                      .toUpperCase().replace(/\s+/g, '_');
-      link.download = `SACCGEA_${name}.png`;
+      var fn    = document.getElementById('inputFirstName').value.trim();
+      var ln    = document.getElementById('inputLastName').value.trim();
+      var label = [fn, ln].filter(Boolean).join('_').toUpperCase().replace(/\s+/g, '_') || 'ID_CARD';
+      const link = document.createElement('a');
+      link.download = `SACCGEA_${label}.png`;
       link.href     = canvas.toDataURL('image/png');
       link.click();
     } catch(err) {
       alert('Download failed. Please try again.');
       console.error(err);
     }
-
     btn.classList.remove('loading');
     btn.innerHTML = `
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1268,6 +1430,9 @@
       Download ID Card`;
   }
 
+  /* ══════════════════════════════════════════
+     INIT
+  ══════════════════════════════════════════ */
   setDownloadEnabled(false);
   update();
 </script>
