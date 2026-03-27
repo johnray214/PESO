@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = 'https://pesobackend-production.up.railway.app/api';
 
   /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
   static String get apiOrigin {

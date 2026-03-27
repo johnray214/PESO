@@ -531,10 +531,14 @@ class _AuthEntryPageState extends State<AuthEntryPage>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1050),
+      // Longer staged timeline:
+      // 1) welcome fades in
+      // 2) stays highlighted (~3s)
+      // 3) then header moves and auth panel enters
+      duration: const Duration(milliseconds: 3500),
     );
     _ctrl.forward();
-  }
+  }   
 
   @override
   void dispose() {
@@ -548,17 +552,18 @@ class _AuthEntryPageState extends State<AuthEntryPage>
 
     final headerFade = CurvedAnimation(
       parent: _ctrl,
-      curve: const Interval(0.0, 0.28),
+      // Quick fade in at start.
+      curve: const Interval(0.0, 0.12, curve: Curves.easeOut),
     );
     final headerMove = CurvedAnimation(
       parent: _ctrl,
-      // Keep the header highlighted first, then start moving it upward.
-      curve: const Interval(0.30, 1.0),
+      // Hold for ~3s first, then move up.
+      curve: const Interval(0.68, 0.90, curve: Curves.easeInOutCubic),
     );
     final authPop = CurvedAnimation(
       parent: _ctrl,
-      // Show the auth buttons + form only after the header starts moving.
-      curve: const Interval(0.55, 1.0),
+      // Enter right after the header starts moving.
+      curve: const Interval(0.82, 1.0, curve: Curves.easeOutBack),
     );
 
     return Scaffold(
@@ -585,7 +590,8 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                   0,
                   authPop.value,
                 );
-                final authOpacity = authPop.value;
+                // `easeOutBack` can overshoot >1.0; Opacity requires 0..1.
+                final authOpacity = authPop.value.clamp(0.0, 1.0).toDouble();
 
                 final iconScale = lerpDouble(1.18, 1.0, headerMove.value)!;
                 final titleColor = Color.lerp(
@@ -598,6 +604,16 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                   const Color(0xFF64748B),
                   headerMove.value,
                 )!;
+                // Hide subtitle during the highlighted intro, then reveal smoothly
+                // as the header settles near the top.
+                final subtitleReveal = CurvedAnimation(
+                  parent: _ctrl,
+                  curve: const Interval(0.78, 0.96, curve: Curves.easeOutCubic),
+                ).value;
+                final subtitleOpacity =
+                    subtitleReveal.clamp(0.0, 1.0).toDouble();
+                final subtitleYOffset =
+                    lerpDouble(8, 0, subtitleReveal) ?? 0;
 
                 return Stack(
                   children: [
@@ -618,30 +634,36 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                                   scale: iconScale,
                                   child: Icon(
                                     Icons.verified_user_rounded,
-                                    size: 72,
+                                    size: 64,
                                     color:
                                         const Color(0xFF2563EB).withOpacity(0.9),
                                   ),
                                 ),
-                                const SizedBox(height: 20),
+                                const SizedBox(height: 14),
                                 Text(
                                   'Welcome to PESO',
                                   style: GoogleFonts.poppins(
-                                    fontSize: 30,
+                                    fontSize: 24,
                                     fontWeight: FontWeight.w800,
                                     color: titleColor,
                                   ),
                                   textAlign: TextAlign.center,
                                 ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  'Sign in to continue, or create an account to start applying for jobs and events.',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    height: 1.5,
-                                    color: subtitleColor,
+                                const SizedBox(height: 8),
+                                Transform.translate(
+                                  offset: Offset(0, subtitleYOffset),
+                                  child: Opacity(
+                                    opacity: subtitleOpacity,
+                                    child: Text(
+                                      'Sign in to continue, or create an account to start applying for jobs and events.',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 13,
+                                        height: 1.4,
+                                        color: subtitleColor,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
                                   ),
-                                  textAlign: TextAlign.center,
                                 ),
                               ],
                             ),
@@ -659,113 +681,136 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                           opacity: authOpacity,
                           child: Padding(
                             padding:
-                                const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                                const EdgeInsets.fromLTRB(24, 0, 24, 10),
                             child: SizedBox(
                               width: double.infinity,
-                              height: h * 0.60,
+                              height: h * 0.70,
                               child: Material(
                                 color: Colors.transparent,
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(
-                                    child: ClipRRect(
-                                      borderRadius:
-                                          BorderRadius.circular(20),
-                                      child: ColoredBox(
-                                        color: Colors.white,
-                                        child: SingleChildScrollView(
-                                          child: Padding(
-                                            padding:
-                                                const EdgeInsets.fromLTRB(
-                                                    0, 12, 0, 24),
-                                            child: LoginModal(
-                                              key: ValueKey<bool>(
-                                                  _isSignUpMode),
-                                              isSignUp: _isSignUpMode,
-                                              renderAsModal: false,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [Colors.white, Color(0xFFF8FBFF)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(24),
+                                    border: Border.all(
+                                      color: const Color(0xFFE6ECF5),
+                                      width: 1.0,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF0F172A)
+                                            .withOpacity(0.09),
+                                        blurRadius: 30,
+                                        offset: const Offset(0, 14),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Padding(
+                                    padding:
+                                        const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        Expanded(
+                                          child: SingleChildScrollView(
+                                            physics:
+                                                const BouncingScrollPhysics(),
+                                            child: Padding(
+                                              padding:
+                                                  const EdgeInsets.fromLTRB(
+                                                      4, 6, 4, 20),
+                                              child: LoginModal(
+                                                key: ValueKey<bool>(
+                                                    _isSignUpMode),
+                                                isSignUp: _isSignUpMode,
+                                                renderAsModal: false,
+                                              ),
                                             ),
                                           ),
                                         ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 54,
-                                    child: FilledButton(
-                                      onPressed: () {
-                                        setState(() => _isSignUpMode = false);
-                                      },
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor:
-                                            !_isSignUpMode
-                                                ? const Color(0xFF2563EB)
-                                                : Colors.transparent,
-                                        foregroundColor:
-                                            !_isSignUpMode
-                                                ? Colors.white
-                                                : const Color(0xFF2563EB),
-                                        side: BorderSide(
-                                          color:
-                                              const Color(0xFF2563EB).withOpacity(
-                                            _isSignUpMode ? 1 : 0,
+                                        const SizedBox(height: 12),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 52,
+                                          child: FilledButton(
+                                            onPressed: () {
+                                              setState(
+                                                  () => _isSignUpMode = false);
+                                            },
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor:
+                                                  !_isSignUpMode
+                                                      ? const Color(0xFF2563EB)
+                                                      : Colors.transparent,
+                                              foregroundColor:
+                                                  !_isSignUpMode
+                                                      ? Colors.white
+                                                      : const Color(0xFF2563EB),
+                                              side: BorderSide(
+                                                color: const Color(0xFF2563EB)
+                                                    .withOpacity(
+                                                  _isSignUpMode ? 1 : 0,
+                                                ),
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Sign in',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(14),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Sign in',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    height: 54,
-                                    child: FilledButton(
-                                      onPressed: () {
-                                        setState(() => _isSignUpMode = true);
-                                      },
-                                      style: FilledButton.styleFrom(
-                                        backgroundColor:
-                                            _isSignUpMode
-                                                ? const Color(0xFF2563EB)
-                                                : Colors.transparent,
-                                        foregroundColor:
-                                            _isSignUpMode
-                                                ? Colors.white
-                                                : const Color(0xFF2563EB),
-                                        side: BorderSide(
-                                          color:
-                                              const Color(0xFF2563EB).withOpacity(
-                                            !_isSignUpMode ? 1 : 0,
+                                        const SizedBox(height: 10),
+                                        SizedBox(
+                                          width: double.infinity,
+                                          height: 52,
+                                          child: FilledButton(
+                                            onPressed: () {
+                                              setState(
+                                                  () => _isSignUpMode = true);
+                                            },
+                                            style: FilledButton.styleFrom(
+                                              backgroundColor:
+                                                  _isSignUpMode
+                                                      ? const Color(0xFF2563EB)
+                                                      : Colors.transparent,
+                                              foregroundColor:
+                                                  _isSignUpMode
+                                                      ? Colors.white
+                                                      : const Color(0xFF2563EB),
+                                              side: BorderSide(
+                                                color: const Color(0xFF2563EB)
+                                                    .withOpacity(
+                                                  !_isSignUpMode ? 1 : 0,
+                                                ),
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14),
+                                              ),
+                                            ),
+                                            child: const Text(
+                                              'Create account',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
                                           ),
                                         ),
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(14),
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'Create account',
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
+                                      ],
                                     ),
                                   ),
-                                ],
                                 ),
                               ),
                             ),
@@ -1799,45 +1844,46 @@ class _LoginModalState extends State<LoginModal>
   }
 
   InputDecoration _fieldDec(String label, IconData icon, {Widget? suffix}) {
+    final fill = widget.renderAsModal
+        ? const Color(0xFFF8F9FA)
+        : Colors.white;
+    final enabledBorderColor = widget.renderAsModal
+        ? Colors.grey[300]!
+        : const Color(0xFFD8E1EC);
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
+      labelStyle:
+          TextStyle(color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
       prefixIcon: Icon(icon, color: const Color(0xFF2563EB)),
       suffixIcon: suffix,
       filled: true,
-      fillColor: const Color(0xFFF8F9FA),
+      fillColor: fill,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!)),
+          borderSide: BorderSide(color: enabledBorderColor)),
       enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(color: Colors.grey[300]!)),
+          borderSide: BorderSide(color: enabledBorderColor)),
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2)),
+          borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6)),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return SlideTransition(
-      position: _slideAnimation,
-      child: Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+    final content = SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          left: 24,
+          right: 24,
+          top: widget.renderAsModal ? 16 : 4,
         ),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-              left: 24,
-              right: 24,
-              top: 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
                 if (widget.renderAsModal)
                   Container(
                       width: 40,
@@ -1977,6 +2023,40 @@ class _LoginModalState extends State<LoginModal>
                           return null;
                         },
                       ),
+                      if (!_isSignUpMode) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Forgot password is not yet available.',
+                                  ),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 0,
+                              ),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Forgot password?',
+                              style: TextStyle(
+                                color: Color(0xFF2563EB),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       if (!_isSignUpMode && _authError != null) ...[
                         const SizedBox(height: 8),
                         Text(
@@ -2187,7 +2267,18 @@ class _LoginModalState extends State<LoginModal>
               ],
             ),
           ),
+    );
+
+    if (!widget.renderAsModal) return content;
+
+    return SlideTransition(
+      position: _slideAnimation,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
+        child: content,
       ),
     );
   }
