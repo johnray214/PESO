@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\EmployerResource;
 use App\Models\Employer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -58,7 +59,7 @@ class EmployerAuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'data'    => ['employer' => $employer],
+            'data'    => ['employer' => new EmployerResource($employer)],
             'message' => 'Registration successful. Your account is pending verification.',
         ], 201);
     }
@@ -98,7 +99,7 @@ class EmployerAuthController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'employer' => $employer,
+                'employer' => new EmployerResource($employer),
                 'token' => $token,
             ],
             'message' => 'Login successful',
@@ -119,7 +120,7 @@ class EmployerAuthController extends Controller
     {
         return response()->json([
             'success' => true,
-            'data' => $request->user(),
+            'data' => new EmployerResource($request->user()),
         ]);
     }
 }

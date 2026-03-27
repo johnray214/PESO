@@ -39,6 +39,9 @@ flutter:
   assets:
     - assets/Empoy.png
     - assets/EMPOY 3.png
+    - assets/empoy_calendar.png
+    - assets/empoy_search.png
+    - assets/empoy_map_walking.png
     - assets/empoy_homescreen.png
     - assets/PESOLOGO.jpg
     - assets/testempoy.gif

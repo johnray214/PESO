@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'api_service.dart';
 import 'job_action_service.dart';
 
 // ─── Job Model ────────────────────────────────────────────────────────────────
@@ -8,6 +9,8 @@ class Job {
   final String company;
   final String companyInitial;
   final Color companyColor;
+  /// Relative storage path from employer profile (`employers.photo`), if any.
+  final String? companyPhotoPath;
   final String location;
   final double? latitude;
   final double? longitude;
@@ -31,6 +34,7 @@ class Job {
     required this.company,
     required this.companyInitial,
     required this.companyColor,
+    this.companyPhotoPath,
     required this.location,
     this.latitude,
     this.longitude,
@@ -65,10 +69,27 @@ class Job {
       color = const Color(0xFF3B82F6);
     }
 
-    final employer = json['employer'];
+    final rawEmployer = json['employer'];
+    Map<String, dynamic>? employerMap;
+    if (rawEmployer is Map) {
+      employerMap = Map<String, dynamic>.from(rawEmployer);
+    }
     final companyName = (json['company'] as String?) ??
-        (employer is Map<String, dynamic> ? employer['company_name'] as String? : null) ??
+        (employerMap?['company_name'] as String?) ??
         'Employer';
+
+    // Prefer API-computed absolute URL; then nested employer.photo / photo_url.
+    String? companyPhotoPath;
+    final topPhoto =
+        json['employer_photo_url'] ?? json['employerPhotoUrl'];
+    if (topPhoto != null && topPhoto.toString().trim().isNotEmpty) {
+      companyPhotoPath = topPhoto.toString().trim();
+    } else if (employerMap != null) {
+      final p = employerMap['photo'] ?? employerMap['photo_url'];
+      if (p != null && p.toString().trim().isNotEmpty) {
+        companyPhotoPath = p.toString().trim();
+      }
+    }
 
     final companyInitial = (json['company_initial'] as String?) ??
         (companyName.trim().isNotEmpty ? companyName.trim()[0].toUpperCase() : '?');
@@ -120,6 +141,7 @@ class Job {
       company: companyName,
       companyInitial: companyInitial,
       companyColor: color,
+      companyPhotoPath: companyPhotoPath,
       location: (json['location'] as String?) ?? '',
       latitude: latitude,
       longitude: longitude,
@@ -141,6 +163,94 @@ class Job {
       matchPercentage: (json['match_percentage'] as num?)?.toInt() ?? 0,
       isUrgent: (json['is_urgent'] as dynamic) == true ||
           json['is_urgent'] == 1,
+    );
+  }
+}
+
+/// e.g. Jan 15, 2026 (for job detail / cards)
+String formatJobDeadlineDate(DateTime? d) {
+  if (d == null) return 'Not specified';
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${months[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+/// Company avatar: employer photo from API or initial on brand color.
+class CompanyLogoBox extends StatelessWidget {
+  final Job job;
+  final double size;
+  /// When null, uses a full circle ([size] / 2).
+  final double? borderRadius;
+  final List<BoxShadow>? boxShadow;
+
+  const CompanyLogoBox({
+    super.key,
+    required this.job,
+    this.size = 52,
+    this.borderRadius,
+    this.boxShadow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final path = job.companyPhotoPath;
+    final url = ApiService.storageOrAbsoluteUrl(path) ?? '';
+    final radius = borderRadius ?? size / 2;
+
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [job.companyColor, job.companyColor.withOpacity(0.75)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: boxShadow ??
+            [
+              BoxShadow(
+                color: job.companyColor.withOpacity(0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 5),
+              ),
+            ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: url.isNotEmpty
+          ? Image.network(
+              url,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Center(
+                child: Text(
+                  job.companyInitial,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: size * 0.42,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(
+                  child: SizedBox(
+                    width: size * 0.35,
+                    height: size * 0.35,
+                    child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  ),
+                );
+              },
+            )
+          : Center(
+              child: Text(
+                job.companyInitial,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: size * 0.42,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
     );
   }
 }
@@ -415,9 +525,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     final isSaved = _jobActionService.isSaved(job.id);
     final isApplied = _jobActionService.isApplied(job.id);
     final bottomPad = MediaQuery.of(context).padding.bottom;
-    final deadlineText = job.deadline != null
-        ? '${job.deadline!.month}/${job.deadline!.day}/${job.deadline!.year}'
-        : 'Not specified';
+    final deadlineText = formatJobDeadlineDate(job.deadline);
     final slotsText = (job.slots ?? 0) > 0 ? '${job.slots} slot(s)' : 'Not specified';
 
     return DraggableScrollableSheet(
@@ -691,35 +799,22 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                                   left: 0,
                                   right: 0,
                                   child: Center(
-                                    child: Container(
-                                      width: 72,
-                                      height: 72,
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          colors: [
-                                            job.companyColor,
-                                            job.companyColor.withOpacity(0.75),
+                                    child: Hero(
+                                      tag: 'job_logo_${job.id}',
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: CompanyLogoBox(
+                                          job: job,
+                                          size: 72,
+                                          // Boxy rounded rect (match pre-circle default), not full circle.
+                                          borderRadius: 18,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: job.companyColor.withOpacity(0.45),
+                                              blurRadius: 18,
+                                              offset: const Offset(0, 8),
+                                            ),
                                           ],
-                                          begin: Alignment.topLeft,
-                                          end: Alignment.bottomRight,
-                                        ),
-                                        borderRadius: BorderRadius.circular(18),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: job.companyColor.withOpacity(0.45),
-                                            blurRadius: 18,
-                                            offset: const Offset(0, 8),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          job.companyInitial,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 30,
-                                            fontWeight: FontWeight.w800,
-                                          ),
                                         ),
                                       ),
                                     ),

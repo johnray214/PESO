@@ -16,9 +16,9 @@ class JobseekerAuthController extends Controller
             'last_name' => 'required|string|max:100',
             'email' => 'required|email|unique:jobseekers|max:191',
             'password' => 'required|string|min:8|confirmed',
-            'contact' => 'nullable|string|max:20',
+            'contact' => 'required|string|regex:/^0\d{10}$/',
             'address' => 'nullable|string|max:255',
-            'sex' => 'nullable|in:male,female',
+            'sex' => 'required|in:male,female',
             'date_of_birth' => 'nullable|date',
         ]);
 
