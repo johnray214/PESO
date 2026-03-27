@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -14,6 +15,24 @@ import 'onboarding_prefs.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (FlutterErrorDetails details) {
+    final message = details.exceptionAsString();
+    if (kIsWeb && message.contains('_viewInsets.isNonNegative')) {
+      debugPrint('Ignored web insets assertion: $message');
+      return;
+    }
+    FlutterError.presentError(details);
+  };
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stackTrace) {
+    final message = error.toString();
+    if (kIsWeb && message.contains('_viewInsets.isNonNegative')) {
+      debugPrint('Ignored web insets assertion: $message');
+      return true;
+    }
+    return false;
+  };
+
   await dotenv.load(fileName: ".env");
 
   SystemChrome.setSystemUIOverlayStyle(
