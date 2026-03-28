@@ -29,12 +29,6 @@
             <input v-model="search" type="text" placeholder="Search by job title, type…" class="search-input"/>
           </div>
           <div class="filter-group">
-            <select v-model="filterStatus" class="filter-select">
-              <option value="">All Status</option>
-              <option value="Open">Open</option>
-              <option value="Closed">Closed</option>
-              <option value="Draft">Draft</option>
-            </select>
             <select v-model="filterType" class="filter-select">
               <option value="">All Types</option>
               <option value="Full-time">Full-time</option>
@@ -47,6 +41,20 @@
               Post a Job
             </button>
           </div>
+        </div>
+
+        <!-- Active / Archived Tabs -->
+        <div v-if="!isLoading" class="listing-tabs-bar">
+          <button :class="['listing-main-tab', { active: listingTab === 'active' }]" @click="listingTab = 'active'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Active
+            <span class="ltab-pill">{{ activeJobs.length }}</span>
+          </button>
+          <button :class="['listing-main-tab', 'archived-tab', { active: listingTab === 'archived' }]" @click="listingTab = 'archived'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
+            Archived
+            <span class="ltab-pill archived-pill">{{ archivedJobs.length }}</span>
+          </button>
         </div>
 
         <!-- Skeleton Loading Grid -->
@@ -92,7 +100,14 @@
 
         <!-- Jobs Grid -->
         <div v-else class="jobs-grid">
-          <div v-for="job in filteredJobs" :key="job.id" class="job-card">
+          <div
+            v-for="job in filteredJobs"
+            :key="job.id"
+            class="job-card"
+            :class="{ 'card-archived': listingTab === 'archived' }"
+            @click="openDrawer(job)"
+            style="cursor:pointer;"
+          >
             <div class="job-card-header">
               <div class="job-icon-lg" :style="{ background: job.bg }">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" :stroke="job.color" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
@@ -101,12 +116,19 @@
                 <span class="job-status" :class="jobStatusClass(job.status)">{{ job.status }}</span>
               </div>
             </div>
+
             <h3 class="job-card-title">{{ job.title }}</h3>
             <div class="job-tags">
               <span class="job-tag type-tag">{{ job.type }}</span>
               <span class="job-tag">{{ job.location }}</span>
             </div>
-            <p class="job-salary">{{ job.salary }}</p>
+
+            <!-- Salary -->
+            <p class="job-salary">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              {{ job.salary }}
+            </p>
+
             <p class="job-desc">{{ job.description }}</p>
             <div class="job-skills">
               <span v-for="sk in job.skills.slice(0,3)" :key="sk" class="skill-chip">{{ sk }}</span>
@@ -119,37 +141,75 @@
                 <span class="prog-label">{{ job.applicants }} applicants</span>
                 <span class="prog-label">{{ job.slots }} slots</span>
               </div>
-                <div class="prog-bar-bg">
+              <div class="prog-bar-bg">
                 <div class="prog-bar-fill" :style="{ width: Math.min(job.applicants/Math.max(job.slots,1)*100,100)+'%', background: job.color }"></div>
               </div>
             </div>
 
+            <!-- Hired row -->
+            <div class="hired-row" @click.stop="viewHired(job)">
+              <div class="hired-left">
+                <span class="hired-dot"></span>
+                <span class="hired-label">Hired</span>
+                <span class="hired-count">{{ job.hired }}</span>
+              </div>
+              <span class="hired-link">View hired →</span>
+            </div>
+
             <div class="job-card-footer">
               <span class="post-date">Posted {{ job.postedDate }}</span>
-              <span class="deadline-badge" :class="{ urgent: job.daysLeft <= 3 }">
+              <span v-if="listingTab === 'active'" class="deadline-badge" :class="{ urgent: job.daysLeft <= 3 }">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 {{ job.daysLeft }}d left
               </span>
+              <span v-else class="deadline-badge expired-badge">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
+                Archived
+              </span>
             </div>
 
-            <div class="job-card-actions">
+            <!-- Card Actions -->
+            <div class="job-card-actions" @click.stop>
               <button class="card-btn view-btn" @click="openDrawer(job)">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 View
               </button>
-              <button class="card-btn edit-btn" @click="openModal(job)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Edit
-              </button>
-              <button class="card-btn close-btn" v-if="job.status === 'Open'" @click="closeJob(job)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                Close
-              </button>
-              <button class="card-btn remove-btn" @click="promptRemove(job)">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                Remove
-              </button>
+
+              <!-- Active: Edit + Close + Remove -->
+              <template v-if="listingTab === 'active'">
+                <button class="card-btn edit-btn" @click="openModal(job)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
+                </button>
+                <button class="card-btn close-btn" v-if="job.status === 'Open'" @click="closeJob(job)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  Close
+                </button>
+                <button class="card-btn remove-btn" @click="promptRemove(job)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Remove
+                </button>
+              </template>
+
+              <!-- Archived: Repost + Remove only -->
+              <template v-else>
+                <button class="card-btn repost-btn" @click="repostJob(job)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-5"/></svg>
+                  Repost
+                </button>
+                <button class="card-btn remove-btn" @click="promptRemove(job)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Remove
+                </button>
+              </template>
             </div>
+          </div>
+
+          <!-- Empty state -->
+          <div v-if="filteredJobs.length === 0" class="empty-state">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <p v-if="listingTab === 'archived'">No archived listings yet.</p>
+            <p v-else>No active listings match your filters.</p>
           </div>
         </div>
 
@@ -171,21 +231,79 @@
             <span class="job-status" :class="jobStatusClass(selected?.status)">{{ selected?.status }}</span>
             <button class="drawer-close" @click="drawerOpen = false">✕</button>
           </div>
+
+          <!-- Drawer Tabs -->
+          <div class="drawer-tabs">
+            <button v-for="dt in ['Overview', 'Hired']" :key="dt"
+              :class="['dtab', { active: drawerTab === dt }]"
+              @click="drawerTab = dt; dt === 'Hired' && fetchHiredApplicants(selected)">
+              {{ dt }}
+              <span v-if="dt === 'Hired'" class="dtab-pill">{{ selected?.hired }}</span>
+            </button>
+          </div>
+
           <div class="drawer-body">
-            <div class="info-grid">
-              <div class="info-item"><span class="info-label">Salary</span><span class="info-val">{{ selected?.salary }}</span></div>
-              <div class="info-item"><span class="info-label">Slots</span><span class="info-val">{{ selected?.slots }} positions</span></div>
-              <div class="info-item"><span class="info-label">Posted</span><span class="info-val">{{ selected?.postedDate }}</span></div>
-              <div class="info-item"><span class="info-label">Deadline</span><span class="info-val">{{ selected?.daysLeft }} days left</span></div>
-              <div class="info-item"><span class="info-label">Applicants</span><span class="info-val">{{ selected?.applicants }}</span></div>
-              <div class="info-item"><span class="info-label">Hired</span><span class="info-val">{{ selected?.hired }}</span></div>
+
+            <!-- Overview Tab -->
+            <div v-if="drawerTab === 'Overview'">
+              <div class="info-grid">
+                <div class="info-item"><span class="info-label">Salary</span><span class="info-val">{{ selected?.salary }}</span></div>
+                <div class="info-item"><span class="info-label">Slots</span><span class="info-val">{{ selected?.slots }} positions</span></div>
+                <div class="info-item"><span class="info-label">Education</span><span class="info-val">{{ formatEducation(selected?.education_level) }}</span></div>
+                <div class="info-item"><span class="info-label">Experience</span><span class="info-val">{{ formatExperience(selected?.experience_required) }}</span></div>
+                <div class="info-item"><span class="info-label">Posted</span><span class="info-val">{{ selected?.postedDate }}</span></div>
+                <div class="info-item"><span class="info-label">Deadline</span><span class="info-val">{{ selected?.daysLeft > 0 ? selected?.daysLeft + ' days left' : 'Expired' }}</span></div>
+                <div class="info-item"><span class="info-label">Applicants</span><span class="info-val">{{ selected?.applicants }}</span></div>
+                <div class="info-item">
+                  <span class="info-label">Hired</span>
+                  <span class="info-val hired-val" @click="drawerTab = 'Hired'; fetchHiredApplicants(selected)">
+                    {{ selected?.hired }}
+                  </span>
+                </div>
+              </div>
+              <div class="section-label">Description</div>
+              <p class="desc-text">{{ selected?.description }}</p>
+              <div class="section-label">Required Skills</div>
+              <div class="skill-tags mt4">
+                <span v-for="sk in selected?.skills" :key="sk" class="skill-chip">{{ sk }}</span>
+              </div>
+
+              <!-- Drawer actions for archived -->
+              <div v-if="listingTab === 'archived'" style="margin-top:20px;">
+                <button class="btn-amber" style="width:100%;justify-content:center;" @click="repostJob(selected); drawerOpen = false">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-5"/></svg>
+                  Repost this Job
+                </button>
+              </div>
             </div>
-            <div class="section-label">Description</div>
-            <p class="desc-text">{{ selected?.description }}</p>
-            <div class="section-label">Required Skills</div>
-            <div class="skill-tags mt4">
-              <span v-for="sk in selected?.skills" :key="sk" class="skill-chip">{{ sk }}</span>
+
+            <!-- Hired Tab -->
+            <div v-if="drawerTab === 'Hired'">
+              <div v-if="hiredLoading" style="display:flex;flex-direction:column;gap:10px;padding-top:4px;">
+                <div v-for="i in 4" :key="i" class="skeleton" style="width:100%;height:56px;border-radius:10px;"></div>
+              </div>
+              <div v-else-if="hiredApplicants.length === 0" style="text-align:center;padding:40px 20px;color:#94a3b8;font-size:13px;">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="margin-bottom:8px"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+                <p>No hired applicants yet.</p>
+              </div>
+              <div v-else class="hired-list">
+                <div v-for="h in hiredApplicants" :key="h.id" class="hired-row-item">
+                  <div class="avatar-circle" :style="{ background: h.color }">
+                    <img v-if="h.photo" :src="h.photo" :alt="h.name" style="width:100%;height:100%;object-fit:cover;border-radius:inherit;" />
+                    <span v-else>{{ h.name?.[0] }}</span>
+                  </div>
+                  <div class="hired-info">
+                    <p class="hired-name">{{ h.name }}</p>
+                    <p class="hired-job">{{ h.course || h.school || '—' }}</p>
+                  </div>
+                  <div class="hired-right">
+                    <span class="hired-badge-chip">Hired</span>
+                    <p class="hired-date">{{ h.hiredDate }}</p>
+                  </div>
+                </div>
+              </div>
             </div>
+
           </div>
         </div>
       </div>
@@ -206,6 +324,8 @@
             <button class="modal-close" @click="showModal = false">✕</button>
           </div>
           <div class="modal-body">
+
+            <!-- Row 1: Title + Type -->
             <div class="form-row two">
               <div class="form-group">
                 <label class="form-label">Job Title <span class="req">*</span></label>
@@ -222,31 +342,80 @@
                 </select>
               </div>
             </div>
+
+            <!-- Row 2: Education + Experience (NEW) -->
             <div class="form-row two">
               <div class="form-group">
-                <label class="form-label">Salary Range</label>
-                <input v-model="form.salary" class="form-input" placeholder="e.g. ₱25,000 – ₱35,000/mo"/>
+                <label class="form-label">Minimum Education Level <span class="req">*</span></label>
+                <select v-model="form.education_level" class="form-input">
+                  <option value="">Select education</option>
+                  <option value="no_requirement">No requirement</option>
+                  <option value="elementary">Elementary Graduate</option>
+                  <option value="highschool">High School Graduate</option>
+                  <option value="senior_highschool">Senior High School / K-12</option>
+                  <option value="vocational">Vocational / TESDA</option>
+                  <option value="college_level">At least College Level</option>
+                  <option value="college_graduate">College Graduate (Any Course)</option>
+                  <option value="related_course">College Graduate (Related Course)</option>
+                  <option value="postgraduate">Post-Graduate / Master's</option>
+                </select>
               </div>
+              <div class="form-group">
+                <label class="form-label">Years of Experience <span class="req">*</span></label>
+                <select v-model="form.experience_required" class="form-input">
+                  <option value="">Select experience</option>
+                  <option value="fresh_grad">Fresh Graduate / No experience needed</option>
+                  <option value="less_than_1">Less than 1 year</option>
+                  <option value="1_year">At least 1 year</option>
+                  <option value="2_years">At least 2 years</option>
+                  <option value="3_years">At least 3 years</option>
+                  <option value="5_years">At least 5 years</option>
+                  <option value="10_years">10 years or more</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Salary selector -->
+            <div class="form-group">
+              <label class="form-label">Salary <span class="req">*</span></label>
+              <div class="salary-options">
+                <button
+                  type="button"
+                  :class="['salary-opt', { active: form.salary === 'Minimum Wage' }]"
+                  @click="form.salary = 'Minimum Wage'"
+                >
+                  <span class="salary-opt-icon">₱</span>
+                  <div>
+                    <p class="salary-opt-title">Minimum Wage</p>
+                    <p class="salary-opt-sub">As per DOLE standard</p>
+                  </div>
+                  <span class="salary-opt-check" v-if="form.salary === 'Minimum Wage'">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  :class="['salary-opt', { active: form.salary === 'Above Minimum Wage' }]"
+                  @click="form.salary = 'Above Minimum Wage'"
+                >
+                  <span class="salary-opt-icon">₱+</span>
+                  <div>
+                    <p class="salary-opt-title">Above Minimum Wage</p>
+                    <p class="salary-opt-sub">Higher than DOLE standard</p>
+                  </div>
+                  <span class="salary-opt-check" v-if="form.salary === 'Above Minimum Wage'">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Row 3: Slots + Status -->
+            <div class="form-row two">
               <div class="form-group">
                 <label class="form-label">Number of Slots <span class="req">*</span></label>
                 <input v-model="form.slots" type="number" class="form-input" placeholder="e.g. 5"/>
               </div>
-            </div>
-            <div class="form-row two">
-              <div class="form-group">
-                <label class="form-label">Location</label>
-                <input v-model="form.location" class="form-input" placeholder="e.g. Quezon City / Remote"/>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Deadline (Days)</label>
-                <input v-model="form.daysLeft" type="number" class="form-input" placeholder="e.g. 30"/>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Job Description <span class="req">*</span></label>
-              <textarea v-model="form.description" class="form-input textarea" rows="3" placeholder="Describe the role, responsibilities, and requirements…"></textarea>
-            </div>
-            <div class="form-row two">
               <div class="form-group">
                 <label class="form-label">Status <span class="req">*</span></label>
                 <select v-model="form.status" class="form-input">
@@ -255,14 +424,34 @@
                   <option value="Closed">Closed</option>
                 </select>
               </div>
-              <div class="form-group" style="justify-content: flex-end; padding-top: 18px;">
-                <p style="font-size:11px; color:#94a3b8; line-height:1.5;">
-                  <strong>Open</strong> — visible to jobseekers<br>
-                  <strong>Draft</strong> — saved, not yet published<br>
-                  <strong>Closed</strong> — no longer accepting applications
-                </p>
+            </div>
+
+            <!-- Row 4: Location (pre-filled) + Deadline -->
+            <div class="form-row two">
+              <div class="form-group">
+                <label class="form-label" style="display:flex;align-items:center;gap:5px;">
+                  Location
+                  <span v-if="locationPrefilled" style="display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:#22c55e;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:99px;padding:2px 7px;text-transform:none;letter-spacing:0;">
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                    Auto-filled
+                  </span>
+                </label>
+                <input v-model="form.location" class="form-input" placeholder="e.g. Quezon City / Remote"/>
+                <p style="font-size:11px;color:#94a3b8;margin-top:3px;">Edit if the job is at a different branch or remote.</p>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Deadline (Days)</label>
+                <input v-model="form.daysLeft" type="number" class="form-input" placeholder="e.g. 30"/>
               </div>
             </div>
+
+            <!-- Description -->
+            <div class="form-group">
+              <label class="form-label">Job Description <span class="req">*</span></label>
+              <textarea v-model="form.description" class="form-input textarea" rows="3" placeholder="Describe the role, responsibilities, and requirements…"></textarea>
+            </div>
+
+            <!-- Skills -->
             <div class="form-group">
               <label class="form-label">Required Skills <span class="req">*</span></label>
               <div class="skills-picker">
@@ -287,41 +476,24 @@
                     <button type="button" class="skill-add-btn" @click="addSkillFromInput">Add</button>
                     <button type="button" class="skill-browse-btn" @click="toggleCatalogBrowser">Browse</button>
                   </div>
-
                   <div v-if="showSkillSuggestions && skillSuggestions.length" class="skills-suggestions">
-                    <div class="skill-suggestions-head">
-                      Suggested skills
-                      <span>{{ skillSuggestions.length }}</span>
-                    </div>
-                    <div
-                      v-for="opt in skillSuggestions.slice(0, 8)"
-                      :key="opt"
-                      class="skill-suggestion-item"
-                      @mousedown.prevent="addSkill(opt)"
-                    >
-                      <span class="skill-suggestion-plus">+</span>
-                      {{ opt }}
+                    <div class="skill-suggestions-head">Suggested skills <span>{{ skillSuggestions.length }}</span></div>
+                    <div v-for="opt in skillSuggestions.slice(0, 8)" :key="opt" class="skill-suggestion-item" @mousedown.prevent="addSkill(opt)">
+                      <span class="skill-suggestion-plus">+</span>{{ opt }}
                     </div>
                   </div>
                   <div v-else-if="showSkillSuggestions && skillQuery.trim()" class="skills-custom-hint">
                     Press <strong>Enter</strong> to add "<em>{{ skillQuery.trim() }}</em>" as a custom skill.
                   </div>
                 </div>
-                <p class="skills-helper">
-                  Tips: pick from suggestions for best matches. Custom skills are allowed and will be standardized.
-                </p>
-
+                <p class="skills-helper">Tips: pick from suggestions for best matches. Custom skills are allowed.</p>
                 <div v-if="showCatalogBrowser" class="catalog-browser">
                   <div class="catalog-browser-head">
                     <h4>Skills Catalog</h4>
                     <button type="button" class="catalog-close-btn" @click="showCatalogBrowser = false">Close</button>
                   </div>
                   <div class="catalog-controls">
-                    <input
-                      v-model="catalogSearch"
-                      class="form-input catalog-search"
-                      placeholder="Search all skills..."
-                    />
+                    <input v-model="catalogSearch" class="form-input catalog-search" placeholder="Search all skills..."/>
                     <select v-model="catalogCategory" class="form-input catalog-category">
                       <option value="">All Categories</option>
                       <option v-for="cat in catalogCategories" :key="cat" :value="cat">{{ cat }}</option>
@@ -333,12 +505,7 @@
                         <div class="catalog-skill">{{ item.name }}</div>
                         <div class="catalog-cat">{{ item.category || 'Other' }}</div>
                       </div>
-                      <button
-                        type="button"
-                        class="catalog-action"
-                        :class="{ selected: isSkillSelected(item.name) }"
-                        @click="toggleSkill(item.name)"
-                      >
+                      <button type="button" class="catalog-action" :class="{ selected: isSkillSelected(item.name) }" @click="toggleSkill(item.name)">
                         {{ isSkillSelected(item.name) ? 'Remove' : 'Add' }}
                       </button>
                     </div>
@@ -346,6 +513,7 @@
                 </div>
               </div>
             </div>
+
           </div>
           <div class="modal-footer">
             <button class="btn-ghost" @click="showModal = false" :disabled="savingJob">Cancel</button>
@@ -396,6 +564,7 @@
 import api from '@/services/api'
 import EmployerSidebar from '@/components/EmployerSidebar.vue'
 import EmployerTopbar from '@/components/EmployerTopbar.vue'
+import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 export default {
   name: 'EmployerJobListings',
@@ -406,11 +575,22 @@ export default {
   data() {
     return {
       isLoading: true,
-      search: '', filterStatus: '', filterType: '',
+      listingTab: 'active',
+      search: '', filterType: '',
       drawerOpen: false, selected: null,
+      drawerTab: 'Overview',
+      hiredApplicants: [],
+      hiredLoading: false,
       showModal: false, editingJob: null, savingJob: false,
+      locationPrefilled: false,
       removeTarget: null, removingJob: false,
-      form: { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', status:'Open' },
+      form: {
+        title: '', type: '',
+        education_level: '', experience_required: '',
+        salary: 'Minimum Wage', slots: '',
+        location: '', daysLeft: '',
+        description: '', status: 'Open',
+      },
       selectedSkills: [],
       skillCatalog: [],
       skillCatalogItems: [],
@@ -424,35 +604,28 @@ export default {
     }
   },
   computed: {
-    filteredJobs() {
-      return this.jobs
-        .map(j => {
-          // Auto-close: if deadline passed and still Open, show as Closed
-          if (j.daysLeft <= 0 && j.status === 'Open') {
-            return { ...j, status: 'Closed' }
-          }
-          return j
-        })
-        .filter(j => {
-          // Hide jobs that are past deadline by more than 3 days
-          if (j.daysLeft < -3) return false
-          const matchSearch = !this.search || j.title.toLowerCase().includes(this.search.toLowerCase())
-          const matchStatus = !this.filterStatus || j.status === this.filterStatus
-          const matchType   = !this.filterType   || j.type   === this.filterType
-          return matchSearch && matchStatus && matchType
-        })
+    activeJobs() {
+      return this.jobs.filter(j => {
+        const expired = j.daysLeft <= 0
+        const isClosed = j.status === 'Closed'
+        return !expired && !isClosed
+      })
     },
-    stripStats() {
-      const j = this.jobs
-      return [
-        { label: 'Total Listings', value: j.length,                                    color: '#1e293b' },
-        { label: 'Open',           value: j.filter(x => x.status === 'open').length,   color: '#22c55e' },
-        { label: 'Closed',         value: j.filter(x => x.status === 'closed').length, color: '#94a3b8' },
-        { label: 'Draft',          value: j.filter(x => x.status === 'draft').length,  color: '#2872A1' },
-        { label: 'Total Slots',    value: j.reduce((s,x) => s + x.slots, 0),           color: '#2563eb' },
-      ]
-    }
-    ,
+    archivedJobs() {
+      return this.jobs.filter(j => {
+        const expired = j.daysLeft <= 0
+        const isClosed = j.status === 'Closed'
+        return expired || isClosed
+      })
+    },
+    filteredJobs() {
+      const source = this.listingTab === 'archived' ? this.archivedJobs : this.activeJobs
+      return source.filter(j => {
+        const matchSearch = !this.search || j.title.toLowerCase().includes(this.search.toLowerCase())
+        const matchType   = !this.filterType || j.type === this.filterType
+        return matchSearch && matchType
+      })
+    },
     skillSuggestions() {
       const q = this.skillQuery.trim().toLowerCase()
       if (!q) return []
@@ -473,81 +646,223 @@ export default {
       return this.skillCatalogItems.filter(item => {
         const cat = (item.category || 'Other').trim()
         const matchCat = !this.catalogCategory || cat === this.catalogCategory
-        const matchQ = !q || item.name.toLowerCase().includes(q)
+        const matchQ   = !q || item.name.toLowerCase().includes(q)
         return matchCat && matchQ
       })
-    }
+    },
   },
   methods: {
     mapJobFromApi(j, idx) {
-      const colors = [['#eff6ff','#2563eb'],['#faf5ff','#8b5cf6'],['#fdf4ff','#d946ef'],['#f0fdf4','#22c55e'],['#eff8ff','#2872A1']]
+      const colors = [
+        ['#eff6ff','#2563eb'],
+        ['#faf5ff','#8b5cf6'],
+        ['#fdf4ff','#d946ef'],
+        ['#f0fdf4','#22c55e'],
+        ['#eff8ff','#2872A1'],
+      ]
       let skills = []
       if (Array.isArray(j.skills)) {
         skills = j.skills.map(s => typeof s === 'string' ? s : s.skill || s).filter(Boolean)
       } else if (j.skills) {
         skills = (j.skills || '').split(',').map(s => s.trim()).filter(Boolean)
       }
+
+      const rawSalary = j.salary_range || j.salary || ''
+      let salary = 'Minimum Wage'
+      if (rawSalary.toLowerCase().includes('above') || rawSalary === 'Above Minimum Wage') {
+        salary = 'Above Minimum Wage'
+      } else if (rawSalary === 'Minimum Wage') {
+        salary = 'Minimum Wage'
+      } else if (rawSalary) {
+        salary = rawSalary
+      }
+
       return {
-        id: j.id,
-        title: j.title,
-        type: j.type ? j.type.charAt(0).toUpperCase() + j.type.slice(1) : '',
-        location: j.location,
-        salary: j.salary_range || j.salary,
-        slots: j.slots || 0,
-        applicants: Number(j.applications_count) || 0,
-        hired: Number(j.hired_count) || 0,
-        status: j.status ? j.status.charAt(0).toUpperCase() + j.status.slice(1) : '',
-        daysLeft: j.deadline ? Math.max(0, Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))) : 30,
-        postedDate: j.posted_date ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' }) : '—',
+        id:                  j.id,
+        title:               j.title,
+        type:                j.type ? j.type.charAt(0).toUpperCase() + j.type.slice(1) : '',
+        location:            j.location,
+        salary,
+        slots:               j.slots || 0,
+        applicants:          Number(j.applications_count) || 0,
+        hired:               Number(j.hired_count) || 0,
+        status:              j.status ? j.status.charAt(0).toUpperCase() + j.status.slice(1) : '',
+        education_level:     j.education_level     || '',
+        experience_required: j.experience_required || '',
+        daysLeft:            j.deadline
+          ? Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))
+          : 30,
+        postedDate:  j.posted_date
+          ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })
+          : '—',
         description: j.description,
-        skills: skills,
-        bg: colors[idx % colors.length][0],
+        skills,
+        bg:    colors[idx % colors.length][0],
         color: colors[idx % colors.length][1],
       }
     },
+
+    formatEducation(val) {
+      const map = {
+        no_requirement:   'No requirement',
+        elementary:       'Elementary Graduate',
+        highschool:       'High School Graduate',
+        senior_highschool:'Senior High School / K-12',
+        vocational:       'Vocational / TESDA',
+        college_level:    'At least College Level',
+        college_graduate: 'College Graduate (Any Course)',
+        related_course:   'College Graduate (Related Course)',
+        postgraduate:     'Post-Graduate / Master\'s',
+      }
+      return map[val] || val || '—'
+    },
+
+    formatExperience(val) {
+      const map = {
+        fresh_grad:   'Fresh Graduate / No experience',
+        less_than_1:  'Less than 1 year',
+        '1_year':     'At least 1 year',
+        '2_years':    'At least 2 years',
+        '3_years':    'At least 3 years',
+        '5_years':    'At least 5 years',
+        '10_years':   '10 years or more',
+      }
+      return map[val] || val || '—'
+    },
+
     async fetchJobs() {
       this.isLoading = true
       try {
         const params = {}
-        if (this.search)       params.search = this.search
-        if (this.filterStatus) params.status = this.filterStatus
-        if (this.filterType)   params.type   = this.filterType
+        if (this.search)     params.search = this.search
+        if (this.filterType) params.type   = this.filterType
         const { data } = await api.get('/employer/jobs', { params })
-        
-        // Handle paginated response
-        const jobsData = data.data?.data || data.data || data || []
+        const jobsData  = data.data?.data || data.data || data || []
         const jobsArray = Array.isArray(jobsData) ? jobsData : []
-        
         this.jobs = jobsArray.map((j, idx) => this.mapJobFromApi(j, idx))
-      } catch (e) { 
-        console.error('Failed to fetch jobs:', e) 
+      } catch (e) {
+        console.error('Failed to fetch jobs:', e)
         this.jobs = []
       } finally {
-        setTimeout(() => {
-          this.isLoading = false
-        }, 2000)
+        this.isLoading = false
       }
     },
+
+    async fetchHiredApplicants(job) {
+      if (!job) return
+      this.hiredLoading = true
+      this.hiredApplicants = []
+      try {
+        const { data } = await api.get('/employer/applications', {
+          params: { job_listing_id: job.id, status: 'hired' }
+        })
+
+        console.log('RAW hired response:', JSON.stringify(data, null, 2))
+
+        const list = data.data?.data || data.data || data || []
+        const colorPool = ['#2563eb','#22c55e','#f97316','#8b5cf6','#ef4444','#06b6d4','#14b8a6']
+        this.hiredApplicants = list.map((a, i) => ({
+          id:        a.id,
+          name:      a.jobseeker?.full_name
+                    || `${a.jobseeker?.first_name || ''} ${a.jobseeker?.last_name || ''}`.trim()
+                    || 'Unknown',
+          photo:     a.jobseeker?.photo
+                    ? (a.jobseeker.photo.startsWith('http') ? a.jobseeker.photo : '/storage/' + a.jobseeker.photo)
+                    : null,
+          course:    a.jobseeker?.education_level || null,
+          school:    a.jobseeker?.address || null,
+          hiredDate: a.updated_at
+            ? new Date(a.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : '—',
+          color: colorPool[i % colorPool.length],
+        }))
+      } catch (e) {
+        console.error('Failed to fetch hired applicants:', e)
+        this.hiredApplicants = []
+      } finally {
+        this.hiredLoading = false
+      }
+    },
+
     jobStatusClass(s) {
       return { Open:'status-open', Closed:'status-closed', Draft:'status-draft' }[s] || ''
     },
-    openDrawer(job) { this.selected = job; this.drawerOpen = true },
+
+    openDrawer(job) {
+      this.selected         = job
+      this.drawerTab        = 'Overview'
+      this.hiredApplicants  = []
+      this.drawerOpen       = true
+    },
+
+    viewHired(job) {
+      if (!job) return
+      this.selected        = job
+      this.drawerTab       = 'Hired'
+      this.drawerOpen      = true
+      this.fetchHiredApplicants(job)
+    },
+
     openModal(job) {
       this.editingJob = job
       if (job) {
-        this.form = { ...job }
-        this.selectedSkills = Array.isArray(job.skills) ? [...job.skills] : []
+        this.form = {
+          ...job,
+          education_level:     job.education_level     || '',
+          experience_required: job.experience_required || '',
+          salary: job.salary === 'Above Minimum Wage' ? 'Above Minimum Wage' : 'Minimum Wage',
+        }
+        this.selectedSkills    = Array.isArray(job.skills) ? [...job.skills] : []
+        this.locationPrefilled = false
       } else {
-        this.form = { title:'', type:'', salary:'', slots:'', location:'', daysLeft:'', description:'', status:'Open' }
-        this.selectedSkills = []
+        // Pre-fill location from employer's registered address
+        const employer = useEmployerAuthStore().user
+        const parts    = [employer?.barangay, employer?.city, employer?.province].filter(Boolean)
+        const prefilled = parts.join(', ') || employer?.city || ''
+
+        this.form = {
+          title: '', type: '',
+          education_level: '', experience_required: '',
+          salary: 'Minimum Wage', slots: '',
+          location: prefilled,
+          daysLeft: '', description: '', status: 'Open',
+        }
+        this.selectedSkills    = []
+        this.locationPrefilled = !!prefilled
       }
-      this.skillQuery = ''
+      this.skillQuery           = ''
       this.showSkillSuggestions = false
-      this.showCatalogBrowser = false
-      this.catalogSearch = ''
-      this.catalogCategory = ''
-      this.showModal = true
+      this.showCatalogBrowser   = false
+      this.catalogSearch        = ''
+      this.catalogCategory      = ''
+      this.showModal            = true
     },
+
+    repostJob(job) {
+      this.editingJob = null
+      this.form = {
+        title:               job.title,
+        type:                job.type,
+        education_level:     job.education_level     || '',
+        experience_required: job.experience_required || '',
+        salary:              job.salary === 'Above Minimum Wage' ? 'Above Minimum Wage' : 'Minimum Wage',
+        slots:               job.slots,
+        location:            job.location,
+        daysLeft:            30,
+        description:         job.description,
+        status:              'Open',
+      }
+      this.selectedSkills       = [...job.skills]
+      this.locationPrefilled    = false
+      this.skillQuery           = ''
+      this.showSkillSuggestions = false
+      this.showCatalogBrowser   = false
+      this.catalogSearch        = ''
+      this.catalogCategory      = ''
+      this.showModal            = true
+      this.showToastMsg('Listing pre-filled — review and post to reactivate.', 'success')
+    },
+
     async ensureCatalogLoaded() {
       if (this.skillCatalog.length) return
       try {
@@ -555,41 +870,39 @@ export default {
         const rows = data.data || []
         this.skillCatalogItems = rows
           .map(r => ({
-            name: (typeof r === 'string' ? r : r.name || '').trim(),
+            name:     (typeof r === 'string' ? r : r.name || '').trim(),
             category: (typeof r === 'string' ? null : r.category || null),
           }))
           .filter(r => r.name)
         this.skillCatalog = this.skillCatalogItems.map(r => r.name)
       } catch (_) {
-        this.skillCatalog = []
+        this.skillCatalog      = []
         this.skillCatalogItems = []
       }
     },
+
     async onSkillInput() {
       await this.ensureCatalogLoaded()
       this.showSkillSuggestions = true
     },
+
     toggleCatalogBrowser() {
       this.showCatalogBrowser = !this.showCatalogBrowser
       if (this.showCatalogBrowser) this.ensureCatalogLoaded()
     },
+
     addSkill(skillName) {
       const raw = (skillName || '').trim()
       if (!raw) return
-
-      // Snap to case-insensitive catalog exact match when available.
       const catalogExact = this.skillCatalog.find(s => s.toLowerCase() === raw.toLowerCase())
-      const canonical = catalogExact || raw
-
+      const canonical    = catalogExact || raw
       if (!this.selectedSkills.some(s => s.toLowerCase() === canonical.toLowerCase())) {
         this.selectedSkills.push(canonical)
       }
-      this.skillQuery = ''
+      this.skillQuery           = ''
       this.showSkillSuggestions = false
     },
-    addSkillFromInput() {
-      this.addSkill(this.skillQuery)
-    },
+    addSkillFromInput() { this.addSkill(this.skillQuery) },
     isSkillSelected(skillName) {
       return this.selectedSkills.some(s => s.toLowerCase() === skillName.toLowerCase())
     },
@@ -597,15 +910,14 @@ export default {
       if (this.isSkillSelected(skillName)) this.removeSkill(skillName)
       else this.addSkill(skillName)
     },
-    onSkillBlur() {
-      setTimeout(() => { this.showSkillSuggestions = false }, 120)
-    },
+    onSkillBlur() { setTimeout(() => { this.showSkillSuggestions = false }, 120) },
     removeSkill(skillName) {
       this.selectedSkills = this.selectedSkills.filter(s => s !== skillName)
     },
+
     async saveJob() {
-      if (this.savingJob) return;
-      this.savingJob = true;
+      if (this.savingJob) return
+      this.savingJob = true
       const skillsArr = [...this.selectedSkills]
       try {
         const payload = { ...this.form, skills: skillsArr }
@@ -614,14 +926,14 @@ export default {
           const idx = this.jobs.findIndex(j => j.id === this.editingJob.id)
           if (idx !== -1) {
             const updated = data.data || data
-            const mapped = this.mapJobFromApi({ ...updated, skills: skillsArr }, idx)
-            this.jobs[idx] = mapped
+            this.jobs[idx] = this.mapJobFromApi({ ...updated, skills: skillsArr }, idx)
           }
         } else {
           const { data } = await api.post('/employer/jobs', payload)
-          const newJob = data.data || data
-          const mapped = this.mapJobFromApi({ ...newJob, skills: skillsArr }, this.jobs.length)
+          const newJob   = data.data || data
+          const mapped   = this.mapJobFromApi({ ...newJob, skills: skillsArr }, this.jobs.length)
           this.jobs.push(mapped)
+          this.listingTab = 'active'
         }
         this.showModal = false
         this.showToastMsg(this.editingJob ? 'Job updated successfully' : 'Job posted successfully', 'success')
@@ -632,32 +944,34 @@ export default {
         this.savingJob = false
       }
     },
+
     async closeJob(job) {
       try {
         await api.patch(`/employer/jobs/${job.id}/close`)
         const idx = this.jobs.findIndex(j => j.id === job.id)
         if (idx !== -1) this.jobs[idx].status = 'Closed'
         if (this.selected?.id === job.id) this.selected.status = 'Closed'
-        this.showToastMsg('Job closed successfully', 'success')
-      } catch (e) { 
-        console.error(e) 
+        this.showToastMsg('Job closed and moved to Archived', 'success')
+      } catch (e) {
+        console.error(e)
         this.showToastMsg('Failed to close job', 'error')
       }
     },
+
     async deleteJob(job) {
       try {
         await api.delete(`/employer/jobs/${job.id}`)
         this.jobs = this.jobs.filter(j => j.id !== job.id)
         this.drawerOpen = false
         this.showToastMsg('Job deleted successfully', 'success')
-      } catch (e) { 
-        console.error(e) 
+      } catch (e) {
+        console.error(e)
         this.showToastMsg('Failed to delete job', 'error')
       }
     },
-    promptRemove(job) {
-      this.removeTarget = job
-    },
+
+    promptRemove(job) { this.removeTarget = job },
+
     async confirmRemove() {
       if (!this.removeTarget || this.removingJob) return
       this.removingJob = true
@@ -668,13 +982,18 @@ export default {
         this.removingJob = false
       }
     },
+
     showToastMsg(text, type = 'success') {
       const CHECK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`
-      const X = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+      const X     = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
       if (this.toast._timer) clearTimeout(this.toast._timer)
-      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK : X, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
+      this.toast = {
+        show: true, text, type,
+        icon: type === 'success' ? CHECK : X,
+        _timer: setTimeout(() => { this.toast.show = false }, 3500),
+      }
     },
-  }
+  },
 }
 </script>
 
@@ -695,22 +1014,10 @@ export default {
 .btn-amber:hover:not(:disabled) { background: #1a5f8a; }
 .btn-amber:disabled { opacity: 0.7; cursor: not-allowed; }
 
-.skeleton {
-  background: #e2e8f0;
-  border-radius: 4px;
-  animation: pulse 1.5s infinite;
-}
-@keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 0.3; }
-  100% { opacity: 0.6; }
-}
+.skeleton { background: #e2e8f0; border-radius: 4px; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 0.3; } 100% { opacity: 0.6; } }
 
-.spinner-sm {
-  width: 14px; height: 14px; flex-shrink: 0;
-  border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
-  border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
-}
+.spinner-sm { width: 14px; height: 14px; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .jobs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
@@ -744,14 +1051,14 @@ export default {
 .deadline-badge.urgent { background: #fef2f2; color: #ef4444; }
 .job-card-actions { display: flex; gap: 6px; margin-top: 2px; }
 .card-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 8px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; border: none; transition: all 0.15s; }
-.view-btn  { background: #f1f5f9; color: #64748b; }
-.view-btn:hover  { background: #e2e8f0; }
-.edit-btn  { background: #eff8ff; color: #1a5f8a; }
-.edit-btn:hover  { background: #bae6fd; }
-.close-btn { background: #fef2f2; color: #ef4444; }
-.close-btn:hover { background: #fee2e2; }
+.view-btn   { background: #f1f5f9; color: #64748b; }
+.view-btn:hover   { background: #e2e8f0; }
+.edit-btn   { background: #eff8ff; color: #1a5f8a; }
+.edit-btn:hover   { background: #bae6fd; }
+.close-btn  { background: #fef2f2; color: #ef4444; }
+.close-btn:hover  { background: #fee2e2; }
 .remove-btn { background: #fef2f2; color: #ef4444; }
-.remove-btn:hover  { background: #fee2e2; }
+.remove-btn:hover { background: #fee2e2; }
 .btn-remove { display: flex; align-items: center; gap: 6px; background: #ef4444; color: #fff; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-remove:hover:not(:disabled) { background: #dc2626; }
 .btn-remove:disabled { opacity: 0.65; cursor: not-allowed; }
@@ -799,242 +1106,41 @@ export default {
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .btn-ghost:hover { background: #e2e8f0; }
 
-/* Skills picker (modal) */
-.skills-picker {
-  position: relative;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  background: #fff;
-  padding: 10px;
-  overflow: visible;
-}
-.picked-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-.picked-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #1e3a8a;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 999px;
-  padding: 5px 10px;
-}
-.chip-remove {
-  border: none;
-  background: transparent;
-  color: #1d4ed8;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0;
-}
-.skill-input-wrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.skill-autocomplete-zone {
-  position: relative;
-  z-index: 30;
-}
-.skill-search-icon {
-  color: #94a3b8;
-  font-size: 14px;
-  width: 14px;
-  text-align: center;
-}
-.skill-input {
-  flex: 1;
-  background: #f8fafc;
-}
-.skill-add-btn {
-  border: none;
-  border-radius: 8px;
-  background: #e2e8f0;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 8px 12px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-.skill-add-btn:hover {
-  background: #cbd5e1;
-}
-.skill-browse-btn {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: #fff;
-  color: #334155;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 8px 10px;
-  cursor: pointer;
-}
-.skill-browse-btn:hover {
-  background: #f8fafc;
-}
-.skills-suggestions {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
-  max-height: 220px;
-  overflow-y: auto;
-  z-index: 50;
-}
-.skill-suggestions-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-  font-weight: 700;
-  color: #64748b;
-  background: #f8fafc;
-  padding: 8px 10px;
-  border-bottom: 1px solid #f1f5f9;
-}
-.skill-suggestions-head span {
-  color: #0f172a;
-}
-.skill-suggestion-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: #0f172a;
-  padding: 10px;
-  cursor: pointer;
-}
-.skill-suggestion-item:hover {
-  background: #f8fafc;
-}
-.skill-suggestion-plus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 999px;
-  background: #ecfeff;
-  color: #0e7490;
-  font-weight: 700;
-}
-.skills-custom-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: calc(100% + 6px);
-  margin-top: 8px;
-  font-size: 12px;
-  color: #475569;
-  background: #fff;
-  border: 1px dashed #cbd5e1;
-  border-radius: 8px;
-  padding: 8px 10px;
-  z-index: 50;
-}
-.skills-helper {
-  margin-top: 8px;
-  font-size: 11px;
-  color: #94a3b8;
-}
-
-.catalog-browser {
-  margin-top: 10px;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  background: #f8fafc;
-  padding: 10px;
-}
-.catalog-browser-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.catalog-browser-head h4 {
-  font-size: 13px;
-  font-weight: 800;
-  color: #0f172a;
-}
-.catalog-close-btn {
-  border: none;
-  background: #e2e8f0;
-  color: #334155;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-.catalog-controls {
-  display: grid;
-  grid-template-columns: 1fr 180px;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.catalog-search, .catalog-category {
-  background: #fff;
-}
-.catalog-list {
-  max-height: 220px;
-  overflow-y: auto;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-}
-.catalog-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid #f1f5f9;
-}
-.catalog-row:last-child {
-  border-bottom: none;
-}
-.catalog-meta {
-  min-width: 0;
-}
-.catalog-skill {
-  font-size: 12px;
-  font-weight: 700;
-  color: #0f172a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.catalog-cat {
-  font-size: 11px;
-  color: #64748b;
-}
-.catalog-action {
-  border: none;
-  border-radius: 6px;
-  background: #dbeafe;
-  color: #1d4ed8;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 6px 10px;
-  cursor: pointer;
-}
-.catalog-action.selected {
-  background: #fee2e2;
-  color: #b91c1c;
-}
+/* Skills picker */
+.skills-picker { position: relative; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; padding: 10px; overflow: visible; }
+.picked-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.picked-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 999px; padding: 5px 10px; }
+.chip-remove { border: none; background: transparent; color: #1d4ed8; font-size: 14px; line-height: 1; cursor: pointer; padding: 0; }
+.skill-input-wrap { display: flex; align-items: center; gap: 8px; }
+.skill-autocomplete-zone { position: relative; z-index: 30; }
+.skill-search-icon { color: #94a3b8; font-size: 14px; width: 14px; text-align: center; }
+.skill-input { flex: 1; background: #f8fafc; }
+.skill-add-btn { border: none; border-radius: 8px; background: #e2e8f0; color: #334155; font-size: 12px; font-weight: 700; padding: 8px 12px; cursor: pointer; transition: all 0.15s; }
+.skill-add-btn:hover { background: #cbd5e1; }
+.skill-browse-btn { border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; color: #334155; font-size: 12px; font-weight: 700; padding: 8px 10px; cursor: pointer; }
+.skill-browse-btn:hover { background: #f8fafc; }
+.skills-suggestions { position: absolute; left: 0; right: 0; top: calc(100% + 6px); background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 10px 24px rgba(15,23,42,0.12); max-height: 220px; overflow-y: auto; z-index: 50; }
+.skill-suggestions-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 700; color: #64748b; background: #f8fafc; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+.skill-suggestions-head span { color: #0f172a; }
+.skill-suggestion-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #0f172a; padding: 10px; cursor: pointer; }
+.skill-suggestion-item:hover { background: #f8fafc; }
+.skill-suggestion-plus { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; background: #ecfeff; color: #0e7490; font-weight: 700; }
+.skills-custom-hint { position: absolute; left: 0; right: 0; top: calc(100% + 6px); margin-top: 8px; font-size: 12px; color: #475569; background: #fff; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 8px 10px; z-index: 50; }
+.skills-helper { margin-top: 8px; font-size: 11px; color: #94a3b8; }
+.catalog-browser { margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; padding: 10px; }
+.catalog-browser-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.catalog-browser-head h4 { font-size: 13px; font-weight: 800; color: #0f172a; }
+.catalog-close-btn { border: none; background: #e2e8f0; color: #334155; border-radius: 6px; font-size: 11px; font-weight: 700; padding: 6px 10px; cursor: pointer; }
+.catalog-controls { display: grid; grid-template-columns: 1fr 180px; gap: 8px; margin-bottom: 8px; }
+.catalog-search, .catalog-category { background: #fff; }
+.catalog-list { max-height: 220px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #fff; }
+.catalog-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+.catalog-row:last-child { border-bottom: none; }
+.catalog-meta { min-width: 0; }
+.catalog-skill { font-size: 12px; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.catalog-cat { font-size: 11px; color: #64748b; }
+.catalog-action { border: none; border-radius: 6px; background: #dbeafe; color: #1d4ed8; font-size: 11px; font-weight: 700; padding: 6px 10px; cursor: pointer; }
+.catalog-action.selected { background: #fee2e2; color: #b91c1c; }
 
 .drawer-enter-active, .drawer-leave-active { transition: opacity 0.2s; }
 .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); }
@@ -1045,18 +1151,72 @@ export default {
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
 
-/* Toast & Loaders */
-.toast {
-  position: fixed; top: 20px; right: 24px; z-index: 9999;
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 18px; border-radius: 12px;
-  font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12);
-  min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif;
-}
+/* Toast */
+.toast { position: fixed; top: 20px; right: 24px; z-index: 9999; display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12); min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif; }
 .toast.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
 .toast.error   { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 .toast-icon { display: flex; align-items: center; flex-shrink: 0; }
 .toast-msg { word-break: break-word; line-height: 1.4; }
-.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+.toast-enter-active, .toast-leave-active { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-15px) scale(0.95); }
+
+/* Tabs */
+.listing-tabs-bar { display: flex; gap: 6px; background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 5px; width: fit-content; }
+.listing-main-tab { display: flex; align-items: center; gap: 7px; padding: 8px 16px; border-radius: 9px; border: none; background: none; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.listing-main-tab:hover { background: #f8fafc; color: #1e293b; }
+.listing-main-tab.active { background: #eff8ff; color: #1a5f8a; }
+.archived-tab.active { background: #fef9ec; color: #92400e; }
+.ltab-pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: #f1f5f9; color: #64748b; }
+.archived-pill { background: #fde68a; color: #92400e; }
+
+/* Hired row on card */
+.hired-row { display: flex; align-items: center; justify-content: space-between; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 7px 10px; cursor: pointer; transition: background 0.15s; }
+.hired-row:hover { background: #dcfce7; }
+.hired-left { display: flex; align-items: center; gap: 7px; }
+.hired-dot { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; flex-shrink: 0; }
+.hired-label { font-size: 12px; font-weight: 600; color: #15803d; }
+.hired-count { font-size: 13px; font-weight: 800; color: #15803d; }
+.hired-link { font-size: 11px; font-weight: 700; color: #16a34a; }
+
+/* Hired value in drawer */
+.hired-val { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+/* Archived card */
+.card-archived { opacity: 0.85; border-color: #f1f5f9; }
+.card-archived .job-card-title { color: #64748b; }
+.expired-badge { background: #fef9ec; color: #92400e; border: 1px solid #fde68a; }
+
+/* Repost */
+.repost-btn { background: #fef9ec; color: #92400e; }
+.repost-btn:hover { background: #fde68a; }
+
+/* Salary selector */
+.salary-options { display: flex; gap: 10px; }
+.salary-opt { flex: 1; display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 2px solid #e2e8f0; background: #f8fafc; cursor: pointer; font-family: inherit; text-align: left; transition: all 0.15s; position: relative; }
+.salary-opt:hover { border-color: #94a3b8; background: #fff; }
+.salary-opt.active { border-color: #2872A1; background: #eff8ff; }
+.salary-opt-icon { font-size: 16px; font-weight: 800; color: #2872A1; min-width: 28px; text-align: center; }
+.salary-opt-title { font-size: 13px; font-weight: 700; color: #1e293b; }
+.salary-opt-sub { font-size: 11px; color: #94a3b8; margin-top: 1px; }
+.salary-opt-check { margin-left: auto; width: 22px; height: 22px; border-radius: 50%; background: #2872A1; color: #fff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+/* Empty state */
+.empty-state { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 60px 20px; color: #94a3b8; font-size: 13px; font-weight: 500; }
+
+/* Drawer tabs */
+.drawer-tabs { display: flex; border-bottom: 1px solid #f1f5f9; padding: 0 20px; }
+.dtab { background: none; border: none; padding: 12px 16px; font-size: 13px; font-weight: 500; color: #64748b; cursor: pointer; font-family: inherit; border-bottom: 2px solid transparent; transition: all 0.15s; margin-bottom: -1px; display: flex; align-items: center; gap: 6px; }
+.dtab.active { color: #2872A1; border-bottom-color: #2872A1; font-weight: 700; }
+.dtab-pill { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: #f1f5f9; color: #64748b; }
+
+/* Hired list in drawer */
+.hired-list { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+.hired-row-item { display: flex; align-items: center; gap: 10px; padding: 12px; background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; }
+.avatar-circle { width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.hired-info { flex: 1; }
+.hired-name { font-size: 13px; font-weight: 600; color: #1e293b; }
+.hired-job  { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.hired-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.hired-badge-chip { font-size: 10px; font-weight: 700; background: #f0fdf4; color: #22c55e; border-radius: 99px; padding: 3px 9px; }
+.hired-date { font-size: 11px; color: #94a3b8; }
 </style>

@@ -611,16 +611,14 @@ export default {
         console.error('Dashboard fetch error:', e)
       }
 
-      setTimeout(() => {
-        this.isLoading = false
-        // Kick off entrance animations
-        this.$nextTick(() => {
-          setTimeout(() => { this.appAnimated    = true }, 120)
-          setTimeout(() => { this.funnelAnimated = true }, 200)
-          setTimeout(() => { this.scoreAnimated  = true }, 350)
-          setTimeout(() => { this.jobsAnimated   = true }, 280)
-        })
-      }, 2000)
+      this.isLoading = false
+      // Kick off entrance animations
+      this.$nextTick(() => {
+        setTimeout(() => { this.appAnimated    = true }, 120)
+        setTimeout(() => { this.funnelAnimated = true }, 200)
+        setTimeout(() => { this.scoreAnimated  = true }, 350)
+        setTimeout(() => { this.jobsAnimated   = true }, 280)
+      })
     },
 
     // ── Chart X / Y ──────────────────────────────────────────────

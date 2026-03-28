@@ -438,9 +438,7 @@ export default {
 
     this.editCompany = { ...this.company, perks: [...(this.company.perks || [])] }
 
-    setTimeout(() => {
-      this.isLoading = false
-    }, 2000)
+    this.isLoading = false
   },
 
   methods: {

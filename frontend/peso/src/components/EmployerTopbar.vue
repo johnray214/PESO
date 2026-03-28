@@ -1,19 +1,30 @@
 <template>
   <header class="topbar">
     <div class="topbar-left">
-      <h1 class="topbar-title">{{ title }}</h1>
-      <span class="topbar-sub">{{ subtitle }}</span>
+      <template v-if="!authStore.isAppReady">
+        <div class="skeleton" style="width: 150px; height: 18px; border-radius: 4px; margin-bottom: 4px;"></div>
+        <div class="skeleton" style="width: 100px; height: 12px; border-radius: 4px;"></div>
+      </template>
+      <template v-else>
+        <h1 class="topbar-title">{{ title }}</h1>
+        <span class="topbar-sub">{{ subtitle }}</span>
+      </template>
     </div>
     <div class="topbar-right">
         <!-- Bell Button -->
         <div class="bell-wrap" ref="bellWrap">
-          <button class="icon-btn" @click="toggleNotifPanel">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 01-3.46 0"/>
-          </svg>
-          <span v-if="notifStore.unreadCount > 0" class="bell-dot">{{ notifStore.unreadCount }}</span>
-        </button>
+          <template v-if="!authStore.isAppReady">
+            <div class="skeleton" style="width: 32px; height: 32px; border-radius: 8px;"></div>
+          </template>
+          <template v-else>
+            <button class="icon-btn" @click="toggleNotifPanel">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 01-3.46 0"/>
+              </svg>
+              <span v-if="notifStore.unreadCount > 0" class="bell-dot">{{ notifStore.unreadCount }}</span>
+            </button>
+          </template>
 
         <!-- Notification Dropdown -->
         <transition name="panel">
