@@ -202,6 +202,7 @@ Route::middleware(['auth:employer', \App\Http\Middleware\EnsureEmployer::class])
     Route::get('/applications/{id}', [EmployerApplicationController::class, 'show']);
     Route::patch('/applications/{id}/status', [EmployerApplicationController::class, 'updateStatus']);
     Route::get('/potential-applicants', [EmployerApplicationController::class, 'potentialApplicants']);
+    Route::post('/potential-applicants/{id}/invite', [EmployerApplicationController::class, 'sendInvite']);
     
     // Profile
     Route::get('/profile', [EmployerProfileController::class, 'show']);

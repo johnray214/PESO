@@ -117,8 +117,8 @@
                     <td><div class="loc-cell"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>{{ a.location }}</div></td>
                     <td><span class="not-applied-badge"><span class="na-dot"></span>Not Applied</span></td>
                     <td><div class="action-btns">
-                      <button class="act-btn view" @click.stop="profileModal = a"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-                      <button class="act-btn invite-act" @click.stop="sendInvite(a)" :disabled="a.invited">
+                      <button class="act-btn view" @click.stop="openPotentialDrawer(a)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                      <button class="act-btn invite-act" @click.stop="confirmSendInvite(a)" :disabled="a.invited">
                         <svg v-if="!a.invited" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                         <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
                       </button>
@@ -148,7 +148,7 @@
           <div class="drawer-header">
             <div class="drawer-avatar" :style="{ background: selected?.avatarBg }">{{ selected?.name[0] }}</div>
             <div class="drawer-title-wrap"><h2 class="drawer-name">{{ selected?.name }}</h2><p class="drawer-loc">{{ selected?.location }} · {{ selected?.jobApplied }}</p></div>
-            <span class="status-badge" :class="statusClass(selected?.status)">{{ selected?.status }}</span>
+            <span v-if="!selected?._isPotential" class="status-badge" :class="statusClass(selected?.status)">{{ selected?.status }}</span>
             <button class="drawer-close" @click="drawerOpen = false">✕</button>
           </div>
           <div class="match-banner" :style="{ background: scoreBg(selected?.matchScore) }">
@@ -156,7 +156,7 @@
             <div class="match-bar-bg"><div class="match-bar-fill" :style="{ width: selected?.matchScore + '%', background: scoreColor(selected?.matchScore) }"></div></div>
           </div>
           <div class="drawer-tabs">
-            <button v-for="dt in ['Profile', 'Resume', 'Status']" :key="dt" :class="['dtab', { active: drawerTab === dt }]" @click="drawerTab = dt">{{ dt }}</button>
+            <button v-for="dt in (selected?._isPotential ? ['Profile'] : ['Profile', 'Resume', 'Status'])" :key="dt" :class="['dtab', { active: drawerTab === dt }]" @click="drawerTab = dt">{{ dt }}</button>
           </div>
           <div class="drawer-body">
             <div v-if="drawerTab === 'Profile'">
@@ -165,6 +165,8 @@
                 <div class="info-item"><span class="info-label">Location</span><span class="info-val">{{ selected?.location }}</span></div>
                 <div class="info-item"><span class="info-label">Contact</span><span class="info-val">{{ selected?.contact }}</span></div>
                 <div class="info-item"><span class="info-label">Email</span><span class="info-val">{{ selected?.email }}</span></div>
+                <div class="info-item"><span class="info-label">Sex</span><span class="info-val" style="text-transform: capitalize;">{{ selected?.sex || 'Not specified' }}</span></div>
+                <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-val">{{ selected?.dateOfBirth ? formatDate(selected.dateOfBirth) : 'Not specified' }}</span></div>
                 <div class="info-item"><span class="info-label">Education</span><span class="info-val">{{ selected?.education }}</span></div>
                 <div class="info-item"><span class="info-label">Experience</span><span class="info-val">{{ selected?.experience }}</span></div>
               </div>
@@ -442,7 +444,23 @@ export default {
     statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', Hired:'hired', Rejected:'rejected' }[s] || '' },
     scoreColor(v)  { return v >= 85 ? '#22c55e' : v >= 70 ? '#2872A1' : '#ef4444' },
     scoreBg(v)     { return v >= 85 ? '#f0fdf4' : v >= 70 ? '#eff8ff' : '#fef2f2' },
-    openDrawer(a)  { this.selected = { ...a }; this.drawerTab = 'Resume'; this.drawerOpen = true },
+    openDrawer(a)  { this.selected = { ...a }; this.drawerTab = 'Profile'; this.drawerOpen = true },
+    openPotentialDrawer(a) {
+      // Build a drawer-compatible object from the potential applicant
+      this.selected = {
+        ...a,
+        avatarBg: a.color,
+        matchScore: a.score,
+        jobApplied: a.bestFor,
+        date: '',
+        status: 'Not Applied',
+        hasResume: false,
+        notes: '',
+        _isPotential: true,
+      }
+      this.drawerTab = 'Profile'
+      this.drawerOpen = true
+    },
 
     formatDate(d) {
       if (!d) return '—'
@@ -500,25 +518,11 @@ export default {
       finally { this.openingResume = false }
     },
 
-    async sendInvite(a) {
-      if (a.invited || a._inviting) return
-      if (!a.jobId) {
-        this.showToastMsg('No matching job listing found for this applicant.', 'error')
-        return
-      }
-      a._inviting = true
-      try {
-        await employerApi.sendInvitation(a.id, a.jobId)
-        this.applicantsStore.markInvited(a.id)
-        const found = this.potentialApplicants.find((x) => x.id === a.id)
-        if (found) found.invited = true
-        this.showToastMsg('Invitation sent successfully!', 'success')
-      } catch (e) {
-        const msg = e?.response?.data?.message || 'Failed to send invitation. Please try again.'
-        this.showToastMsg(msg, 'error')
-      } finally {
-        a._inviting = false
-      }
+    sendInvite(a) {
+      this.applicantsStore.markInvited(a.id)
+      const found = this.potentialApplicants.find((x) => x.id === a.id)
+      if (found) found.invited = true
+      this.showToastMsg('Invitation sent successfully', 'success')
     },
 
     openHireModal(applicant) {
@@ -596,7 +600,7 @@ export default {
   },
   async mounted() {
     await this.applicantsStore.fetch()
-    setTimeout(() => { this.isLoading = false }, 2000)
+    this.isLoading = false
   },
 }
 </script>
@@ -686,7 +690,7 @@ export default {
 .act-btn.reject:hover:not(:disabled) { background: #ef4444; color: #fff; }
 .act-btn.invite-act { background: #eff8ff; color: #2872A1; }
 .act-btn.invite-act:hover:not(:disabled) { background: #2872A1; color: #fff; }
-.act-btn.invite-act:disabled { background: #f0fdf4; color: #22c55e; cursor: default; }
+.act-btn.invite-act:disabled { background: #f0fdf4; color: #16a34a; cursor: default; }
 .pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-top: 1px solid #f1f5f9; }
 .page-info { font-size: 12px; color: #94a3b8; }
 .page-btns { display: flex; gap: 4px; }
@@ -777,9 +781,9 @@ export default {
 .cmodal-cancel { flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #fff; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s; }
 .cmodal-cancel:hover { background: #f8fafc; }
 .cmodal-ok { flex: 1.5; padding: 10px 14px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-.cmodal-ok.blue { background: linear-gradient(135deg, #2872A1, #08BDDE); }
+.cmodal-ok.blue { background: #2872A1; }
 .cmodal-ok.blue:hover { filter: brightness(1.08); }
-.cmodal-ok.red  { background: linear-gradient(135deg, #ef4444, #f97316); }
+.cmodal-ok.red  { background: #ef4444; }
 .cmodal-ok.red:hover  { filter: brightness(1.08); }
 
 /* ══════════════════════════════

@@ -19,7 +19,6 @@ export const employerApi = {
   getApplication: (id) => api.get(`/employer/applications/${id}`),
   updateApplicationStatus: (id, status, extraData = {}) => api.patch(`/employer/applications/${id}/status`, { status, ...extraData }),
   getPotentialApplicants: (params) => api.get('/employer/potential-applicants', { params }),
-  sendInvitation: (jobseekerId, jobListingId) => api.post(`/employer/invite/${jobseekerId}`, { job_listing_id: jobListingId }),
 
   // Notifications
   getNotifications:       (params) => api.get('/employer/notifications', { params }),

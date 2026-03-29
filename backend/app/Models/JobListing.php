@@ -29,6 +29,8 @@ class JobListing extends Model
         'type',
         'location',
         'salary_range',
+        'education_level',
+        'experience_required',
         'description',
         'slots',
         'status',

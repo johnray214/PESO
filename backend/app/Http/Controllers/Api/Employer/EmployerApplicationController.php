@@ -331,4 +331,103 @@ class EmployerApplicationController extends Controller
             'data' => $jobseekers,
         ]);
     }
+
+    /**
+     * Send a job invitation email to a potential applicant (jobseeker).
+     */
+    public function sendInvite(Request $request, $jobseekerId)
+    {
+        $employer = $request->user();
+
+        $jobseeker = \App\Models\Jobseeker::with('skills')->findOrFail($jobseekerId);
+
+        // Find the best-matching job for this jobseeker
+        $jobListings = $employer->jobListings()->with('skills')->get();
+        $maxScore = 0;
+        $bestJob  = null;
+        foreach ($jobListings as $job) {
+            $score = \App\Models\Application::calculateMatchScore($jobseeker, $job);
+            if ($score > $maxScore) { $maxScore = $score; $bestJob = $job; }
+        }
+
+        if (!$bestJob) {
+            return response()->json(['success' => false, 'message' => 'No matching job listing found.'], 422);
+        }
+
+        $company   = $employer->company_name ?? 'Employer';
+        $topSkills = $jobseeker->skills->pluck('skill')->take(3)->implode(', ');
+        $applyUrl  = env('FRONTEND_URL', 'http://localhost:8080') . '/jobseeker/jobs/' . $bestJob->id;
+
+        // Send Mailjet email
+        try {
+            $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+            $body = [
+                'Messages' => [[
+                    'From' => ['Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO')],
+                    'To'   => [['Email' => $jobseeker->email, 'Name' => $jobseeker->full_name]],
+                    'TemplateID'       => 7869914,
+                    'TemplateLanguage' => true,
+                    'Subject'          => "You're Invited to Apply — {$bestJob->title} at {$company}",
+                    'Variables'        => [
+                        'first_name'       => $jobseeker->first_name,
+                        'company_name'     => $company,
+                        'job_title'        => $bestJob->title,
+                        'job_location'     => $bestJob->location ?? 'On-site',
+                        'employment_type'  => $bestJob->job_type ?? 'Full-time',
+                        'salary_range'     => $bestJob->salary_range ?? 'Negotiable',
+                        'work_setup'       => $bestJob->work_setup ?? 'On-site',
+                        'match_pct'        => (string) round($maxScore),
+                        'top_skills'       => $topSkills ?: 'your listed skills',
+                        'apply_url'        => $applyUrl,
+                    ],
+                ]],
+            ];
+            $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+            if (!$response->success()) {
+                \Illuminate\Support\Facades\Log::error('Mailjet Invite Error: ' . json_encode($response->getData()));
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Mailjet Invite Exception: ' . $e->getMessage());
+        }
+
+        // Create notification for JOBSEEKER
+        $jobseekerNotif = Notification::create([
+            'subject'    => 'Job Invitation from ' . $company,
+            'message'    => "You have been personally invited by {$company} to apply for the {$bestJob->title} position. Check your email for details.",
+            'recipients' => 'jobseekers',
+            'scheduled_at' => null,
+            'sent_at'    => now(),
+            'status'     => 'sent',
+            'created_by' => $employer->id,
+        ]);
+        NotificationRead::create([
+            'notification_id' => $jobseekerNotif->id,
+            'recipient_type'  => 'jobseeker',
+            'recipient_id'    => $jobseeker->id,
+            'read_at'         => null,
+        ]);
+
+        // Create notification for EMPLOYER
+        $employerNotif = Notification::create([
+            'subject'    => 'Invitation Sent',
+            'message'    => "You successfully invited {$jobseeker->full_name} to apply for {$bestJob->title}.",
+            'recipients' => 'employers',
+            'scheduled_at' => null,
+            'sent_at'    => now(),
+            'status'     => 'sent',
+            'created_by' => $employer->id,
+        ]);
+        NotificationRead::create([
+            'notification_id' => $employerNotif->id,
+            'recipient_type'  => 'employer',
+            'recipient_id'    => $employer->id,
+            'read_at'         => null,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Invitation sent to {$jobseeker->full_name}",
+        ]);
+    }
 }
+

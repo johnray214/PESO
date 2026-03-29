@@ -202,9 +202,7 @@ export default {
   async mounted() {
     // Store is cache-first: no-op if topbar already loaded it
     await this.notifStore.fetch()
-    setTimeout(() => {
-      this.isLoading = false
-    }, 2000)
+    this.isLoading = false
   },
 }
 </script>

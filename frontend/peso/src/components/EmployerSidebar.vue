@@ -12,55 +12,86 @@
 
     <nav class="sidebar-nav">
       <div>
+        <template v-if="!authStore.isAppReady">
+          <ul class="nav-list">
+            <li v-for="i in 1" :key="'skt-'+i" class="nav-li">
+              <div class="nav-item">
+                <div class="skeleton" style="width: 16px; height: 16px; border-radius: 4px;"></div>
+                <div class="skeleton" style="width: 100px; height: 14px; border-radius: 4px; margin-left:10px;"></div>
+              </div>
+            </li>
+          </ul>
+          <div class="skeleton" style="width: 60px; height: 10px; border-radius: 2px; margin: 12px 0 6px;"></div>
+          <ul class="nav-list">
+            <li v-for="i in 3" :key="'skm-'+i" class="nav-li">
+              <div class="nav-item">
+                <div class="skeleton" style="width: 16px; height: 16px; border-radius: 4px;"></div>
+                <div class="skeleton" style="width: 100px; height: 14px; border-radius: 4px; margin-left:10px;"></div>
+              </div>
+            </li>
+          </ul>
+          <div class="skeleton" style="width: 60px; height: 10px; border-radius: 2px; margin: 20px 0 6px;"></div>
+          <ul class="nav-list">
+            <li v-for="i in 1" :key="'skb-'+i" class="nav-li">
+              <div class="nav-item">
+                <div class="skeleton" style="width: 16px; height: 16px; border-radius: 4px;"></div>
+                <div class="skeleton" style="width: 100px; height: 14px; border-radius: 4px; margin-left:10px;"></div>
+              </div>
+            </li>
+          </ul>
+        </template>
+
+        <template v-else>
+          <ul class="nav-list">
+            <li v-for="item in topNavItems" :key="item.name" class="nav-li">
+              <router-link :to="item.path" class="nav-item" exact-active-class="active">
+                <span class="nav-icon" v-html="item.icon"></span>
+                <span class="nav-text">{{ item.name }}</span>
+              </router-link>
+            </li>
+          </ul>
+          <p class="nav-label">MANAGE</p>
+          <ul class="nav-list">
+          <!-- Applicants -->
+          <li class="nav-li">
+            <router-link to="/employer/applicants" class="nav-item" exact-active-class="active">
+              <span class="nav-icon" v-html="applicantsIcon"></span>
+              <span class="nav-text">Applicants</span>
+              <span v-if="applicantsStore.totalApplicants > 0" class="nav-badge">{{ applicantsStore.totalApplicants }}</span>
+              <span v-if="applicantsStore.totalPotential > 0" class="nav-badge potential-nav-badge" :title="applicantsStore.totalPotential + ' potential matches'">
+                {{ applicantsStore.totalPotential }} potential
+              </span>
+            </router-link>
+          </li>
+
+          <!-- Job Listings -->
+          <li class="nav-li">
+            <router-link to="/employer/job-listings" class="nav-item" exact-active-class="active">
+              <span class="nav-icon" v-html="jobListingsIcon"></span>
+              <span class="nav-text">Job Listings</span>
+            </router-link>
+          </li>
+
+          <!-- Notifications -->
+          <li class="nav-li">
+            <router-link to="/employer/notifications" class="nav-item" exact-active-class="active">
+              <span class="nav-icon" v-html="notificationsIcon"></span>
+              <span class="nav-text">Notifications</span>
+              <span v-if="notifStore.unreadCount > 0" class="nav-badge">{{ notifStore.unreadCount }}</span>
+            </router-link>
+          </li>
+        </ul>
+
+        <p class="nav-label nav-label-bottom">ACCOUNT</p>
         <ul class="nav-list">
-          <li v-for="item in topNavItems" :key="item.name" class="nav-li">
+          <li v-for="item in bottomNavItems" :key="item.name" class="nav-li">
             <router-link :to="item.path" class="nav-item" exact-active-class="active">
               <span class="nav-icon" v-html="item.icon"></span>
               <span class="nav-text">{{ item.name }}</span>
             </router-link>
           </li>
         </ul>
-        <p class="nav-label">MANAGE</p>
-        <ul class="nav-list">
-        <!-- Applicants -->
-        <li class="nav-li">
-          <router-link to="/employer/applicants" class="nav-item" exact-active-class="active">
-            <span class="nav-icon" v-html="applicantsIcon"></span>
-            <span class="nav-text">Applicants</span>
-            <span v-if="applicantsStore.totalApplicants > 0" class="nav-badge">{{ applicantsStore.totalApplicants }}</span>
-            <span v-if="applicantsStore.totalPotential > 0" class="nav-badge potential-nav-badge" :title="applicantsStore.totalPotential + ' potential matches'">
-              {{ applicantsStore.totalPotential }} potential
-            </span>
-          </router-link>
-        </li>
-
-        <!-- Job Listings -->
-        <li class="nav-li">
-          <router-link to="/employer/job-listings" class="nav-item" exact-active-class="active">
-            <span class="nav-icon" v-html="jobListingsIcon"></span>
-            <span class="nav-text">Job Listings</span>
-          </router-link>
-        </li>
-
-        <!-- Notifications -->
-        <li class="nav-li">
-          <router-link to="/employer/notifications" class="nav-item" exact-active-class="active">
-            <span class="nav-icon" v-html="notificationsIcon"></span>
-            <span class="nav-text">Notifications</span>
-            <span v-if="notifStore.unreadCount > 0" class="nav-badge">{{ notifStore.unreadCount }}</span>
-          </router-link>
-        </li>
-      </ul>
-
-      <p class="nav-label nav-label-bottom">ACCOUNT</p>
-      <ul class="nav-list">
-        <li v-for="item in bottomNavItems" :key="item.name" class="nav-li">
-          <router-link :to="item.path" class="nav-item" exact-active-class="active">
-            <span class="nav-icon" v-html="item.icon"></span>
-            <span class="nav-text">{{ item.name }}</span>
-          </router-link>
-        </li>
-      </ul>
+        </template>
       </div>
     </nav>
 
