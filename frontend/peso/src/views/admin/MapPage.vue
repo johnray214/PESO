@@ -293,7 +293,7 @@ export default {
     /* ─── Data ─────────────────────────────────────────────── */
     async fetchEmployers() {
       try {
-        const res     = await api.get('/admin/employers', { params: { per_page: 500 } })
+        const res     = await api.get('/admin/employers', { params: { per_page: 500, status: 'verified' } })
         const rawData = res.data.data?.data || res.data.data || res.data
         const colors  = ['#2563eb', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6']
 

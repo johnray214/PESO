@@ -7,6 +7,10 @@ use App\Http\Controllers\Api\Auth\AdminAuthController;
 use App\Http\Controllers\Api\Auth\EmployerAuthController;
 use App\Http\Controllers\Api\Auth\JobseekerAuthController;
 
+Route::get('/debug-notifs', function() {
+    return \App\Models\NotificationRead::with('notification')->where('recipient_type', 'employer')->orderByDesc('created_at')->limit(10)->get();
+});
+
 // Admin Controllers
 use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\Admin\AdminUserController;

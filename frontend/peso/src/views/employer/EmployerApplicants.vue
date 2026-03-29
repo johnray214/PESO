@@ -109,7 +109,7 @@
               <table class="data-table">
                 <thead><tr><th>Jobseeker</th><th>Matched Skills</th><th>Matches Your Listing</th><th>Skill Match Score</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
-                  <tr v-for="a in pagedPotential" :key="a.name" class="table-row">
+                  <tr v-for="a in pagedPotential" :key="a.name" class="table-row" style="cursor:pointer;" @click="openPotentialDrawer(a)">
                     <td><div class="person-cell"><div class="avatar" :style="{ background: a.color }">{{ a.name[0] }}</div><div><p class="person-name">{{ a.name }}</p><p class="person-meta">{{ a.education }}</p></div></div></td>
                     <td><div class="skill-tags"><span v-for="sk in a.skills" :key="sk" class="skill-tag matched-tag">{{ sk }}</span></div></td>
                     <td><div class="listing-match-cell"><div class="listing-bar" :style="{ background: a.jobColor }"></div><div><p class="person-name" style="font-size:12.5px">{{ a.bestFor }}</p><p class="person-meta">Active listing</p></div></div></td>
@@ -172,8 +172,28 @@
               </div>
               <div class="section-label">Skills</div>
               <div class="skill-tags mt4"><span v-for="sk in selected?.skills" :key="sk" class="skill-tag">{{ sk }}</span></div>
-              <div class="section-label">Applied Position</div>
-              <div class="applied-box"><p class="applied-job">{{ selected?.jobApplied }}</p><p class="applied-date">Applied {{ selected?.date }}</p></div>
+              <!-- For actual applicants show applied date; for potential show best matching listing -->
+              <template v-if="!selected?._isPotential">
+                <div class="section-label">Applied Position</div>
+                <div class="applied-box"><p class="applied-job">{{ selected?.jobApplied }}</p><p class="applied-date">Applied {{ selected?.date }}</p></div>
+              </template>
+              <template v-else>
+                <div class="section-label">Best Matching Listing</div>
+                <div class="applied-box"><p class="applied-job">{{ selected?.jobApplied || selected?.bestFor }}</p><p class="applied-date">Has not applied yet</p></div>
+                <template v-if="selected?.bestJobSkills?.length">
+                  <div class="section-label" style="margin-top:14px;">Required Skills for This Listing</div>
+                  <div class="skill-tags mt4">
+                    <span
+                      v-for="sk in selected.bestJobSkills"
+                      :key="sk"
+                      :class="['skill-tag', selected.skills?.includes(sk) ? 'matched-tag' : 'missing-tag']"
+                    >{{ sk }}</span>
+                  </div>
+                  <p style="font-size:11px;color:#94a3b8;margin-top:6px;">
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#22c55e;margin-right:4px;"></span>Green = candidate has · <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f1f5f9;border:1px solid #cbd5e1;margin-right:4px;margin-left:8px;"></span>White = missing
+                  </p>
+                </template>
+              </template>
             </div>
             <div v-if="drawerTab === 'Resume'">
               <div class="resume-panel">
@@ -352,7 +372,6 @@
               <div class="ep-row"><span class="ep-k">Start Date</span><span class="ep-v ep-chip green-chip">{{ hireModal.startDate ? formatDate(hireModal.startDate) : '—' }}</span></div>
               <div class="ep-row"><span class="ep-k">Salary</span><span class="ep-v">{{ hireModal.salary || 'Negotiable' }}</span></div>
               <div class="ep-row"><span class="ep-k">Employment Type</span><span class="ep-v">{{ hireModal.employmentType || 'Full-time' }}</span></div>
-              <div class="ep-row"><span class="ep-k">Offer Extended</span><span class="ep-v ep-chip green-chip">{{ todayFormatted }}</span></div>
             </div>
           </div>
 
@@ -380,13 +399,15 @@ import EmployerSidebar from '@/components/EmployerSidebar.vue'
 import EmployerTopbar  from '@/components/EmployerTopbar.vue'
 import employerApi from '@/services/employerApi'
 import { useEmployerApplicantsStore } from '@/stores/employerApplicantsStore'
+import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 export default {
   name: 'EmployerApplicants',
   components: { EmployerSidebar, EmployerTopbar },
   setup() {
     const applicantsStore = useEmployerApplicantsStore()
-    return { applicantsStore }
+    const authStore = useEmployerAuthStore()
+    return { applicantsStore, authStore }
   },
   data() {
     return {
@@ -483,13 +504,17 @@ export default {
     confirmAdvance(applicant) {
       if (applicant.status === 'Shortlisted') { this.openInterviewModal(applicant); return }
       if (applicant.status === 'Interview')   { this.openHireModal(applicant);      return }
+      this.confirmShortlist(applicant)
+    },
+
+    confirmShortlist(applicant) {
       this.confirmModal = {
         show: true, theme: 'blue',
         title: 'Shortlist this applicant?',
         desc: `${applicant.name} will be moved to Shortlisted and notified by email.`,
         icon: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>`,
         okHtml: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Yes, Shortlist`,
-        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'Shortlisted') },
+        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'Shortlisted', true) },
       }
     },
 
@@ -512,7 +537,7 @@ export default {
         desc: `${applicant.name} will be marked as Rejected and notified by email. You can still change the status manually afterward.`,
         icon: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
         okHtml: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Yes, Reject`,
-        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'Rejected') },
+        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'Rejected', true) },
       }
     },
 
@@ -555,9 +580,9 @@ export default {
       this.hireModal = {
         show: true, applicant,
         startDate: '',
-        companyName: applicant.companyName ?? '',
-        salary: applicant.salary ?? applicant.salaryRange ?? 'Negotiable',
-        employmentType: applicant.employmentType ?? applicant.jobType ?? 'Full-time',
+        companyName: this.authStore.user?.company_name || applicant.companyName || '',
+        salary: applicant.salary || 'Negotiable',
+        employmentType: applicant.employmentType || 'Full-time',
       }
     },
 
@@ -600,9 +625,10 @@ export default {
     handleDrawerSave() {
       const oldStatus = this.applicants.find(a => a.id === this.selected.id)?.status
       const newStatus = this.selected.status
-      if (newStatus === 'Hired'     && oldStatus !== 'Hired')     { this.openHireModal(this.selected);      return }
-      if (newStatus === 'Interview' && oldStatus !== 'Interview') { this.openInterviewModal(this.selected); return }
-      if (newStatus === 'Rejected'  && oldStatus !== 'Rejected')  { this.confirmReject(this.selected);      return }
+      if (newStatus === 'Hired'       && oldStatus !== 'Hired')       { this.openHireModal(this.selected);      return }
+      if (newStatus === 'Interview'   && oldStatus !== 'Interview')   { this.openInterviewModal(this.selected); return }
+      if (newStatus === 'Rejected'    && oldStatus !== 'Rejected')    { this.confirmReject(this.selected);      return }
+      if (newStatus === 'Shortlisted' && oldStatus !== 'Shortlisted') { this.confirmShortlist(this.selected);   return }
       this.updateStatus(this.selected, newStatus, true)
     },
 
@@ -682,7 +708,8 @@ export default {
 .person-meta { font-size: 11px; color: #94a3b8; margin-top: 1px; }
 .skill-tags { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .skill-tag { background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
-.matched-tag { background: #eff8ff; color: #1a5f8a; border: 1px solid #bae6fd; }
+.matched-tag { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.missing-tag { background: #fff; color: #64748b; border: 1px solid #e2e8f0; }
 .skill-more { font-size: 11px; color: #94a3b8; }
 .job-cell { color: #475569; font-size: 12.5px; }
 .date-cell { color: #94a3b8; font-size: 12px; white-space: nowrap; }
@@ -826,8 +853,8 @@ export default {
 .fm-subtitle strong { color: rgba(255,255,255,0.92); }
 .fm-close { width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,0.15); border: none; color: rgba(255,255,255,0.75); cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; }
 .fm-close:hover { background: rgba(255,255,255,0.28); color: #fff; }
-/* ── SCROLL FIX: fm-body scrolls so the email preview is never clipped ── */
 .fm-body { padding: 18px 20px; overflow-y: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px; }
+.fm-body > * { flex-shrink: 0; }
 .fm-field { display: flex; flex-direction: column; gap: 6px; }
 .fm-label { font-size: 10.5px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; gap: 5px; }
 .fm-input { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 9px 12px; font-size: 13.5px; color: #1e293b; background: #f8fafc; font-family: inherit; outline: none; transition: border-color 0.15s, background 0.15s; width: 100%; }

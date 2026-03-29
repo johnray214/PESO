@@ -84,6 +84,42 @@ class JobseekerProfileController extends Controller
             
             DB::commit();
 
+            if ($skills !== null && !empty($skills)) {
+                $jobseeker->load('skills');
+                $openJobs = \App\Models\JobListing::where('status', 'Open')->with('skills')->get();
+                foreach ($openJobs as $job) {
+                    /** @var \App\Models\JobListing $job */
+                    $score = \App\Models\Application::calculateMatchScore($jobseeker, $job);
+                    if ($score >= 70) {
+                        $exists = \App\Models\Notification::where('type', 'match')
+                            ->where('created_by', $jobseeker->id)
+                            ->where('job_listing_id', $job->id)
+                            ->exists();
+                            
+                        if (!$exists) {
+                            $employerNotification = \App\Models\Notification::create([
+                                'subject'        => 'New Potential Applicant Match',
+                                'message'        => "{$jobseeker->full_name} is a high match ({$score}%) for your {$job->title} position.",
+                                'type'           => 'match',
+                                'job_listing_id' => $job->id,
+                                'recipients'     => 'specific',
+                                'scheduled_at'   => null,
+                                'sent_at'        => now(),
+                                'status'         => 'sent',
+                                'created_by'     => null,
+                            ]);
+                    
+                            \App\Models\NotificationRead::create([
+                                'notification_id' => $employerNotification->id,
+                                'recipient_type'  => 'employer',
+                                'recipient_id'    => $job->employer_id,
+                                'read_at'         => null,
+                            ]);
+                        }
+                    }
+                }
+            }
+
             return response()->json([
                 'success' => true,
                 'data' => $jobseeker->load('skills'),

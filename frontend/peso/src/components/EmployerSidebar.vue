@@ -52,12 +52,11 @@
           </ul>
           <p class="nav-label">MANAGE</p>
           <ul class="nav-list">
-          <!-- Applicants -->
           <li class="nav-li">
             <router-link to="/employer/applicants" class="nav-item" exact-active-class="active">
               <span class="nav-icon" v-html="applicantsIcon"></span>
               <span class="nav-text">Applicants</span>
-              <span v-if="applicantsStore.totalApplicants > 0" class="nav-badge">{{ applicantsStore.totalApplicants }}</span>
+              <span v-if="applicantsStore.reviewingCount > 0" class="nav-badge" title="Applicants under review">{{ applicantsStore.reviewingCount }}</span>
               <span v-if="applicantsStore.totalPotential > 0" class="nav-badge potential-nav-badge" :title="applicantsStore.totalPotential + ' potential matches'">
                 {{ applicantsStore.totalPotential }} potential
               </span>

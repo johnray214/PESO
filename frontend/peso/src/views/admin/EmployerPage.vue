@@ -318,7 +318,7 @@ export default {
           contactPerson: emp.contact_person || 'N/A',
           contactRole:   'Contact Person',
           email:         emp.email,
-          phone:         emp.contact || 'N/A',
+          phone:         emp.phone || 'N/A',
           photo:         emp.photo ? (emp.photo.startsWith('http') ? emp.photo : '/storage/' + emp.photo) : null,
           dateJoined:    new Date(emp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
           status:        (emp.status || 'pending').charAt(0).toUpperCase() + (emp.status || 'pending').slice(1),

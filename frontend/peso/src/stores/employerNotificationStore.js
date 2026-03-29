@@ -16,24 +16,17 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
 
   actions: {
     async fetch() {
-      if (this.loaded || this.loading) return
+      if (this.loading) return
 
+      // Show cached notifications instantly while fresh data loads in background
       const cachedNotifs = localStorage.getItem('employer_notifications')
       const cachedCount  = localStorage.getItem('employer_unread_count')
-      const cachedTime   = localStorage.getItem('employer_notifications_time')
-
       if (cachedNotifs) {
         try { this.notifications = JSON.parse(cachedNotifs) } catch { this.notifications = [] }
       }
       if (cachedCount !== null) this.unreadCount = Number(cachedCount)
 
-      // ✅ if cache is less than 5 minutes old, skip API call
-      const age = cachedTime ? Date.now() - Number(cachedTime) : Infinity
-      if (age < 5 * 60 * 1000 && cachedNotifs) {
-        this.loaded = true
-        return
-      }
-
+      // Always fetch fresh from backend
       await this._load()
     },
 
