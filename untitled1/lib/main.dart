@@ -77,6 +77,17 @@ class AppColors {
 final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
+
 class PESOApp extends StatelessWidget {
   const PESOApp({super.key});
 
@@ -398,7 +409,7 @@ class _SplashScreenState extends State<SplashScreen>
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         // Top spacer (positions mascot + text block toward vertical center)
-                        SizedBox(height: size.height * 0.20),
+                        SizedBox(height: size.height * 0.25),
 
                         // ── Mascot + shadow ──────────────────────────────────────
                         AnimatedBuilder(
@@ -575,11 +586,12 @@ class _SplashScreenState extends State<SplashScreen>
                                         .animate()
                                         .fadeIn(delay: 1200.ms, duration: 500.ms),
                                     const SizedBox(height: 12),
-                                    Text(
-                                      'Connecting you to opportunities...',
-                                      textAlign: TextAlign.center,
-                                      softWrap: true,
-                                      style: GoogleFonts.poppins(
+                                      Text(
+                                        'Connecting you to opportunities...',
+                                        textAlign: TextAlign.center,
+                                        softWrap: true,
+                                        overflow: TextOverflow.visible,
+                                        style: GoogleFonts.poppins(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         color: const Color(0xFF0F172A)
@@ -1858,6 +1870,7 @@ class _LoginModalState extends State<LoginModal>
   late Animation<Offset> _slideAnimation;
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
+  final _middleInitialController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -1899,6 +1912,7 @@ class _LoginModalState extends State<LoginModal>
     _otpReopenCooldownTimer?.cancel();
     _emailDebounce?.cancel();
     _firstNameController.dispose();
+    _middleInitialController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
@@ -1929,9 +1943,9 @@ class _LoginModalState extends State<LoginModal>
     );
     if (picked == null) return;
     setState(() {
-      _selectedDob = picked;
+      _selectedDob = DateTime(picked.year, picked.month, picked.day);
       _dobController.text =
-          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+          '${_selectedDob!.year.toString().padLeft(4, '0')}-${_selectedDob!.month.toString().padLeft(2, '0')}-${_selectedDob!.day.toString().padLeft(2, '0')}';
     });
   }
 
@@ -1939,6 +1953,7 @@ class _LoginModalState extends State<LoginModal>
     Map<String, dynamic> result;
     result = await ApiService.register(
       firstName: _firstNameController.text.trim(),
+      middleInitial: _middleInitialController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
       password: _passwordController.text,
@@ -2490,15 +2505,35 @@ class _LoginModalState extends State<LoginModal>
                     const SizedBox(height: 12),
                   ],
                   if (_isSignUpMode) ...[
-                    TextFormField(
-                      controller: _firstNameController,
-                      decoration:
-                          _fieldDec('First Name', Icons.person_outline_rounded),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty)
-                          return 'Please enter your first name';
-                        return null;
-                      },
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: TextFormField(
+                            controller: _firstNameController,
+                            decoration: _fieldDec('First Name', Icons.person_outline_rounded),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) return 'Please enter your first name';
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 1,
+                          child: TextFormField(
+                            controller: _middleInitialController,
+                            textCapitalization: TextCapitalization.characters,
+                            maxLength: 2,
+                            inputFormatters: [
+                              LengthLimitingTextInputFormatter(1),
+                              UpperCaseTextFormatter(),
+                            ],
+                            decoration: _fieldDec('M.I.', Icons.text_format_rounded).copyWith(counterText: ''),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
                     TextFormField(
@@ -3620,6 +3655,171 @@ class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+enum ToastType { success, error, info }
+
+class CustomToast {
+  static void show(
+    BuildContext context, {
+    required String message,
+    ToastType type = ToastType.info,
+    Duration duration = const Duration(seconds: 4),
+  }) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+
+    entry = OverlayEntry(
+      builder: (context) => _ToastWidget(
+        message: message,
+        type: type,
+        onDismiss: () {
+          if (entry.mounted) entry.remove();
+        },
+      ),
+    );
+
+    overlay.insert(entry);
+    Future.delayed(duration, () {
+      if (entry.mounted) {
+        entry.remove();
+      }
+    });
+  }
+}
+
+class _ToastWidget extends StatefulWidget {
+  final String message;
+  final ToastType type;
+  final VoidCallback onDismiss;
+
+  const _ToastWidget({
+    required this.message,
+    required this.type,
+    required this.onDismiss,
+  });
+
+  @override
+  State<_ToastWidget> createState() => _ToastWidgetState();
+}
+
+class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<Offset> _offsetAnimation;
+  late Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+
+    _offsetAnimation = Tween<Offset>(
+      begin: const Offset(1.0, 0.0),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+    );
+
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (widget.type) {
+      ToastType.success => const Color(0xFF10B981),
+      ToastType.error => const Color(0xFFEF4444),
+      ToastType.info => const Color(0xFF2563EB),
+    };
+
+    final icon = switch (widget.type) {
+      ToastType.success => Icons.check_circle_rounded,
+      ToastType.error => Icons.error_rounded,
+      ToastType.info => Icons.info_rounded,
+    };
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 20,
+      right: 20,
+      child: SlideTransition(
+        position: _offsetAnimation,
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: math.min(MediaQuery.of(context).size.width - 40, 320.0),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+                border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(icon, color: color, size: 18),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      widget.message,
+                      style: GoogleFonts.poppins(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF1E293B),
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      _controller.reverse().then((_) => widget.onDismiss());
+                    },
+                    child: Icon(
+                      Icons.close_rounded,
+                      color: Colors.grey[400],
+                      size: 18,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

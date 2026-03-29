@@ -17,6 +17,7 @@ import 'api_service.dart';
 import 'job_action_service.dart';
 import 'micro_interactions.dart';
 import 'package:http/http.dart' as http;
+import 'main.dart';
 
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
 
@@ -99,12 +100,10 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
       Navigator.of(dialogContext).pop();
-      ScaffoldMessenger.of(widget.hostContext).showSnackBar(
-        const SnackBar(
-          content: Text('Please log in to register for events.'),
-          backgroundColor: Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
+      CustomToast.show(
+        widget.hostContext,
+        message: 'Please log in to register for events.',
+        type: ToastType.error,
       );
       return;
     }
@@ -129,22 +128,16 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
       });
       microInteractionSuccess();
       widget.onRegistrationChanged();
-      ScaffoldMessenger.of(widget.hostContext).showSnackBar(
-        SnackBar(
-          content: Text(
-            _event.isRegistered ? 'Registered for ${_event.title}' : 'Cancelled registration',
-          ),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-        ),
+      CustomToast.show(
+        widget.hostContext,
+        message: _event.isRegistered ? 'Registered for ${_event.title}' : 'Cancelled registration',
+        type: ToastType.success,
       );
     } else {
-      ScaffoldMessenger.of(widget.hostContext).showSnackBar(
-        SnackBar(
-          content: Text(res['message']?.toString() ?? 'Something went wrong'),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-        ),
+      CustomToast.show(
+        widget.hostContext,
+        message: res['message']?.toString() ?? 'Something went wrong',
+        type: ToastType.error,
       );
     }
   }
@@ -959,7 +952,7 @@ class _HomePageState extends State<HomePage> {
       final e = item as Map<String, dynamic>;
       final id = (e['id'] as num).toInt();
       return PesoEvent.fromJson(e, isRegistered: regIds.contains(id));
-    }).toList();
+    }).where((event) => event.status != 'completed').toList();
   }
 
   void _reloadEventsFuture() {
@@ -1492,11 +1485,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
           _isLoading = false;
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] as String? ?? 'Failed to refresh jobs.'),
-            backgroundColor: const Color(0xFFEF4444),
-          ),
+        CustomToast.show(
+          context,
+          message: result['message'] as String? ?? 'Failed to refresh jobs.',
+          type: ToastType.error,
         );
       }
     }
@@ -1531,33 +1523,16 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
     if (error == null) {
       microInteractionSuccess();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_outline_rounded,
-                  color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Text('Applied to ${job.title}!'),
-            ],
-          ),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+      CustomToast.show(
+        context,
+        message: 'Applied to ${job.title}!',
+        type: ToastType.success,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+      CustomToast.show(
+        context,
+        message: error,
+        type: ToastType.error,
       );
     }
   }
@@ -1569,30 +1544,16 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
     if (error == null) {
       microInteractionSuccess();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(wasSaved
-              ? 'Job removed from saved.'
-              : 'Job saved successfully.'),
-          backgroundColor: wasSaved
-              ? const Color(0xFF64748B)
-              : const Color(0xFF2563EB),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+      CustomToast.show(
+        context,
+        message: wasSaved ? 'Job removed from saved.' : 'Job saved successfully.',
+        type: ToastType.info,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
+      CustomToast.show(
+        context,
+        message: error,
+        type: ToastType.error,
       );
     }
   }
@@ -3859,6 +3820,7 @@ class _MapTabState extends State<MapTab> {
               child: GestureDetector(
                 onTap: () {},
                 child: _BusinessDetailSheet(
+                  hostContext: this.context,
                   business: business,
                   formatDistance: _formatDistance,
                 ),
@@ -4051,10 +4013,12 @@ class _BusinessPopupCard extends StatelessWidget {
 
 // ─── Business Detail Sheet ────────────────────────────────────────────────────
 class _BusinessDetailSheet extends StatelessWidget {
+  final BuildContext hostContext;
   final Business business;
   final String Function(double) formatDistance;
 
   const _BusinessDetailSheet({
+    required this.hostContext,
     required this.business,
     required this.formatDistance,
   });
@@ -4226,7 +4190,7 @@ class _BusinessDetailSheet extends StatelessWidget {
                         job: job,
                         onTap: () {
                           Navigator.pop(context);
-                          _showJobDetails(context, job);
+                          Future.microtask(() => _showJobDetails(hostContext, job));
                         },
                       )),
                     ],
@@ -4240,15 +4204,48 @@ class _BusinessDetailSheet extends StatelessWidget {
     );
   }
 
-  void _showJobDetails(BuildContext context, Job job) {
+  Future<void> _showJobDetails(BuildContext context, Job job) async {
     final jobActionService = JobActionService();
+    Job detailJob = job;
+
+    final token = UserSession().token;
+    if (token != null && token.isNotEmpty) {
+      final jobId = int.tryParse(job.id);
+      final result = jobId == null
+          ? const {'success': false}
+          : await ApiService.getJobById(token, jobId);
+      if (result['success'] == true) {
+        final data = result['data'] as Map<String, dynamic>? ?? {};
+        final listing = data['job_listing'] as Map<String, dynamic>? ?? {};
+        if (listing.isNotEmpty) {
+          detailJob = Job.fromJson({
+            ...listing,
+            // Keep employer/location context from map result when missing.
+            if ((listing['employer'] == null || listing['employer'] is! Map) &&
+                job.company.isNotEmpty)
+              'employer': {'company_name': job.company},
+            if ((listing['location'] == null ||
+                    listing['location'].toString().trim().isEmpty) &&
+                job.location.isNotEmpty)
+              'location': job.location,
+            // Ensure match badge is present like Jobs page details.
+            'match_percentage':
+                (data['match_score'] as num?)?.toInt() ?? job.matchPercentage,
+          });
+        }
+      }
+    }
+
+    if (!context.mounted) return;
     showJobDetailSheet(
       context,
-      job,
-      isSaved: jobActionService.isSaved(job.id),
-      isApplied: jobActionService.isApplied(job.id),
-      onSave: () => jobActionService.toggleSave(job.id),
-      onApply: () => _applyFromBusinessDetail(context, job, jobActionService),
+      detailJob,
+      isSaved: jobActionService.isSaved(detailJob.id),
+      isApplied: jobActionService.isApplied(detailJob.id),
+      onSave: () => jobActionService.toggleSave(detailJob.id),
+      onApply: () =>
+          _applyFromBusinessDetail(context, detailJob, jobActionService),
+      onViewMap: null, // Redundant in map page
     );
   }
 
@@ -4280,33 +4277,16 @@ class _BusinessDetailSheet extends StatelessWidget {
     final error = await jobActionService.applyToJob(job.id, job.title);
     if (context.mounted) {
       if (error == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.check_circle_outline_rounded,
-                    color: Colors.white, size: 18),
-                const SizedBox(width: 8),
-                Text('Applied to ${job.title}!'),
-              ],
-            ),
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+        CustomToast.show(
+          context,
+          message: 'Applied to ${job.title}!',
+          type: ToastType.success,
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(error),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
+        CustomToast.show(
+          context,
+          message: error,
+          type: ToastType.error,
         );
       }
     }
@@ -4418,6 +4398,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
   bool _isLoading = true;
   String? _errorMessage;
   List<Map<String, dynamic>> _notifications = [];
+  final _jobActionService = JobActionService();
   Timer? _pollTimer;
   bool _isPolling = false;
 
@@ -4428,11 +4409,17 @@ class _NotificationsTabState extends State<NotificationsTab> {
     _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _loadNotifications(showLoader: false);
     });
+    _jobActionService.addListener(_onJobActionsChanged);
+  }
+
+  void _onJobActionsChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _jobActionService.removeListener(_onJobActionsChanged);
     super.dispose();
   }
 
@@ -4504,6 +4491,70 @@ class _NotificationsTabState extends State<NotificationsTab> {
       _notifications.isNotEmpty &&
       _notifications.every((n) => n['read_at'] != null);
 
+  Future<void> _applyToJob(Job job) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Application'),
+        content: Text(
+          'Apply for ${job.title} at ${job.company}?',
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final error = await _jobActionService.applyToJob(job.id, job.title);
+    if (!mounted) return;
+
+    if (error == null) {
+      microInteractionSuccess();
+      CustomToast.show(
+        context,
+        message: 'Applied to ${job.title}!',
+        type: ToastType.success,
+      );
+    } else {
+      CustomToast.show(
+        context,
+        message: error,
+        type: ToastType.error,
+      );
+    }
+  }
+
+  Future<void> _toggleSaveJob(Job job) async {
+    final wasSaved = _jobActionService.isSaved(job.id);
+    final error = await _jobActionService.toggleSave(job.id);
+    if (!mounted) return;
+
+    if (error == null) {
+      microInteractionSuccess();
+      CustomToast.show(
+        context,
+        message: wasSaved ? 'Job removed from saved.' : 'Job saved successfully.',
+        type: wasSaved ? ToastType.info : ToastType.info,
+      );
+    } else {
+      CustomToast.show(
+        context,
+        message: error,
+        type: ToastType.error,
+      );
+    }
+  }
+
   Future<void> _openNotification(int index) async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
@@ -4556,6 +4607,10 @@ class _NotificationsTabState extends State<NotificationsTab> {
     showJobDetailSheet(
       context, 
       job,
+      isSaved: _jobActionService.isSaved(job.id),
+      isApplied: _jobActionService.isApplied(job.id),
+      onSave: () => _toggleSaveJob(job),
+      onApply: () => _applyToJob(job),
       onViewMap: widget.onOpenMapRequested != null ? () {
         Navigator.of(context).pop();
         widget.onOpenMapRequested!(MapFocusRequest.fromJob(job));
@@ -4564,24 +4619,39 @@ class _NotificationsTabState extends State<NotificationsTab> {
   }
 
   Future<void> _deleteNotification(int index) async {
+    final n = _notifications[index];
+    final notif = n['notification'] as Map<String, dynamic>? ?? {};
+    if (notif['type'] == 'satisfaction_survey') {
+      // Prevents deletion via manual swipe if UI somehow allows it
+      return;
+    }
+
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
       setState(() => _notifications.removeAt(index));
       return;
     }
-    final n = _notifications[index];
-    final id = n['id'];
+    final notifId = n['id'];
     setState(() => _notifications.removeAt(index));
-    if (id == null) return;
+    if (notifId == null) return;
     await ApiService.deleteJobseekerNotification(
       token: token,
-      id: id is int ? id : int.tryParse(id.toString()) ?? 0,
+      id: notifId is int ? notifId : int.tryParse(notifId.toString()) ?? 0,
     );
   }
 
   Future<void> _deleteAllRead() async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
+    
+    // Filter to show only read notifications that are NOT surveys
+    final toDelete = _notifications.where((n) {
+      final notif = n['notification'] as Map<String, dynamic>? ?? {};
+      return n['read_at'] != null && notif['type'] != 'satisfaction_survey';
+    }).toList();
+
+    if (toDelete.isEmpty) return;
+
     final ok = await ApiService.deleteAllJobseekerNotifications(token);
     if (!mounted) return;
     if (ok) {
@@ -4615,6 +4685,104 @@ class _NotificationsTabState extends State<NotificationsTab> {
     }
 
     return spans;
+  }
+
+  Future<void> _showRatingDialog(int index, Map<String, dynamic> n) async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return;
+    
+    // Mark as read first if not read
+    if (n['read_at'] == null) {
+      _openNotification(index);
+    }
+
+    int selectedRating = 0;
+    bool isSubmitting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: const Text('Rate Application Process'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'How was the processing of your application? Rate your experience from 1 to 5.',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (i) {
+                      return IconButton(
+                        icon: Icon(
+                          i < selectedRating ? Icons.star_rounded : Icons.star_border_rounded,
+                          color: Colors.amber,
+                          size: 32,
+                        ),
+                        onPressed: () {
+                          setDialogState(() {
+                            selectedRating = i + 1;
+                          });
+                        },
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    selectedRating == 1 ? 'Very Dissatisfied' :
+                    selectedRating == 2 ? 'Dissatisfied' :
+                    selectedRating == 3 ? 'Neutral' :
+                    selectedRating == 4 ? 'Satisfied' :
+                    selectedRating == 5 ? 'Very Satisfied' : 'Select a rating',
+                    style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: (selectedRating == 0 || isSubmitting) ? null : () async {
+                    setDialogState(() => isSubmitting = true);
+                    final result = await ApiService.submitSatisfactionRating(token, selectedRating);
+                    if (!mounted) return;
+                    setDialogState(() => isSubmitting = false);
+                    if (result['success'] == true) {
+                      Navigator.of(ctx).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Thank you for your rating!'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      _deleteNotification(index); // Remove after rating
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(result['message'] ?? 'Failed to submit rating.'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  },
+                  child: isSubmitting
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                      : const Text('Submit'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Widget _buildChip(IconData icon, String label) {
@@ -4761,8 +4929,14 @@ class _NotificationsTabState extends State<NotificationsTab> {
                             final isRead = n['read_at'] != null;
                             final id = n['id'] ?? index;
 
-                            // Shared time/date formatting
-                            final diff = DateTime.now().difference(createdAt);
+                            // Shared time/date formatting (using PH time cluster)
+                            final nowPh = nowInPhilippines();
+                            // If backend sends UTC, parse and convert to PH
+                            final createdAtPh = createdAt.isUtc 
+                              ? createdAt.add(const Duration(hours: 8)) 
+                              : createdAt;
+                            
+                            final diff = nowPh.difference(createdAtPh);
                             final timeAgo = diff.inDays > 0
                                 ? '${diff.inDays}d ago'
                                 : diff.inHours > 0
@@ -4772,7 +4946,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                         : 'just now';
 
                             const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                            final dateFormatted = '${monthNames[createdAt.month - 1]}/${createdAt.day.toString().padLeft(2, '0')}/${createdAt.year}';
+                            final dateFormatted = '${monthNames[createdAtPh.month - 1]}/${createdAtPh.day.toString().padLeft(2, '0')}/${createdAtPh.year}';
 
                             // ── Invitation card ───────────────────────────
                             if (type == 'invitation') {
@@ -4963,10 +5137,157 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                   ),
                                 ),
                               );
+                            } else if (type == 'satisfaction_survey') {
+                              return Dismissible(
+                                key: ValueKey('notif_$id'),
+                                direction: DismissDirection.none,
+                                background: Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                                  child: const Icon(Icons.delete_rounded, color: Colors.white),
+                                ),
+                                onDismissed: (_) => _deleteNotification(index),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Material(
+                                      color: Colors.white,
+                                      child: InkWell(
+                                        onTap: () => _openNotification(index),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            border: Border(
+                                              left: BorderSide(
+                                                color: isRead ? Colors.transparent : const Color(0xFF10B981), // Emerald
+                                                width: 4,
+                                              ),
+                                              top: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF10B981).withOpacity(0.3)),
+                                              right: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF10B981).withOpacity(0.3)),
+                                              bottom: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF10B981).withOpacity(0.3)),
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.all(16),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Row(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Container(
+                                                    width: 40,
+                                                    height: 40,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF10B981).withOpacity(0.1),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.rate_review_rounded,
+                                                      color: Color(0xFF10B981),
+                                                      size: 20,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          subject,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                                                            color: const Color(0xFF0F172A),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 2),
+                                                        Text(
+                                                          '$timeAgo • $dateFormatted',
+                                                          style: const TextStyle(
+                                                            fontSize: 12,
+                                                            color: Color(0xFF94A3B8),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  if (!isRead)
+                                                    Container(
+                                                      margin: const EdgeInsets.only(top: 8, right: 4),
+                                                      width: 10,
+                                                      height: 10,
+                                                      decoration: const BoxDecoration(
+                                                        color: Color(0xFF10B981),
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 16),
+                                              Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.all(14),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF0FDF4),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                                                ),
+                                                child: Text(
+                                                  message,
+                                                  style: const TextStyle(
+                                                    fontSize: 14,
+                                                    color: Color(0xFF334155),
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 16),
+                                              SizedBox(
+                                                width: double.infinity,
+                                                height: 44,
+                                                child: FilledButton.icon(
+                                                  onPressed: () => _showRatingDialog(index, n),
+                                                  icon: const Icon(Icons.star_half_rounded, size: 18),
+                                                  label: const Text('Rate Application Process'),
+                                                  style: FilledButton.styleFrom(
+                                                    backgroundColor: const Color(0xFF10B981),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    textStyle: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
                             }
 
-                            // Determine icon and color for generic card based on status/type
-                            IconData statusIcon = Icons.notifications_rounded;
+                            // Determine asset and color for generic card based on status/type
+                            String? statusAsset;
                             Color statusColor = const Color(0xFF2563EB);
 
                             if (type != null) {
@@ -4975,19 +5296,19 @@ class _NotificationsTabState extends State<NotificationsTab> {
                               final m = message.toLowerCase();
 
                               if (t.contains('shortlisted') || s.contains('shortlisted') || m.contains('shortlisted')) {
-                                statusIcon = Icons.star_rounded;
+                                statusAsset = 'assets/empoy_notif_shortlisted.png';
                                 statusColor = const Color(0xFFF59E0B); // Amber
                               } else if (t.contains('interview') || s.contains('interview') || m.contains('interview')) {
-                                statusIcon = Icons.calendar_today_rounded;
+                                statusAsset = 'assets/empoy_notif_interview.png';
                                 statusColor = const Color(0xFF8B5CF6); // Violet
                               } else if (t.contains('hired') || s.contains('hired') || m.contains('hired')) {
-                                statusIcon = Icons.check_circle_rounded;
+                                statusAsset = 'assets/empoy_notif_hired.png';
                                 statusColor = const Color(0xFF10B981); // Emerald
                               } else if (t.contains('rejected') || s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) {
-                                statusIcon = Icons.cancel_rounded;
+                                statusAsset = 'assets/empoy_notif_rejected.png';
                                 statusColor = const Color(0xFFEF4444); // Red
                               } else if (t.contains('reviewing') || s.contains('received') || m.contains('received')) {
-                                statusIcon = Icons.pending_actions_rounded;
+                                statusAsset = 'assets/empoy_notif_application_received.png';
                                 statusColor = const Color(0xFF2563EB); // Blue
                               }
                             } else {
@@ -4995,19 +5316,19 @@ class _NotificationsTabState extends State<NotificationsTab> {
                               final s = subject.toLowerCase();
                               final m = message.toLowerCase();
                               if (s.contains('shortlisted') || m.contains('shortlisted')) {
-                                statusIcon = Icons.star_rounded;
+                                statusAsset = 'assets/empoy_notif_shortlisted.png';
                                 statusColor = const Color(0xFFF59E0B);
                               } else if (s.contains('interview') || m.contains('interview')) {
-                                statusIcon = Icons.calendar_today_rounded;
+                                statusAsset = 'assets/empoy_notif_interview.png';
                                 statusColor = const Color(0xFF8B5CF6);
                               } else if (s.contains('hired') || m.contains('hired')) {
-                                statusIcon = Icons.check_circle_rounded;
+                                statusAsset = 'assets/empoy_notif_hired.png';
                                 statusColor = const Color(0xFF10B981);
                               } else if (s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) {
-                                statusIcon = Icons.cancel_rounded;
+                                statusAsset = 'assets/empoy_notif_rejected.png';
                                 statusColor = const Color(0xFFEF4444);
                               } else if (s.contains('received') || m.contains('received')) {
-                                statusIcon = Icons.pending_actions_rounded;
+                                statusAsset = 'assets/empoy_notif_application_received.png';
                                 statusColor = const Color(0xFF2563EB);
                               }
                             }
@@ -5015,7 +5336,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
                             // ── Generic notification card ─────────────────
                             return Dismissible(
                               key: ValueKey('notif_$id'),
-                              direction: DismissDirection.endToStart,
+                              direction: type == 'satisfaction_survey' ? DismissDirection.none : DismissDirection.endToStart,
                               background: Container(
                                 margin: const EdgeInsets.only(bottom: 12),
                                 decoration: BoxDecoration(
@@ -5048,17 +5369,23 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                 child: ListTile(
                                   onTap: () => _openNotification(index),
                                   leading: Container(
-                                    width: 40,
-                                    height: 40,
+                                    width: 48,
+                                    height: 48,
                                     decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.1),
+                                      color: statusColor.withOpacity(0.12),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: Icon(
-                                      statusIcon,
-                                      color: statusColor,
-                                      size: 22,
-                                    ),
+                                    padding: const EdgeInsets.all(4),
+                                    child: statusAsset != null
+                                        ? Image.asset(
+                                            statusAsset,
+                                            fit: BoxFit.contain,
+                                          )
+                                        : Icon(
+                                            Icons.notifications_rounded,
+                                            color: statusColor,
+                                            size: 24,
+                                          ),
                                   ),
                                   title: Text(
                                     subject,

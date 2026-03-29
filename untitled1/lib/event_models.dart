@@ -12,6 +12,7 @@ class PesoEvent {
   final int participantsCount;
   final int? maxParticipants;
   final bool isRegistered;
+  final String status;
 
   const PesoEvent({
     required this.id,
@@ -26,6 +27,7 @@ class PesoEvent {
     this.participantsCount = 0,
     this.maxParticipants,
     this.isRegistered = false,
+    this.status = 'upcoming',
   });
 
   PesoEvent copyWith({
@@ -81,6 +83,7 @@ class PesoEvent {
     final organizer = json['organizer'] as String?;
     final participantsCount = (json['participants_count'] as num?)?.toInt() ?? 0;
     final maxParticipants = (json['max_participants'] as num?)?.toInt();
+    final status = (json['status'] as String?)?.trim() ?? 'upcoming';
 
     return PesoEvent(
       id: id,
@@ -95,6 +98,7 @@ class PesoEvent {
       participantsCount: participantsCount,
       maxParticipants: maxParticipants,
       isRegistered: isRegistered,
+      status: status,
     );
   }
 

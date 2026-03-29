@@ -1,9 +1,11 @@
 import 'dart:typed_data';
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,6 +20,17 @@ import 'session_prefs.dart';
 import 'settings_page.dart';
 import 'app_nav.dart';
 
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
+
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -31,12 +44,28 @@ class _ProfileTabState extends State<ProfileTab> {
   int _interviewCount = 0;
   int _savedCount = 0;
   List<int>? _avatarBytes;
+  Timer? _statsRefreshTimer;
+  bool _isStatsRefreshing = false;
 
   @override
   void initState() {
     super.initState();
     _loadStats();
+    _startLiveStatsRefresh();
     _loadAvatar();
+  }
+
+  @override
+  void dispose() {
+    _statsRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startLiveStatsRefresh() {
+    _statsRefreshTimer?.cancel();
+    _statsRefreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      _loadStats();
+    });
   }
 
   Future<void> _loadAvatar() async {
@@ -47,13 +76,18 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _loadStats() async {
+    if (_isStatsRefreshing) return;
+    _isStatsRefreshing = true;
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
-      setState(() {
-        _appliedCount = 0;
-        _interviewCount = 0;
-        _savedCount = 0;
-      });
+      if (mounted) {
+        setState(() {
+          _appliedCount = 0;
+          _interviewCount = 0;
+          _savedCount = 0;
+        });
+      }
+      _isStatsRefreshing = false;
       return;
     }
 
@@ -70,8 +104,14 @@ class _ProfileTabState extends State<ProfileTab> {
         applied = list.length;
         interview = list.where((item) {
           final map = item as Map<String, dynamic>;
-          final status = (map['status'] as String? ?? '').trim();
-          return status == 'Processing';
+          final rawStatus = (map['status'] as String? ?? '')
+              .trim()
+              .toLowerCase()
+              .replaceAll('_', ' ')
+              .replaceAll('-', ' ')
+              .replaceAll(RegExp(r'\s+'), ' ');
+          // Processing should count ONLY shortlisted + interview.
+          return rawStatus == 'shortlisted' || rawStatus == 'interview';
         }).length;
       }
 
@@ -81,14 +121,45 @@ class _ProfileTabState extends State<ProfileTab> {
       }
 
       if (!mounted) return;
-      setState(() {
-        _appliedCount = applied;
-        _interviewCount = interview;
-        _savedCount = saved;
-      });
+      final hasChanges = _appliedCount != applied ||
+          _interviewCount != interview ||
+          _savedCount != saved;
+      if (hasChanges) {
+        setState(() {
+          _appliedCount = applied;
+          _interviewCount = interview;
+          _savedCount = saved;
+        });
+      }
     } catch (_) {
       // Keep existing counts on error; profile still loads.
+    } finally {
+      _isStatsRefreshing = false;
     }
+  }
+
+  void _showEditProfileSheet(BuildContext context) async {
+    final token = UserSession().token;
+    if (token == null) return;
+    
+    // We need to reload data to ensure we have current state
+    final userResult = await ApiService.getUser(token);
+    if (userResult['success'] == true && userResult['data'] != null) {
+       UserSession().updateFromUser(userResult['data'] as Map<String, dynamic>);
+    }
+
+    if (!mounted) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => EditProfileSheet(onUpdate: () {
+        _loadStats();
+        _loadAvatar();
+      }),
+    ).then((_) {
+       if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -290,16 +361,24 @@ class _ProfileTabState extends State<ProfileTab> {
                   _buildMenuItem(
                     icon: Icons.folder_outlined,
                     title: 'My Applications',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
-                    ),
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
+                      );
+                      if (!mounted) return;
+                      _loadStats();
+                    },
                   ),
                   _buildMenuItem(
                     icon: Icons.bookmark_outline_rounded,
                     title: 'Saved Jobs',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SavedJobsPage()),
-                    ),
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const SavedJobsPage()),
+                      );
+                      if (!mounted) return;
+                      _loadStats();
+                    },
                   ),
                   _buildMenuItem(
                     icon: Icons.psychology_outlined,
@@ -374,19 +453,8 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  void _showEditProfileSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const EditProfileSheet(),
-    ).then((_) {
-      if (mounted) {
-        _loadAvatar();
-        setState(() {});
-      }
-    });
-  }
+  // Removed redundant _showEditProfileSheet
+
 
   Future<void> _confirmSignOut(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -515,7 +583,8 @@ class _ProfileTabState extends State<ProfileTab> {
 
 // ─── Edit Profile Sheet ───────────────────────────────────────────────────────
 class EditProfileSheet extends StatefulWidget {
-  const EditProfileSheet({super.key});
+  final VoidCallback onUpdate;
+  const EditProfileSheet({super.key, required this.onUpdate});
 
   @override
   State<EditProfileSheet> createState() => _EditProfileSheetState();
@@ -524,8 +593,11 @@ class EditProfileSheet extends StatefulWidget {
 class _EditProfileSheetState extends State<EditProfileSheet> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _firstNameController;
+  late final TextEditingController _middleInitialController;
   late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
+  late final TextEditingController _dobController;
+  String? _selectedSex;
   late final TextEditingController _phoneController;
   late final TextEditingController _streetController;
   late final TextEditingController _experienceController;
@@ -577,10 +649,13 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
         : (nameParts.length > 1 ? nameParts.skip(1).join(' ') : '');
 
     _firstNameController = TextEditingController(text: firstName);
+    _middleInitialController = TextEditingController(text: session.middleInitial ?? '');
     _lastNameController = TextEditingController(text: lastName);
     _emailController = TextEditingController(text: UserSession().email ?? '');
     _phoneController = TextEditingController(text: UserSession().phone ?? '');
     _streetController = TextEditingController(text: session.streetAddress ?? '');
+    _dobController = TextEditingController(text: session.dateOfBirth ?? '');
+    _selectedSex = session.gender;
     _experienceController = TextEditingController();
 
     // Parse comma-separated experience items saved as `job_experience`
@@ -644,8 +719,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   @override
   void dispose() {
     _firstNameController.dispose();
+    _middleInitialController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
+    _dobController.dispose();
     _phoneController.dispose();
     _streetController.dispose();
     _experienceController.dispose();
@@ -1199,28 +1276,40 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                         Row(
                           children: [
                             Expanded(
+                              flex: 2,
                               child: TextFormField(
                                 controller: _firstNameController,
                                 decoration:
                                     _fieldDec('First Name', Icons.person_outline_rounded),
                                 validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Required';
-                                  }
+                                  if (v == null || v.trim().isEmpty) return 'Required';
                                   return null;
                                 },
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 8),
                             Expanded(
+                              flex: 1,
+                              child: TextFormField(
+                                controller: _middleInitialController,
+                                textCapitalization: TextCapitalization.characters,
+                                maxLength: 2,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(1),
+                                  UpperCaseTextFormatter(),
+                                ],
+                                decoration: _fieldDec('M.I.', Icons.text_format_rounded).copyWith(counterText: ''),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              flex: 2,
                               child: TextFormField(
                                 controller: _lastNameController,
                                 decoration:
                                     _fieldDec('Last Name', Icons.badge_outlined),
                                 validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Required';
-                                  }
+                                  if (v == null || v.trim().isEmpty) return 'Required';
                                   return null;
                                 },
                               ),
@@ -1255,6 +1344,66 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                             }
                             return null;
                           },
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _dobController,
+                                readOnly: true,
+                                decoration: _fieldDec('Birthdate (YYYY-MM-DD)', Icons.cake_outlined),
+                                onTap: () async {
+                                  final now = DateTime.now();
+                                  DateTime initial = DateTime(now.year - 21, now.month, now.day);
+                                  final rawDob = _dobController.text.trim();
+                                  if (rawDob.isNotEmpty) {
+                                    final datePart = rawDob.split(RegExp(r'[T\s]')).first;
+                                    final parts = datePart.split('-');
+                                    if (parts.length == 3) {
+                                      final y = int.tryParse(parts[0]);
+                                      final m = int.tryParse(parts[1]);
+                                      final d = int.tryParse(parts[2]);
+                                      if (y != null && m != null && d != null) {
+                                        initial = DateTime(y, m, d);
+                                      }
+                                    }
+                                  }
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: initial,
+                                    firstDate: DateTime(1900, 1, 1),
+                                    lastDate: now,
+                                  );
+                                  if (picked == null) return;
+                                  setState(() {
+                                    final pickedLocal = DateTime(picked.year, picked.month, picked.day);
+                                    _dobController.text =
+                                        '${pickedLocal.year.toString().padLeft(4, '0')}-${pickedLocal.month.toString().padLeft(2, '0')}-${pickedLocal.day.toString().padLeft(2, '0')}';
+                                  });
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: DropdownButtonFormField<String>(
+                                value: ['male', 'female'].contains(_selectedSex?.toLowerCase()) ? _selectedSex?.toLowerCase() : null,
+                                decoration: _fieldDec('Sex', Icons.person_outline),
+                                items: const [
+                                  DropdownMenuItem(value: 'male', child: Text('Male')),
+                                  DropdownMenuItem(value: 'female', child: Text('Female')),
+                                ],
+                                onChanged: (value) => setState(() => _selectedSex = value),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) return 'Required';
+                                  return null;
+                                },
+                              ),
+                            ),
+                          ],
                         ),
 
                         const SizedBox(height: 16),
@@ -1512,6 +1661,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                       token: token,
                                       email: _emailController.text.trim(),
                                       firstName: _firstNameController.text.trim(),
+                                      middleInitial: _middleInitialController.text.trim(),
                                       lastName: _lastNameController.text.trim(),
                                       contact: _phoneController.text.trim(),
                                       address: _composeAddress(),
@@ -1526,6 +1676,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                       barangayCode: _barangayCode,
                                       barangayName: _barangayName,
                                       streetAddress: _streetController.text.trim(),
+                                      dateOfBirth: _dobController.text.trim().isEmpty ? null : _dobController.text.trim(),
+                                      sex: _selectedSex,
                                     );
 
                                     if (!mounted) return;

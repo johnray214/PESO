@@ -53,4 +53,9 @@ flutter:
     - assets/PESOLOGO.jpg
     - assets/testempoy.gif
     - assets/empoy_app_icon.png
+    - assets/empoy_notif_application_received.png
+    - assets/empoy_notif_interview.png
+    - assets/empoy_notif_rejected.png
+    - assets/empoy_notif_hired.png
+    - assets/empoy_notif_shortlisted.png
     - .env

@@ -65,6 +65,7 @@ class ApiService {
 
   static Future<Map<String, dynamic>> register({
     required String firstName,
+    String? middleInitial,
     required String lastName,
     required String email,
     required String password,
@@ -80,6 +81,7 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'first_name': firstName,
+          'middle_initial': middleInitial,
           'last_name': lastName,
           'email': email,
           'password': password,
@@ -514,11 +516,18 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getApplications(String token) async {
     try {
+      final uri = Uri.parse('$baseUrl/jobseeker/applications').replace(
+        queryParameters: {
+          '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
+        },
+      );
       final response = await http.get(
-        Uri.parse('$baseUrl/jobseeker/applications'),
+        uri,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
         },
       );
       final decoded = jsonDecode(response.body);
@@ -559,11 +568,18 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getSavedJobs(String token) async {
     try {
+      final uri = Uri.parse('$baseUrl/jobseeker/saved-jobs').replace(
+        queryParameters: {
+          '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
+        },
+      );
       final response = await http.get(
-        Uri.parse('$baseUrl/jobseeker/saved-jobs'),
+        uri,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
         },
       );
       final decoded = jsonDecode(response.body);
@@ -892,9 +908,27 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> submitSatisfactionRating(String token, int rating) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/satisfaction-rating'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'rating': rating}),
+      );
+      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+      return jsonResponse;
+    } catch (_) {
+      return {'success': false, 'message': 'Network error submitting rating.'};
+    }
+  }
+
   static Future<Map<String, dynamic>> updateProfile({
     required String token,
     String? firstName,
+    String? middleInitial,
     String? lastName,
     String? email,
     String? contact,
@@ -917,6 +951,9 @@ class ApiService {
       final body = <String, dynamic>{};
       if (firstName != null && firstName.isNotEmpty) {
         body['first_name'] = firstName;
+      }
+      if (middleInitial != null) {
+        body['middle_initial'] = middleInitial.isEmpty ? null : middleInitial;
       }
       if (lastName != null && lastName.isNotEmpty) {
         body['last_name'] = lastName;

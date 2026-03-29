@@ -135,6 +135,11 @@ class Job {
     final deadlineRaw = json['deadline'] as String?;
     final deadline = deadlineRaw != null ? DateTime.tryParse(deadlineRaw) : null;
 
+    final isUrgent = json['is_urgent'] == true ||
+        json['is_urgent'] == 1 ||
+        json['urgent'] == true ||
+        (json['is_urgent'] is String && (json['is_urgent'] == '1' || json['is_urgent'].toString().toLowerCase() == 'true'));
+
     return Job(
       id: json['id'].toString(),
       title: (json['title'] as String?) ?? '',
@@ -158,11 +163,10 @@ class Job {
           'full-time',
       category: json['category'] as String?,
       postedDate: postedDate,
-      slots: (json['slots'] as num?)?.toInt(),
+      slots: (json['slots'] as num?)?.toInt() ?? (json['number_of_slots'] as num?)?.toInt(),
       deadline: deadline,
       matchPercentage: (json['match_percentage'] as num?)?.toInt() ?? 0,
-      isUrgent: (json['is_urgent'] as dynamic) == true ||
-          json['is_urgent'] == 1,
+      isUrgent: isUrgent,
     );
   }
 }

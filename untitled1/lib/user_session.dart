@@ -8,6 +8,7 @@ class UserSession {
   String? token;
   int? userId;
   String? firstName;
+  String? middleInitial;
   String? lastName;
   String? name;
   String? email;
@@ -26,6 +27,7 @@ class UserSession {
   String? avatarPath;
   String? educationLevel;
   String? jobExperience;
+  String? dateOfBirth; // 'YYYY-MM-DD'
   bool isOnboardingDone = false;
 
   bool get isLoggedIn => token != null && token!.isNotEmpty;
@@ -66,6 +68,7 @@ class UserSession {
   void _applyUserFields(Map<String, dynamic> user) {
     userId = user['id'] as int?;
     firstName = (user['first_name'] as String?)?.trim();
+    middleInitial = (user['middle_initial'] as String?)?.trim();
     lastName = (user['last_name'] as String?)?.trim();
     final directName = user['name'] as String?;
     if (directName != null && directName.trim().isNotEmpty) {
@@ -92,6 +95,13 @@ class UserSession {
     avatarPath = user['avatar_path'] as String?;
     educationLevel = (user['education_level'] as String?)?.trim();
     jobExperience = (user['job_experience'] as String?)?.trim();
+    final dob = (user['date_of_birth'] as String?)?.trim();
+    if (dob != null && dob.isNotEmpty) {
+      // Split by 'T' or space to discard time components immediately
+      dateOfBirth = dob.split(RegExp(r'[T\s]'))[0];
+    } else {
+      dateOfBirth = null;
+    }
     final rawOnboarding = user['is_onboarding_done'];
     if (rawOnboarding is bool) {
       isOnboardingDone = rawOnboarding;
@@ -119,6 +129,7 @@ class UserSession {
     token = null;
     userId = null;
     firstName = null;
+    middleInitial = null;
     lastName = null;
     name = null;
     email = null;
@@ -137,6 +148,7 @@ class UserSession {
     skills = [];
     educationLevel = null;
     jobExperience = null;
+    dateOfBirth = null;
     isOnboardingDone = false;
   }
 }

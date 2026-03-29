@@ -485,7 +485,10 @@ export default {
 
     formatDate(d) {
       if (!d) return '—'
-      return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      const datePart = d.includes('T') ? d.split('T')[0] : d
+      const date = new Date(datePart + 'T00:00:00')
+      if (isNaN(date.getTime())) return 'Invalid Date'
+      return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     },
     formatTime(t) {
       if (!t) return '—'
