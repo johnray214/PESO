@@ -14,6 +14,9 @@ import '_error_state_widget.dart';
 import 'job_action_service.dart';
 import 'skills_profile_page.dart';
 import 'my_documents_page.dart';
+import 'session_prefs.dart';
+import 'settings_page.dart';
+import 'app_nav.dart';
 
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 class ProfileTab extends StatefulWidget {
@@ -315,7 +318,11 @@ class _ProfileTabState extends State<ProfileTab> {
                   _buildMenuItem(
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    onTap: () {},
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SettingsPage(),
+                      ),
+                    ),
                   ),
                   _buildMenuItem(
                     icon: Icons.help_outline_rounded,
@@ -434,11 +441,12 @@ class _ProfileTabState extends State<ProfileTab> {
     }
 
     UserSession().clear();
+    await SessionPrefs.clear();
 
     if (!mounted) return;
     Navigator.pop(context); // close loading
-    // Return all the way to the initial landing page
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Home is already the root route — popUntil does nothing. Replace stack with auth.
+    navigateToAuthEntryReplacingStack();
   }
 
   Widget _buildMenuItem({
@@ -537,6 +545,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   List<int>? _avatarBytes;
   Uint8List? _pickedImageBytes;
   bool _isLoadingLocations = false;
+  bool _updatingLocation = false; // Concurrency guard
   String? _locationError;
   static const String _psgcProvincesUrl = 'https://psgc.gitlab.io/api/provinces/';
   static const String _cachePrefix = 'psgc_cache_v1_';
@@ -739,7 +748,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   }
 
   Future<void> _onProvinceChanged(String? code, {bool silent = false}) async {
+    if (code == null || code.isEmpty || _updatingLocation) return;
+
     setState(() {
+      _updatingLocation = true;
       _provinceCode = code;
       _provinceName = _provinces
           .firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
@@ -752,23 +764,33 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       _isLoadingLocations = !silent;
     });
 
-    if (code == null || code.isEmpty) {
-      if (mounted && !silent) setState(() => _isLoadingLocations = false);
-      return;
-    }
-
     try {
-      _cities = await _fetchLocationList(
+      final list = await _fetchLocationList(
         'cities_province_$code',
         'https://psgc.gitlab.io/api/provinces/$code/cities-municipalities/',
       );
+      if (mounted) {
+        setState(() {
+          _cities = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching cities: $e');
     } finally {
-      if (mounted && !silent) setState(() => _isLoadingLocations = false);
+      if (mounted) {
+        setState(() {
+          _isLoadingLocations = false;
+          _updatingLocation = false;
+        });
+      }
     }
   }
 
   Future<void> _onCityChanged(String? code, {bool silent = false}) async {
+    if (code == null || code.isEmpty || _updatingLocation) return;
+
     setState(() {
+      _updatingLocation = true;
       _cityCode = code;
       _cityName = _cities
           .firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
@@ -778,18 +800,25 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       _isLoadingLocations = !silent;
     });
 
-    if (code == null || code.isEmpty) {
-      if (mounted && !silent) setState(() => _isLoadingLocations = false);
-      return;
-    }
-
     try {
-      _barangays = await _fetchLocationList(
+      final list = await _fetchLocationList(
         'barangays_$code',
         'https://psgc.gitlab.io/api/cities-municipalities/$code/barangays/',
       );
+      if (mounted) {
+        setState(() {
+          _barangays = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching barangays: $e');
     } finally {
-      if (mounted && !silent) setState(() => _isLoadingLocations = false);
+      if (mounted) {
+        setState(() {
+          _isLoadingLocations = false;
+          _updatingLocation = false;
+        });
+      }
     }
   }
 
@@ -800,24 +829,60 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   }) async {
     final queryController = enableSearch ? TextEditingController() : null;
     List<Map<String, String>> filtered = List<Map<String, String>>.from(options);
-    return showDialog<Map<String, String>>(
+    bool alreadyPopped = false;
+    bool picking = false;
+
+    return showModalBottomSheet<Map<String, String>>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocalState) {
-            return AlertDialog(
-              title: Text(title),
-              content: SizedBox(
-                width: 420,
-                height: enableSearch ? 420 : 360,
-                child: Column(
-                  children: [
-                    if (enableSearch) ...[
-                      TextField(
-                        controller: queryController!,
-                        decoration: const InputDecoration(
-                          prefixIcon: Icon(Icons.search_rounded),
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: Color(0xFF0F172A))),
+                        ),
+                        IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
+                      ],
+                    ),
+                  ),
+                  if (enableSearch && !picking)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        controller: queryController,
+                        autofocus: false,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.search_rounded),
                           hintText: 'Search...',
+                          hintStyle: const TextStyle(fontSize: 14),
+                          filled: true,
+                          fillColor: const Color(0xFFF1F5F9),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                         ),
                         onChanged: (q) {
                           final needle = q.trim().toLowerCase();
@@ -828,35 +893,59 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           });
                         },
                       ),
-                      const SizedBox(height: 12),
-                    ],
-                    Expanded(
-                      child: filtered.isEmpty
-                          ? Center(
-                              child: Text(
-                                enableSearch ? 'No matching results' : 'No options available',
-                              ),
-                            )
-                          : ListView.builder(
-                              itemCount: filtered.length,
-                              itemBuilder: (_, index) {
-                                final item = filtered[index];
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(item['name'] ?? ''),
-                                  onTap: () => Navigator.of(ctx).pop(item),
-                                );
-                              },
-                            ),
                     ),
-                  ],
-                ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: picking
+                        ? const Center(child: CircularProgressIndicator())
+                        : (filtered.isEmpty
+                            ? Center(
+                                child: Text(
+                                  enableSearch ? 'No matching results' : 'No options available',
+                                  style: const TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (_, index) {
+                                  final item = filtered[index];
+                                  return ListTile(
+                                    title: Text(item['name'] ?? '', style: const TextStyle(fontSize: 15)),
+                                    trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
+                                    onTap: () async {
+                                      if (alreadyPopped || picking) return;
+                                      
+                                      setLocalState(() => picking = true);
+                                      
+                                      primaryFocus?.unfocus();
+                                      FocusManager.instance.primaryFocus?.unfocus();
+                                      
+                                      await Future.delayed(const Duration(milliseconds: 600));
+                                      
+                                      if (!ctx.mounted) return;
+                                      alreadyPopped = true;
+                                      
+                                      if (Navigator.canPop(ctx)) {
+                                        Navigator.of(ctx).pop(item);
+                                      }
+                                    },
+                                  );
+                                },
+                              )),
+                  ),
+                ],
               ),
             );
           },
         );
       },
-    ).whenComplete(() => queryController?.dispose());
+    ).whenComplete(() {
+      try {
+        queryController?.dispose();
+      } catch (_) {}
+    });
   }
 
   Widget _selectorField({
@@ -1276,12 +1365,20 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           placeholder:
                               _provinces.isEmpty ? 'Loading provinces...' : 'Select province',
                           enabled: !_isSaving && _provinces.isNotEmpty,
-                          onTap: () async {
-                            final picked = await _pickOption(
-                                title: 'Select Province', options: _provinces);
-                            if (picked == null) return;
+                        onTap: () async {
+                          if (_isSaving || _provinces.isEmpty || _updatingLocation) return;
+                          FocusScope.of(context).unfocus();
+                          try {
+                            final picked = await _pickOption(title: 'Select Province', options: _provinces);
+                            if (picked == null || !mounted) return;
                             await _onProvinceChanged(picked['code']);
-                          },
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Could not select province: $e')));
+                            }
+                          }
+                        },
                         ),
 
                         const SizedBox(height: 16),
@@ -1292,12 +1389,21 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           value: _cityName,
                           placeholder: 'Select province first',
                           enabled: !_isSaving && _cities.isNotEmpty,
-                          onTap: () async {
+                        onTap: () async {
+                          if (_isSaving || _cities.isEmpty || _updatingLocation) return;
+                          FocusScope.of(context).unfocus();
+                          try {
                             final picked = await _pickOption(
                                 title: 'Select City / Municipality', options: _cities);
-                            if (picked == null) return;
+                            if (picked == null || !mounted) return;
                             await _onCityChanged(picked['code']);
-                          },
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Could not select city: $e')));
+                            }
+                          }
+                        },
                         ),
 
                         const SizedBox(height: 16),
@@ -1308,15 +1414,24 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           value: _barangayName,
                           placeholder: 'Select city first',
                           enabled: !_isSaving && _barangays.isNotEmpty,
-                          onTap: () async {
+                        onTap: () async {
+                          if (_isSaving || _barangays.isEmpty || _updatingLocation) return;
+                          FocusScope.of(context).unfocus();
+                          try {
                             final picked = await _pickOption(
                                 title: 'Select Barangay', options: _barangays);
-                            if (picked == null) return;
+                            if (picked == null || !mounted) return;
                             setState(() {
                               _barangayCode = picked['code'];
                               _barangayName = picked['name'];
                             });
-                          },
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Could not select barangay: $e')));
+                            }
+                          }
+                        },
                         ),
 
                         const SizedBox(height: 16),

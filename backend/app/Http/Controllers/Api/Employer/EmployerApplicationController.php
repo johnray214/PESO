@@ -113,11 +113,13 @@ class EmployerApplicationController extends Controller
             switch ($newStatus) {
                 case 'reviewing':
                     $subject = 'Application received';
-                    $message = "Your application for {$job->title} at {$company} has been received and is under review.";
+                    $message = "Your application for **{$job->title}** at **{$company}** has been received and is under review.";
+                    $type = 'status_reviewing';
                     break;
                 case 'shortlisted':
-                    $subject = 'Application in process';
-                    $message = "Your application for {$job->title} at {$company} is now being processed.";
+                    $subject = 'You have been Shortlisted!';
+                    $message = "Great news! You have been shortlisted for the **{$job->title}** position at **{$company}**. The employer will contact you soon for the next steps.";
+                    $type = 'status_shortlisted';
                     
                     try {
                         $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
@@ -147,8 +149,9 @@ class EmployerApplicationController extends Controller
                     }
                     break;
                 case 'interview':
-                    $subject = 'Application in process';
-                    $message = "Your application for {$job->title} at {$company} is now being processed.";
+                    $subject = 'Interview Scheduled';
+                    $message = "You have been scheduled for an interview for the **{$job->title}** position at **{$company}**. Please check your email for the full details of the schedule.";
+                    $type = 'status_interview';
 
                     try {
                         $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
@@ -182,8 +185,9 @@ class EmployerApplicationController extends Controller
                     }
                     break;
                 case 'hired':
-                    $subject = 'Application successful';
-                    $message = "Congratulations! You have been hired for {$job->title} at {$company}.";
+                    $subject = 'Congratulations — You are Hired!';
+                    $message = "Outstanding! You have been officially hired for **{$job->title}** at **{$company}**. Welcome to the team!";
+                    $type = 'status_hired';
 
                     try {
                         $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
@@ -223,8 +227,9 @@ class EmployerApplicationController extends Controller
                     }
                     break;
                 case 'rejected':
-                    $subject = 'Application update';
-                    $message = "Your application for {$job->title} at {$company} was not selected. Please consider applying to other opportunities.";
+                    $subject = 'Application Update';
+                    $message = "Thank you for your interest in the **{$job->title}** position at **{$company}**. Unfortunately, the employer has decided not to proceed with your application at this time.";
+                    $type = 'status_rejected';
 
                     try {
                         $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
@@ -255,17 +260,20 @@ class EmployerApplicationController extends Controller
                     break;
                 default:
                     $subject = 'Application update';
-                    $message = "There is an update to your application for {$job->title} at {$company}.";
+                    $message = "There is an update to your application for **{$job->title}** at **{$company}**.";
+                    $type = 'application_update';
             }
 
             $notification = Notification::create([
-                'subject'      => $subject,
-                'message'      => $message,
-                'recipients'   => 'jobseekers',
-                'scheduled_at' => null,
-                'sent_at'      => now(),
-                'status'       => 'sent',
-                'created_by'   => $employer->id,
+                'subject'        => $subject,
+                'message'        => $message,
+                'type'           => $type,
+                'job_listing_id' => $job->id,
+                'recipients'     => 'jobseekers',
+                'scheduled_at'   => null,
+                'sent_at'        => now(),
+                'status'         => 'sent',
+                'created_by'     => $employer->id,
             ]);
 
             NotificationRead::create([
@@ -322,8 +330,8 @@ class EmployerApplicationController extends Controller
             }
             $jobseeker->match_score    = $maxScore;
             $jobseeker->best_job_match = $bestJob?->title ?? null;
-            // Return the required skills of the best-match job so the frontend can display them
             $jobseeker->best_job_skills = $bestJob ? $bestJob->skills->pluck('skill')->values() : [];
+            $jobseeker->best_job_id = $bestJob?->id ?? null;
             return $jobseeker;
         });
 

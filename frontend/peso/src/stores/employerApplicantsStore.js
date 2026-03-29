@@ -105,13 +105,14 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
           const bestJobSkillsRaw = a.best_job_skills || []
           const bestJobSkills = Array.isArray(bestJobSkillsRaw) ? bestJobSkillsRaw : []
           return {
-            id:           a.id,
-            name:         a.full_name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Unknown',
-            color:        AVATAR_COLORS[i % AVATAR_COLORS.length],
-            score:        Math.round(a.match_score || 70),
-            bestFor:      a.best_job_match || '',
+            id:        a.id,
+            name:      a.full_name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Unknown',
+            color:     AVATAR_COLORS[i % AVATAR_COLORS.length],
+            score:     Math.round(a.match_score || 70),
+            bestFor:   a.best_job_match || '',
             bestJobSkills,
-            jobColor:     AVATAR_COLORS[i % AVATAR_COLORS.length],
+            jobId:     a.best_job_id || null,
+            jobColor:  AVATAR_COLORS[i % AVATAR_COLORS.length],
             skills,
             location:     a.address        || 'Unknown',
             education:    EDU_LABELS[a.education_level] || a.education_level || 'Not specified',

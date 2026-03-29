@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'home_pages.dart';
 import 'onboarding_prefs.dart';
@@ -38,6 +41,9 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
   String? _barangayCode;
   String? _barangayName;
   bool _locationLoading = false;
+  bool _updatingLocation = false; // Concurrency guard
+  String? _locationError;
+  static const String _psgcProvincesUrl = 'https://psgc.gitlab.io/api/provinces/';
 
   static const _goals = [
     'Full-time',
@@ -131,63 +137,172 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
     }
   }
 
-  Map<String, String>? _extractLocationItem(dynamic raw) {
-    if (raw is! Map) return null;
-    final code = (raw['code'] ??
-            raw['id'] ??
-            raw['province_code'] ??
-            raw['city_code'] ??
-            raw['barangay_code'])
-        ?.toString()
-        .trim();
-    final name = (raw['name'] ??
-            raw['province_name'] ??
-            raw['city_name'] ??
-            raw['barangay_name'] ??
-            raw['label'])
-        ?.toString()
-        .trim();
-    if (code == null || code.isEmpty || name == null || name.isEmpty) return null;
-    return {'code': code, 'name': name};
+  Future<List<Map<String, String>>> _fetchLocationList(String key, String url) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = 'psgc_cache_v1_$key';
+      
+      // Try local cache first if network fails or for faster load
+      final cachedRaw = prefs.getString(cacheKey);
+      
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data is List) {
+          final list = data
+              .whereType<Map>()
+              .map((e) => {
+                    'code': (e['code'] ?? '').toString(),
+                    'name': (e['name'] ?? '').toString(),
+                  })
+              .where((e) => e['code']!.isNotEmpty && e['name']!.isNotEmpty)
+              .toList();
+          list.sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
+          await prefs.setString(cacheKey, jsonEncode(list));
+          return list;
+        }
+      }
+      
+      if (cachedRaw != null && cachedRaw.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(cachedRaw);
+        return decoded.map((e) => {
+          'code': (e['code'] ?? '').toString(),
+          'name': (e['name'] ?? '').toString(),
+        }).toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('Error in _fetchLocationList: $e');
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final cachedRaw = prefs.getString('psgc_cache_v1_$key');
+        if (cachedRaw != null && cachedRaw.isNotEmpty) {
+          final decoded = jsonDecode(cachedRaw);
+          if (decoded is List) {
+            return decoded.map((e) => {
+              'code': (e['code'] ?? '').toString(),
+              'name': (e['name'] ?? '').toString(),
+            }).toList();
+          }
+        }
+      } catch (inner) {
+        debugPrint('Cache read error: $inner');
+      }
+      return [];
+    }
   }
 
   Future<void> _loadLocations() async {
-    setState(() => _locationLoading = true);
-    final all = await ApiService.getAllLocations();
-    if (!mounted) return;
-    final provincesRaw = all['provinces'] as List<dynamic>? ?? [];
-    final citiesRaw = all['cities'] as List<dynamic>? ?? [];
-    final barangaysRaw = all['barangays'] as List<dynamic>? ?? [];
+    setState(() {
+      _locationLoading = true;
+      _locationError = null;
+    });
+    try {
+      _provinces = await _fetchLocationList('provinces_all', _psgcProvincesUrl);
+      if (_provinces.isEmpty) {
+        _locationError = 'Unable to load location data. Check connection and try again.';
+        return;
+      }
 
-    final provinces = provincesRaw
-        .map(_extractLocationItem)
-        .whereType<Map<String, String>>()
-        .toList()
-      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
-    final cities = citiesRaw
-        .map(_extractLocationItem)
-        .whereType<Map<String, String>>()
-        .toList()
-      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
-    final barangays = barangaysRaw
-        .map(_extractLocationItem)
-        .whereType<Map<String, String>>()
-        .toList()
-      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
+      final session = UserSession();
+      _streetController.text = session.streetAddress ?? '';
+
+      final sessionProvince = session.provinceCode;
+      final sessionCity = session.cityCode;
+      final sessionBarangay = session.barangayCode;
+
+      if (sessionProvince != null && sessionProvince.isNotEmpty) {
+        await _onProvinceChanged(sessionProvince, silent: true);
+      }
+      if (sessionCity != null && sessionCity.isNotEmpty) {
+        await _onCityChanged(sessionCity, silent: true);
+      }
+      if (sessionBarangay != null && sessionBarangay.isNotEmpty) {
+        final hit = _barangays.where((e) => e['code'] == sessionBarangay).toList();
+        if (hit.isNotEmpty) {
+          _barangayCode = hit.first['code'];
+          _barangayName = hit.first['name'];
+        }
+      }
+    } finally {
+      if (!mounted) return;
+      setState(() => _locationLoading = false);
+    }
+  }
+
+  Future<void> _onProvinceChanged(String? code, {bool silent = false}) async {
+    if (code == null || code.isEmpty || _updatingLocation) return;
+    
+    setState(() {
+      _updatingLocation = true;
+      _provinceCode = code;
+      _provinceName = _provinces
+          .firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
+      _cityCode = null;
+      _cityName = null;
+      _barangayCode = null;
+      _barangayName = null;
+      _cities = [];
+      _barangays = [];
+      _locationLoading = !silent;
+    });
+
+    try {
+      final list = await _fetchLocationList(
+        'cities_province_$code',
+        'https://psgc.gitlab.io/api/provinces/$code/cities-municipalities/',
+      );
+      if (mounted) {
+        setState(() {
+          _cities = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching cities: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _locationLoading = false;
+          _updatingLocation = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _onCityChanged(String? code, {bool silent = false}) async {
+    if (code == null || code.isEmpty || _updatingLocation) return;
 
     setState(() {
-      _provinces = provinces;
-      _cities = cities;
-      _barangays = barangays;
-      _provinceCode = UserSession().provinceCode;
-      _provinceName = UserSession().provinceName;
-      _cityCode = UserSession().cityCode;
-      _cityName = UserSession().cityName;
-      _barangayCode = UserSession().barangayCode;
-      _barangayName = UserSession().barangayName;
-      _streetController.text = UserSession().streetAddress ?? '';
-      _locationLoading = false;
+      _updatingLocation = true;
+      _cityCode = code;
+      _cityName =
+          _cities.firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
+      _barangayCode = null;
+      _barangayName = null;
+      _barangays = [];
+      _locationLoading = !silent;
     });
+
+    try {
+      final list = await _fetchLocationList(
+        'barangays_$code',
+        'https://psgc.gitlab.io/api/cities-municipalities/$code/barangays/',
+      );
+      if (mounted) {
+        setState(() {
+          _barangays = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching barangays: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _locationLoading = false;
+          _updatingLocation = false;
+        });
+      }
+    }
   }
 
   @override
@@ -285,8 +400,23 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
   }
 
   Future<void> _completeOnboarding() async {
+    setState(() => _busy = true);
+    final token = UserSession().token;
+    if (token != null && token.isNotEmpty) {
+      // Sync to backend
+      final res = await ApiService.updateProfile(
+        token: token,
+        isOnboardingDone: true,
+      );
+      if (res['success'] == true) {
+        UserSession().isOnboardingDone = true;
+      }
+    }
+
     await OnboardingPrefs.setPostAuthComplete();
     if (!mounted) return;
+    setState(() => _busy = false);
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const HomePage()),
       (route) => false,
@@ -453,6 +583,25 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           const LinearProgressIndicator(color: Color(0xFF2563EB), minHeight: 3),
           const SizedBox(height: 12),
         ],
+        if (_locationError != null) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEE2E2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
+            ),
+            child: Text(
+              _locationError!,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF991B1B),
+              ),
+            ),
+          ),
+        ],
         _selectorField(
           label: 'Province',
           icon: Icons.location_city_outlined,
@@ -460,12 +609,18 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           placeholder: _provinces.isEmpty ? 'Loading provinces...' : 'Select province',
           enabled: !_busy && _provinces.isNotEmpty,
           onTap: () async {
-            final picked = await _pickOption(title: 'Select Province', options: _provinces);
-            if (picked == null) return;
-            setState(() {
-              _provinceCode = picked['code'];
-              _provinceName = picked['name'];
-            });
+            if (_busy || _provinces.isEmpty || _updatingLocation) return;
+            FocusScope.of(context).unfocus();
+            try {
+              final picked = await _pickOption(title: 'Select Province', options: _provinces);
+              if (picked == null || !mounted) return;
+              await _onProvinceChanged(picked['code']);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not select province: $e')));
+              }
+            }
           },
         ),
         const SizedBox(height: 12),
@@ -473,18 +628,26 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           label: 'City / Municipality',
           icon: Icons.location_on_outlined,
           value: _cityName,
-          placeholder: _cities.isEmpty ? 'Loading cities...' : 'Select city / municipality',
-          enabled: !_busy && _cities.isNotEmpty,
+          placeholder: _provinceCode == null
+              ? 'Select province first'
+              : (_cities.isEmpty ? 'Loading cities...' : 'Select city / municipality'),
+          enabled: !_busy && _provinceCode != null && _cities.isNotEmpty,
           onTap: () async {
-            final picked = await _pickOption(
-              title: 'Select City / Municipality',
-              options: _cities,
-            );
-            if (picked == null) return;
-            setState(() {
-              _cityCode = picked['code'];
-              _cityName = picked['name'];
-            });
+            if (_busy || _cities.isEmpty || _updatingLocation) return;
+            FocusScope.of(context).unfocus();
+            try {
+              final picked = await _pickOption(
+                title: 'Select City / Municipality',
+                options: _cities,
+              );
+              if (picked == null || !mounted) return;
+              await _onCityChanged(picked['code']);
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not select city: $e')));
+              }
+            }
           },
         ),
         const SizedBox(height: 12),
@@ -492,11 +655,15 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           label: 'Barangay',
           icon: Icons.home_work_outlined,
           value: _barangayName,
-          placeholder: _barangays.isEmpty ? 'Loading barangays...' : 'Select barangay',
-          enabled: !_busy && _barangays.isNotEmpty,
+          placeholder: _cityCode == null
+              ? 'Select city first'
+              : (_barangays.isEmpty ? 'Loading barangays...' : 'Select barangay'),
+          enabled: !_busy && _cityCode != null && _barangays.isNotEmpty,
           onTap: () async {
+            if (_busy || _barangays.isEmpty || _updatingLocation) return;
+            FocusScope.of(context).unfocus();
             final picked = await _pickOption(title: 'Select Barangay', options: _barangays);
-            if (picked == null) return;
+            if (picked == null || !mounted) return;
             setState(() {
               _barangayCode = picked['code'];
               _barangayName = picked['name'];
@@ -807,57 +974,123 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
   }) async {
     final queryController = TextEditingController();
     List<Map<String, String>> filtered = List<Map<String, String>>.from(options);
-    return showDialog<Map<String, String>>(
+    bool alreadyPopped = false;
+    bool picking = false;
+
+    return showModalBottomSheet<Map<String, String>>(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocalState) {
-            return AlertDialog(
-              title: Text(title),
-              content: SizedBox(
-                width: 420,
-                height: 430,
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: queryController,
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search_rounded),
-                        hintText: 'Search...',
+            return Container(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(title,
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: Color(0xFF0F172A))),
+                        ),
+                        IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
+                      ],
+                    ),
+                  ),
+                  // Hide search field while picking to prevent keyboard sync crashes
+                  if (!picking)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: TextField(
+                        controller: queryController,
+                        autofocus: false,
+                        decoration: InputDecoration(
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          hintText: 'Search...',
+                          hintStyle: const TextStyle(fontSize: 14),
+                          filled: true,
+                          fillColor: const Color(0xFFF1F5F9),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        ),
+                        onChanged: (q) {
+                          final needle = q.trim().toLowerCase();
+                          setLocalState(() {
+                            filtered = options
+                                .where((o) => (o['name'] ?? '').toLowerCase().contains(needle))
+                                .toList();
+                          });
+                        },
                       ),
-                      onChanged: (q) {
-                        final needle = q.trim().toLowerCase();
-                        setLocalState(() {
-                          filtered = options
-                              .where((o) => (o['name'] ?? '').toLowerCase().contains(needle))
-                              .toList();
-                        });
-                      },
                     ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: filtered.isEmpty
-                          ? const Center(child: Text('No matching results'))
-                          : ListView.builder(
-                              itemCount: filtered.length,
-                              itemBuilder: (_, index) {
-                                final item = filtered[index];
-                                return ListTile(
-                                  dense: true,
-                                  title: Text(item['name'] ?? ''),
-                                  onTap: () => Navigator.of(ctx).pop(item),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: picking
+                        ? const Center(child: CircularProgressIndicator())
+                        : (filtered.isEmpty
+                            ? const Center(child: Text('No results', style: TextStyle(color: Colors.grey)))
+                            : ListView.separated(
+                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                itemCount: filtered.length,
+                                separatorBuilder: (_, __) => const Divider(height: 1),
+                                itemBuilder: (_, index) {
+                                  final item = filtered[index];
+                                  return ListTile(
+                                    title: Text(item['name'] ?? '', style: const TextStyle(fontSize: 15)),
+                                    trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
+                                    onTap: () async {
+                                      if (alreadyPopped || picking) return;
+                                      
+                                      setLocalState(() => picking = true);
+                                      
+                                      // 1. Force keyboard hide via system channel for priority
+                                      primaryFocus?.unfocus();
+                                      FocusManager.instance.primaryFocus?.unfocus();
+                                      
+                                      // 2. Extra long delay to ensure Android layout stabilizes fully
+                                      await Future.delayed(const Duration(milliseconds: 600));
+                                      
+                                      if (!ctx.mounted) return;
+                                      alreadyPopped = true;
+                                      
+                                      // 3. Final safety check on context
+                                      if (Navigator.canPop(ctx)) {
+                                        Navigator.of(ctx).pop(item);
+                                      }
+                                    },
+                                  );
+                                },
+                              )),
+                  ),
+                ],
               ),
             );
           },
         );
       },
-    ).whenComplete(queryController.dispose);
+    ).whenComplete(() {
+      try {
+        queryController.dispose();
+      } catch (_) {}
+    });
   }
 
   Widget _selectorField({

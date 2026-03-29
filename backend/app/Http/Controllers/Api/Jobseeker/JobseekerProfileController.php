@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Jobseeker;
 
 use App\Http\Controllers\Controller;
 use App\Models\JobseekerSkill;
+use App\Support\JobseekerPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -42,8 +43,8 @@ class JobseekerProfileController extends Controller
             'barangay_code' => 'sometimes|nullable|string|max:20',
             'barangay_name' => 'sometimes|nullable|string|max:120',
             'street_address' => 'sometimes|nullable|string|max:255',
-            'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
+            'is_onboarding_done' => 'sometimes|boolean',
             'skills' => 'nullable|array',
             'skills.*' => 'string|max:100',
         ]);
@@ -98,7 +99,7 @@ class JobseekerProfileController extends Controller
     {
         $request->validate([
             'current_password' => 'required|string',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => JobseekerPassword::createRules(),
         ]);
 
         $jobseeker = $request->user();

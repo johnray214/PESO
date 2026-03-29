@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +13,11 @@ import 'job_action_service.dart';
 import 'onboarding_intro_slides.dart';
 import 'onboarding_post_auth.dart';
 import 'onboarding_prefs.dart';
+import 'session_prefs.dart';
+import 'password_rules.dart';
+import 'app_nav.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,14 +63,14 @@ class AppColors {
   static const navyLight = Color(0xFF1D3461);
 
   // Welcome page gradient — white (top) → PESO blue (bottom)
-  static const darkBg1 = Color(0xFFFFFFFF);   // top: pure white
-  static const darkBg2 = Color(0xFFCFE5F7);   // mid: soft sky blue
-  static const darkBg3 = Color(0xFF1565C0);   // bottom: PESO royal blue
+  static const darkBg1 = Color(0xFFFFFFFF); // top: pure white
+  static const darkBg2 = Color(0xFFCFE5F7); // mid: soft sky blue
+  static const darkBg3 = Color(0xFF1565C0); // bottom: PESO royal blue
   static const glassWhite = Color(0x99FFFFFF); // frosted white card (light bg)
-  static const glassBorder = Color(0x331565C0);// PESO blue card border
-  static const pesoBlue = Color(0xFF1565C0);  // PESO official royal blue
-  static const pesoRed = Color(0xFFCC2229);   // PESO official red
-  static const pesoGold = Color(0xFFF59E0B);  // PESO official gold/yellow
+  static const glassBorder = Color(0x331565C0); // PESO blue card border
+  static const pesoBlue = Color(0xFF1565C0); // PESO official royal blue
+  static const pesoRed = Color(0xFFCC2229); // PESO official red
+  static const pesoGold = Color(0xFFF59E0B); // PESO official gold/yellow
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────────
@@ -78,6 +83,7 @@ class PESOApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: 'PESO Santiago City',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
@@ -104,19 +110,32 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
   late AnimationController _mascotCtrl;
   late AnimationController _floatCtrl;
   late AnimationController _shimmerCtrl;
+  late AnimationController _orbCtrl;
+  late AnimationController _exitCtrl;
 
   late Animation<double> _mascotScale;
   late Animation<double> _mascotY;
   late Animation<double> _float;
   late Animation<double> _shimmer;
+  late Animation<double> _orbMovement;
+  late Animation<double> _exitScale;
+  late Animation<double> _exitOpacity;
 
   @override
   void initState() {
     super.initState();
+
+    registerJobseekerSignOut(() {
+      rootNavigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const AuthEntryPage()),
+        (route) => false,
+      );
+    });
 
     _mascotCtrl = AnimationController(
       vsync: this,
@@ -128,8 +147,16 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     )..repeat(reverse: true);
     _shimmerCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
+      duration: const Duration(milliseconds: 2000),
     )..repeat();
+    _orbCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 10000),
+    )..repeat(reverse: true);
+    _exitCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
 
     _mascotScale = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _mascotCtrl, curve: Curves.elasticOut),
@@ -143,19 +170,64 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _shimmer = Tween<double>(begin: -2.0, end: 3.0).animate(
       CurvedAnimation(parent: _shimmerCtrl, curve: Curves.easeInOut),
     );
+    _orbMovement = Tween<double>(begin: -20.0, end: 20.0).animate(
+      CurvedAnimation(parent: _orbCtrl, curve: Curves.easeInOut),
+    );
+    _exitScale = Tween<double>(begin: 1.0, end: 1.4).animate(
+      CurvedAnimation(parent: _exitCtrl, curve: Curves.easeInOutCubic),
+    );
+    _exitOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
+      CurvedAnimation(parent: _exitCtrl, curve: Curves.easeIn),
+    );
 
     _mascotCtrl.forward();
 
-    // Auto-navigate: intro slides (first launch) → auth entry
-    Future.delayed(const Duration(milliseconds: 3400), () async {
+    // Auto-navigate sequence
+    Future.delayed(const Duration(milliseconds: 4000), () async {
       if (!mounted) return;
-      final introDone = await OnboardingPrefs.isIntroDone();
+      
+      // Perform exit animation
+      await _exitCtrl.forward();
       if (!mounted) return;
-      if (!introDone) {
+
+      final hasSession = await SessionPrefs.restoreSession();
+      if (!mounted) return;
+      if (hasSession) {
+        await JobActionService().loadFromBackend();
+        if (!mounted) return;
+
+        final needsPostAuth =
+            await OnboardingPrefs.needsPostAuth(ignoreDebug: true);
+        if (!mounted) return;
+
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 700),
+            transitionDuration: const Duration(milliseconds: 600),
+            pageBuilder: (_, __, ___) => needsPostAuth
+                ? const PostAuthOnboardingScreen()
+                : const HomePage(),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+        return;
+      }
+
+      final currentToken = UserSession().token;
+      final localIntroDone = await OnboardingPrefs.isIntroDone(
+        token: currentToken,
+        ignoreDebug: true,
+      );
+      final serverIntroDone = UserSession().isOnboardingDone;
+
+      if (!mounted) return;
+      if (!localIntroDone && !serverIntroDone) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 600),
             pageBuilder: (_, __, ___) => IntroOnboardingPage(
               onComplete: (introContext) {
                 Navigator.of(introContext).pushReplacement(
@@ -178,7 +250,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         Navigator.pushReplacement(
           context,
           PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 700),
+            transitionDuration: const Duration(milliseconds: 600),
             pageBuilder: (_, __, ___) => const AuthEntryPage(),
             transitionsBuilder: (_, animation, __, child) {
               return FadeTransition(opacity: animation, child: child);
@@ -194,6 +266,8 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     _mascotCtrl.dispose();
     _floatCtrl.dispose();
     _shimmerCtrl.dispose();
+    _orbCtrl.dispose();
+    _exitCtrl.dispose();
     super.dispose();
   }
 
@@ -211,43 +285,60 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
         body: Container(
           width: double.infinity,
           height: double.infinity,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFFFFFFFF),
-                  Color(0xFFE8F4FD),
-                  Color(0xFFB3D4FC),
-                  Color(0xFF5B9BD5),
-                ],
-                stops: [0.0, 0.35, 0.7, 1.0],
-              ),
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0xFFFFFFFF),
+                Color(0xFFE8F4FD),
+                Color(0xFFB3D4FC),
+                Color(0xFF5B9BD5),
+              ],
+              stops: [0.0, 0.35, 0.7, 1.0],
             ),
+          ),
+          child: AnimatedBuilder(
+            animation: Listenable.merge([_orbCtrl, _exitCtrl]),
+            builder: (context, child) {
+              return Opacity(
+                opacity: _exitOpacity.value,
+                child: Transform.scale(
+                  scale: _exitScale.value,
+                  child: child,
+                ),
+              );
+            },
             child: Stack(
               children: [
-                // ── Decorative orbs ──────────────────────────────────────────
-                Positioned(
-                  top: -size.width * 0.3,
-                  left: -size.width * 0.25,
-                  child: Container(
-                    width: size.width * 0.80,
-                    height: size.width * 0.80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF1565C0).withOpacity(0.08),
+                // ── Decorative orbs (with wandering motion) ──────────────────
+                AnimatedBuilder(
+                  animation: _orbCtrl,
+                  builder: (context, _) => Positioned(
+                    top: (-size.width * 0.3) + _orbMovement.value,
+                    left: (-size.width * 0.25) + (_orbMovement.value * 1.5),
+                    child: Container(
+                      width: size.width * 0.80,
+                      height: size.width * 0.80,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF1565C0).withOpacity(0.08),
+                      ),
                     ),
                   ),
                 ),
-                Positioned(
-                  bottom: -size.width * 0.22,
-                  right: -size.width * 0.18,
-                  child: Container(
-                    width: size.width * 0.65,
-                    height: size.width * 0.65,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF5B9BD5).withOpacity(0.12),
+                AnimatedBuilder(
+                  animation: _orbCtrl,
+                  builder: (context, _) => Positioned(
+                    bottom: (-size.width * 0.22) - (_orbMovement.value * 0.8),
+                    right: (-size.width * 0.18) + _orbMovement.value,
+                    child: Container(
+                      width: size.width * 0.65,
+                      height: size.width * 0.65,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF5B9BD5).withOpacity(0.12),
+                      ),
                     ),
                   ),
                 ),
@@ -255,13 +346,13 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   top: size.height * 0.08,
                   right: size.width * 0.06,
                   child: Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFFB3D4FC).withOpacity(0.5),
+                    width: 110,
+                    height: 110,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFFB3D4FC).withOpacity(0.5),
+                    ),
                   ),
-                ),
                 ),
                 Positioned(
                   bottom: size.height * 0.18,
@@ -276,12 +367,12 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                   ),
                 ),
 
-                // ── Horizontal accent line ────────────────────────────────────
-                Positioned(
-                  bottom: size.height * 0.32,
-                  left: 0,
-                  right: 0,
-                  child: Center(
+              // ── Horizontal accent line ────────────────────────────────────
+              Positioned(
+                bottom: size.height * 0.32,
+                left: 0,
+                right: 0,
+                child: Center(
                   child: Container(
                     width: size.width * 0.55,
                     height: 1,
@@ -296,178 +387,215 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
                     ),
                   ),
                 ),
-                ),
+              ),
 
-                // ── Main content ─────────────────────────────────────────────
-                Positioned.fill(
-                  child: SafeArea(
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                    // Top spacer (positions mascot + text block toward vertical center)
-                    SizedBox(height: size.height * 0.16),
-
-                    // ── Mascot + shadow ──────────────────────────────────────
-                    AnimatedBuilder(
-                      animation: Listenable.merge([_mascotCtrl, _floatCtrl]),
-                      builder: (context, child) {
-                        return Transform.translate(
-                          offset: Offset(0, _mascotY.value + _float.value),
-                          child: Transform.scale(
-                            scale: _mascotScale.value,
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: Stack(
-                        alignment: Alignment.bottomCenter,
-                        children: [
-                          // Shadow ellipse under mascot
-                          Container(
-                            width: size.width * 0.28,
-                            height: 14,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(999),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.35),
-                                  blurRadius: 28,
-                                  spreadRadius: 4,
-                                ),
-                              ],
-                            ),
-                          ),
-                          SizedBox(
-                            width: size.width * 0.30,
-                            height: size.width * 0.30,
-                            child: Image.asset(
-                              'assets/EMPOY 3.png',
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.person,
-                                size: size.width * 0.22,
-                                color: const Color(0xFF1565C0).withOpacity(0.5),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    SizedBox(height: size.height * 0.035),
-
-                    // ── PESO + city text ─────────────────────────────────────
-                    Column(
+              // ── Main content ─────────────────────────────────────────────
+              Positioned.fill(
+                child: SafeArea(
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // PESO text with shimmer
+                        // Top spacer (positions mascot + text block toward vertical center)
+                        SizedBox(height: size.height * 0.20),
+
+                        // ── Mascot + shadow ──────────────────────────────────────
                         AnimatedBuilder(
-                          animation: _shimmerCtrl,
+                          animation:
+                              Listenable.merge([_mascotCtrl, _floatCtrl]),
                           builder: (context, child) {
-                            return ShaderMask(
-                              blendMode: BlendMode.srcIn,
-                              shaderCallback: (bounds) {
-                                final shimmerX = _shimmer.value * bounds.width;
-                                return LinearGradient(
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                  colors: const [
-                                    Color(0xFF0F2250),
-                                    Color(0xFF0F2250),
-                                    Color(0xFF3B82F6),
-                                    Color(0xFF0F2250),
-                                    Color(0xFF0F2250),
-                                  ],
-                                  stops: [
-                                    0.0,
-                                    math.max(0.0, (shimmerX / bounds.width) - 0.18),
-                                    (shimmerX / bounds.width).clamp(0.0, 1.0),
-                                    math.min(1.0, (shimmerX / bounds.width) + 0.18),
-                                    1.0,
-                                  ],
-                                ).createShader(bounds);
-                              },
-                              child: child!,
+                            return Transform.translate(
+                              offset: Offset(0, _mascotY.value + _float.value),
+                              child: Transform.scale(
+                                scale: _mascotScale.value,
+                                child: child,
+                              ),
                             );
                           },
+                          child: Stack(
+                            alignment: Alignment.bottomCenter,
+                            children: [
+                              // Shadow ellipse under mascot
+                              Container(
+                                width: size.width * 0.28,
+                                height: 14,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(999),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.35),
+                                      blurRadius: 28,
+                                      spreadRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(
+                                width: size.width * 0.30,
+                                height: size.width * 0.30,
+                                child: Image.asset(
+                                  'assets/empoy_app_icon.png',
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (_, __, ___) => Icon(
+                                    Icons.person,
+                                    size: size.width * 0.22,
+                                    color: const Color(0xFF1565C0)
+                                        .withOpacity(0.5),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        SizedBox(height: size.height * 0.035),
+
+                        // ── PESO + city text ─────────────────────────────────────
+                        Column(
+                          children: [
+                            // PESO text with shimmer
+                            AnimatedBuilder(
+                              animation: _shimmerCtrl,
+                              builder: (context, child) {
+                                return ShaderMask(
+                                  blendMode: BlendMode.srcIn,
+                                  shaderCallback: (bounds) {
+                                    final shimmerX =
+                                        _shimmer.value * bounds.width;
+                                    return LinearGradient(
+                                      begin: Alignment.centerLeft,
+                                      end: Alignment.centerRight,
+                                      colors: const [
+                                        Color(0xFF0F172A), // Deep Navy
+                                        Color(0xFF0F172A),
+                                        Color(0xFF2563EB), // Vibrant Brand Blue
+                                        Color(0xFF60A5FA), // Sky Highlight
+                                        Color(0xFF0F172A),
+                                        Color(0xFF0F172A),
+                                      ],
+                                      stops: [
+                                        0.0,
+                                        math.max(0.0,
+                                            (shimmerX / bounds.width) - 0.25),
+                                        (shimmerX / bounds.width)
+                                            .clamp(0.0, 1.0),
+                                        math.min(1.0,
+                                            (shimmerX / bounds.width) + 0.15),
+                                        math.min(1.0,
+                                            (shimmerX / bounds.width) + 0.35),
+                                        1.0,
+                                      ],
+                                    ).createShader(bounds);
+                                  },
+                                  child: child!,
+                                );
+                              },
                               child: Text(
-                            'PESO',
-                            style: GoogleFonts.poppins(
-                              fontSize: 60,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF0F2250),
-                              letterSpacing: 12,
-                              height: 1.0,
-                            ),
-                          ),
-                        )
-                            .animate()
-                            .fadeIn(delay: 500.ms, duration: 600.ms)
-                            .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+                                'PESO',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 60,
+                                  fontWeight: FontWeight.w900,
+                                  color: const Color(0xFF0F2250),
+                                  letterSpacing: 12,
+                                  height: 1.0,
+                                ),
+                              ),
+                            )
+                                .animate()
+                                .fadeIn(delay: 500.ms, duration: 600.ms)
+                                .slideY(begin: 0.2, curve: Curves.easeOutCubic),
 
-                        const SizedBox(height: 4),
+                            const SizedBox(height: 4),
 
-                        Text(
-                          'Santiago City',
-                          style: GoogleFonts.poppins(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF1565C0),
-                            letterSpacing: 5,
-                          ),
-                        )
-                            .animate()
-                            .fadeIn(delay: 700.ms, duration: 600.ms)
-                            .slideY(begin: 0.2, curve: Curves.easeOutCubic),
-
-                        const SizedBox(height: 10),
-
-                        // Gold accent label
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(
-                              color: const Color(0xFF1565C0).withOpacity(0.4),
-                            ),
-                            color: const Color(0xFF1565C0).withOpacity(0.08),
-                          ),
-                            child: Text(
-                              'PUBLIC EMPLOYMENT SERVICE OFFICE',
+                            Text(
+                              'Santiago City',
                               style: GoogleFonts.poppins(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w700,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w500,
                                 color: const Color(0xFF1565C0),
-                                letterSpacing: 2.2,
+                                letterSpacing: 5,
+                              ),
+                            )
+                                .animate()
+                                .fadeIn(delay: 700.ms, duration: 600.ms)
+                                .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+
+                            const SizedBox(height: 10),
+
+                            // Gold accent label
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 5),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(
+                                  color:
+                                      const Color(0xFF1565C0).withOpacity(0.4),
+                                ),
+                                color:
+                                    const Color(0xFF1565C0).withOpacity(0.08),
+                              ),
+                              child: Text(
+                                'PUBLIC EMPLOYMENT SERVICE OFFICE',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF1565C0),
+                                  letterSpacing: 2.2,
+                                ),
+                              ),
+                            ).animate().fadeIn(delay: 900.ms, duration: 600.ms),
+                          ],
+                        ),
+
+                        const Spacer(),
+
+                        // ── Loading indicator inside a Glass Pill ────────────────────────────
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 40),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            color: Colors.white.withOpacity(0.12),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.15),
+                              width: 1,
+                            ),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(24),
+                            child: BackdropFilter(
+                              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 16, horizontal: 24),
+                                child: Column(
+                                  children: [
+                                    const _SplashDots()
+                                        .animate()
+                                        .fadeIn(delay: 1200.ms, duration: 500.ms),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'Connecting you to opportunities...',
+                                      textAlign: TextAlign.center,
+                                      softWrap: true,
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: const Color(0xFF0F172A)
+                                            .withOpacity(0.6),
+                                        letterSpacing: 0.3,
+                                      ),
+                                    )
+                                        .animate()
+                                        .fadeIn(delay: 1400.ms, duration: 500.ms),
+                                  ],
+                                ),
                               ),
                             ),
-                        )
-                            .animate()
-                            .fadeIn(delay: 900.ms, duration: 600.ms),
-                      ],
-                    ),
-
-                    const Spacer(),
-
-                    // ── Loading indicator ────────────────────────────────────
-                    Column(
-                      children: [
-                        const _SplashDots()
-                            .animate()
-                            .fadeIn(delay: 1200.ms, duration: 500.ms),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Connecting you to opportunities...',
-                          style: GoogleFonts.poppins(
-                            fontSize: 11,
-                            color: const Color(0xFF1565C0).withOpacity(0.6),
-                            letterSpacing: 0.5,
                           ),
-                        ).animate().fadeIn(delay: 1400.ms, duration: 500.ms),
-                        const SizedBox(height: 28),
-                      ],
-                    ),
+                        ),
+                        const SizedBox(height: 32),
                       ],
                     ),
                   ),
@@ -477,9 +605,11 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
+}
+
 
 // ─── Animated loading dots ────────────────────────────────────────────────────────
 class _SplashDots extends StatefulWidget {
@@ -488,13 +618,16 @@ class _SplashDots extends StatefulWidget {
   State<_SplashDots> createState() => _SplashDotsState();
 }
 
-class _SplashDotsState extends State<_SplashDots> with SingleTickerProviderStateMixin {
+class _SplashDotsState extends State<_SplashDots>
+    with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))..repeat();
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
+      ..repeat();
   }
 
   @override
@@ -513,7 +646,8 @@ class _SplashDotsState extends State<_SplashDots> with SingleTickerProviderState
           children: List.generate(3, (i) {
             // Each dot's brightness peaks one-third of the cycle apart
             final phase = (_ctrl.value * 3 - i) % 3;
-            final brightness = math.sin(phase * math.pi / 1.5).clamp(0.0, 1.0).toDouble();
+            final brightness =
+                math.sin(phase * math.pi / 1.5).clamp(0.0, 1.0).toDouble();
             final scale = 0.55 + 0.45 * brightness;
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -521,7 +655,8 @@ class _SplashDotsState extends State<_SplashDots> with SingleTickerProviderState
               height: 8 * scale,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFF1565C0).withOpacity(0.35 + 0.55 * brightness),
+                color: const Color(0xFF1565C0)
+                    .withOpacity(0.35 + 0.55 * brightness),
               ),
             );
           }),
@@ -557,7 +692,7 @@ class _AuthEntryPageState extends State<AuthEntryPage>
       duration: const Duration(milliseconds: 3500),
     );
     _ctrl.forward();
-  }   
+  }
 
   @override
   void dispose() {
@@ -567,7 +702,10 @@ class _AuthEntryPageState extends State<AuthEntryPage>
 
   @override
   Widget build(BuildContext context) {
-    final h = MediaQuery.of(context).size.height;
+    final h = MediaQuery.sizeOf(context).height;
+    // Keep Sign in / Create account pinned to the physical bottom; do not resize
+    // the scaffold when the keyboard opens (avoids those buttons riding up).
+    final keyboardPad = MediaQuery.viewInsetsOf(context).bottom;
 
     final headerFade = CurvedAnimation(
       parent: _ctrl,
@@ -586,6 +724,7 @@ class _AuthEntryPageState extends State<AuthEntryPage>
     );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: AnimatedBuilder(
@@ -593,22 +732,27 @@ class _AuthEntryPageState extends State<AuthEntryPage>
           builder: (context, _) {
             return LayoutBuilder(
               builder: (context, constraints) {
-                final maxH = constraints.maxHeight.isFinite
-                    ? constraints.maxHeight
-                    : h;
-                final headerTranslateY = lerpDouble(
-                  0,
-                  -maxH * 0.33,
-                  headerMove.value,
-                );
+                final maxH =
+                    constraints.maxHeight.isFinite ? constraints.maxHeight : h;
                 final headerOpacity = headerFade.value;
 
-                final authTranslateY = lerpDouble(
-                  // Start off-screen.
-                  maxH * 0.60,
-                  0,
+                // Staged intro: welcome starts centered (highlight, subtext hidden), eases
+                // toward the top; form [authPop] starts with a low top edge then rises to
+                // sit just under the header — avoids Column pinning everything at top t=0.
+                final headerAlignment = Alignment.lerp(
+                  Alignment.center,
+                  const Alignment(0, -0.80),
+                  headerMove.value,
+                )!;
+
+                // Top edge of the white card: mid-screen → below icon/title/subtext with a
+                // clear gap (previous end ~158–178px let the sheet overlap the subtitle).
+                final formTopEnd = maxH < 640 ? 228.0 : 252.0;
+                final formTop = lerpDouble(
+                  maxH * 0.48,
+                  formTopEnd,
                   authPop.value,
-                );
+                )!;
                 // `easeOutBack` can overshoot >1.0; Opacity requires 0..1.
                 final authOpacity = authPop.value.clamp(0.0, 1.0).toDouble();
 
@@ -631,206 +775,132 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                 ).value;
                 final subtitleOpacity =
                     subtitleReveal.clamp(0.0, 1.0).toDouble();
-                final subtitleYOffset =
-                    lerpDouble(8, 0, subtitleReveal) ?? 0;
+                final subtitleYOffset = lerpDouble(8, 0, subtitleReveal) ?? 0;
+
+                // Tighter header on short viewports so title + wrapped subtitle fit.
+                final compact = maxH < 640;
+                final iconSz = compact ? 52.0 : 64.0;
+                final titleSz = compact ? 21.0 : 24.0;
+                final subSize = compact ? 12.5 : 13.0;
 
                 return Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    // Header + welcome copy
                     Align(
-                      alignment: Alignment.center,
-                      child: Transform.translate(
-                        offset: Offset(0, headerTranslateY ?? 0),
+                      alignment: headerAlignment,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          24,
+                          compact ? 4 : 8,
+                          24,
+                          compact ? 14 : 18,
+                        ),
                         child: Opacity(
                           opacity: headerOpacity,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Transform.scale(
-                                  scale: iconScale,
-                                  child: Icon(
-                                    Icons.verified_user_rounded,
-                                    size: 64,
-                                    color:
-                                        const Color(0xFF2563EB).withOpacity(0.9),
-                                  ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Transform.scale(
+                                scale: iconScale,
+                                child: Icon(
+                                  Icons.verified_user_rounded,
+                                  size: iconSz,
+                                  color:
+                                      const Color(0xFF2563EB).withOpacity(0.9),
                                 ),
-                                const SizedBox(height: 14),
-                                Text(
-                                  'Welcome to PESO',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w800,
-                                    color: titleColor,
-                                  ),
-                                  textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: compact ? 10 : 14),
+                              Text(
+                                'Welcome to PESO Connect',
+                                style: GoogleFonts.poppins(
+                                  fontSize: titleSz,
+                                  fontWeight: FontWeight.w800,
+                                  color: titleColor,
                                 ),
-                                const SizedBox(height: 8),
-                                Transform.translate(
-                                  offset: Offset(0, subtitleYOffset),
-                                  child: Opacity(
-                                    opacity: subtitleOpacity,
-                                    child: Text(
-                                      'Sign in to continue, or create an account to start applying for jobs and events.',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 13,
-                                        height: 1.4,
-                                        color: subtitleColor,
-                                      ),
-                                      textAlign: TextAlign.center,
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: compact ? 6 : 8),
+                              Transform.translate(
+                                offset: Offset(0, subtitleYOffset),
+                                child: Opacity(
+                                  opacity: subtitleOpacity,
+                                  child: Text(
+                                    'Sign in to continue, or create an account to start applying for jobs and events.',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: subSize,
+                                      height: 1.4,
+                                      color: subtitleColor,
                                     ),
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                              // Air below subtext so the sheet cannot ride up over it.
+                              SizedBox(height: compact ? 10 : 12),
+                            ],
                           ),
                         ),
                       ),
                     ),
-
-                    // Buttons + on-screen auth form
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Transform.translate(
-                        offset: Offset(0, authTranslateY ?? 0),
-                        child: Opacity(
-                          opacity: authOpacity,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(24, 0, 24, 10),
-                            child: SizedBox(
-                              width: double.infinity,
-                              height: h * 0.70,
-                              child: Material(
-                                color: Colors.transparent,
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [Colors.white, Color(0xFFF8FBFF)],
-                                    ),
-                                    borderRadius: BorderRadius.circular(24),
-                                    border: Border.all(
-                                      color: const Color(0xFFE6ECF5),
-                                      width: 1.0,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(0xFF0F172A)
-                                            .withOpacity(0.09),
-                                        blurRadius: 30,
-                                        offset: const Offset(0, 14),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Padding(
-                                    padding:
-                                        const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                        Expanded(
-                                          child: SingleChildScrollView(
-                                            physics:
-                                                const BouncingScrollPhysics(),
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      4, 6, 4, 20),
-                                              child: LoginModal(
-                                                key: ValueKey<bool>(
-                                                    _isSignUpMode),
-                                                isSignUp: _isSignUpMode,
-                                                renderAsModal: false,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 12),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          height: 52,
-                                          child: FilledButton(
-                                            onPressed: () {
-                                              setState(
-                                                  () => _isSignUpMode = false);
-                                            },
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor:
-                                                  !_isSignUpMode
-                                                      ? const Color(0xFF2563EB)
-                                                      : Colors.transparent,
-                                              foregroundColor:
-                                                  !_isSignUpMode
-                                                      ? Colors.white
-                                                      : const Color(0xFF2563EB),
-                                              side: BorderSide(
-                                                color: const Color(0xFF2563EB)
-                                                    .withOpacity(
-                                                  _isSignUpMode ? 1 : 0,
-                                                ),
-                                              ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                              ),
-                                            ),
-                                            child: const Text(
-                                              'Sign in',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 10),
-                                        SizedBox(
-                                          width: double.infinity,
-                                          height: 52,
-                                          child: FilledButton(
-                                            onPressed: () {
-                                              setState(
-                                                  () => _isSignUpMode = true);
-                                            },
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor:
-                                                  _isSignUpMode
-                                                      ? const Color(0xFF2563EB)
-                                                      : Colors.transparent,
-                                              foregroundColor:
-                                                  _isSignUpMode
-                                                      ? Colors.white
-                                                      : const Color(0xFF2563EB),
-                                              side: BorderSide(
-                                                color: const Color(0xFF2563EB)
-                                                    .withOpacity(
-                                                  !_isSignUpMode ? 1 : 0,
-                                                ),
-                                              ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(14),
-                                              ),
-                                            ),
-                                            child: const Text(
-                                              'Create account',
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
+                    Positioned(
+                      left: 24,
+                      right: 24,
+                      top: formTop,
+                      bottom: 10,
+                      child: Opacity(
+                        opacity: authOpacity,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Colors.white, Color(0xFFF8FBFF)],
+                              ),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                color: const Color(0xFFE6ECF5),
+                                width: 1.0,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color:
+                                      const Color(0xFF0F172A).withOpacity(0.09),
+                                  blurRadius: 30,
+                                  offset: const Offset(0, 14),
                                 ),
+                              ],
+                            ),
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: SingleChildScrollView(
+                                      physics: const BouncingScrollPhysics(),
+                                      keyboardDismissBehavior:
+                                          ScrollViewKeyboardDismissBehavior
+                                              .onDrag,
+                                      child: Padding(
+                                        padding: EdgeInsets.fromLTRB(
+                                          4,
+                                          6,
+                                          4,
+                                          20 + keyboardPad,
+                                        ),
+                                        child: LoginModal(
+                                          key: ValueKey<bool>(_isSignUpMode),
+                                          isSignUp: _isSignUpMode,
+                                          renderAsModal: false,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                ],
                               ),
                             ),
                           ),
@@ -897,7 +967,11 @@ class _WelcomePageState extends State<WelcomePage>
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [AppColors.darkBg1, AppColors.darkBg2, AppColors.darkBg3],
+                    colors: [
+                      AppColors.darkBg1,
+                      AppColors.darkBg2,
+                      AppColors.darkBg3
+                    ],
                     stops: [0.0, 0.60, 1.0],
                   ),
                 ),
@@ -956,11 +1030,13 @@ class _WelcomePageState extends State<WelcomePage>
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
                             color: AppColors.glassWhite,
                             borderRadius: BorderRadius.circular(30),
-                            border: Border.all(color: AppColors.glassBorder, width: 1),
+                            border: Border.all(
+                                color: AppColors.glassBorder, width: 1),
                           ),
                           child: Text(
                             'PUBLIC EMPLOYMENT SERVICE OFFICE',
@@ -998,7 +1074,8 @@ class _WelcomePageState extends State<WelcomePage>
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: AppColors.pesoBlue.withOpacity(0.60 * _glowAnim.value),
+                                        color: AppColors.pesoBlue.withOpacity(
+                                            0.60 * _glowAnim.value),
                                         blurRadius: 28 + 14 * _glowAnim.value,
                                         spreadRadius: 2,
                                       ),
@@ -1027,7 +1104,8 @@ class _WelcomePageState extends State<WelcomePage>
 
                             // Divider
                             Container(
-                              margin: const EdgeInsets.symmetric(horizontal: 22),
+                              margin:
+                                  const EdgeInsets.symmetric(horizontal: 22),
                               width: 1.5,
                               height: size.width * 0.18,
                               decoration: BoxDecoration(
@@ -1073,7 +1151,10 @@ class _WelcomePageState extends State<WelcomePage>
                         letterSpacing: 2.4,
                       ),
                       textAlign: TextAlign.center,
-                    ).animate().fadeIn(delay: 450.ms, duration: 600.ms).slideY(begin: 0.12, curve: Curves.easeOutCubic),
+                    )
+                        .animate()
+                        .fadeIn(delay: 450.ms, duration: 600.ms)
+                        .slideY(begin: 0.12, curve: Curves.easeOutCubic),
 
                     // Location pill
                     ClipRRect(
@@ -1081,11 +1162,13 @@ class _WelcomePageState extends State<WelcomePage>
                       child: BackdropFilter(
                         filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 13),
                           decoration: BoxDecoration(
                             color: AppColors.glassWhite,
                             borderRadius: BorderRadius.circular(50),
-                            border: Border.all(color: AppColors.glassBorder, width: 1),
+                            border: Border.all(
+                                color: AppColors.glassBorder, width: 1),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1106,22 +1189,32 @@ class _WelcomePageState extends State<WelcomePage>
                           ),
                         ),
                       ),
-                    ).animate().fadeIn(delay: 600.ms, duration: 600.ms).slideY(begin: 0.12, curve: Curves.easeOutCubic),
+                    )
+                        .animate()
+                        .fadeIn(delay: 600.ms, duration: 600.ms)
+                        .slideY(begin: 0.12, curve: Curves.easeOutCubic),
 
                     // Feature chips
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildFeatureChip(Icons.work_outline_rounded, 'Find Jobs',
+                        _buildFeatureChip(
+                            Icons.work_outline_rounded,
+                            'Find Jobs',
                             const [Color(0xFF1565C0), Color(0xFF0D47A1)]),
                         const SizedBox(width: 10),
-                        _buildFeatureChip(Icons.people_outline_rounded, 'Connect',
+                        _buildFeatureChip(
+                            Icons.people_outline_rounded,
+                            'Connect',
                             const [Color(0xFFCC2229), Color(0xFF991B1B)]),
                         const SizedBox(width: 10),
                         _buildFeatureChip(Icons.trending_up_rounded, 'Grow',
                             const [Color(0xFFF59E0B), Color(0xFFD97706)]),
                       ],
-                    ).animate().fadeIn(delay: 750.ms, duration: 600.ms).slideY(begin: 0.12, curve: Curves.easeOutCubic),
+                    )
+                        .animate()
+                        .fadeIn(delay: 750.ms, duration: 600.ms)
+                        .slideY(begin: 0.12, curve: Curves.easeOutCubic),
 
                     // CTA button
                     _GetStartedButton(
@@ -1131,7 +1224,10 @@ class _WelcomePageState extends State<WelcomePage>
                           MaterialPageRoute(builder: (_) => const AboutPage()),
                         );
                       },
-                    ).animate().fadeIn(delay: 900.ms, duration: 600.ms).slideY(begin: 0.15, curve: Curves.easeOutCubic),
+                    )
+                        .animate()
+                        .fadeIn(delay: 900.ms, duration: 600.ms)
+                        .slideY(begin: 0.15, curve: Curves.easeOutCubic),
 
                     // Footer
                     Column(
@@ -1166,7 +1262,8 @@ class _WelcomePageState extends State<WelcomePage>
     );
   }
 
-  Widget _buildFeatureChip(IconData icon, String label, List<Color> gradientColors) {
+  Widget _buildFeatureChip(
+      IconData icon, String label, List<Color> gradientColors) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: BackdropFilter(
@@ -1327,7 +1424,8 @@ class _GetStartedButtonState extends State<_GetStartedButton>
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF1565C0).withOpacity(_pressed ? 0.20 : 0.55),
+                color:
+                    const Color(0xFF1565C0).withOpacity(_pressed ? 0.20 : 0.55),
                 blurRadius: _pressed ? 10 : 28,
                 spreadRadius: _pressed ? 0 : 2,
                 offset: const Offset(0, 8),
@@ -1457,7 +1555,8 @@ class _AboutPageState extends State<AboutPage> {
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Row(
                   children: [
                     GestureDetector(
@@ -1506,7 +1605,8 @@ class _AboutPageState extends State<AboutPage> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.login_rounded, color: Colors.white, size: 18),
+                            Icon(Icons.login_rounded,
+                                color: Colors.white, size: 18),
                             SizedBox(width: 6),
                             Text('Login',
                                 style: TextStyle(
@@ -1535,13 +1635,21 @@ class _AboutPageState extends State<AboutPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildInfoItem('A non-fee charging employment service facility', Icons.check_circle_outline_rounded),
+                            _buildInfoItem(
+                                'A non-fee charging employment service facility',
+                                Icons.check_circle_outline_rounded),
                             const SizedBox(height: 12),
-                            _buildInfoItem('Established under Republic Act No. 8759 (PESO Act of 1999)', Icons.gavel_rounded),
+                            _buildInfoItem(
+                                'Established under Republic Act No. 8759 (PESO Act of 1999)',
+                                Icons.gavel_rounded),
                             const SizedBox(height: 12),
-                            _buildInfoItem('Operates at the local government level', Icons.location_city_rounded),
+                            _buildInfoItem(
+                                'Operates at the local government level',
+                                Icons.location_city_rounded),
                             const SizedBox(height: 12),
-                            _buildInfoItem('Managed by the Department of Labor and Employment (DOLE)', Icons.business_center_rounded),
+                            _buildInfoItem(
+                                'Managed by the Department of Labor and Employment (DOLE)',
+                                Icons.business_center_rounded),
                           ],
                         ),
                       ),
@@ -1551,13 +1659,29 @@ class _AboutPageState extends State<AboutPage> {
                         icon: Icons.work_outline_rounded,
                         child: Column(
                           children: [
-                            _buildServiceCard(icon: Icons.search_rounded, title: 'Job Referral & Placement', description: 'Matches job seekers with employers locally and abroad.'),
+                            _buildServiceCard(
+                                icon: Icons.search_rounded,
+                                title: 'Job Referral & Placement',
+                                description:
+                                    'Matches job seekers with employers locally and abroad.'),
                             const SizedBox(height: 16),
-                            _buildServiceCard(icon: Icons.school_outlined, title: 'Career Guidance', description: 'Provides counseling, career planning, and job search strategies.'),
+                            _buildServiceCard(
+                                icon: Icons.school_outlined,
+                                title: 'Career Guidance',
+                                description:
+                                    'Provides counseling, career planning, and job search strategies.'),
                             const SizedBox(height: 16),
-                            _buildServiceCard(icon: Icons.trending_up_rounded, title: 'Skills Training', description: 'Offers training programs to enhance employability.'),
+                            _buildServiceCard(
+                                icon: Icons.trending_up_rounded,
+                                title: 'Skills Training',
+                                description:
+                                    'Offers training programs to enhance employability.'),
                             const SizedBox(height: 16),
-                            _buildServiceCard(icon: Icons.event_rounded, title: 'Job Fairs', description: 'Organizes events to connect job seekers with hiring companies.'),
+                            _buildServiceCard(
+                                icon: Icons.event_rounded,
+                                title: 'Job Fairs',
+                                description:
+                                    'Organizes events to connect job seekers with hiring companies.'),
                           ],
                         ),
                       ),
@@ -1589,7 +1713,8 @@ class _AboutPageState extends State<AboutPage> {
     );
   }
 
-  Widget _buildSectionCard({required String title, required IconData icon, required Widget child}) {
+  Widget _buildSectionCard(
+      {required String title, required IconData icon, required Widget child}) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -1598,7 +1723,10 @@ class _AboutPageState extends State<AboutPage> {
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.glassBorder, width: 1),
         boxShadow: [
-          BoxShadow(color: AppColors.pesoBlue.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 5))
+          BoxShadow(
+              color: AppColors.pesoBlue.withOpacity(0.08),
+              blurRadius: 15,
+              offset: const Offset(0, 5))
         ],
       ),
       child: Column(
@@ -1649,7 +1777,10 @@ class _AboutPageState extends State<AboutPage> {
     );
   }
 
-  Widget _buildServiceCard({required IconData icon, required String title, required String description}) {
+  Widget _buildServiceCard(
+      {required IconData icon,
+      required String title,
+      required String description}) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1672,9 +1803,15 @@ class _AboutPageState extends State<AboutPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.pesoBlue)),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.pesoBlue)),
                 const SizedBox(height: 6),
-                Text(description, style: TextStyle(fontSize: 14, color: Colors.grey[700], height: 1.4)),
+                Text(description,
+                    style: TextStyle(
+                        fontSize: 14, color: Colors.grey[700], height: 1.4)),
               ],
             ),
           ),
@@ -1703,11 +1840,13 @@ class _AboutPageState extends State<AboutPage> {
 // ─── Login Modal ──────────────────────────────────────────────────────────────
 class LoginModal extends StatefulWidget {
   final bool isSignUp;
+
   /// When false, this widget renders as a plain embedded form (no bottom-sheet,
   /// no slide animation, no close button).
   final bool renderAsModal;
 
-  const LoginModal({super.key, this.isSignUp = false, this.renderAsModal = true});
+  const LoginModal(
+      {super.key, this.isSignUp = false, this.renderAsModal = true});
 
   @override
   State<LoginModal> createState() => _LoginModalState();
@@ -1728,10 +1867,15 @@ class _LoginModalState extends State<LoginModal>
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isSignUpMode = false;
-  String? _selectedSex; // 'male' | 'female' — required on sign-up
+  String? _selectedSex;
   DateTime? _selectedDob;
   bool _isSubmitting = false;
   String? _authError;
+  bool _rememberMe = true;
+  Timer? _otpReopenCooldownTimer;
+  int _otpReopenCooldownSeconds = 0;
+  String? _serverEmailError;
+  Timer? _emailDebounce;
 
   @override
   void initState() {
@@ -1739,14 +1883,12 @@ class _LoginModalState extends State<LoginModal>
     _isSignUpMode = widget.isSignUp;
     _animationController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 400));
-    _slideAnimation =
-        Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero).animate(
-            CurvedAnimation(
-                parent: _animationController, curve: Curves.easeOutCubic));
+    _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+        .animate(CurvedAnimation(
+            parent: _animationController, curve: Curves.easeOutCubic));
     if (widget.renderAsModal) {
       _animationController.forward();
     } else {
-      // When embedding in the auth page, we don't want the bottom-sheet slide.
       _animationController.value = 1.0;
     }
   }
@@ -1754,6 +1896,8 @@ class _LoginModalState extends State<LoginModal>
   @override
   void dispose() {
     _animationController.dispose();
+    _otpReopenCooldownTimer?.cancel();
+    _emailDebounce?.cancel();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
@@ -1764,11 +1908,13 @@ class _LoginModalState extends State<LoginModal>
     super.dispose();
   }
 
-  void _switchMode() {
+  void _setMode(bool isSignUp) {
+    if (_isSignUpMode == isSignUp) return;
     setState(() {
-      _isSignUpMode = !_isSignUpMode;
+      _isSignUpMode = isSignUp;
       _formKey.currentState?.reset();
       _authError = null;
+      _serverEmailError = null;
     });
   }
 
@@ -1790,13 +1936,8 @@ class _LoginModalState extends State<LoginModal>
   }
 
   Future<void> _handleRegistration() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _RegistrationLoadingDialog(),
-    );
-
-    final result = await ApiService.register(
+    Map<String, dynamic> result;
+    result = await ApiService.register(
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
@@ -1807,49 +1948,87 @@ class _LoginModalState extends State<LoginModal>
       dateOfBirth: _dobController.text.isEmpty ? null : _dobController.text,
     );
 
-    Navigator.pop(context);
-
     if (result['success'] == true) {
-      // Store session — backend returns token + user on register too
-      UserSession().setFromApiData(result['data'] as Map<String, dynamic>);
-
-      await showDialog(
+      final data = result['data'] as Map<String, dynamic>? ?? {};
+      final initialRemainingDailySends =
+          _initialRemainingDailySendsFromAuthResponse(result);
+      final otpResult = await showDialog<Map<String, dynamic>>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const _RegistrationResultDialog(
-          isSuccess: true,
-          message: 'Account created! Welcome aboard.',
+        builder: (_) => _OtpVerificationDialog(
+          email: _emailController.text.trim(),
+          initialRemainingDailySends: initialRemainingDailySends,
         ),
       );
-
+      if (otpResult == null || otpResult['success'] != true) {
+        _handleOtpCancelCooldown();
+        return;
+      }
+      final otpData = otpResult['data'] as Map<String, dynamic>? ?? data;
+      UserSession().setFromApiData(otpData);
+      final token = UserSession().token;
+      if (token != null && token.isNotEmpty) {
+        await SessionPrefs.saveToken(token);
+      }
       if (!mounted) return;
-      // Load job action state after login
       await JobActionService().loadFromBackend();
       if (!mounted) return;
       await OnboardingPrefs.setPostAuthPending();
       if (!mounted) return;
-      // Close modal, then post-auth onboarding → Home
       if (widget.renderAsModal) Navigator.pop(context);
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const PostAuthOnboardingScreen()),
+        MaterialPageRoute(
+            builder: (context) => const PostAuthOnboardingScreen()),
       );
     } else {
+      if (result['requires_verification'] == true) {
+        if (!mounted) return;
+        setState(() {
+          _isSignUpMode = false;
+          _passwordController.clear();
+          _confirmPasswordController.clear();
+          _authError =
+              'This email is already registered but not verified. Sign in to continue verification.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
       String errorMessage = 'Registration failed';
+      String? emailError;
       if (result['message'] != null) {
         errorMessage = result['message'];
+        if (errorMessage.toLowerCase().contains('email') &&
+            (errorMessage.toLowerCase().contains('registered') ||
+                errorMessage.toLowerCase().contains('taken'))) {
+          emailError = 'Email is already registered.';
+        }
       } else if (result['errors'] != null) {
         final errors = result['errors'] as Map<String, dynamic>;
         final errorList = <String>[];
         errors.forEach((key, value) {
           if (value is List && value.isNotEmpty) {
-            errorList.add(value.first.toString());
+            final msg = value.first.toString();
+            errorList.add(msg);
+            if (key == 'email') {
+              emailError = 'Email is already registered.';
+            }
           }
         });
         if (errorList.isNotEmpty) {
           errorMessage = errorList.join('\n');
         }
       }
+
+      if (!mounted) return;
+      setState(() {
+        _serverEmailError = emailError;
+        _isSubmitting = false;
+      });
+
+      if (emailError != null)
+        return; // If we showed it inline, don't show dialog as well optionally
 
       await showDialog(
         context: context,
@@ -1862,17 +2041,254 @@ class _LoginModalState extends State<LoginModal>
     }
   }
 
+  void _handleOtpCancelCooldown() {
+    _clearAuthFieldsAfterOtpCancel();
+    _startOtpReopenCooldown();
+    if (!mounted) return;
+    setState(() {
+      _authError =
+          'Verification cancelled. Please wait ${_otpReopenCooldownSeconds}s before requesting OTP again.';
+    });
+  }
+
+  void _clearAuthFieldsAfterOtpCancel() {
+    _firstNameController.clear();
+    _lastNameController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+    _dobController.clear();
+    _phoneController.clear();
+    _selectedDob = null;
+    _selectedSex = null;
+    _isSignUpMode = false;
+  }
+
+  /// Same root + nested shape for register vs sign-in OTP responses.
+  int? _initialRemainingDailySendsFromAuthResponse(
+      Map<String, dynamic> result) {
+    final top = (result['remaining_daily_sends'] as num?)?.toInt();
+    if (top != null) return top;
+    final data = result['data'];
+    if (data is Map<String, dynamic>) {
+      return (data['remaining_daily_sends'] as num?)?.toInt();
+    }
+    return null;
+  }
+
+  Future<void> _openMailto(String email) async {
+    final uri = Uri(scheme: 'mailto', path: email);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    final emailCtrl = TextEditingController(text: _emailController.text.trim());
+    var sending = false;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: const Text('Forgot password'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Enter your registered email. We’ll send a link to reset your password for PESO Connect (same server as the API).',
+                    style: TextStyle(
+                        fontSize: 13.5, height: 1.35, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(12))),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          final email = emailCtrl.text.trim();
+                          if (email.isEmpty || !email.contains('@')) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content:
+                                    Text('Please enter a valid email address.'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            return;
+                          }
+                          setLocal(() => sending = true);
+                          final res = await ApiService.forgotJobseekerPassword(
+                              email: email);
+                          if (!ctx.mounted) return;
+                          // Do not call setLocal before pop: rebuilding StatefulBuilder while
+                          // closing the route can assert in InheritedWidget disposal.
+                          Navigator.of(ctx).pop();
+                          if (!mounted) return;
+                          final ok = res['success'] == true;
+                          String msg;
+                          if (ok) {
+                            msg = (res['message'] as String?)?.trim() ??
+                                'Check your email for the reset link.';
+                          } else {
+                            final errs = res['errors'];
+                            if (errs is Map &&
+                                errs['email'] is List &&
+                                (errs['email'] as List).isNotEmpty) {
+                              msg = (errs['email'] as List).first.toString();
+                            } else {
+                              msg = (res['message'] as String?)?.trim() ??
+                                  'Could not send reset link. Try again later.';
+                            }
+                          }
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(msg),
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 5),
+                                action: ok
+                                    ? SnackBarAction(
+                                        label: 'Open email',
+                                        onPressed: () =>
+                                            unawaited(_openMailto(email)),
+                                      )
+                                    : null,
+                              ),
+                            );
+                          });
+                        },
+                  child: Text(sending ? 'Sending…' : 'Send link'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    emailCtrl.dispose();
+  }
+
+  void _startOtpReopenCooldown([int seconds = 3]) {
+    _otpReopenCooldownTimer?.cancel();
+    _otpReopenCooldownSeconds = seconds;
+    _otpReopenCooldownTimer =
+        Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_otpReopenCooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _otpReopenCooldownSeconds = 0;
+          if (_authError != null &&
+              _authError!.contains('Verification cancelled. Please wait')) {
+            _authError = null;
+          }
+        });
+      } else {
+        setState(() {
+          _otpReopenCooldownSeconds -= 1;
+          if (_authError != null &&
+              _authError!.contains('Verification cancelled. Please wait')) {
+            _authError =
+                'Verification cancelled. Please wait ${_otpReopenCooldownSeconds}s before requesting OTP again.';
+          }
+        });
+      }
+    });
+    if (mounted) setState(() {});
+  }
+
+  Widget _passwordRequirementRow(String label, bool ok) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            ok ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 16,
+            color: ok ? const Color(0xFF16A34A) : const Color(0xFFCBD5E1),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: ok ? const Color(0xFF166534) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordRequirements() {
+    if (!_isSignUpMode) return const SizedBox.shrink();
+    final p = _passwordController.text;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Password must include:',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 6),
+        _passwordRequirementRow(
+          'At least 8 characters',
+          PasswordRules.hasMinLength(p),
+        ),
+        _passwordRequirementRow(
+          'Uppercase & lowercase letters',
+          PasswordRules.hasUppercase(p) && PasswordRules.hasLowercase(p),
+        ),
+        _passwordRequirementRow(
+          'At least one number',
+          PasswordRules.hasNumber(p),
+        ),
+        _passwordRequirementRow(
+          'At least one special character',
+          PasswordRules.hasSymbol(p),
+        ),
+      ],
+    );
+  }
+
   InputDecoration _fieldDec(String label, IconData icon, {Widget? suffix}) {
-    final fill = widget.renderAsModal
-        ? const Color(0xFFF8F9FA)
-        : Colors.white;
-    final enabledBorderColor = widget.renderAsModal
-        ? Colors.grey[300]!
-        : const Color(0xFFD8E1EC);
+    final fill = widget.renderAsModal ? const Color(0xFFF8F9FA) : Colors.white;
+    final enabledBorderColor =
+        widget.renderAsModal ? Colors.grey[300]! : const Color(0xFFD8E1EC);
     return InputDecoration(
       labelText: label,
-      labelStyle:
-          TextStyle(color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
+      labelStyle: TextStyle(
+          color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
       prefixIcon: Icon(icon, color: const Color(0xFF2563EB)),
       suffixIcon: suffix,
       filled: true,
@@ -1890,6 +2306,42 @@ class _LoginModalState extends State<LoginModal>
     );
   }
 
+  Widget _buildTopErrorBanner(String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEE2E2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFCA5A5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline_rounded,
+              color: Color(0xFF991B1B), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF991B1B),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () => setState(() => _authError = null),
+            child: const Icon(Icons.close_rounded,
+                color: Color(0xFF991B1B), size: 18),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final content = SingleChildScrollView(
@@ -1903,291 +2355,524 @@ class _LoginModalState extends State<LoginModal>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-                if (widget.renderAsModal)
-                  Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                          color: Colors.grey[300],
-                          borderRadius: BorderRadius.circular(2))),
-                SizedBox(height: widget.renderAsModal ? 24 : 8),
-                if (widget.renderAsModal) ...[
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
+            if (widget.renderAsModal)
+              Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2))),
+            SizedBox(height: widget.renderAsModal ? 24 : 8),
+            Container(
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _setMode(false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12)),
-                        child: Icon(
-                            _isSignUpMode
-                                ? Icons.person_add_rounded
-                                : Icons.login_rounded,
-                            color: const Color(0xFF2563EB),
-                            size: 28),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          _isSignUpMode
-                              ? 'Create Account'
-                              : 'Welcome Back',
-                          style: const TextStyle(
-                              fontSize: 26,
+                          color: !_isSignUpMode
+                              ? Colors.white
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: !_isSignUpMode
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  )
+                                ]
+                              : null,
+                          border: !_isSignUpMode
+                              ? Border.all(
+                                  color: const Color(0xFFE2E8F0), width: 1)
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'LOGIN',
+                            style: TextStyle(
+                              fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: 0.5),
+                              color: !_isSignUpMode
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF64748B),
+                              letterSpacing: 1.2,
+                            ),
+                          ),
                         ),
                       ),
-                      IconButton(
-                          icon: const Icon(Icons.close_rounded),
-                          color: Colors.grey[600],
-                          onPressed: () => Navigator.pop(context)),
-                    ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      _isSignUpMode
-                          ? 'Join PESO and discover employment opportunities'
-                          : 'Sign in to access your account',
-                      style: TextStyle(
-                          fontSize: 14, color: Colors.grey[600]),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _setMode(true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color:
+                              _isSignUpMode ? Colors.white : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                          boxShadow: _isSignUpMode
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.05),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
+                                  )
+                                ]
+                              : null,
+                          border: _isSignUpMode
+                              ? Border.all(
+                                  color: const Color(0xFFE2E8F0), width: 1)
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'SIGN UP',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: _isSignUpMode
+                                  ? const Color(0xFF2563EB)
+                                  : const Color(0xFF64748B),
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],
-
-                SizedBox(height: widget.renderAsModal ? 32 : 16),
-                Form(
-                  key: _formKey,
+              ),
+            ),
+            Row(
+              children: [
+                Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (_isSignUpMode) ...[
-                        TextFormField(
-                          controller: _firstNameController,
-                          decoration: _fieldDec('First Name', Icons.person_outline_rounded),
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'Please enter your first name';
-                            return null;
-                          },
+                      Text(
+                        _isSignUpMode ? 'Create Account' : 'Welcome Back',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: 0.5,
                         ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _lastNameController,
-                          decoration: _fieldDec('Last Name', Icons.person_outline_rounded),
-                          validator: (v) {
-                            if (v == null || v.trim().isEmpty) return 'Please enter your last name';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: _fieldDec(
-                            'Phone number (11 digits)',
-                            Icons.phone_outlined,
-                          ),
-                          validator: (v) {
-                            final value = v?.trim() ?? '';
-                            if (value.isEmpty) {
-                              return 'Please enter your mobile number';
-                            }
-                            final phPattern = RegExp(r'^0\d{10}$');
-                            if (!phPattern.hasMatch(value)) {
-                              return 'Enter 11-digit PH number (e.g. 09XXXXXXXXX)';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-                      TextFormField(
-                        controller: _emailController,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: _fieldDec(
-                            _isSignUpMode ? 'Email' : 'Email or Username',
-                            Icons.email_outlined),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) {
-                            return _isSignUpMode ? 'Please enter your email' : 'Please enter your email or username';
-                          }
-                          if (_isSignUpMode && (!v.contains('@') || !v.contains('.'))) {
-                            return 'Please enter a valid email address';
-                          }
-                          return null;
-                        },
                       ),
-                      const SizedBox(height: 20),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        decoration: _fieldDec(
-                          'Password',
-                          Icons.lock_outline_rounded,
-                          suffix: IconButton(
-                            icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                color: Colors.grey[600]),
-                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                          ),
-                        ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Please enter your password';
-                          if (v.length < 8) return 'Password must be at least 8 characters';
-                          return null;
-                        },
+                    ],
+                  ),
+                ),
+                if (widget.renderAsModal)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    color: Colors.grey[600],
+                    onPressed: () => Navigator.pop(context),
+                  ),
+              ],
+            ),
+            SizedBox(height: widget.renderAsModal ? 32 : 16),
+            Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!_isSignUpMode && _authError != null) ...[
+                    _buildTopErrorBanner(_authError!),
+                    const SizedBox(height: 12),
+                  ],
+                  if (_isSignUpMode) ...[
+                    TextFormField(
+                      controller: _firstNameController,
+                      decoration:
+                          _fieldDec('First Name', Icons.person_outline_rounded),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty)
+                          return 'Please enter your first name';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _lastNameController,
+                      decoration:
+                          _fieldDec('Last Name', Icons.person_outline_rounded),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty)
+                          return 'Please enter your last name';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _phoneController,
+                      keyboardType: TextInputType.phone,
+                      decoration: _fieldDec(
+                        'Phone number (11 digits)',
+                        Icons.phone_outlined,
                       ),
-                      if (!_isSignUpMode) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Forgot password is not yet available.',
+                      validator: (v) {
+                        final value = v?.trim() ?? '';
+                        if (value.isEmpty) {
+                          return 'Please enter your mobile number';
+                        }
+                        final phPattern = RegExp(r'^0\d{10}$');
+                        if (!phPattern.hasMatch(value)) {
+                          return 'Enter 11-digit PH number (e.g. 09XXXXXXXXX)';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+                  TextFormField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: _fieldDec(
+                        _isSignUpMode ? 'Email' : 'Email or Username',
+                        Icons.email_outlined),
+                    onChanged: (v) {
+                      if (_serverEmailError != null) {
+                        setState(() => _serverEmailError = null);
+                      }
+                      if (!_isSignUpMode) return;
+                      _emailDebounce?.cancel();
+                      if (v.trim().isEmpty ||
+                          !v.contains('@') ||
+                          !v.contains('.')) return;
+                      _emailDebounce =
+                          Timer(const Duration(milliseconds: 600), () async {
+                        final res =
+                            await ApiService.checkJobseekerEmail(v.trim());
+                        if (mounted &&
+                            _isSignUpMode &&
+                            _emailController.text.trim() == v.trim()) {
+                          if (res['success'] == true && res['exists'] == true) {
+                            setState(() => _serverEmailError =
+                                'Email is already registered.');
+                          }
+                        }
+                      });
+                    },
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return _isSignUpMode
+                            ? 'Please enter your email'
+                            : 'Please enter your email or username';
+                      }
+                      if (_isSignUpMode &&
+                          (!v.contains('@') || !v.contains('.'))) {
+                        return 'Please enter a valid email address';
+                      }
+                      return null;
+                    },
+                  ),
+                  if (_isSignUpMode && _serverEmailError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, left: 4),
+                      child: Text(
+                        _serverEmailError!,
+                        style: const TextStyle(
+                          color: Color(0xFFDC2626),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  TextFormField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    onChanged: (_) => setState(() {}),
+                    decoration: _fieldDec(
+                      'Password',
+                      Icons.lock_outline_rounded,
+                      suffix: IconButton(
+                        icon: Icon(
+                            _obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                            color: Colors.grey[600]),
+                        onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword),
+                      ),
+                    ),
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Please enter your password';
+                      }
+                      if (_isSignUpMode) {
+                        return PasswordRules.validateStrongPassword(v);
+                      }
+                      return null;
+                    },
+                  ),
+                  if (_isSignUpMode) ...[
+                    _buildPasswordRequirements(),
+                    const SizedBox(height: 8),
+                  ],
+                  if (!_isSignUpMode) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        InkWell(
+                          borderRadius: BorderRadius.circular(10),
+                          onTap: () =>
+                              setState(() => _rememberMe = !_rememberMe),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 2, vertical: 4),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: Checkbox(
+                                    value: _rememberMe,
+                                    onChanged: (v) => setState(
+                                        () => _rememberMe = v ?? false),
+                                    activeColor: const Color(0xFF2563EB),
+                                    visualDensity: VisualDensity.compact,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                   ),
-                                  behavior: SnackBarBehavior.floating,
                                 ),
-                              );
+                                const SizedBox(width: 8),
+                                const Text(
+                                  'Remember me',
+                                  style: TextStyle(
+                                    color: Color(0xFF475569),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const Spacer(),
+                        TextButton(
+                          onPressed: _showForgotPasswordDialog,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 0,
+                            ),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Forgot password?',
+                            style: TextStyle(
+                              color: Color(0xFF2563EB),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (!_isSignUpMode) const SizedBox(height: 6),
+                  if (_isSignUpMode) ...[
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _confirmPasswordController,
+                      obscureText: _obscureConfirmPassword,
+                      onChanged: (_) => setState(() {}),
+                      decoration: _fieldDec(
+                        'Confirm Password',
+                        Icons.lock_outline_rounded,
+                        suffix: IconButton(
+                          icon: Icon(
+                              _obscureConfirmPassword
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
+                              color: Colors.grey[600]),
+                          onPressed: () => setState(() =>
+                              _obscureConfirmPassword =
+                                  !_obscureConfirmPassword),
+                        ),
+                      ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty)
+                          return 'Please confirm your password';
+                        if (v != _passwordController.text)
+                          return 'Passwords do not match';
+                        return null;
+                      },
+                    ),
+                    if (_confirmPasswordController.text.isNotEmpty &&
+                        _confirmPasswordController.text !=
+                            _passwordController.text)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'Passwords do not match',
+                          style: TextStyle(
+                            color: Colors.red[700],
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 20),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: _dobController,
+                            readOnly: true,
+                            decoration: _fieldDec(
+                                'Birthdate (YYYY-MM-DD)', Icons.cake_outlined),
+                            onTap: _pickDob,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: DropdownButtonFormField<String>(
+                            value: _selectedSex,
+                            decoration: _fieldDec('Sex', Icons.person_outline),
+                            items: const [
+                              DropdownMenuItem(
+                                  value: 'male', child: Text('Male')),
+                              DropdownMenuItem(
+                                  value: 'female', child: Text('Female')),
+                            ],
+                            onChanged: (value) =>
+                                setState(() => _selectedSex = value),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Required';
+                              }
+                              return null;
                             },
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 0,
-                              ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text(
-                              'Forgot password?',
-                              style: TextStyle(
-                                color: Color(0xFF2563EB),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
                           ),
                         ),
                       ],
-                      if (!_isSignUpMode && _authError != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          _authError!,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                      if (_isSignUpMode) ...[
-                        const SizedBox(height: 20),
-                        TextFormField(
-                          controller: _confirmPasswordController,
-                          obscureText: _obscureConfirmPassword,
-                          decoration: _fieldDec(
-                            'Confirm Password',
-                            Icons.lock_outline_rounded,
-                            suffix: IconButton(
-                              icon: Icon(
-                                  _obscureConfirmPassword
-                                      ? Icons.visibility_outlined
-                                      : Icons.visibility_off_outlined,
-                                  color: Colors.grey[600]),
-                              onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-                            ),
-                          ),
-                          validator: (v) {
-                            if (v == null || v.isEmpty) return 'Please confirm your password';
-                            if (v != _passwordController.text) return 'Passwords do not match';
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 20),
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _dobController,
-                                readOnly: true,
-                                decoration: _fieldDec('Birthdate (YYYY-MM-DD)', Icons.cake_outlined),
-                                onTap: _pickDob,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 2,
-                              child: DropdownButtonFormField<String>(
-                                value: _selectedSex,
-                                decoration: _fieldDec('Sex', Icons.person_outline),
-                                items: const [
-                                  DropdownMenuItem(value: 'male', child: Text('Male')),
-                                  DropdownMenuItem(value: 'female', child: Text('Female')),
-                                ],
-                                onChanged: (value) => setState(() => _selectedSex = value),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) {
-                                    return 'Required';
-                                  }
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                      SizedBox(
-                        height: 56,
-                        child: ElevatedButton(
-                          onPressed: _isSubmitting
-                              ? null
-                              : () async {
-                            if (_formKey.currentState!.validate()) {
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting ||
+                              (_isSignUpMode && _serverEmailError != null)
+                          ? null
+                          : () async {
+                              if (_formKey.currentState!.validate()) {
                                 setState(() {
                                   _authError = null;
                                   _isSubmitting = true;
                                 });
-                              if (_isSignUpMode) {
+                                if (_isSignUpMode) {
                                   await _handleRegistration();
                                   if (mounted) {
                                     setState(() => _isSubmitting = false);
                                   }
-                              } else {
-                                final result = await ApiService.login(
-                                  email: _emailController.text,
-                                  password: _passwordController.text,
-                                );
-
-                                if (result['success'] == true) {
-                                  UserSession().setFromApiData(
-                                    result['data'] as Map<String, dynamic>,
-                                  );
-                                  if (!mounted) return;
-                                  // Load job action state after login
-                                  await JobActionService().loadFromBackend();
-                                  if (!mounted) return;
-                                  if (widget.renderAsModal) Navigator.pop(context);
-                                  final needsOnboarding =
-                                      await OnboardingPrefs.needsPostAuth();
-                                  if (!mounted) return;
-                                  Navigator.pushReplacement(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => needsOnboarding
-                                          ? const PostAuthOnboardingScreen()
-                                          : const HomePage(),
-                                    ),
-                                  );
                                 } else {
+                                  if (_otpReopenCooldownSeconds > 0) {
+                                    if (!mounted) return;
+                                    setState(() {
+                                      _authError =
+                                          'Please wait ${_otpReopenCooldownSeconds}s before requesting OTP again.';
+                                      _isSubmitting = false;
+                                    });
+                                    return;
+                                  }
+                                  final result = await ApiService.login(
+                                    email: _emailController.text,
+                                    password: _passwordController.text,
+                                  );
+
+                                  if (result['success'] == true) {
+                                    UserSession().setFromApiData(
+                                      result['data'] as Map<String, dynamic>,
+                                    );
+                                    final token = UserSession().token;
+                                    if (token != null && token.isNotEmpty) {
+                                      await SessionPrefs.saveToken(token);
+                                    }
+                                    if (!mounted) return;
+                                    // Load job action state after login
+                                    await JobActionService().loadFromBackend();
+                                    if (!mounted) return;
+                                    if (widget.renderAsModal)
+                                      Navigator.pop(context);
+                                    final needsOnboarding =
+                                        await OnboardingPrefs.needsPostAuth(
+                                            ignoreDebug: true);
+                                    if (!mounted) return;
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => needsOnboarding
+                                            ? const PostAuthOnboardingScreen()
+                                            : const HomePage(),
+                                      ),
+                                    );
+                                  } else if (result['requires_verification'] ==
+                                      true) {
+                                    if (!mounted) return;
+                                    final initialRemainingDailySends =
+                                        _initialRemainingDailySendsFromAuthResponse(
+                                            result);
+                                    final otpResult =
+                                        await showDialog<Map<String, dynamic>>(
+                                      context: context,
+                                      barrierDismissible: false,
+                                      builder: (_) => _OtpVerificationDialog(
+                                        email: _emailController.text.trim(),
+                                        initialRemainingDailySends:
+                                            initialRemainingDailySends,
+                                      ),
+                                    );
+                                    if (otpResult != null &&
+                                        otpResult['success'] == true) {
+                                      final otpData = otpResult['data']
+                                              as Map<String, dynamic>? ??
+                                          {};
+                                      UserSession().setFromApiData(otpData);
+                                      final token = UserSession().token;
+                                      if (token != null && token.isNotEmpty) {
+                                        await SessionPrefs.saveToken(token);
+                                      }
+                                      if (!mounted) return;
+                                      await JobActionService()
+                                          .loadFromBackend();
+                                      if (!mounted) return;
+                                      if (widget.renderAsModal)
+                                        Navigator.pop(context);
+                                      final needsOnboarding =
+                                          await OnboardingPrefs.needsPostAuth(
+                                              ignoreDebug: true);
+                                      if (!mounted) return;
+                                      Navigator.pushReplacement(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => needsOnboarding
+                                              ? const PostAuthOnboardingScreen()
+                                              : const HomePage(),
+                                        ),
+                                      );
+                                      return;
+                                    }
+                                    _handleOtpCancelCooldown();
+                                    if (!mounted) return;
+                                    setState(() {
+                                      _isSubmitting = false;
+                                    });
+                                  } else {
                                     final msg = result['message'] as String? ??
                                         'Login failed. Check your email and password.';
                                     if (!mounted) return;
@@ -2195,97 +2880,75 @@ class _LoginModalState extends State<LoginModal>
                                       _authError = msg;
                                       _isSubmitting = false;
                                     });
+                                  }
                                 }
                               }
-                            }
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                          ),
-                          child: !widget.renderAsModal
-                              ? (_isSubmitting
-                                  ? const Text(
-                                      'Please wait...',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
+                      ),
+                      child: !widget.renderAsModal
+                          ? (_isSubmitting
+                              ? const Text(
+                                  'Please wait...',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                )
+                              : const Text(
+                                  'Continue',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ))
+                          : _isSubmitting && !_isSignUpMode
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                          Colors.white,
+                                        ),
                                       ),
-                                    )
-                                  : const Text(
-                                      'Continue',
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Text(
+                                      'Signing in...',
                                       style: TextStyle(
                                         fontSize: 18,
                                         fontWeight: FontWeight.w700,
                                       ),
-                                    ))
-                              : _isSubmitting && !_isSignUpMode
-                                  ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child:
-                                              CircularProgressIndicator(
-                                            strokeWidth: 2.5,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Text(
-                                          'Signing in...',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Text(
-                                      _isSignUpMode ? 'Sign Up' : 'Sign In',
-                                      style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700),
                                     ),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      if (widget.renderAsModal)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                                _isSignUpMode
-                                    ? 'Already have an account? '
-                                    : "Don't have an account? ",
-                                style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 14)),
-                            TextButton(
-                              onPressed: _switchMode,
-                              child: Text(
-                                  _isSignUpMode ? 'Sign In' : 'Sign Up',
+                                  ],
+                                )
+                              : Text(
+                                  _isSignUpMode ? 'Sign Up' : 'Sign In',
                                   style: const TextStyle(
-                                      color: Color(0xFF2563EB),
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14)),
-                            ),
-                          ],
-                        ),
-                    ],
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700),
+                                ),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
-          ),
+          ],
+        ),
+      ),
     );
 
     if (!widget.renderAsModal) return content;
@@ -2303,12 +2966,390 @@ class _LoginModalState extends State<LoginModal>
   }
 }
 
+class _OtpVerificationDialog extends StatefulWidget {
+  final String email;
+  final int? initialRemainingDailySends;
+  const _OtpVerificationDialog({
+    required this.email,
+    this.initialRemainingDailySends,
+  });
+
+  @override
+  State<_OtpVerificationDialog> createState() => _OtpVerificationDialogState();
+}
+
+class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
+  final _otpController = TextEditingController();
+  final FocusNode _otpFocusNode = FocusNode();
+  Timer? _cooldownTimer;
+  int _resendCooldown = 0;
+  int? _remainingDailySends;
+  String? _statusNote;
+  bool _statusIsWarning = false;
+  bool _isVerifying = false;
+  bool _isResending = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _remainingDailySends = widget.initialRemainingDailySends;
+    _startResendCooldown(const Duration(seconds: 60));
+    _otpFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _otpController.addListener(() {
+      final raw = _otpController.text;
+      final digitsOnly = raw.replaceAll(RegExp(r'[^0-9]'), '');
+      final limited =
+          digitsOnly.length > 6 ? digitsOnly.substring(0, 6) : digitsOnly;
+      if (limited != raw) {
+        _otpController.value = TextEditingValue(
+          text: limited,
+          selection: TextSelection.collapsed(offset: limited.length),
+        );
+      }
+      if (_error != null) {
+        setState(() => _error = null);
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    _otpController.dispose();
+    _otpFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verify() async {
+    final otp = _otpController.text.trim();
+    if (otp.length != 6) {
+      setState(
+          () => _error = 'Please enter the 6-digit OTP sent to your email.');
+      return;
+    }
+    setState(() {
+      _isVerifying = true;
+      _error = null;
+    });
+    final res = await ApiService.verifyJobseekerOtp(
+      email: widget.email,
+      otpCode: otp,
+    );
+    if (!mounted) return;
+    setState(() => _isVerifying = false);
+    if (res['success'] == true) {
+      setState(() {
+        _statusNote = 'Email verified successfully. Redirecting...';
+        _statusIsWarning = false;
+      });
+      Navigator.of(context, rootNavigator: true).pop(res);
+      return;
+    }
+    final msg = _friendlyOtpMessage(res);
+    setState(() {
+      _error = msg;
+      _statusNote = null;
+    });
+  }
+
+  Widget _buildOtpBoxes() {
+    final code = _otpController.text;
+    final isFocused = _otpFocusNode.hasFocus;
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).requestFocus(_otpFocusNode),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFD6DFEE)),
+        ),
+        child: Column(
+          children: [
+            Opacity(
+              opacity: 0.0,
+              child: SizedBox(
+                height: 0,
+                child: TextField(
+                  controller: _otpController,
+                  focusNode: _otpFocusNode,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                ),
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(6, (index) {
+                final hasChar = index < code.length;
+                final isActive = isFocused &&
+                    (index == code.length || (code.length == 6 && index == 5));
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 40,
+                  height: 50,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isActive
+                          ? const Color(0xFF4F67A9)
+                          : const Color(0xFFD7E0EF),
+                      width: isActive ? 2 : 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    hasChar ? code[index] : '',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _resend() async {
+    if (_resendCooldown > 0) return;
+    setState(() {
+      _isResending = true;
+      _error = null;
+    });
+    final res = await ApiService.resendJobseekerOtp(email: widget.email);
+    if (!mounted) return;
+    setState(() => _isResending = false);
+    final msg = _friendlyOtpMessage(res);
+    final retryAfter = (res['retry_after_seconds'] as num?)?.toInt();
+    final cooldown = (res['cooldown_seconds'] as num?)?.toInt();
+    final remaining = (res['remaining_daily_sends'] as num?)?.toInt();
+    if (remaining != null) {
+      setState(() => _remainingDailySends = remaining);
+    }
+    if (res['success'] == true) {
+      if (cooldown != null && cooldown > 0) {
+        _startResendCooldown(Duration(seconds: cooldown));
+      } else {
+        _startResendCooldown(const Duration(seconds: 60));
+      }
+      setState(() {
+        _statusNote = 'New OTP sent. Check your email.';
+        _statusIsWarning = false;
+      });
+    } else if (retryAfter != null && retryAfter > 0) {
+      _startResendCooldown(Duration(seconds: retryAfter));
+      setState(() {
+        _statusNote = 'Please wait before requesting another OTP.';
+        _statusIsWarning = true;
+      });
+    } else {
+      setState(() {
+        _statusNote = msg;
+        _statusIsWarning = true;
+      });
+    }
+  }
+
+  void _startResendCooldown(Duration duration) {
+    _cooldownTimer?.cancel();
+    setState(() => _resendCooldown = duration.inSeconds);
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendCooldown <= 1) {
+        timer.cancel();
+        setState(() => _resendCooldown = 0);
+      } else {
+        setState(() => _resendCooldown--);
+      }
+    });
+  }
+
+  String _friendlyOtpMessage(Map<String, dynamic> res) {
+    final raw = (res['message'] as String?)?.trim();
+    final message = (raw ?? '').toLowerCase();
+    if (message.contains('daily otp limit reached') ||
+        message.contains('7/day')) {
+      return 'You have reached today\'s OTP limit (7/day). Try again tomorrow.';
+    }
+    if (message.contains('expired after 24 hours') ||
+        message.contains('deleted')) {
+      return 'Your unverified account expired after 24 hours. Please register again.';
+    }
+    if (message.contains('invalid verification code')) {
+      return 'Incorrect OTP. Please check the code and try again.';
+    }
+    if (message.contains('verification code has expired')) {
+      return 'This OTP has expired. Tap Resend OTP to get a new code.';
+    }
+    if (message.contains('please wait')) {
+      return 'Please wait before requesting another OTP.';
+    }
+    if (message.contains('failed to send otp')) {
+      return 'Unable to send OTP right now. Please try again shortly.';
+    }
+    return raw ?? 'Something went wrong. Please try again.';
+  }
+
+  Widget _buildStatusBanner() {
+    if (_statusNote == null || _statusNote!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final color =
+        _statusIsWarning ? const Color(0xFFB45309) : const Color(0xFF1D4ED8);
+    final bg =
+        _statusIsWarning ? const Color(0xFFFFF7ED) : const Color(0xFFEFF6FF);
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            _statusIsWarning
+                ? Icons.info_outline_rounded
+                : Icons.check_circle_outline_rounded,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _statusNote!,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: color,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Verify your email',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enter the 6-digit OTP sent to ${widget.email}.',
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF64748B),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildOtpBoxes(),
+            _buildStatusBanner(),
+            if (_remainingDailySends != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '$_remainingDailySends sends left today',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  color: Color(0xFFDC2626),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: _isResending || _isVerifying || _resendCooldown > 0
+                      ? null
+                      : _resend,
+                  child: Text(
+                    _isResending
+                        ? 'Resending...'
+                        : _resendCooldown > 0
+                            ? 'Resend in ${_resendCooldown}s'
+                            : 'Resend OTP',
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: _isVerifying
+                      ? null
+                      : () => Navigator.of(context, rootNavigator: true).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: (_isVerifying || _isResending) ? null : _verify,
+                  child: Text(_isVerifying ? 'Verifying...' : 'Verify'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Registration Loading Dialog ─────────────────────────────────────────────
 class _RegistrationLoadingDialog extends StatefulWidget {
   const _RegistrationLoadingDialog();
 
   @override
-  State<_RegistrationLoadingDialog> createState() => _RegistrationLoadingDialogState();
+  State<_RegistrationLoadingDialog> createState() =>
+      _RegistrationLoadingDialogState();
 }
 
 class _RegistrationLoadingDialogState extends State<_RegistrationLoadingDialog>
@@ -2318,7 +3359,9 @@ class _RegistrationLoadingDialogState extends State<_RegistrationLoadingDialog>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat();
+    _controller =
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
+          ..repeat();
   }
 
   @override
@@ -2337,7 +3380,12 @@ class _RegistrationLoadingDialogState extends State<_RegistrationLoadingDialog>
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 30, offset: const Offset(0, 10))],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 30,
+                offset: const Offset(0, 10))
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2355,10 +3403,12 @@ class _RegistrationLoadingDialogState extends State<_RegistrationLoadingDialog>
                         height: 100,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          border: Border.all(color: const Color(0xFFE2E8F0), width: 4),
+                          border: Border.all(
+                              color: const Color(0xFFE2E8F0), width: 4),
                         ),
                         child: CustomPaint(
-                          painter: _LoadingArcPainter(color: const Color(0xFF2563EB), strokeWidth: 4),
+                          painter: _LoadingArcPainter(
+                              color: const Color(0xFF2563EB), strokeWidth: 4),
                         ),
                       ),
                     );
@@ -2370,16 +3420,26 @@ class _RegistrationLoadingDialogState extends State<_RegistrationLoadingDialog>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white,
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)],
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withOpacity(0.05), blurRadius: 10)
+                    ],
                   ),
-                  child: ClipOval(child: Image.asset('assets/PESOLOGO.jpg', fit: BoxFit.cover)),
+                  child: ClipOval(
+                      child: Image.asset('assets/PESOLOGO.jpg',
+                          fit: BoxFit.cover)),
                 ),
               ],
             ),
             const SizedBox(height: 24),
-            const Text('Creating your account', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+            const Text('Creating your account',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A))),
             const SizedBox(height: 8),
-            Text('Please wait...', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+            Text('Please wait...',
+                style: TextStyle(fontSize: 14, color: Colors.grey[600])),
           ],
         ),
       ),
@@ -2414,10 +3474,12 @@ class _RegistrationResultDialog extends StatefulWidget {
   final bool isSuccess;
   final String message;
 
-  const _RegistrationResultDialog({required this.isSuccess, required this.message});
+  const _RegistrationResultDialog(
+      {required this.isSuccess, required this.message});
 
   @override
-  State<_RegistrationResultDialog> createState() => _RegistrationResultDialogState();
+  State<_RegistrationResultDialog> createState() =>
+      _RegistrationResultDialogState();
 }
 
 class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
@@ -2429,12 +3491,15 @@ class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _controller = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
     _scaleAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeOut)),
+      CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.0, 0.5, curve: Curves.easeOut)),
     );
     _controller.forward();
 
@@ -2466,7 +3531,12 @@ class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(24),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 30, offset: const Offset(0, 10))],
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(0.15),
+                      blurRadius: 30,
+                      offset: const Offset(0, 10))
+                ],
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -2477,9 +3547,12 @@ class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE2E8F0), width: 2),
+                      border:
+                          Border.all(color: const Color(0xFFE2E8F0), width: 2),
                     ),
-                    child: ClipOval(child: Image.asset('assets/PESOLOGO.jpg', fit: BoxFit.cover)),
+                    child: ClipOval(
+                        child: Image.asset('assets/PESOLOGO.jpg',
+                            fit: BoxFit.cover)),
                   ),
                   const SizedBox(height: 20),
                   ScaleTransition(
@@ -2494,9 +3567,13 @@ class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
                             : const Color(0xFFEF4444).withOpacity(0.1),
                       ),
                       child: Icon(
-                        widget.isSuccess ? Icons.check_circle_rounded : Icons.cancel_rounded,
+                        widget.isSuccess
+                            ? Icons.check_circle_rounded
+                            : Icons.cancel_rounded,
                         size: 50,
-                        color: widget.isSuccess ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                        color: widget.isSuccess
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFEF4444),
                       ),
                     ),
                   ),
@@ -2506,14 +3583,17 @@ class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w800,
-                      color: widget.isSuccess ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+                      color: widget.isSuccess
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFEF4444),
                     ),
                   ),
                   const SizedBox(height: 12),
                   Text(
                     widget.message,
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.5),
+                    style: TextStyle(
+                        fontSize: 14, color: Colors.grey[600], height: 1.5),
                   ),
                   if (!widget.isSuccess) ...[
                     const SizedBox(height: 24),
@@ -2525,10 +3605,13 @@ class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
                           backgroundColor: const Color(0xFF2563EB),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
                         ),
-                        child: const Text('Try Again', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                        child: const Text('Try Again',
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ],

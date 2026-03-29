@@ -1416,7 +1416,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   void _openNotifications() {
     Navigator.of(context)
         .push(
-          MaterialPageRoute(builder: (_) => const NotificationsTab()),
+          MaterialPageRoute(
+            builder: (_) => NotificationsTab(
+              onOpenMapRequested: (focus) {
+                Navigator.of(context).pop();
+                widget.onOpenMapRequested?.call(focus);
+              },
+            ),
+          ),
         )
         .then((_) {
       if (mounted) {
@@ -4399,7 +4406,9 @@ class _JobListItem extends StatelessWidget {
 
 // ─── Notifications Tab ────────────────────────────────────────────────────────
 class NotificationsTab extends StatefulWidget {
-  const NotificationsTab({super.key});
+  final ValueChanged<MapFocusRequest>? onOpenMapRequested;
+
+  const NotificationsTab({super.key, this.onOpenMapRequested});
 
   @override
   State<NotificationsTab> createState() => _NotificationsTabState();
@@ -4518,6 +4527,42 @@ class _NotificationsTabState extends State<NotificationsTab> {
     }
   }
 
+  Future<void> _openInvitationJob(Map<String, dynamic> notification) async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return;
+
+    final notif = notification['notification'] as Map<String, dynamic>? ?? {};
+    // Try job listing data from eager-loaded relationship first
+    final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+    final rawJobId = notif['job_listing_id'];
+    final jobId = rawJobId is int ? rawJobId : int.tryParse(rawJobId?.toString() ?? '');
+
+    if (jobId == null) return;
+
+    // Prefer embedded listing data to avoid an extra round-trip
+    Map<String, dynamic>? jobData;
+    if (jobListing != null) {
+      jobData = jobListing;
+    } else {
+      final result = await ApiService.getJobById(token, jobId);
+      if (result['success'] == true) {
+        final raw = result['data'];
+        jobData = raw is Map<String, dynamic> ? raw : null;
+      }
+    }
+    if (jobData == null || !mounted) return;
+    final job = Job.fromJson(jobData);
+    if (!mounted) return;
+    showJobDetailSheet(
+      context, 
+      job,
+      onViewMap: widget.onOpenMapRequested != null ? () {
+        Navigator.of(context).pop();
+        widget.onOpenMapRequested!(MapFocusRequest.fromJob(job));
+      } : null,
+    );
+  }
+
   Future<void> _deleteNotification(int index) async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
@@ -4544,6 +4589,57 @@ class _NotificationsTabState extends State<NotificationsTab> {
         _notifications.clear();
       });
     }
+  }
+
+  List<TextSpan> _parseMessageWithBold(String message) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'\*\*(.*?)\*\*');
+    int lastIndex = 0;
+
+    for (final match in regex.allMatches(message)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: message.substring(lastIndex, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF0F172A),
+        ),
+      ));
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < message.length) {
+      spans.add(TextSpan(text: message.substring(lastIndex)));
+    }
+
+    return spans;
+  }
+
+  Widget _buildChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: const Color(0xFF64748B)),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF64748B),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -4652,117 +4748,364 @@ class _NotificationsTabState extends State<NotificationsTab> {
                         ),
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
                         itemCount: _notifications.length,
-                        itemBuilder: (context, index) {
-                          final n = _notifications[index];
-                          final notif = n['notification'] as Map<String, dynamic>? ?? {};
-                          final subject = notif['subject'] as String? ?? 'Notification';
-                          final message = notif['message'] as String? ?? '';
-                          final createdAt = DateTime.tryParse(
-                                (notif['created_at'] as String? ?? ''),
-                              ) ??
-                              DateTime.now();
-                          final isRead = n['read_at'] != null;
+                          itemBuilder: (context, index) {
+                            final n = _notifications[index];
+                            final notif = n['notification'] as Map<String, dynamic>? ?? {};
+                            final type = notif['type'] as String?;
+                            final subject = notif['subject'] as String? ?? 'Notification';
+                            final message = notif['message'] as String? ?? '';
+                            final createdAt = DateTime.tryParse(
+                                  (notif['created_at'] as String? ?? ''),
+                                ) ??
+                                DateTime.now();
+                            final isRead = n['read_at'] != null;
+                            final id = n['id'] ?? index;
 
-                          final id = n['id'] ?? index;
+                            // Shared time/date formatting
+                            final diff = DateTime.now().difference(createdAt);
+                            final timeAgo = diff.inDays > 0
+                                ? '${diff.inDays}d ago'
+                                : diff.inHours > 0
+                                    ? '${diff.inHours}h ago'
+                                    : diff.inMinutes > 0
+                                        ? '${diff.inMinutes}m ago'
+                                        : 'just now';
 
-                          return Dismissible(
-                            key: ValueKey('notif_$id'),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444),
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              alignment: Alignment.centerRight,
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 20),
-                              child: const Icon(
-                                Icons.delete_rounded,
-                                color: Colors.white,
-                              ),
-                            ),
-                            onDismissed: (_) => _deleteNotification(index),
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isRead
-                                      ? const Color(0xFFE2E8F0)
-                                      : const Color(0xFF2563EB)
-                                          .withOpacity(0.5),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.04),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: ListTile(
-                                onTap: () => _openNotification(index),
-                                leading: Container(
-                                  width: 40,
-                                  height: 40,
+                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            final dateFormatted = '${monthNames[createdAt.month - 1]}/${createdAt.day.toString().padLeft(2, '0')}/${createdAt.year}';
+
+                            // ── Invitation card ───────────────────────────
+                            if (type == 'invitation') {
+                              final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+                              final jobTitle = jobListing?['title'] as String? ?? subject;
+                              final jobType = jobListing?['type'] as String? ?? '';
+                              final jobLocation = jobListing?['location'] as String? ?? '';
+                              final companyName = (jobListing?['employer'] as Map<String, dynamic>?)?['company_name'] as String? ?? 'An employer';
+
+                              return Dismissible(
+                                key: ValueKey('notif_$id'),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF2563EB)
-                                        .withOpacity(0.1),
-                                    shape: BoxShape.circle,
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
-                                  child: const Icon(
-                                    Icons.notifications_rounded,
-                                    color: Color(0xFF2563EB),
-                                    size: 22,
-                                  ),
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                                  child: const Icon(Icons.delete_rounded, color: Colors.white),
                                 ),
-                                title: Text(
-                                  subject,
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: isRead
-                                        ? FontWeight.w500
-                                        : FontWeight.w700,
-                                    color: const Color(0xFF0F172A),
+                                onDismissed: (_) => _deleteNotification(index),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      message,
-                                      style: const TextStyle(
-                                        fontSize: 13,
-                                        color: Color(0xFF64748B),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Material(
+                                      color: Colors.white,
+                                      child: InkWell(
+                                        onTap: () => _openNotification(index),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            border: Border(
+                                              left: BorderSide(
+                                                color: isRead ? Colors.transparent : const Color(0xFF2563EB),
+                                                width: 4,
+                                              ),
+                                              top: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
+                                              right: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
+                                              bottom: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.all(16),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              // Header row
+                                              Row(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Container(
+                                                    width: 40,
+                                                    height: 40,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.event_seat_rounded,
+                                                      color: Color(0xFF2563EB),
+                                                      size: 20,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          subject,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                                                            color: const Color(0xFF0F172A),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 2),
+                                                        Text(
+                                                          '$timeAgo • $dateFormatted',
+                                                          style: const TextStyle(
+                                                            fontSize: 12,
+                                                            color: Color(0xFF94A3B8),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  if (!isRead)
+                                                    Container(
+                                                      margin: const EdgeInsets.only(top: 8, right: 4),
+                                                      width: 10,
+                                                      height: 10,
+                                                      decoration: const BoxDecoration(
+                                                        color: Color(0xFF2563EB),
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 16),
+
+                                              // Company + job title box
+                                              Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.all(14),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF8FAFF),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                                ),
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      companyName,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: Color(0xFF2563EB),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      jobTitle,
+                                                      style: const TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Color(0xFF0F172A),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 10),
+                                                    Wrap(
+                                                      spacing: 8,
+                                                      runSpacing: 6,
+                                                      children: [
+                                                        if (jobLocation.isNotEmpty)
+                                                          _buildChip(Icons.location_on_outlined, jobLocation),
+                                                        if (jobType.isNotEmpty)
+                                                          _buildChip(Icons.work_outline_rounded, jobType),
+                                                        if ((jobListing?['salary_range'] as String? ?? '').isNotEmpty)
+                                                          _buildChip(Icons.payments_outlined, jobListing!['salary_range']),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(height: 16),
+
+                                              // View Job Details button
+                                              SizedBox(
+                                                width: double.infinity,
+                                                height: 44,
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () => _openInvitationJob(n),
+                                                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                                                  label: const Text('View Job Details'),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor: const Color(0xFF2563EB),
+                                                    side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    textStyle: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w700,
+                                                      letterSpacing: 0.3,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                       ),
                                     ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      '${createdAt.month}/${createdAt.day}/${createdAt.year}',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        color: Color(0xFF94A3B8),
-                                      ),
+                                  ),
+                                ),
+                              );
+                            }
+
+                            // Determine icon and color for generic card based on status/type
+                            IconData statusIcon = Icons.notifications_rounded;
+                            Color statusColor = const Color(0xFF2563EB);
+
+                            if (type != null) {
+                              final t = type.toLowerCase();
+                              final s = subject.toLowerCase();
+                              final m = message.toLowerCase();
+
+                              if (t.contains('shortlisted') || s.contains('shortlisted') || m.contains('shortlisted')) {
+                                statusIcon = Icons.star_rounded;
+                                statusColor = const Color(0xFFF59E0B); // Amber
+                              } else if (t.contains('interview') || s.contains('interview') || m.contains('interview')) {
+                                statusIcon = Icons.calendar_today_rounded;
+                                statusColor = const Color(0xFF8B5CF6); // Violet
+                              } else if (t.contains('hired') || s.contains('hired') || m.contains('hired')) {
+                                statusIcon = Icons.check_circle_rounded;
+                                statusColor = const Color(0xFF10B981); // Emerald
+                              } else if (t.contains('rejected') || s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) {
+                                statusIcon = Icons.cancel_rounded;
+                                statusColor = const Color(0xFFEF4444); // Red
+                              } else if (t.contains('reviewing') || s.contains('received') || m.contains('received')) {
+                                statusIcon = Icons.pending_actions_rounded;
+                                statusColor = const Color(0xFF2563EB); // Blue
+                              }
+                            } else {
+                              // Fallback for null type based on text
+                              final s = subject.toLowerCase();
+                              final m = message.toLowerCase();
+                              if (s.contains('shortlisted') || m.contains('shortlisted')) {
+                                statusIcon = Icons.star_rounded;
+                                statusColor = const Color(0xFFF59E0B);
+                              } else if (s.contains('interview') || m.contains('interview')) {
+                                statusIcon = Icons.calendar_today_rounded;
+                                statusColor = const Color(0xFF8B5CF6);
+                              } else if (s.contains('hired') || m.contains('hired')) {
+                                statusIcon = Icons.check_circle_rounded;
+                                statusColor = const Color(0xFF10B981);
+                              } else if (s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) {
+                                statusIcon = Icons.cancel_rounded;
+                                statusColor = const Color(0xFFEF4444);
+                              } else if (s.contains('received') || m.contains('received')) {
+                                statusIcon = Icons.pending_actions_rounded;
+                                statusColor = const Color(0xFF2563EB);
+                              }
+                            }
+
+                            // ── Generic notification card ─────────────────
+                            return Dismissible(
+                              key: ValueKey('notif_$id'),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEF4444),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                child: const Icon(Icons.delete_rounded, color: Colors.white),
+                              ),
+                              onDismissed: (_) => _deleteNotification(index),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isRead
+                                        ? const Color(0xFFE2E8F0)
+                                        : statusColor.withOpacity(0.5),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.04),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
                                     ),
                                   ],
                                 ),
-                                trailing: !isRead
-                                    ? Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration: const BoxDecoration(
-                                          color: Color(0xFF2563EB),
-                                          shape: BoxShape.circle,
+                                child: ListTile(
+                                  onTap: () => _openNotification(index),
+                                  leading: Container(
+                                    width: 40,
+                                    height: 40,
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      statusIcon,
+                                      color: statusColor,
+                                      size: 22,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    subject,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
+                                      color: const Color(0xFF0F172A),
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const SizedBox(height: 4),
+                                      RichText(
+                                        text: TextSpan(
+                                          children: _parseMessageWithBold(message),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF64748B),
+                                            height: 1.4,
+                                          ),
                                         ),
-                                      )
-                                    : null,
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        '$timeAgo • $dateFormatted',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF94A3B8),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: !isRead
+                                      ? Container(
+                                          width: 10,
+                                          height: 10,
+                                          decoration: BoxDecoration(
+                                            color: statusColor,
+                                            shape: BoxShape.circle,
+                                          ),
+                                        )
+                                      : null,
+                                ),
                               ),
-                            ),
-                          );
-                        },
+                            );
+                          },
                       ),
                     ),
       floatingActionButton: _notifications.isEmpty

@@ -26,6 +26,7 @@ class UserSession {
   String? avatarPath;
   String? educationLevel;
   String? jobExperience;
+  bool isOnboardingDone = false;
 
   bool get isLoggedIn => token != null && token!.isNotEmpty;
 
@@ -91,6 +92,12 @@ class UserSession {
     avatarPath = user['avatar_path'] as String?;
     educationLevel = (user['education_level'] as String?)?.trim();
     jobExperience = (user['job_experience'] as String?)?.trim();
+    final rawOnboarding = user['is_onboarding_done'];
+    if (rawOnboarding is bool) {
+      isOnboardingDone = rawOnboarding;
+    } else if (rawOnboarding is int) {
+      isOnboardingDone = (rawOnboarding == 1);
+    }
     final rawSkills = user['skills'];
     if (rawSkills is List) {
       skills = rawSkills.map((e) {
@@ -130,6 +137,7 @@ class UserSession {
     skills = [];
     educationLevel = null;
     jobExperience = null;
+    isOnboardingDone = false;
   }
 }
 

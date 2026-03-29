@@ -518,6 +518,18 @@ export default {
       }
     },
 
+    confirmSendInvite(a) {
+      if (a.invited || a._inviting) return;
+      this.confirmModal = {
+        show: true, theme: 'blue',
+        title: 'Invite this jobseeker?',
+        desc: `Are you sure you want to personally invite ${a.name} to apply for ${a.bestFor}? They will be notified by email.`,
+        icon: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
+        okHtml: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Yes, Invite`,
+        onConfirm: () => { this.confirmModal.show = false; this.sendInvite(a) },
+      }
+    },
+
     confirmReject(applicant) {
       this.confirmModal = {
         show: true, theme: 'red',
@@ -543,30 +555,24 @@ export default {
       finally { this.openingResume = false }
     },
 
-    confirmSendInvite(a) {
-      this.confirmModal = {
-        show: true, theme: 'blue',
-        title: 'Send invitation to apply?',
-        desc: `${a.name} will receive an email invite for ${a.bestFor || 'your job listing'} and a notification in their account.`,
-        icon: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
-        okHtml: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Yes, Send Invite`,
-        onConfirm: () => { this.confirmModal.show = false; this.sendInvite(a) },
-      }
-    },
-
     async sendInvite(a) {
-      this.applicantsStore.markInvited(a.id)
-      const found = this.potentialApplicants.find((x) => x.id === a.id)
-      if (found) found.invited = true
+      if (a.invited || a._inviting) return
+      if (!a.jobId) {
+        this.showToastMsg('No matching job listing found for this applicant.', 'error')
+        return
+      }
+      a._inviting = true
       try {
-        await employerApi.sendInvite(a.id)
-        this.showToastMsg(`Invitation sent to ${a.name}!`, 'success')
+        await employerApi.sendInvitation(a.id, a.jobId)
+        this.applicantsStore.markInvited(a.id)
+        const found = this.potentialApplicants.find((x) => x.id === a.id)
+        if (found) found.invited = true
+        this.showToastMsg('Invitation sent successfully!', 'success')
       } catch (e) {
-        // revert on failure
-        if (found) found.invited = false
-        this.applicantsStore.potentialApplicants.find(x => x.id === a.id) && (this.applicantsStore.potentialApplicants.find(x => x.id === a.id).invited = false)
-        this.showToastMsg('Failed to send invitation. Please try again.', 'error')
-        console.error('sendInvite error:', e)
+        const msg = e?.response?.data?.message || 'Failed to send invitation. Please try again.'
+        this.showToastMsg(msg, 'error')
+      } finally {
+        a._inviting = false
       }
     },
 

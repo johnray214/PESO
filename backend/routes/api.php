@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\Employer\EmployerJobListingController;
 use App\Http\Controllers\Api\Employer\EmployerApplicationController;
 use App\Http\Controllers\Api\Employer\EmployerProfileController;
 use App\Http\Controllers\Api\Employer\EmployerNotificationController;
+use App\Http\Controllers\Api\Employer\EmployerInvitationController;
 
 // Jobseeker Controllers
 use App\Http\Controllers\Api\Jobseeker\JobseekerProfileController;
@@ -64,6 +65,7 @@ Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPa
 
 // Jobseeker Auth
 Route::post('/jobseeker/login', [JobseekerAuthController::class, 'login']);
+Route::get('/jobseeker/check-email', [JobseekerAuthController::class, 'checkEmail']);
 Route::post('/jobseeker/register', [JobseekerAuthController::class, 'register']);
 Route::post('/jobseeker/verify-otp', [JobseekerAuthController::class, 'verifyOtp']);
 Route::post('/jobseeker/resend-otp', [JobseekerAuthController::class, 'resendOtp']);
@@ -220,6 +222,9 @@ Route::middleware(['auth:employer', \App\Http\Middleware\EnsureEmployer::class])
     Route::post('/notifications/mark-all-read', [EmployerNotificationController::class, 'markAllAsRead']);
     Route::post('/notifications/{id}/mark-read', [EmployerNotificationController::class, 'markRead']);
     Route::get('/notifications/{id}', [EmployerNotificationController::class, 'show']);
+
+    // Invitations (send to jobseekers)
+    Route::post('/invite/{jobseeker_id}', [EmployerInvitationController::class, 'sendInvitation']);
 });
 
 /*

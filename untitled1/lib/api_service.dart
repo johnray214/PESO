@@ -1,9 +1,10 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = 'http://192.168.254.101:8000/api';
 
   /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
   static String get apiOrigin {
@@ -50,6 +51,18 @@ class ApiService {
     return publicStorageUrl(t);
   }
 
+  static Future<Map<String, dynamic>> checkJobseekerEmail(String email) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/jobseeker/check-email?email=$email'),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (_) {
+      return {'success': false, 'exists': false};
+    }
+  }
+
   static Future<Map<String, dynamic>> register({
     required String firstName,
     required String lastName,
@@ -76,9 +89,90 @@ class ApiService {
           'sex': sex,
           'date_of_birth': dateOfBirth,
         }),
-      );
+      ).timeout(const Duration(seconds: 25));
 
       return jsonDecode(response.body);
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Registration request timed out. Please check your connection and try again.',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Connection error: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Sends a password reset link to the jobseeker email (Laravel Password broker).
+  static Future<Map<String, dynamic>> forgotJobseekerPassword({
+    required String email,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/forgot-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email.trim()}),
+      );
+      final body = response.body.trim();
+      if (body.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Empty response from server (${response.statusCode})',
+        };
+      }
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+      final map = Map<String, dynamic>.from(decoded);
+      if (map['success'] == null) {
+        map['success'] = response.statusCode >= 200 && response.statusCode < 300;
+      }
+      return map;
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Connection error: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Completes password reset (same contract as Vue `JobseekerReset.vue`).
+  static Future<Map<String, dynamic>> resetJobseekerPassword({
+    required String email,
+    required String token,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/reset-password'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email.trim(),
+          'token': token,
+          'password': password,
+          'password_confirmation': passwordConfirmation,
+        }),
+      );
+      final body = response.body.trim();
+      if (body.isEmpty) {
+        return {
+          'success': false,
+          'message': 'Empty response from server (${response.statusCode})',
+        };
+      }
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, dynamic>) {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+      final map = Map<String, dynamic>.from(decoded);
+      if (map['success'] == null) {
+        map['success'] = response.statusCode >= 200 && response.statusCode < 300;
+      }
+      return map;
     } catch (e) {
       return {
         'success': false,
@@ -110,6 +204,56 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> verifyJobseekerOtp({
+    required String email,
+    required String otpCode,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/verify-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'otp_code': otpCode,
+        }),
+      ).timeout(const Duration(seconds: 20));
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'OTP verification timed out. Please try again.',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Connection error: ${e.toString()}',
+      };
+    }
+  }
+
+  static Future<Map<String, dynamic>> resendJobseekerOtp({
+    required String email,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/resend-otp'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      ).timeout(const Duration(seconds: 20));
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Resend request timed out. Please try again shortly.',
+      };
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Connection error: ${e.toString()}',
+      };
+    }
+  }
+
   static Future<Map<String, dynamic>> logout(String token) async {
     try {
       final response = await http.post(
@@ -121,6 +265,46 @@ class ApiService {
       );
 
       return jsonDecode(response.body);
+    } catch (e) {
+      return {
+        'success': false,
+        'message': 'Connection error: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Authenticated jobseeker: change password (`current_password`, `password`, `password_confirmation`).
+  static Future<Map<String, dynamic>> changeJobseekerPassword({
+    required String token,
+    required String currentPassword,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/jobseeker/profile/password'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'current_password': currentPassword,
+              'password': password,
+              'password_confirmation': passwordConfirmation,
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
+
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return {'success': false, 'message': 'Unexpected response from server.'};
+    } on TimeoutException {
+      return {
+        'success': false,
+        'message': 'Request timed out. Check your connection and try again.',
+      };
     } catch (e) {
       return {
         'success': false,
@@ -727,6 +911,7 @@ class ApiService {
     String? bio,
     String? educationLevel,
     String? jobExperience,
+    bool? isOnboardingDone,
   }) async {
     try {
       final body = <String, dynamic>{};
@@ -751,6 +936,9 @@ class ApiService {
       if (bio != null) body['bio'] = bio;
       if (educationLevel != null) body['education_level'] = educationLevel;
       if (jobExperience != null) body['job_experience'] = jobExperience;
+      if (isOnboardingDone != null) {
+        body['is_onboarding_done'] = isOnboardingDone;
+      }
 
       final response = await http.put(
         Uri.parse('$baseUrl/jobseeker/profile'),
@@ -782,6 +970,24 @@ class ApiService {
         body: jsonEncode({'skills': skills}),
       );
       return jsonDecode(response.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getJobById(
+    String token,
+    int id,
+  ) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/jobseeker/jobs/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
       return {'success': false, 'message': 'Connection error: ${e.toString()}'};
     }
