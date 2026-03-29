@@ -54,18 +54,17 @@
               </div>
               <div class="notif-body">
                 <div class="notif-top-row">
-                  <p class="notif-title">{{ n.title }}</p>
-                  <div class="notif-meta-right">
-                    <span class="notif-type-badge" :style="{ background: typeConfig[n.type].bg, color: typeConfig[n.type].color }">{{ n.type }}</span>
-                    <span class="notif-time">{{ n.time }}</span>
-                    <span v-if="!n.read" class="unread-dot"></span>
-                  </div>
+                  <span class="notif-title">{{ n.title }}</span>
+                  <span class="notif-time">{{ n.time }}</span>
                 </div>
                 <p class="notif-msg">{{ n.message }}</p>
+                <div class="notif-tags">
+                  <span class="notif-type-badge" :style="{ background: typeConfig[n.type].bg, color: typeConfig[n.type].color }">{{ n.type }}</span>
+                </div>
                 <div v-if="n.action" class="notif-action-row">
-                  <button class="notif-action-btn">{{ n.action }}</button>
                 </div>
               </div>
+              <div v-if="!n.read" class="unread-dot"></div>
             </div>
             <div v-if="filteredNotifications.length === 0" class="empty-state">
               <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -240,15 +239,15 @@ export default {
 .notif-card:last-child { border-bottom: none; }
 .notif-card:hover { background: #f8fafc; }
 .notif-card.unread { border-left: 3px solid #2872A1; background: #fafcff; }
-.notif-icon-wrap { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.notif-top-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.notif-title { font-size: 13px; font-weight: 700; color: #1e293b; }
-.notif-meta-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.notif-type-badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 6px; text-transform: capitalize; }
-.notif-time { font-size: 11px; color: #94a3b8; white-space: nowrap; }
-.unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #2872A1; flex-shrink: 0; }
-.notif-msg { font-size: 12.5px; color: #64748b; line-height: 1.5; }
+.notif-icon-wrap { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.notif-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.notif-top-row { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; gap: 8px; }
+.notif-title { font-size: 13.5px; font-weight: 700; color: #1e293b; }
+.notif-time { font-size: 11px; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
+.notif-msg { font-size: 12.5px; color: #64748b; line-height: 1.5; margin-bottom: 8px; }
+.notif-tags { display: flex; gap: 6px; }
+.notif-type-badge { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 5px; text-transform: capitalize; }
+.unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #2872A1; flex-shrink: 0; margin-top: 6px; }
 .notif-action-row { margin-top: 2px; }
 .notif-action-btn { background: #eff8ff; color: #2872A1; border: none; border-radius: 7px; padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
 .notif-action-btn:hover { background: #dbeafe; }

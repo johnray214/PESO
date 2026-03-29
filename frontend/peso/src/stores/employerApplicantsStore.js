@@ -19,7 +19,7 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
   getters: {
     totalApplicants:  (state) => state.applicants.length || state.counts.applicants,
     totalPotential:   (state) => state.potentialApplicants.length || state.counts.potential,
-    reviewingCount:   (state) => state.applicants.filter((a) => a.status === 'Reviewing').length,
+    reviewingCount:   (state) => state.applicants.length ? state.applicants.filter((a) => a.status === 'Reviewing').length : (state.counts.reviewing || 0),
     shortlistedCount: (state) => state.applicants.filter((a) => a.status === 'Shortlisted').length,
     interviewCount:   (state) => state.applicants.filter((a) => a.status === 'Interview').length,
     hiredCount:       (state) => state.applicants.filter((a) => a.status === 'Hired').length,
@@ -30,17 +30,17 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
     async fetch() {
       if (this.loading) return
 
-      // Load counts from cache for initial render
+      // Show cached counts instantly while fresh data loads
       const cachedCounts = localStorage.getItem('employer_applicants_counts')
       if (cachedCounts) {
         try {
           this.counts = JSON.parse(cachedCounts)
         } catch {
-          this.counts = { applicants: 0, potential: 0 }
+          this.counts = { applicants: 0, potential: 0, reviewing: 0 }
         }
       }
 
-      if (this.loaded) return
+      // Always load fresh data from backend on every page visit
       await this._load()
     },
 
@@ -60,6 +60,17 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
         const apps = appRes.data.data?.data || appRes.data.data || []
         const potential = potRes.data.data?.data || potRes.data.data || []
 
+        const EDU_LABELS = {
+          no_requirement:    'No Requirement',
+          elementary:        'Elementary Graduate',
+          highschool:        'High School Graduate',
+          senior_highschool: 'Senior High School / K-12',
+          vocational:        'Vocational / TESDA',
+          college_level:     'At Least College Level',
+          college_graduate:  'College Graduate',
+          related_course:    'College Graduate (Related Course)',
+          postgraduate:      "Post-Graduate / Master's",
+        }
         this.applicants = apps.map((a, i) => {
           const js     = a.jobseeker || {}
           const skills = Array.isArray(js.skills) ? js.skills : []
@@ -71,10 +82,12 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
             email:      js.email      || '',
             sex:        js.sex        || '',
             dateOfBirth: js.date_of_birth || '',
-            education:  js.education_level  || '',
+            education:  EDU_LABELS[js.education_level] || js.education_level || '',
             experience: js.job_experience  || '',
             skills,
             jobApplied: a.job_listing?.title || 'Unknown Position',
+            salary:     a.job_listing?.salary_range || 'Negotiable',
+            employmentType: a.job_listing?.type ? a.job_listing.type.charAt(0).toUpperCase() + a.job_listing.type.slice(1) : 'Full-time',
             date:       new Date(a.applied_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
             matchScore: a.match_score || 0,
             status:     (a.status?.charAt(0).toUpperCase() + a.status?.slice(1)) || 'Reviewing',
@@ -83,33 +96,38 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
             hasResume:  !!js.has_resume,
           }
         })
+
         this.potentialApplicants = potential.map((a, i) => {
           const skillsData = a.skills || []
           const skills = Array.isArray(skillsData)
             ? (typeof skillsData[0] === 'string' ? skillsData : skillsData.map((s) => s.skill || s))
             : []
+          const bestJobSkillsRaw = a.best_job_skills || []
+          const bestJobSkills = Array.isArray(bestJobSkillsRaw) ? bestJobSkillsRaw : []
           return {
-            id:        a.id,
-            name:      a.full_name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Unknown',
-            color:     AVATAR_COLORS[i % AVATAR_COLORS.length],
-            score:     Math.round(a.match_score || 70),
-            bestFor:   a.best_job_match || '',
-            jobColor:  AVATAR_COLORS[i % AVATAR_COLORS.length],
+            id:           a.id,
+            name:         a.full_name || `${a.first_name || ''} ${a.last_name || ''}`.trim() || 'Unknown',
+            color:        AVATAR_COLORS[i % AVATAR_COLORS.length],
+            score:        Math.round(a.match_score || 70),
+            bestFor:      a.best_job_match || '',
+            bestJobSkills,
+            jobColor:     AVATAR_COLORS[i % AVATAR_COLORS.length],
             skills,
-            location:  a.address       || 'Unknown',
-            education: a.education_level || 'Not specified',
-            experience: a.job_experience || '',
-            contact:   a.contact        || '',
-            email:     a.email          || '',
-            sex:       a.sex            || '',
-            dateOfBirth: a.date_of_birth || '',
-            invited:   false,
+            location:     a.address        || 'Unknown',
+            education:    EDU_LABELS[a.education_level] || a.education_level || 'Not specified',
+            experience:   a.job_experience  || '',
+            contact:      a.contact         || '',
+            email:        a.email           || '',
+            sex:          a.sex             || '',
+            dateOfBirth:  a.date_of_birth   || '',
+            invited:      false,
           }
         })
 
         // Update counts and save minimum data to cache
         this.counts.applicants = apps.length
         this.counts.potential = potential.length
+        this.counts.reviewing = this.reviewingCount // uses the getter
         localStorage.setItem('employer_applicants_counts', JSON.stringify(this.counts));
 
         this.loaded = true

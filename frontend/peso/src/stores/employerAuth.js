@@ -47,15 +47,7 @@ export const useEmployerAuthStore = defineStore('employerAuth', {
       const { employer, token } = data.data
 
       this.user = {
-        id: employer.id,
-        name: employer.name,
-        company_name: employer.company_name,
-        legal_name: employer.legal_name,
-        contact_person: employer.contact_person,
-        email: employer.email,
-        industry: employer.industry,
-        city: employer.city,
-        status: employer.status,
+        ...employer,
         photo: normalizeStorageUrl(employer.photo),
       }
       this.token = token
@@ -75,15 +67,7 @@ export const useEmployerAuthStore = defineStore('employerAuth', {
       const { employer, token } = data.data
       
       this.user = {
-        id: employer.id,
-        name: employer.name,
-        company_name: employer.company_name,
-        legal_name: employer.legal_name,
-        contact_person: employer.contact_person,
-        email: employer.email,
-        industry: employer.industry,
-        city: employer.city,
-        status: employer.status,
+        ...employer,
         photo: normalizeStorageUrl(employer.photo),
       }
       this.token = token

@@ -365,7 +365,7 @@
               <span class="legend-item"><span class="legend-line placement-blue"></span> Placement</span>
               <span class="legend-item"><span class="legend-line processing-orange"></span> Processing</span>
               <span class="legend-item"><span class="legend-line registration-cyan"></span> Registration</span>
-              <span class="legend-item"><span class="legend-line rejection-red"></span> Refer to TESDA/Self Employment</span>
+              <span class="legend-item"><span class="legend-line rejection-red"></span> Rejected</span>
             </div>
           </div>
 
@@ -390,7 +390,7 @@
                 <div class="tooltip-row"><span class="tooltip-dot" style="background:#2563eb"></span>Placement<strong>{{ pmTip.placement }}</strong></div>
                 <div class="tooltip-row"><span class="tooltip-dot" style="background:#f97316"></span>Processing<strong>{{ pmTip.processing }}</strong></div>
                 <div class="tooltip-row"><span class="tooltip-dot" style="background:#06b6d4"></span>Registration<strong>{{ pmTip.registration }}</strong></div>
-                <div class="tooltip-row"><span class="tooltip-dot" style="background:#ef4444"></span>Refer to TESDA<strong>{{ pmTip.rejection }}</strong></div>
+                <div class="tooltip-row"><span class="tooltip-dot" style="background:#ef4444"></span>Rejected<strong>{{ pmTip.rejection }}</strong></div>
               </div>
             </transition>
 
@@ -457,7 +457,7 @@
             <div class="summary-divider"></div>
             <div class="summary-item"><span class="summary-dot registration-dot"></span><span class="summary-label">Registration</span><span class="summary-val registration-val">{{ totalRegistration }}</span></div>
             <div class="summary-divider"></div>
-            <div class="summary-item"><span class="summary-dot rejection-dot"></span><span class="summary-label">Refer TESDA</span><span class="summary-val rejection-val">{{ totalRejection }}</span></div>
+            <div class="summary-item"><span class="summary-dot rejection-dot"></span><span class="summary-label">Rejected</span><span class="summary-val rejection-val">{{ totalRejection }}</span></div>
           </div>
         </div>
 
@@ -805,7 +805,7 @@ export default {
         { label:'Placement',    pct:`${Math.round((this.totalPlacement   /this.donutTotal)*100)||0}%`, color:'#2563eb' },
         { label:'Processing',   pct:`${Math.round((this.totalProcessing  /this.donutTotal)*100)||0}%`, color:'#f97316' },
         { label:'Registration', pct:`${Math.round((this.totalRegistration/this.donutTotal)*100)||0}%`, color:'#06b6d4' },
-        { label:'Refer to TESDA/Self Employment',    pct:`${Math.round((this.totalRejection   /this.donutTotal)*100)||0}%`, color:'#ef4444' },
+        { label:'Rejected',    pct:`${Math.round((this.totalRejection   /this.donutTotal)*100)||0}%`, color:'#ef4444' },
       ]
     },
   },

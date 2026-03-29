@@ -157,7 +157,7 @@
             </div>
 
             <div class="job-card-footer">
-              <span class="post-date">Posted {{ job.postedDate }}</span>
+              <span class="post-date">Posted  {{ job.postedDate }}</span>
               <span v-if="listingTab === 'active'" class="deadline-badge" :class="{ urgent: job.daysLeft <= 3 }">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                 {{ job.daysLeft }}d left
@@ -693,7 +693,7 @@ export default {
           ? Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))
           : 30,
         postedDate:  j.posted_date
-          ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit' })
+          ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
           : '—',
         description: j.description,
         skills,
@@ -817,8 +817,13 @@ export default {
       } else {
         // Pre-fill location from employer's registered address
         const employer = useEmployerAuthStore().user
-        const parts    = [employer?.barangay, employer?.city, employer?.province].filter(Boolean)
-        const prefilled = parts.join(', ') || employer?.city || ''
+        const formatTitle = (str) => str ? str.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : ''
+        const parts = [
+          employer?.barangay,
+          formatTitle(employer?.city),
+          formatTitle(employer?.province)
+        ].filter(Boolean)
+        const prefilled = parts.join(', ') || formatTitle(employer?.city) || ''
 
         this.form = {
           title: '', type: '',
@@ -931,8 +936,8 @@ export default {
         } else {
           const { data } = await api.post('/employer/jobs', payload)
           const newJob   = data.data || data
-          const mapped   = this.mapJobFromApi({ ...newJob, skills: skillsArr }, this.jobs.length)
-          this.jobs.push(mapped)
+          const mapped   = this.mapJobFromApi({ ...newJob, skills: skillsArr }, 0)
+          this.jobs.unshift(mapped)   // insert at TOP so newest appears first
           this.listingTab = 'active'
         }
         this.showModal = false
@@ -1100,7 +1105,8 @@ export default {
 .form-group { display: flex; flex-direction: column; gap: 5px; }
 .form-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
 .req { color: #ef4444; }
-.form-input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; background: #f8fafc; transition: border 0.15s; }
+.form-input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; background: #f8fafc; transition: border 0.15s; box-sizing: border-box; height: 40px; }
+select.form-input { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
 .form-input:focus { border-color: #08BDDE; background: #fff; }
 .form-input.textarea { resize: vertical; }
 .btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }

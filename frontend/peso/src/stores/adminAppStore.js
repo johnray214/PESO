@@ -16,19 +16,10 @@ export const useAdminAppStore = defineStore('adminApp', {
 
   actions: {
     // ── Applicants Count ─────────────────────────────────────────────────────
-    async fetchApplicantsCount(force = false) {
-      if (this.applicantsLoaded && !force) return
-
-      const cached     = localStorage.getItem('reviewing_count')
-      const cachedTime = localStorage.getItem('reviewing_count_time')
+    async fetchApplicantsCount() {
+      // Show cached value instantly while fresh data loads
+      const cached = localStorage.getItem('reviewing_count')
       if (cached !== null) this.applicantsCount = Number(cached)
-
-      // ✅ skip API if cache is fresh
-      const age = cachedTime ? Date.now() - Number(cachedTime) : Infinity
-      if (age < 5 * 60 * 1000 && cached !== null) {
-        this.applicantsLoaded = true
-        return
-      }
 
       try {
         const { data } = await api.get('/admin/applications/reviewing-count')
@@ -42,20 +33,11 @@ export const useAdminAppStore = defineStore('adminApp', {
       }
     },
 
-    async fetchNotifications(force = false) {
-      if (this.notificationsLoaded && !force) return
-
-      const cached     = localStorage.getItem('admin_notifications')
-      const cachedTime = localStorage.getItem('admin_notifications_time')
+    async fetchNotifications() {
+      // Show cached notifications instantly while fresh data loads
+      const cached = localStorage.getItem('admin_notifications')
       if (cached !== null) {
         try { this.notifications = JSON.parse(cached) } catch { this.notifications = [] }
-      }
-
-      // ✅ skip API if cache is fresh
-      const age = cachedTime ? Date.now() - Number(cachedTime) : Infinity
-      if (age < 5 * 60 * 1000 && cached !== null) {
-        this.notificationsLoaded = true
-        return
       }
 
       try {

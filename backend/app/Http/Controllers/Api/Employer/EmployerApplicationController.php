@@ -312,16 +312,18 @@ class EmployerApplicationController extends Controller
         // Calculate match score and best matching job for each
         $jobseekers->getCollection()->transform(function ($jobseeker) use ($jobListings) {
             $maxScore = 0;
-            $bestJob = null;
+            $bestJob  = null;
             foreach ($jobListings as $job) {
                 $score = \App\Models\Application::calculateMatchScore($jobseeker, $job);
                 if ($score > $maxScore) {
                     $maxScore = $score;
-                    $bestJob = $job;
+                    $bestJob  = $job;
                 }
             }
-            $jobseeker->match_score = $maxScore;
+            $jobseeker->match_score    = $maxScore;
             $jobseeker->best_job_match = $bestJob?->title ?? null;
+            // Return the required skills of the best-match job so the frontend can display them
+            $jobseeker->best_job_skills = $bestJob ? $bestJob->skills->pluck('skill')->values() : [];
             return $jobseeker;
         });
 

@@ -265,7 +265,7 @@
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Date</label>
-                  <input v-model="form.date" type="date" class="form-input"/>
+                  <input v-model="form.date" type="date" :min="minDate" class="form-input"/>
                   <p v-if="form.date" class="form-date-hint">Selected: {{ formatDateUs(form.date) }}</p>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
@@ -422,7 +422,9 @@ export default {
 
   data() {
     const now = new Date()
+    const todayISO = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().split('T')[0]
     return {
+      minDate: todayISO,
       view: 'list',
       search: '',
       filterType: '',
@@ -609,6 +611,10 @@ export default {
       if (evt.target.closest && evt.target.closest('.cal-overflow')) return
 
       if (cell.events.length === 0) {
+        if (cell.dateStr < this.minDate) {
+          this.showToastMsg('Cannot create events on past dates.', 'error')
+          return
+        }
         this.openCreateModal(cell.dateStr)
       } else {
         this.openCtxMenu(cell, evt)
@@ -755,6 +761,12 @@ export default {
     // ── Save ─────────────────────────────────────────────────────────
     async saveEvent() {
       if (this.savingEvent) return
+      
+      if (!this.form.date || this.form.date < this.minDate) {
+        this.showToastMsg('Event date cannot be in the past.', 'error')
+        return
+      }
+
       this.savingEvent = true
       try {
         const payload = {

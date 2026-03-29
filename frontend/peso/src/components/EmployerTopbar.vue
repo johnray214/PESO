@@ -38,7 +38,8 @@
                 <span class="spin"></span> Loading…
               </div>
               <div v-else-if="notifStore.recentNotifs.length === 0" class="panel-empty">
-                No notifications yet
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                <p>No notifications yet</p>
               </div>
               <div v-for="n in notifStore.recentNotifs" :key="n.id"
                 :class="['panel-item', { unread: !n.read }]"
@@ -50,12 +51,10 @@
                 <div class="panel-item-body">
                   <div class="panel-item-top">
                     <p class="panel-item-title">{{ n.title }}</p>
-                    <div class="panel-item-meta">
-                      <span class="panel-type-tag" :style="{ background: typeColors[n.type]?.bg, color: typeColors[n.type]?.color }">{{ n.type }}</span>
-                      <span class="panel-item-time">{{ n.time }}</span>
-                    </div>
+                    <span class="panel-item-time">{{ n.time }}</span>
                   </div>
                   <p class="panel-item-msg">{{ n.message }}</p>
+                  <span class="panel-type-tag" :style="{ background: typeColors[n.type]?.bg, color: typeColors[n.type]?.color }">{{ n.type }}</span>
                 </div>
                 <span v-if="!n.read" class="panel-unread-dot"></span>
               </div>
@@ -150,10 +149,10 @@ export default {
       showUserMenu: false,
       loggingOut:   false,
       typeColors: {
-        applicant: { bg: '#eff8ff', color: '#2872A1', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
-        job:       { bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
-        system:    { bg: '#f8fafc', color: '#64748b', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` },
-        match:     { bg: '#faf5ff', color: '#8b5cf6', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
+        applicant: { bg: '#eff8ff', color: '#2872A1', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
+        job:       { bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>` },
+        system:    { bg: '#f1f5f9', color: '#64748b', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>` },
+        match:     { bg: '#faf5ff', color: '#8b5cf6', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
       },
     }
   },
@@ -230,18 +229,18 @@ export default {
 .panel-mark-all:hover { text-decoration: underline; }
 .panel-list { display: flex; flex-direction: column; max-height: 320px; overflow-y: auto; }
 .panel-loading { display: flex; align-items: center; gap: 8px; padding: 20px 16px; font-size: 12.5px; color: #94a3b8; }
-.panel-empty { padding: 28px 16px; text-align: center; font-size: 12.5px; color: #94a3b8; }
-.panel-item { display: flex; align-items: flex-start; gap: 10px; padding: 12px 16px; cursor: pointer; transition: background 0.12s; border-bottom: 1px solid #f8fafc; position: relative; }
+.panel-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px; gap: 10px; color: #94a3b8; font-size: 13px; }
+.panel-item { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; cursor: pointer; transition: background 0.15s; border-bottom: 1px solid #f8fafc; position: relative; }
 .panel-item:hover { background: #f8fafc; }
-.panel-item.unread { background: #fafcff; }
-.panel-icon { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.panel-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-.panel-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.panel-item-title { font-size: 12.5px; font-weight: 700; color: #1e293b; line-height: 1.3; margin: 0; }
-.panel-item-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.panel-type-tag { font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: capitalize; }
-.panel-item-msg { font-size: 11.5px; color: #64748b; line-height: 1.4; margin: 0; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
-.panel-item-time { font-size: 10.5px; color: #94a3b8; white-space: nowrap; }
+.panel-item.unread { background: #eff6ff; }
+.panel-item.unread:hover { background: #dbeafe; }
+.panel-icon { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.panel-item-body { flex: 1; min-width: 0; }
+.panel-item-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.panel-item-title { font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.3; margin: 0; }
+.panel-type-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; text-transform: capitalize; margin-top: 4px; }
+.panel-item-msg { font-size: 12px; color: #64748b; line-height: 1.4; margin: 0 0 6px 0; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
+.panel-item-time { font-size: 11px; color: #94a3b8; white-space: nowrap; }
 .panel-unread-dot { width: 7px; height: 7px; border-radius: 50%; background: #2872A1; flex-shrink: 0; margin-top: 4px; }
 .panel-footer { padding: 12px 16px; border-top: 1px solid #f1f5f9; text-align: center; }
 .panel-see-all { font-size: 12.5px; font-weight: 600; color: #2872A1; text-decoration: none; }
