@@ -275,16 +275,34 @@
                   <h4 class="section-title">Change Password</h4>
                   <div class="form-group">
                     <label class="form-label">Current Password</label>
-                    <input class="form-input" type="password" v-model="passwords.current" placeholder="Enter current password"/>
+                    <div class="password-wrap">
+                      <input class="form-input" :type="showPasswords.current ? 'text' : 'password'" v-model="passwords.current" placeholder="Enter current password"/>
+                      <button type="button" class="eye-btn" @click="showPasswords.current = !showPasswords.current">
+                        <svg v-if="!showPasswords.current" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      </button>
+                    </div>
                   </div>
                   <div class="form-row two">
                     <div class="form-group">
                       <label class="form-label">New Password</label>
-                      <input class="form-input" type="password" v-model="passwords.new" placeholder="New password"/>
+                      <div class="password-wrap">
+                        <input class="form-input" :type="showPasswords.new ? 'text' : 'password'" v-model="passwords.new" placeholder="New password"/>
+                        <button type="button" class="eye-btn" @click="showPasswords.new = !showPasswords.new">
+                          <svg v-if="!showPasswords.new" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        </button>
+                      </div>
                     </div>
                     <div class="form-group">
                       <label class="form-label">Confirm Password</label>
-                      <input class="form-input" type="password" v-model="passwords.confirm" placeholder="Repeat password"/>
+                      <div class="password-wrap">
+                        <input class="form-input" :type="showPasswords.confirm ? 'text' : 'password'" v-model="passwords.confirm" placeholder="Repeat password"/>
+                        <button type="button" class="eye-btn" @click="showPasswords.confirm = !showPasswords.confirm">
+                          <svg v-if="!showPasswords.confirm" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <p v-if="passwordError" class="error-msg">{{ passwordError }}</p>
@@ -341,6 +359,7 @@ export default {
       passwordError: '',
 
       passwords: { current: '', new: '', confirm: '' },
+      showPasswords: { current: false, new: false, confirm: false },
 
       uploadingPhoto: false,
       photoPreview: null,
@@ -517,12 +536,13 @@ export default {
 
         // Change password in a separate request if needed
         if (changingPassword) {
-          await api.put('/employer/profile/password', {
+          await api.post('/employer/profile/password', {
             current_password:       current,
             password:               newPw,
             password_confirmation:  confirm,
           })
           this.passwords = { current: '', new: '', confirm: '' }
+          this.showPasswords = { current: false, new: false, confirm: false }
         }
 
         Object.assign(this.company, {
@@ -545,6 +565,7 @@ export default {
     resetSettings() {
       this.editCompany   = { ...this.company, perks: [...(this.company.perks || [])] }
       this.passwords     = { current: '', new: '', confirm: '' }
+      this.showPasswords = { current: false, new: false, confirm: false }
       this.passwordError = ''
     },
 
@@ -696,6 +717,11 @@ export default {
 .form-input.textarea { resize: vertical; }
 .form-row { display: grid; gap: 12px; }
 .form-row.two { grid-template-columns: 1fr 1fr; }
+
+.password-wrap { position: relative; display: flex; align-items: center; }
+.password-wrap .form-input { padding-right: 40px; }
+.eye-btn { position: absolute; right: 10px; background: none; border: none; padding: 4px; color: #94a3b8; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: color 0.15s; }
+.eye-btn:hover { color: #475569; }
 
 /* JOB LISTINGS TAB */
 .jl-sub { font-size: 12px; color: #94a3b8; margin-bottom: 4px; }
