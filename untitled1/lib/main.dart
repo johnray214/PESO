@@ -3343,31 +3343,44 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
               ),
             ],
             const SizedBox(height: 8),
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextButton(
-                  onPressed: _isResending || _isVerifying || _resendCooldown > 0
-                      ? null
-                      : _resend,
-                  child: Text(
-                    _isResending
-                        ? 'Resending...'
-                        : _resendCooldown > 0
-                            ? 'Resend in ${_resendCooldown}s'
-                            : 'Resend OTP',
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed:
+                        _isResending || _isVerifying || _resendCooldown > 0
+                            ? null
+                            : _resend,
+                    child: Text(
+                      _isResending
+                          ? 'Resending...'
+                          : _resendCooldown > 0
+                              ? 'Resend in ${_resendCooldown}s'
+                              : 'Resend OTP',
+                    ),
                   ),
                 ),
-                const Spacer(),
-                TextButton(
-                  onPressed: _isVerifying
-                      ? null
-                      : () => Navigator.of(context, rootNavigator: true).pop(),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: (_isVerifying || _isResending) ? null : _verify,
-                  child: Text(_isVerifying ? 'Verifying...' : 'Verify'),
+                const SizedBox(height: 2),
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _isVerifying
+                          ? null
+                          : () =>
+                              Navigator.of(context, rootNavigator: true).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: (_isVerifying || _isResending) ? null : _verify,
+                      child: Text(_isVerifying ? 'Verifying...' : 'Verify'),
+                    ),
+                  ],
                 ),
               ],
             ),
