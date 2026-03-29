@@ -1416,7 +1416,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   void _openNotifications() {
     Navigator.of(context)
         .push(
-          MaterialPageRoute(builder: (_) => const NotificationsTab()),
+          MaterialPageRoute(
+            builder: (_) => NotificationsTab(
+              onOpenMapRequested: (focus) {
+                Navigator.of(context).pop();
+                widget.onOpenMapRequested?.call(focus);
+              },
+            ),
+          ),
         )
         .then((_) {
       if (mounted) {
@@ -4399,7 +4406,9 @@ class _JobListItem extends StatelessWidget {
 
 // ─── Notifications Tab ────────────────────────────────────────────────────────
 class NotificationsTab extends StatefulWidget {
-  const NotificationsTab({super.key});
+  final ValueChanged<MapFocusRequest>? onOpenMapRequested;
+
+  const NotificationsTab({super.key, this.onOpenMapRequested});
 
   @override
   State<NotificationsTab> createState() => _NotificationsTabState();
@@ -4544,7 +4553,14 @@ class _NotificationsTabState extends State<NotificationsTab> {
     if (jobData == null || !mounted) return;
     final job = Job.fromJson(jobData);
     if (!mounted) return;
-    showJobDetailSheet(context, job);
+    showJobDetailSheet(
+      context, 
+      job,
+      onViewMap: widget.onOpenMapRequested != null ? () {
+        Navigator.of(context).pop();
+        widget.onOpenMapRequested!(MapFocusRequest.fromJob(job));
+      } : null,
+    );
   }
 
   Future<void> _deleteNotification(int index) async {
@@ -4573,6 +4589,32 @@ class _NotificationsTabState extends State<NotificationsTab> {
         _notifications.clear();
       });
     }
+  }
+
+  List<TextSpan> _parseMessageWithBold(String message) {
+    final spans = <TextSpan>[];
+    final regex = RegExp(r'\*\*(.*?)\*\*');
+    int lastIndex = 0;
+
+    for (final match in regex.allMatches(message)) {
+      if (match.start > lastIndex) {
+        spans.add(TextSpan(text: message.substring(lastIndex, match.start)));
+      }
+      spans.add(TextSpan(
+        text: match.group(1),
+        style: const TextStyle(
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF0F172A),
+        ),
+      ));
+      lastIndex = match.end;
+    }
+
+    if (lastIndex < message.length) {
+      spans.add(TextSpan(text: message.substring(lastIndex)));
+    }
+
+    return spans;
   }
 
   Widget _buildChip(IconData icon, String label) {
@@ -4719,6 +4761,19 @@ class _NotificationsTabState extends State<NotificationsTab> {
                             final isRead = n['read_at'] != null;
                             final id = n['id'] ?? index;
 
+                            // Shared time/date formatting
+                            final diff = DateTime.now().difference(createdAt);
+                            final timeAgo = diff.inDays > 0
+                                ? '${diff.inDays}d ago'
+                                : diff.inHours > 0
+                                    ? '${diff.inHours}h ago'
+                                    : diff.inMinutes > 0
+                                        ? '${diff.inMinutes}m ago'
+                                        : 'just now';
+
+                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            final dateFormatted = '${monthNames[createdAt.month - 1]}/${createdAt.day.toString().padLeft(2, '0')}/${createdAt.year}';
+
                             // ── Invitation card ───────────────────────────
                             if (type == 'invitation') {
                               final jobListing = notif['job_listing'] as Map<String, dynamic>?;
@@ -4726,12 +4781,6 @@ class _NotificationsTabState extends State<NotificationsTab> {
                               final jobType = jobListing?['type'] as String? ?? '';
                               final jobLocation = jobListing?['location'] as String? ?? '';
                               final companyName = (jobListing?['employer'] as Map<String, dynamic>?)?['company_name'] as String? ?? 'An employer';
-                              final diff = DateTime.now().difference(createdAt);
-                              final timeAgo = diff.inDays > 0
-                                  ? '${diff.inDays}d ago'
-                                  : diff.inHours > 0
-                                      ? '${diff.inHours}h ago'
-                                      : '${diff.inMinutes}m ago';
 
                               return Dismissible(
                                 key: ValueKey('notif_$id'),
@@ -4747,172 +4796,220 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                   child: const Icon(Icons.delete_rounded, color: Colors.white),
                                 ),
                                 onDismissed: (_) => _deleteNotification(index),
-                                child: GestureDetector(
-                                  onTap: () => _openNotification(index),
-                                  child: Container(
-                                    margin: const EdgeInsets.only(bottom: 12),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(16),
-                                      border: Border(
-                                        left: BorderSide(
-                                          color: isRead
-                                              ? Colors.transparent
-                                              : const Color(0xFF2563EB),
-                                          width: 4,
-                                        ),
-                                        top: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
-                                        right: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
-                                        bottom: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
+                                child: Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.05),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
                                       ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.05),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 4),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(16),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          // Header row
-                                          Row(
-                                            children: [
-                                              Container(
-                                                width: 38,
-                                                height: 38,
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFF2563EB).withOpacity(0.1),
-                                                  shape: BoxShape.circle,
-                                                ),
-                                                child: const Icon(
-                                                  Icons.work_rounded,
-                                                  color: Color(0xFF2563EB),
-                                                  size: 20,
-                                                ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Material(
+                                      color: Colors.white,
+                                      child: InkWell(
+                                        onTap: () => _openNotification(index),
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            border: Border(
+                                              left: BorderSide(
+                                                color: isRead ? Colors.transparent : const Color(0xFF2563EB),
+                                                width: 4,
                                               ),
-                                              const SizedBox(width: 10),
-                                              Expanded(
+                                              top: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
+                                              right: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
+                                              bottom: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
+                                            ),
+                                          ),
+                                          padding: const EdgeInsets.all(16),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              // Header row
+                                              Row(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Container(
+                                                    width: 40,
+                                                    height: 40,
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                                                      shape: BoxShape.circle,
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.event_seat_rounded,
+                                                      color: Color(0xFF2563EB),
+                                                      size: 20,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        Text(
+                                                          subject,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                                                            color: const Color(0xFF0F172A),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 2),
+                                                        Text(
+                                                          '$timeAgo • $dateFormatted',
+                                                          style: const TextStyle(
+                                                            fontSize: 12,
+                                                            color: Color(0xFF94A3B8),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  if (!isRead)
+                                                    Container(
+                                                      margin: const EdgeInsets.only(top: 8, right: 4),
+                                                      width: 10,
+                                                      height: 10,
+                                                      decoration: const BoxDecoration(
+                                                        color: Color(0xFF2563EB),
+                                                        shape: BoxShape.circle,
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 16),
+
+                                              // Company + job title box
+                                              Container(
+                                                width: double.infinity,
+                                                padding: const EdgeInsets.all(14),
+                                                decoration: BoxDecoration(
+                                                  color: const Color(0xFFF8FAFF),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                                                ),
                                                 child: Column(
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
                                                     Text(
-                                                      subject,
-                                                      style: TextStyle(
-                                                        fontSize: 14,
-                                                        fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
-                                                        color: const Color(0xFF0F172A),
+                                                      companyName,
+                                                      style: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w600,
+                                                        color: Color(0xFF2563EB),
                                                       ),
                                                     ),
+                                                    const SizedBox(height: 4),
                                                     Text(
-                                                      timeAgo,
+                                                      jobTitle,
                                                       style: const TextStyle(
-                                                        fontSize: 11,
-                                                        color: Color(0xFF94A3B8),
+                                                        fontSize: 16,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: Color(0xFF0F172A),
                                                       ),
+                                                    ),
+                                                    const SizedBox(height: 10),
+                                                    Wrap(
+                                                      spacing: 8,
+                                                      runSpacing: 6,
+                                                      children: [
+                                                        if (jobLocation.isNotEmpty)
+                                                          _buildChip(Icons.location_on_outlined, jobLocation),
+                                                        if (jobType.isNotEmpty)
+                                                          _buildChip(Icons.work_outline_rounded, jobType),
+                                                        if ((jobListing?['salary_range'] as String? ?? '').isNotEmpty)
+                                                          _buildChip(Icons.payments_outlined, jobListing!['salary_range']),
+                                                      ],
                                                     ),
                                                   ],
                                                 ),
                                               ),
-                                              if (!isRead)
-                                                Container(
-                                                  width: 9,
-                                                  height: 9,
-                                                  decoration: const BoxDecoration(
-                                                    color: Color(0xFF2563EB),
-                                                    shape: BoxShape.circle,
+                                              const SizedBox(height: 16),
+
+                                              // View Job Details button
+                                              SizedBox(
+                                                width: double.infinity,
+                                                height: 44,
+                                                child: OutlinedButton.icon(
+                                                  onPressed: () => _openInvitationJob(n),
+                                                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                                                  label: const Text('View Job Details'),
+                                                  style: OutlinedButton.styleFrom(
+                                                    foregroundColor: const Color(0xFF2563EB),
+                                                    side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+                                                    shape: RoundedRectangleBorder(
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    textStyle: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w700,
+                                                      letterSpacing: 0.3,
+                                                    ),
                                                   ),
                                                 ),
+                                              ),
                                             ],
                                           ),
-                                          const SizedBox(height: 10),
-
-                                          // Company + job title box
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                            decoration: BoxDecoration(
-                                              color: const Color(0xFFF8FAFF),
-                                              borderRadius: BorderRadius.circular(10),
-                                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                                            ),
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  companyName,
-                                                  style: const TextStyle(
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Color(0xFF2563EB),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 2),
-                                                Text(
-                                                  jobTitle,
-                                                  style: const TextStyle(
-                                                    fontSize: 15,
-                                                    fontWeight: FontWeight.w700,
-                                                    color: Color(0xFF0F172A),
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 8),
-                                                // Meta chips
-                                                Wrap(
-                                                  spacing: 6,
-                                                  runSpacing: 4,
-                                                  children: [
-                                                    if (jobLocation.isNotEmpty)
-                                                      _buildChip(Icons.location_on_outlined, jobLocation),
-                                                    if (jobType.isNotEmpty)
-                                                      _buildChip(Icons.work_outline_rounded, jobType),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-
-                                          // Message text
-                                          Text(
-                                            message,
-                                            style: const TextStyle(
-                                              fontSize: 13,
-                                              color: Color(0xFF64748B),
-                                              height: 1.4,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 12),
-
-                                          // View Job Details button
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: OutlinedButton.icon(
-                                              onPressed: () => _openInvitationJob(n),
-                                              icon: const Icon(Icons.open_in_new_rounded, size: 15),
-                                              label: const Text('View Job Details'),
-                                              style: OutlinedButton.styleFrom(
-                                                foregroundColor: const Color(0xFF2563EB),
-                                                side: const BorderSide(color: Color(0xFF2563EB)),
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius: BorderRadius.circular(10),
-                                                ),
-                                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                                textStyle: const TextStyle(
-                                                  fontSize: 13,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               );
+                            }
+
+                            // Determine icon and color for generic card based on status/type
+                            IconData statusIcon = Icons.notifications_rounded;
+                            Color statusColor = const Color(0xFF2563EB);
+
+                            if (type != null) {
+                              final t = type.toLowerCase();
+                              final s = subject.toLowerCase();
+                              final m = message.toLowerCase();
+
+                              if (t.contains('shortlisted') || s.contains('shortlisted') || m.contains('shortlisted')) {
+                                statusIcon = Icons.star_rounded;
+                                statusColor = const Color(0xFFF59E0B); // Amber
+                              } else if (t.contains('interview') || s.contains('interview') || m.contains('interview')) {
+                                statusIcon = Icons.calendar_today_rounded;
+                                statusColor = const Color(0xFF8B5CF6); // Violet
+                              } else if (t.contains('hired') || s.contains('hired') || m.contains('hired')) {
+                                statusIcon = Icons.check_circle_rounded;
+                                statusColor = const Color(0xFF10B981); // Emerald
+                              } else if (t.contains('rejected') || s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) {
+                                statusIcon = Icons.cancel_rounded;
+                                statusColor = const Color(0xFFEF4444); // Red
+                              } else if (t.contains('reviewing') || s.contains('received') || m.contains('received')) {
+                                statusIcon = Icons.pending_actions_rounded;
+                                statusColor = const Color(0xFF2563EB); // Blue
+                              }
+                            } else {
+                              // Fallback for null type based on text
+                              final s = subject.toLowerCase();
+                              final m = message.toLowerCase();
+                              if (s.contains('shortlisted') || m.contains('shortlisted')) {
+                                statusIcon = Icons.star_rounded;
+                                statusColor = const Color(0xFFF59E0B);
+                              } else if (s.contains('interview') || m.contains('interview')) {
+                                statusIcon = Icons.calendar_today_rounded;
+                                statusColor = const Color(0xFF8B5CF6);
+                              } else if (s.contains('hired') || m.contains('hired')) {
+                                statusIcon = Icons.check_circle_rounded;
+                                statusColor = const Color(0xFF10B981);
+                              } else if (s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) {
+                                statusIcon = Icons.cancel_rounded;
+                                statusColor = const Color(0xFFEF4444);
+                              } else if (s.contains('received') || m.contains('received')) {
+                                statusIcon = Icons.pending_actions_rounded;
+                                statusColor = const Color(0xFF2563EB);
+                              }
                             }
 
                             // ── Generic notification card ─────────────────
@@ -4938,7 +5035,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                   border: Border.all(
                                     color: isRead
                                         ? const Color(0xFFE2E8F0)
-                                        : const Color(0xFF2563EB).withOpacity(0.5),
+                                        : statusColor.withOpacity(0.5),
                                   ),
                                   boxShadow: [
                                     BoxShadow(
@@ -4954,12 +5051,12 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                     width: 40,
                                     height: 40,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                                      color: statusColor.withOpacity(0.1),
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(
-                                      Icons.notifications_rounded,
-                                      color: Color(0xFF2563EB),
+                                    child: Icon(
+                                      statusIcon,
+                                      color: statusColor,
                                       size: 22,
                                     ),
                                   ),
@@ -4975,16 +5072,19 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       const SizedBox(height: 4),
-                                      Text(
-                                        message,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          color: Color(0xFF64748B),
+                                      RichText(
+                                        text: TextSpan(
+                                          children: _parseMessageWithBold(message),
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            color: Color(0xFF64748B),
+                                            height: 1.4,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
-                                        '${createdAt.month}/${createdAt.day}/${createdAt.year}',
+                                        '$timeAgo • $dateFormatted',
                                         style: const TextStyle(
                                           fontSize: 11,
                                           color: Color(0xFF94A3B8),
@@ -4996,8 +5096,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                       ? Container(
                                           width: 10,
                                           height: 10,
-                                          decoration: const BoxDecoration(
-                                            color: Color(0xFF2563EB),
+                                          decoration: BoxDecoration(
+                                            color: statusColor,
                                             shape: BoxShape.circle,
                                           ),
                                         )

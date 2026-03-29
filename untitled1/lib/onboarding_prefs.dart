@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'user_session.dart';
 
 /// Persists first-run intro + post-registration onboarding completion.
 class OnboardingPrefs {
@@ -9,15 +10,21 @@ class OnboardingPrefs {
   /// After this version bump, intro can show again (optional future use).
   static const introVersion = 1;
 
-  static Future<bool> isIntroDone() async {
-    if (kDebugMode) return false;
-    final p = await SharedPreferences.getInstance();
-    return p.getBool(_kIntroV1) ?? false;
+  static String _getIntroKey(String? token) {
+    if (token == null || token.isEmpty) return _kIntroV1;
+    // Tie the intro status to a specific token (or a hash of it) to make it per-user
+    return '${_kIntroV1}_$token';
   }
 
-  static Future<void> setIntroDone() async {
+  static Future<bool> isIntroDone({String? token, bool ignoreDebug = false}) async {
+    if (kDebugMode && !ignoreDebug) return false;
     final p = await SharedPreferences.getInstance();
-    await p.setBool(_kIntroV1, true);
+    return p.getBool(_getIntroKey(token)) ?? false;
+  }
+
+  static Future<void> setIntroDone({String? token}) async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(_getIntroKey(token), true);
   }
 
   /// Call after successful registration — user must complete post-auth flow.
@@ -34,8 +41,16 @@ class OnboardingPrefs {
 
   /// `true` only when explicitly set to `false` (new registration).
   /// Missing key → treat as already completed (existing users).
-  static Future<bool> needsPostAuth() async {
-    if (kDebugMode) return true;
+  static Future<bool> needsPostAuth({bool ignoreDebug = false}) async {
+    if (kDebugMode && !ignoreDebug) return true;
+    
+    // If logged in, the backend source of truth is absolute.
+    if (UserSession().isLoggedIn) {
+      return !UserSession().isOnboardingDone;
+    }
+
+    // If not logged in yet (e.g. just registered but session not fully restored), 
+    // check the local pending flag.
     final p = await SharedPreferences.getInstance();
     return p.getBool(_kPostAuthV1) == false;
   }

@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = 'http://192.168.254.101:8000/api';
 
   /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
   static String get apiOrigin {
@@ -49,6 +49,18 @@ class ApiService {
     }
 
     return publicStorageUrl(t);
+  }
+
+  static Future<Map<String, dynamic>> checkJobseekerEmail(String email) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/jobseeker/check-email?email=$email'),
+        headers: {'Accept': 'application/json'},
+      ).timeout(const Duration(seconds: 10));
+      return jsonDecode(response.body);
+    } catch (_) {
+      return {'success': false, 'exists': false};
+    }
   }
 
   static Future<Map<String, dynamic>> register({
@@ -899,6 +911,7 @@ class ApiService {
     String? bio,
     String? educationLevel,
     String? jobExperience,
+    bool? isOnboardingDone,
   }) async {
     try {
       final body = <String, dynamic>{};
@@ -923,6 +936,9 @@ class ApiService {
       if (bio != null) body['bio'] = bio;
       if (educationLevel != null) body['education_level'] = educationLevel;
       if (jobExperience != null) body['job_experience'] = jobExperience;
+      if (isOnboardingDone != null) {
+        body['is_onboarding_done'] = isOnboardingDone;
+      }
 
       final response = await http.put(
         Uri.parse('$baseUrl/jobseeker/profile'),

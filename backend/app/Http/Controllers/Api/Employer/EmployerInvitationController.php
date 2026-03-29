@@ -25,7 +25,8 @@ class EmployerInvitationController extends Controller
             ->firstOrFail();
 
         // Ensure the jobseeker exists and is active
-        $jobseeker = Jobseeker::where('id', $jobseekerId)
+        $jobseeker = Jobseeker::with('skills')
+            ->where('id', $jobseekerId)
             ->where('status', 'active')
             ->firstOrFail();
 
@@ -54,18 +55,8 @@ class EmployerInvitationController extends Controller
         try {
             $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
             
-            // Build an inline HTML presentation for the invitation email
-            $htmlPart = "
-            <div style='font-family: Arial, sans-serif; padding: 20px; color: #333;'>
-                <h2 style='color: #2563EB;'>You've Been Personally Invited!</h2>
-                <p>Hello {$jobseeker->first_name},</p>
-                <p><strong>{$company}</strong> has personally invited you to explore and apply for their open position: <strong>{$job->title}</strong>.</p>
-                <p>They found your profile to be a great match for their requirements.</p>
-                <br>
-                <p>To view the job details and apply, please open the PESO Jobseeker app and check your notifications.</p>
-                <br>
-                <p>Best regards,<br>The PESO Team</p>
-            </div>";
+            $applyUrl  = env('FRONTEND_URL', 'http://localhost:5173') . '/jobseeker/jobs/' . $job->id;
+            $topSkills = $jobseeker->skills ? $jobseeker->skills->pluck('skill')->take(3)->implode(', ') : 'your listed skills';
 
             $body = [
                 'Messages' => [
@@ -80,8 +71,21 @@ class EmployerInvitationController extends Controller
                                 'Name'  => trim($jobseeker->first_name . ' ' . $jobseeker->last_name)
                             ]
                         ],
-                        'Subject' => "You've Been Personally Invited!",
-                        'HTMLPart' => $htmlPart
+                        'TemplateID'       => 7869914,
+                        'TemplateLanguage' => true,
+                        'Subject'          => "You're Invited to Apply — {$job->title} at {$company}",
+                        'Variables'        => [
+                            'first_name'       => $jobseeker->first_name,
+                            'company_name'     => $company,
+                            'job_title'        => $job->title,
+                            'job_location'     => $job->location ?? 'On-site',
+                            'employment_type'  => $job->type ?? 'Full-time',
+                            'salary_range'     => $job->salary_range ?? 'Negotiable',
+                            'work_setup'       => $job->work_setup ?? 'On-site',
+                            'match_pct'        => 'High',
+                            'top_skills'       => $topSkills ?: 'your listed skills',
+                            'apply_url'        => $applyUrl,
+                        ],
                     ]
                 ]
             ];

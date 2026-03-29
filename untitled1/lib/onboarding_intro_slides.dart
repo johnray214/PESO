@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'api_service.dart';
 import 'onboarding_prefs.dart';
+import 'user_session.dart';
 
 /// Three swipeable intro slides before the welcome screen.
 class IntroOnboardingPage extends StatefulWidget {
@@ -48,7 +50,15 @@ class _IntroOnboardingPageState extends State<IntroOnboardingPage> {
   }
 
   Future<void> _finish() async {
-    await OnboardingPrefs.setIntroDone();
+    final token = UserSession().token;
+    await OnboardingPrefs.setIntroDone(token: token);
+    
+    // Also sync to backend if logged in
+    if (token != null && token.isNotEmpty) {
+      await ApiService.updateProfile(token: token, isOnboardingDone: true);
+      UserSession().isOnboardingDone = true;
+    }
+    
     if (!mounted) return;
     widget.onComplete(context);
   }

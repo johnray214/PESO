@@ -8,6 +8,9 @@ use App\Models\Employer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
+use App\Models\Notification;
+use App\Models\NotificationRead;
+use Illuminate\Support\Facades\Log;
 
 class EmployerAuthController extends Controller
 {
@@ -55,6 +58,27 @@ class EmployerAuthController extends Controller
                 );
                 $employer->update([$column => $path]);
             }
+        }
+
+        // CREATE WELCOME NOTIFICATION
+        try {
+            $notif = Notification::create([
+                'subject' => "Welcome to PESO Connect!, {$employer->company_name}! 🏢",
+                'message' => "We're glad to have you on board! PESO Connect! is here to help you find the best talent. Your account is currently pending verification by our PESO staff. This standard process ensures a secure platform for everyone. We'll notify you as soon as your account is approved. In the meantime, feel free to explore our platform features!",
+                'type' => 'welcome',
+                'recipients' => 'specific',
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+
+            NotificationRead::create([
+                'notification_id' => $notif->id,
+                'recipient_type' => 'employer',
+                'recipient_id' => $employer->id,
+                'read_at' => null,
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Failed to create welcome notification for employer {$employer->id}: " . $e->getMessage());
         }
 
         return response()->json([

@@ -61,6 +61,7 @@ Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPa
 
 // Jobseeker Auth
 Route::post('/jobseeker/login', [JobseekerAuthController::class, 'login']);
+Route::get('/jobseeker/check-email', [JobseekerAuthController::class, 'checkEmail']);
 Route::post('/jobseeker/register', [JobseekerAuthController::class, 'register']);
 Route::post('/jobseeker/verify-otp', [JobseekerAuthController::class, 'verifyOtp']);
 Route::post('/jobseeker/resend-otp', [JobseekerAuthController::class, 'resendOtp']);

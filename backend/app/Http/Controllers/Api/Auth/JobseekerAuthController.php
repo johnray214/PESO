@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
+use App\Models\Notification;
+use App\Models\NotificationRead;
 
 class JobseekerAuthController extends Controller
 {
@@ -22,6 +24,16 @@ class JobseekerAuthController extends Controller
     private const OTP_VERIFY_MAX_ATTEMPTS = 5;
     private const OTP_VERIFY_WINDOW_SECONDS = 15 * 60;
     private const UNVERIFIED_TTL_HOURS = 24;
+    
+    public function checkEmail(Request $request) {
+        $request->validate(['email' => 'required|email']);
+        $exists = Jobseeker::where('email', $request->email)->exists();
+        return response()->json([
+            'success' => true,
+            'exists' => $exists,
+            'message' => $exists ? 'Email is already registered.' : 'Email is available'
+        ]);
+    }
 
     public function register(Request $request)
     {
@@ -262,6 +274,27 @@ class JobseekerAuthController extends Controller
             'otp_resend_cooldown_until' => null,
             'status' => 'active',
         ]);
+
+        // CREATE WELCOME NOTIFICATION
+        try {
+            $notif = Notification::create([
+                'subject' => "Welcome to PESO Connect!, {$jobseeker->first_name}! 🚀",
+                'message' => "We're thrilled to have you here! PESO Connect! is dedicated to connecting you with the best career opportunities. To start your journey, please complete your profile during the onboarding process and explore jobs that match your skills. We're here to help you find your dream job!",
+                'type' => 'welcome',
+                'recipients' => 'specific',
+                'status' => 'sent',
+                'sent_at' => now(),
+            ]);
+
+            NotificationRead::create([
+                'notification_id' => $notif->id,
+                'recipient_type' => 'jobseeker',
+                'recipient_id' => $jobseeker->id,
+                'read_at' => null,
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Failed to create welcome notification for jobseeker {$jobseeker->id}: " . $e->getMessage());
+        }
         RateLimiter::clear($verifyKey);
 
         $token = $jobseeker->createToken('jobseeker-token')->plainTextToken;

@@ -45,6 +45,7 @@ class Jobseeker extends Authenticatable
         'avatar_path',
         'latitude',
         'longitude',
+        'is_onboarding_done',
         'status',
     ];
 
@@ -61,6 +62,7 @@ class Jobseeker extends Authenticatable
         'otp_expires_at' => 'datetime',
         'otp_resend_cooldown_until' => 'datetime',
         'date_of_birth' => 'date',
+        'is_onboarding_done' => 'boolean',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
     ];
