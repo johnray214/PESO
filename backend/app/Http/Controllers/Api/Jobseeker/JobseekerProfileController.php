@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Jobseeker;
 
 use App\Http\Controllers\Controller;
 use App\Models\JobseekerSkill;
+use App\Support\JobseekerPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
@@ -98,7 +99,7 @@ class JobseekerProfileController extends Controller
     {
         $request->validate([
             'current_password' => 'required|string',
-            'password' => 'required|string|min:8|confirmed',
+            'password' => JobseekerPassword::createRules(),
         ]);
 
         $jobseeker = $request->user();

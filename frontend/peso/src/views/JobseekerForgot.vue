@@ -18,7 +18,7 @@
             </svg>
           </div>
           <div>
-            <span class="brand-name">PESO</span>
+            <span class="brand-name">PESO Connect</span>
             <span class="brand-tag">Jobseeker Portal</span>
           </div>
         </div>
@@ -56,7 +56,7 @@
         </div>
         <div>
           <p class="pc-heading">Your account is safe</p>
-          <p class="pc-desc">PESO uses secure, time-limited reset links. Links expire after 30 minutes and can only be used once.</p>
+          <p class="pc-desc">PESO Connect uses secure, time-limited reset links. Links expire after 30 minutes and can only be used once.</p>
         </div>
       </div>
     </div>
@@ -107,7 +107,7 @@
 
             <div class="info-box">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2872A1" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span>Make sure to use the email address linked to your PESO jobseeker account.</span>
+              <span>Make sure to use the email address linked to your PESO Connect jobseeker account.</span>
             </div>
 
             <button class="btn-submit" @click="handleSendReset" :disabled="!email || !!emailError" :class="{ loading: sending }">
@@ -202,7 +202,7 @@ export default {
         { title: 'Reset your password', sub: 'Choose a new secure password' },
       ],
       nextSteps: [
-        'Open the email from PESO Portal',
+        'Open the email from PESO Connect',
         'Click the "Reset Password" button',
         'Choose a new secure password',
         'Sign in with your new credentials',

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 
 import 'api_service.dart';
 import 'home_pages.dart';
@@ -38,6 +40,8 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
   String? _barangayCode;
   String? _barangayName;
   bool _locationLoading = false;
+  String? _locationError;
+  static const String _psgcProvincesUrl = 'https://psgc.gitlab.io/api/provinces/';
 
   static const _goals = [
     'Full-time',
@@ -131,63 +135,116 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
     }
   }
 
-  Map<String, String>? _extractLocationItem(dynamic raw) {
-    if (raw is! Map) return null;
-    final code = (raw['code'] ??
-            raw['id'] ??
-            raw['province_code'] ??
-            raw['city_code'] ??
-            raw['barangay_code'])
-        ?.toString()
-        .trim();
-    final name = (raw['name'] ??
-            raw['province_name'] ??
-            raw['city_name'] ??
-            raw['barangay_name'] ??
-            raw['label'])
-        ?.toString()
-        .trim();
-    if (code == null || code.isEmpty || name == null || name.isEmpty) return null;
-    return {'code': code, 'name': name};
+  Future<List<Map<String, String>>> _fetchLocationList(String url) async {
+    try {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) return [];
+      final data = jsonDecode(response.body);
+      if (data is! List) return [];
+      final list = data
+          .whereType<Map>()
+          .map((e) => {
+                'code': (e['code'] ?? '').toString(),
+                'name': (e['name'] ?? '').toString(),
+              })
+          .where((e) => e['code']!.isNotEmpty && e['name']!.isNotEmpty)
+          .toList();
+      list.sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
+      return list;
+    } catch (_) {
+      return [];
+    }
   }
 
   Future<void> _loadLocations() async {
-    setState(() => _locationLoading = true);
-    final all = await ApiService.getAllLocations();
-    if (!mounted) return;
-    final provincesRaw = all['provinces'] as List<dynamic>? ?? [];
-    final citiesRaw = all['cities'] as List<dynamic>? ?? [];
-    final barangaysRaw = all['barangays'] as List<dynamic>? ?? [];
-
-    final provinces = provincesRaw
-        .map(_extractLocationItem)
-        .whereType<Map<String, String>>()
-        .toList()
-      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
-    final cities = citiesRaw
-        .map(_extractLocationItem)
-        .whereType<Map<String, String>>()
-        .toList()
-      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
-    final barangays = barangaysRaw
-        .map(_extractLocationItem)
-        .whereType<Map<String, String>>()
-        .toList()
-      ..sort((a, b) => a['name']!.toLowerCase().compareTo(b['name']!.toLowerCase()));
-
     setState(() {
-      _provinces = provinces;
-      _cities = cities;
-      _barangays = barangays;
-      _provinceCode = UserSession().provinceCode;
-      _provinceName = UserSession().provinceName;
-      _cityCode = UserSession().cityCode;
-      _cityName = UserSession().cityName;
-      _barangayCode = UserSession().barangayCode;
-      _barangayName = UserSession().barangayName;
-      _streetController.text = UserSession().streetAddress ?? '';
-      _locationLoading = false;
+      _locationLoading = true;
+      _locationError = null;
     });
+    try {
+      _provinces = await _fetchLocationList(_psgcProvincesUrl);
+      if (_provinces.isEmpty) {
+        _locationError = 'Unable to load location data. Check connection and try again.';
+        return;
+      }
+
+      final session = UserSession();
+      _streetController.text = session.streetAddress ?? '';
+
+      final sessionProvince = session.provinceCode;
+      final sessionCity = session.cityCode;
+      final sessionBarangay = session.barangayCode;
+
+      if (sessionProvince != null && sessionProvince.isNotEmpty) {
+        await _onProvinceChanged(sessionProvince, silent: true);
+      }
+      if (sessionCity != null && sessionCity.isNotEmpty) {
+        await _onCityChanged(sessionCity, silent: true);
+      }
+      if (sessionBarangay != null && sessionBarangay.isNotEmpty) {
+        final hit = _barangays.where((e) => e['code'] == sessionBarangay).toList();
+        if (hit.isNotEmpty) {
+          _barangayCode = hit.first['code'];
+          _barangayName = hit.first['name'];
+        }
+      }
+    } finally {
+      if (!mounted) return;
+      setState(() => _locationLoading = false);
+    }
+  }
+
+  Future<void> _onProvinceChanged(String? code, {bool silent = false}) async {
+    setState(() {
+      _provinceCode = code;
+      _provinceName = _provinces
+          .firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
+      _cityCode = null;
+      _cityName = null;
+      _barangayCode = null;
+      _barangayName = null;
+      _cities = [];
+      _barangays = [];
+      _locationLoading = !silent;
+    });
+
+    if (code == null || code.isEmpty) {
+      if (mounted && !silent) setState(() => _locationLoading = false);
+      return;
+    }
+
+    try {
+      _cities = await _fetchLocationList(
+        'https://psgc.gitlab.io/api/provinces/$code/cities-municipalities/',
+      );
+    } finally {
+      if (mounted && !silent) setState(() => _locationLoading = false);
+    }
+  }
+
+  Future<void> _onCityChanged(String? code, {bool silent = false}) async {
+    setState(() {
+      _cityCode = code;
+      _cityName =
+          _cities.firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
+      _barangayCode = null;
+      _barangayName = null;
+      _barangays = [];
+      _locationLoading = !silent;
+    });
+
+    if (code == null || code.isEmpty) {
+      if (mounted && !silent) setState(() => _locationLoading = false);
+      return;
+    }
+
+    try {
+      _barangays = await _fetchLocationList(
+        'https://psgc.gitlab.io/api/cities-municipalities/$code/barangays/',
+      );
+    } finally {
+      if (mounted && !silent) setState(() => _locationLoading = false);
+    }
   }
 
   @override
@@ -453,6 +510,25 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           const LinearProgressIndicator(color: Color(0xFF2563EB), minHeight: 3),
           const SizedBox(height: 12),
         ],
+        if (_locationError != null) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFEE2E2),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFFCA5A5)),
+            ),
+            child: Text(
+              _locationError!,
+              style: GoogleFonts.poppins(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF991B1B),
+              ),
+            ),
+          ),
+        ],
         _selectorField(
           label: 'Province',
           icon: Icons.location_city_outlined,
@@ -462,10 +538,9 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           onTap: () async {
             final picked = await _pickOption(title: 'Select Province', options: _provinces);
             if (picked == null) return;
-            setState(() {
-              _provinceCode = picked['code'];
-              _provinceName = picked['name'];
-            });
+            await _onProvinceChanged(picked['code']);
+            if (!mounted) return;
+            setState(() {});
           },
         ),
         const SizedBox(height: 12),
@@ -473,18 +548,19 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           label: 'City / Municipality',
           icon: Icons.location_on_outlined,
           value: _cityName,
-          placeholder: _cities.isEmpty ? 'Loading cities...' : 'Select city / municipality',
-          enabled: !_busy && _cities.isNotEmpty,
+          placeholder: _provinceCode == null
+              ? 'Select province first'
+              : (_cities.isEmpty ? 'Loading cities...' : 'Select city / municipality'),
+          enabled: !_busy && _provinceCode != null && _cities.isNotEmpty,
           onTap: () async {
             final picked = await _pickOption(
               title: 'Select City / Municipality',
               options: _cities,
             );
             if (picked == null) return;
-            setState(() {
-              _cityCode = picked['code'];
-              _cityName = picked['name'];
-            });
+            await _onCityChanged(picked['code']);
+            if (!mounted) return;
+            setState(() {});
           },
         ),
         const SizedBox(height: 12),
@@ -492,8 +568,10 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           label: 'Barangay',
           icon: Icons.home_work_outlined,
           value: _barangayName,
-          placeholder: _barangays.isEmpty ? 'Loading barangays...' : 'Select barangay',
-          enabled: !_busy && _barangays.isNotEmpty,
+          placeholder: _cityCode == null
+              ? 'Select city first'
+              : (_barangays.isEmpty ? 'Loading barangays...' : 'Select barangay'),
+          enabled: !_busy && _cityCode != null && _barangays.isNotEmpty,
           onTap: () async {
             final picked = await _pickOption(title: 'Select Barangay', options: _barangays);
             if (picked == null) return;

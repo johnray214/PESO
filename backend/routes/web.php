@@ -11,6 +11,7 @@
  * this route (re-run `php artisan storage:link` only if you need the symlink
  * for another server; for local Flutter web, keep the symlink removed).
  */
+use App\Http\Controllers\JobseekerPasswordResetWebController;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Http\Request;
 use Illuminate\Session\Middleware\StartSession;
@@ -42,3 +43,8 @@ Route::match(['GET', 'HEAD', 'OPTIONS'], '/storage/{path}', function (Request $r
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/jobseeker/reset-password', [JobseekerPasswordResetWebController::class, 'show'])
+    ->name('jobseeker.password.reset');
+Route::post('/jobseeker/reset-password', [JobseekerPasswordResetWebController::class, 'submit'])
+    ->name('jobseeker.password.reset.submit');

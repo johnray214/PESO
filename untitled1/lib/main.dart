@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +13,11 @@ import 'job_action_service.dart';
 import 'onboarding_intro_slides.dart';
 import 'onboarding_post_auth.dart';
 import 'onboarding_prefs.dart';
+import 'session_prefs.dart';
+import 'password_rules.dart';
+import 'app_nav.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -78,6 +83,7 @@ class PESOApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: 'PESO Santiago City',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
@@ -118,6 +124,13 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
   void initState() {
     super.initState();
 
+    registerJobseekerSignOut(() {
+      rootNavigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute<void>(builder: (_) => const AuthEntryPage()),
+        (route) => false,
+      );
+    });
+
     _mascotCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -146,9 +159,26 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
 
     _mascotCtrl.forward();
 
-    // Auto-navigate: intro slides (first launch) → auth entry
+    // Auto-navigate: restore session → home, else intro/auth
     Future.delayed(const Duration(milliseconds: 3400), () async {
       if (!mounted) return;
+      final hasSession = await SessionPrefs.restoreSession();
+      if (!mounted) return;
+      if (hasSession) {
+        await JobActionService().loadFromBackend();
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 700),
+            pageBuilder: (_, __, ___) => const HomePage(),
+            transitionsBuilder: (_, animation, __, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+        return;
+      }
       final introDone = await OnboardingPrefs.isIntroDone();
       if (!mounted) return;
       if (!introDone) {
@@ -567,7 +597,10 @@ class _AuthEntryPageState extends State<AuthEntryPage>
 
   @override
   Widget build(BuildContext context) {
-    final h = MediaQuery.of(context).size.height;
+    final h = MediaQuery.sizeOf(context).height;
+    // Keep Sign in / Create account pinned to the physical bottom; do not resize
+    // the scaffold when the keyboard opens (avoids those buttons riding up).
+    final keyboardPad = MediaQuery.viewInsetsOf(context).bottom;
 
     final headerFade = CurvedAnimation(
       parent: _ctrl,
@@ -586,6 +619,7 @@ class _AuthEntryPageState extends State<AuthEntryPage>
     );
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: AnimatedBuilder(
@@ -596,19 +630,25 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                 final maxH = constraints.maxHeight.isFinite
                     ? constraints.maxHeight
                     : h;
-                final headerTranslateY = lerpDouble(
-                  0,
-                  -maxH * 0.33,
-                  headerMove.value,
-                );
                 final headerOpacity = headerFade.value;
 
-                final authTranslateY = lerpDouble(
-                  // Start off-screen.
-                  maxH * 0.60,
-                  0,
+                // Staged intro: welcome starts centered (highlight, subtext hidden), eases
+                // toward the top; form [authPop] starts with a low top edge then rises to
+                // sit just under the header — avoids Column pinning everything at top t=0.
+                final headerAlignment = Alignment.lerp(
+                  Alignment.center,
+                  const Alignment(0, -0.80),
+                  headerMove.value,
+                )!;
+
+                // Top edge of the white card: mid-screen → below icon/title/subtext with a
+                // clear gap (previous end ~158–178px let the sheet overlap the subtitle).
+                final formTopEnd = maxH < 640 ? 228.0 : 252.0;
+                final formTop = lerpDouble(
+                  maxH * 0.48,
+                  formTopEnd,
                   authPop.value,
-                );
+                )!;
                 // `easeOutBack` can overshoot >1.0; Opacity requires 0..1.
                 final authOpacity = authPop.value.clamp(0.0, 1.0).toDouble();
 
@@ -634,77 +674,79 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                 final subtitleYOffset =
                     lerpDouble(8, 0, subtitleReveal) ?? 0;
 
+                // Tighter header on short viewports so title + wrapped subtitle fit.
+                final compact = maxH < 640;
+                final iconSz = compact ? 52.0 : 64.0;
+                final titleSz = compact ? 21.0 : 24.0;
+                final subSize = compact ? 12.5 : 13.0;
+
                 return Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    // Header + welcome copy
                     Align(
-                      alignment: Alignment.center,
-                      child: Transform.translate(
-                        offset: Offset(0, headerTranslateY ?? 0),
+                      alignment: headerAlignment,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          24,
+                          compact ? 4 : 8,
+                          24,
+                          compact ? 14 : 18,
+                        ),
                         child: Opacity(
                           opacity: headerOpacity,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 24),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Transform.scale(
-                                  scale: iconScale,
-                                  child: Icon(
-                                    Icons.verified_user_rounded,
-                                    size: 64,
-                                    color:
-                                        const Color(0xFF2563EB).withOpacity(0.9),
-                                  ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Transform.scale(
+                                scale: iconScale,
+                                child: Icon(
+                                  Icons.verified_user_rounded,
+                                  size: iconSz,
+                                  color: const Color(0xFF2563EB)
+                                      .withOpacity(0.9),
                                 ),
-                                const SizedBox(height: 14),
-                                Text(
-                                  'Welcome to PESO',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w800,
-                                    color: titleColor,
-                                  ),
-                                  textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: compact ? 10 : 14),
+                              Text(
+                                'Welcome to PESO Connect',
+                                style: GoogleFonts.poppins(
+                                  fontSize: titleSz,
+                                  fontWeight: FontWeight.w800,
+                                  color: titleColor,
                                 ),
-                                const SizedBox(height: 8),
-                                Transform.translate(
-                                  offset: Offset(0, subtitleYOffset),
-                                  child: Opacity(
-                                    opacity: subtitleOpacity,
-                                    child: Text(
-                                      'Sign in to continue, or create an account to start applying for jobs and events.',
-                                      style: GoogleFonts.poppins(
-                                        fontSize: 13,
-                                        height: 1.4,
-                                        color: subtitleColor,
-                                      ),
-                                      textAlign: TextAlign.center,
+                                textAlign: TextAlign.center,
+                              ),
+                              SizedBox(height: compact ? 6 : 8),
+                              Transform.translate(
+                                offset: Offset(0, subtitleYOffset),
+                                child: Opacity(
+                                  opacity: subtitleOpacity,
+                                  child: Text(
+                                    'Sign in to continue, or create an account to start applying for jobs and events.',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: subSize,
+                                      height: 1.4,
+                                      color: subtitleColor,
                                     ),
+                                    textAlign: TextAlign.center,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                              // Air below subtext so the sheet cannot ride up over it.
+                              SizedBox(height: compact ? 10 : 12),
+                            ],
                           ),
                         ),
                       ),
                     ),
-
-                    // Buttons + on-screen auth form
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Transform.translate(
-                        offset: Offset(0, authTranslateY ?? 0),
-                        child: Opacity(
+                    Positioned(
+                      left: 24,
+                      right: 24,
+                      top: formTop,
+                      bottom: 10,
+                      child: Opacity(
                           opacity: authOpacity,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.fromLTRB(24, 0, 24, 10),
-                            child: SizedBox(
-                              width: double.infinity,
-                              height: h * 0.70,
-                              child: Material(
+                          child: Material(
                                 color: Colors.transparent,
                                 child: DecoratedBox(
                                   decoration: BoxDecoration(
@@ -738,10 +780,16 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                                           child: SingleChildScrollView(
                                             physics:
                                                 const BouncingScrollPhysics(),
+                                            keyboardDismissBehavior:
+                                                ScrollViewKeyboardDismissBehavior
+                                                    .onDrag,
                                             child: Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      4, 6, 4, 20),
+                                              padding: EdgeInsets.fromLTRB(
+                                                4,
+                                                6,
+                                                4,
+                                                20 + keyboardPad,
+                                              ),
                                               child: LoginModal(
                                                 key: ValueKey<bool>(
                                                     _isSignUpMode),
@@ -833,9 +881,6 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                                 ),
                               ),
                             ),
-                          ),
-                        ),
-                      ),
                     ),
                   ],
                 );
@@ -1732,6 +1777,9 @@ class _LoginModalState extends State<LoginModal>
   DateTime? _selectedDob;
   bool _isSubmitting = false;
   String? _authError;
+  bool _rememberMe = true;
+  Timer? _otpReopenCooldownTimer;
+  int _otpReopenCooldownSeconds = 0;
 
   @override
   void initState() {
@@ -1754,6 +1802,7 @@ class _LoginModalState extends State<LoginModal>
   @override
   void dispose() {
     _animationController.dispose();
+    _otpReopenCooldownTimer?.cancel();
     _firstNameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
@@ -1790,13 +1839,8 @@ class _LoginModalState extends State<LoginModal>
   }
 
   Future<void> _handleRegistration() async {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _RegistrationLoadingDialog(),
-    );
-
-    final result = await ApiService.register(
+    Map<String, dynamic> result;
+    result = await ApiService.register(
       firstName: _firstNameController.text.trim(),
       lastName: _lastNameController.text.trim(),
       email: _emailController.text.trim(),
@@ -1807,34 +1851,51 @@ class _LoginModalState extends State<LoginModal>
       dateOfBirth: _dobController.text.isEmpty ? null : _dobController.text,
     );
 
-    Navigator.pop(context);
-
     if (result['success'] == true) {
-      // Store session — backend returns token + user on register too
-      UserSession().setFromApiData(result['data'] as Map<String, dynamic>);
-
-      await showDialog(
+      final data = result['data'] as Map<String, dynamic>? ?? {};
+      final initialRemainingDailySends = _initialRemainingDailySendsFromAuthResponse(result);
+      final otpResult = await showDialog<Map<String, dynamic>>(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const _RegistrationResultDialog(
-          isSuccess: true,
-          message: 'Account created! Welcome aboard.',
+        builder: (_) => _OtpVerificationDialog(
+          email: _emailController.text.trim(),
+          initialRemainingDailySends: initialRemainingDailySends,
         ),
       );
-
+      if (otpResult == null || otpResult['success'] != true) {
+        _handleOtpCancelCooldown();
+        return;
+      }
+      final otpData = otpResult['data'] as Map<String, dynamic>? ?? data;
+      UserSession().setFromApiData(otpData);
+      final token = UserSession().token;
+      if (token != null && token.isNotEmpty) {
+        await SessionPrefs.saveToken(token);
+      }
       if (!mounted) return;
-      // Load job action state after login
       await JobActionService().loadFromBackend();
       if (!mounted) return;
       await OnboardingPrefs.setPostAuthPending();
       if (!mounted) return;
-      // Close modal, then post-auth onboarding → Home
       if (widget.renderAsModal) Navigator.pop(context);
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const PostAuthOnboardingScreen()),
       );
     } else {
+      if (result['requires_verification'] == true) {
+        if (!mounted) return;
+        setState(() {
+          _isSignUpMode = false;
+          _passwordController.clear();
+          _confirmPasswordController.clear();
+          _authError =
+              'This email is already registered but not verified. Sign in to continue verification.';
+          _isSubmitting = false;
+        });
+        return;
+      }
+
       String errorMessage = 'Registration failed';
       if (result['message'] != null) {
         errorMessage = result['message'];
@@ -1862,6 +1923,237 @@ class _LoginModalState extends State<LoginModal>
     }
   }
 
+  void _handleOtpCancelCooldown() {
+    _clearAuthFieldsAfterOtpCancel();
+    _startOtpReopenCooldown();
+    if (!mounted) return;
+    setState(() {
+      _authError =
+          'Verification cancelled. Please wait ${_otpReopenCooldownSeconds}s before requesting OTP again.';
+    });
+  }
+
+  void _clearAuthFieldsAfterOtpCancel() {
+    _firstNameController.clear();
+    _lastNameController.clear();
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+    _dobController.clear();
+    _phoneController.clear();
+    _selectedDob = null;
+    _selectedSex = null;
+    _isSignUpMode = false;
+  }
+
+  /// Same root + nested shape for register vs sign-in OTP responses.
+  int? _initialRemainingDailySendsFromAuthResponse(Map<String, dynamic> result) {
+    final top = (result['remaining_daily_sends'] as num?)?.toInt();
+    if (top != null) return top;
+    final data = result['data'];
+    if (data is Map<String, dynamic>) {
+      return (data['remaining_daily_sends'] as num?)?.toInt();
+    }
+    return null;
+  }
+
+  Future<void> _openMailto(String email) async {
+    final uri = Uri(scheme: 'mailto', path: email);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _showForgotPasswordDialog() async {
+    final emailCtrl = TextEditingController(text: _emailController.text.trim());
+    var sending = false;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: const Text('Forgot password'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Enter your registered email. We’ll send a link to reset your password for PESO Connect (same server as the API).',
+                    style: TextStyle(fontSize: 13.5, height: 1.35, color: Color(0xFF64748B)),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: emailCtrl,
+                    keyboardType: TextInputType.emailAddress,
+                    autofillHints: const [AutofillHints.email],
+                    decoration: const InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: sending ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: sending
+                      ? null
+                      : () async {
+                          final email = emailCtrl.text.trim();
+                          if (email.isEmpty || !email.contains('@')) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please enter a valid email address.'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            return;
+                          }
+                          setLocal(() => sending = true);
+                          final res = await ApiService.forgotJobseekerPassword(email: email);
+                          if (!ctx.mounted) return;
+                          // Do not call setLocal before pop: rebuilding StatefulBuilder while
+                          // closing the route can assert in InheritedWidget disposal.
+                          Navigator.of(ctx).pop();
+                          if (!mounted) return;
+                          final ok = res['success'] == true;
+                          String msg;
+                          if (ok) {
+                            msg = (res['message'] as String?)?.trim() ??
+                                'Check your email for the reset link.';
+                          } else {
+                            final errs = res['errors'];
+                            if (errs is Map && errs['email'] is List && (errs['email'] as List).isNotEmpty) {
+                              msg = (errs['email'] as List).first.toString();
+                            } else {
+                              msg = (res['message'] as String?)?.trim() ??
+                                  'Could not send reset link. Try again later.';
+                            }
+                          }
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (!mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(msg),
+                                behavior: SnackBarBehavior.floating,
+                                duration: const Duration(seconds: 5),
+                                action: ok
+                                    ? SnackBarAction(
+                                        label: 'Open email',
+                                        onPressed: () => unawaited(_openMailto(email)),
+                                      )
+                                    : null,
+                              ),
+                            );
+                          });
+                        },
+                  child: Text(sending ? 'Sending…' : 'Send link'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    emailCtrl.dispose();
+  }
+
+  void _startOtpReopenCooldown([int seconds = 3]) {
+    _otpReopenCooldownTimer?.cancel();
+    _otpReopenCooldownSeconds = seconds;
+    _otpReopenCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_otpReopenCooldownSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _otpReopenCooldownSeconds = 0;
+          if (_authError != null &&
+              _authError!.contains('Verification cancelled. Please wait')) {
+            _authError = null;
+          }
+        });
+      } else {
+        setState(() {
+          _otpReopenCooldownSeconds -= 1;
+          if (_authError != null &&
+              _authError!.contains('Verification cancelled. Please wait')) {
+            _authError =
+                'Verification cancelled. Please wait ${_otpReopenCooldownSeconds}s before requesting OTP again.';
+          }
+        });
+      }
+    });
+    if (mounted) setState(() {});
+  }
+
+  Widget _passwordRequirementRow(String label, bool ok) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            ok ? Icons.check_circle_rounded : Icons.circle_outlined,
+            size: 16,
+            color: ok ? const Color(0xFF16A34A) : const Color(0xFFCBD5E1),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: ok ? const Color(0xFF166534) : const Color(0xFF64748B),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPasswordRequirements() {
+    if (!_isSignUpMode) return const SizedBox.shrink();
+    final p = _passwordController.text;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Password must include:',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF64748B),
+          ),
+        ),
+        const SizedBox(height: 6),
+        _passwordRequirementRow(
+          'At least 8 characters',
+          PasswordRules.hasMinLength(p),
+        ),
+        _passwordRequirementRow(
+          'Uppercase & lowercase letters',
+          PasswordRules.hasUppercase(p) && PasswordRules.hasLowercase(p),
+        ),
+        _passwordRequirementRow(
+          'At least one number',
+          PasswordRules.hasNumber(p),
+        ),
+        _passwordRequirementRow(
+          'At least one special character',
+          PasswordRules.hasSymbol(p),
+        ),
+      ],
+    );
+  }
+
   InputDecoration _fieldDec(String label, IconData icon, {Widget? suffix}) {
     final fill = widget.renderAsModal
         ? const Color(0xFFF8F9FA)
@@ -1887,6 +2179,40 @@ class _LoginModalState extends State<LoginModal>
       focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6)),
+    );
+  }
+
+  Widget _buildTopErrorBanner(String message) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEE2E2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFFCA5A5)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline_rounded, color: Color(0xFF991B1B), size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: const TextStyle(
+                color: Color(0xFF991B1B),
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () => setState(() => _authError = null),
+            child: const Icon(Icons.close_rounded, color: Color(0xFF991B1B), size: 18),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1950,7 +2276,7 @@ class _LoginModalState extends State<LoginModal>
                     alignment: Alignment.centerLeft,
                     child: Text(
                       _isSignUpMode
-                          ? 'Join PESO and discover employment opportunities'
+                          ? 'Join PESO Connect and discover employment opportunities'
                           : 'Sign in to access your account',
                       style: TextStyle(
                           fontSize: 14, color: Colors.grey[600]),
@@ -1964,6 +2290,10 @@ class _LoginModalState extends State<LoginModal>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (!_isSignUpMode && _authError != null) ...[
+                        _buildTopErrorBanner(_authError!),
+                        const SizedBox(height: 12),
+                      ],
                       if (_isSignUpMode) ...[
                         TextFormField(
                           controller: _firstNameController,
@@ -2024,6 +2354,7 @@ class _LoginModalState extends State<LoginModal>
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
+                        onChanged: (_) => setState(() {}),
                         decoration: _fieldDec(
                           'Password',
                           Icons.lock_outline_rounded,
@@ -2037,61 +2368,86 @@ class _LoginModalState extends State<LoginModal>
                           ),
                         ),
                         validator: (v) {
-                          if (v == null || v.isEmpty) return 'Please enter your password';
-                          if (v.length < 8) return 'Password must be at least 8 characters';
+                          if (v == null || v.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          if (_isSignUpMode) {
+                            return PasswordRules.validateStrongPassword(v);
+                          }
                           return null;
                         },
                       ),
+                      if (_isSignUpMode) ...[
+                        _buildPasswordRequirements(),
+                        const SizedBox(height: 8),
+                      ],
                       if (!_isSignUpMode) ...[
                         const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Forgot password is not yet available.',
-                                  ),
-                                  behavior: SnackBarBehavior.floating,
+                        Row(
+                          children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => setState(() => _rememberMe = !_rememberMe),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: Checkbox(
+                                        value: _rememberMe,
+                                        onChanged: (v) =>
+                                            setState(() => _rememberMe = v ?? false),
+                                        activeColor: const Color(0xFF2563EB),
+                                        visualDensity: VisualDensity.compact,
+                                        materialTapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    const Text(
+                                      'Remember me',
+                                      style: TextStyle(
+                                        color: Color(0xFF475569),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              );
-                            },
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 0,
-                              ),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: const Text(
-                              'Forgot password?',
-                              style: TextStyle(
-                                color: Color(0xFF2563EB),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                          ),
+                            const Spacer(),
+                            TextButton(
+                              onPressed: _showForgotPasswordDialog,
+                              style: TextButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                  vertical: 0,
+                                ),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              child: const Text(
+                                'Forgot password?',
+                                style: TextStyle(
+                                  color: Color(0xFF2563EB),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
-                      if (!_isSignUpMode && _authError != null) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          _authError!,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                      if (!_isSignUpMode) const SizedBox(height: 6),
                       if (_isSignUpMode) ...[
                         const SizedBox(height: 20),
                         TextFormField(
                           controller: _confirmPasswordController,
                           obscureText: _obscureConfirmPassword,
+                          onChanged: (_) => setState(() {}),
                           decoration: _fieldDec(
                             'Confirm Password',
                             Icons.lock_outline_rounded,
@@ -2110,6 +2466,19 @@ class _LoginModalState extends State<LoginModal>
                             return null;
                           },
                         ),
+                        if (_confirmPasswordController.text.isNotEmpty &&
+                            _confirmPasswordController.text != _passwordController.text)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              'Passwords do not match',
+                              style: TextStyle(
+                                color: Colors.red[700],
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         const SizedBox(height: 20),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2162,6 +2531,15 @@ class _LoginModalState extends State<LoginModal>
                                     setState(() => _isSubmitting = false);
                                   }
                               } else {
+                                if (_otpReopenCooldownSeconds > 0) {
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _authError =
+                                        'Please wait ${_otpReopenCooldownSeconds}s before requesting OTP again.';
+                                    _isSubmitting = false;
+                                  });
+                                  return;
+                                }
                                 final result = await ApiService.login(
                                   email: _emailController.text,
                                   password: _passwordController.text,
@@ -2171,6 +2549,10 @@ class _LoginModalState extends State<LoginModal>
                                   UserSession().setFromApiData(
                                     result['data'] as Map<String, dynamic>,
                                   );
+                                  final token = UserSession().token;
+                                  if (token != null && token.isNotEmpty) {
+                                    await SessionPrefs.saveToken(token);
+                                  }
                                   if (!mounted) return;
                                   // Load job action state after login
                                   await JobActionService().loadFromBackend();
@@ -2187,6 +2569,47 @@ class _LoginModalState extends State<LoginModal>
                                           : const HomePage(),
                                     ),
                                   );
+                                } else if (result['requires_verification'] == true) {
+                                  if (!mounted) return;
+                                  final initialRemainingDailySends =
+                                      _initialRemainingDailySendsFromAuthResponse(result);
+                                  final otpResult = await showDialog<Map<String, dynamic>>(
+                                    context: context,
+                                    barrierDismissible: false,
+                                    builder: (_) => _OtpVerificationDialog(
+                                      email: _emailController.text.trim(),
+                                      initialRemainingDailySends: initialRemainingDailySends,
+                                    ),
+                                  );
+                                  if (otpResult != null && otpResult['success'] == true) {
+                                    final otpData = otpResult['data'] as Map<String, dynamic>? ?? {};
+                                    UserSession().setFromApiData(otpData);
+                                    final token = UserSession().token;
+                                    if (token != null && token.isNotEmpty) {
+                                      await SessionPrefs.saveToken(token);
+                                    }
+                                    if (!mounted) return;
+                                    await JobActionService().loadFromBackend();
+                                    if (!mounted) return;
+                                    if (widget.renderAsModal) Navigator.pop(context);
+                                    final needsOnboarding =
+                                        await OnboardingPrefs.needsPostAuth();
+                                    if (!mounted) return;
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => needsOnboarding
+                                            ? const PostAuthOnboardingScreen()
+                                            : const HomePage(),
+                                      ),
+                                    );
+                                    return;
+                                  }
+                                  _handleOtpCancelCooldown();
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _isSubmitting = false;
+                                  });
                                 } else {
                                     final msg = result['message'] as String? ??
                                         'Login failed. Check your email and password.';
@@ -2298,6 +2721,372 @@ class _LoginModalState extends State<LoginModal>
           borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
         ),
         child: content,
+      ),
+    );
+  }
+}
+
+class _OtpVerificationDialog extends StatefulWidget {
+  final String email;
+  final int? initialRemainingDailySends;
+  const _OtpVerificationDialog({
+    required this.email,
+    this.initialRemainingDailySends,
+  });
+
+  @override
+  State<_OtpVerificationDialog> createState() => _OtpVerificationDialogState();
+}
+
+class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
+  final _otpController = TextEditingController();
+  final FocusNode _otpFocusNode = FocusNode();
+  Timer? _cooldownTimer;
+  int _resendCooldown = 0;
+  int? _remainingDailySends;
+  String? _statusNote;
+  bool _statusIsWarning = false;
+  bool _isVerifying = false;
+  bool _isResending = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _remainingDailySends = widget.initialRemainingDailySends;
+    _startResendCooldown(const Duration(seconds: 60));
+    _otpFocusNode.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _otpController.addListener(() {
+      final raw = _otpController.text;
+      final digitsOnly = raw.replaceAll(RegExp(r'[^0-9]'), '');
+      final limited = digitsOnly.length > 6 ? digitsOnly.substring(0, 6) : digitsOnly;
+      if (limited != raw) {
+        _otpController.value = TextEditingValue(
+          text: limited,
+          selection: TextSelection.collapsed(offset: limited.length),
+        );
+      }
+      if (_error != null) {
+        setState(() => _error = null);
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _cooldownTimer?.cancel();
+    _otpController.dispose();
+    _otpFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _verify() async {
+    final otp = _otpController.text.trim();
+    if (otp.length != 6) {
+      setState(() => _error = 'Please enter the 6-digit OTP sent to your email.');
+      return;
+    }
+    setState(() {
+      _isVerifying = true;
+      _error = null;
+    });
+    final res = await ApiService.verifyJobseekerOtp(
+      email: widget.email,
+      otpCode: otp,
+    );
+    if (!mounted) return;
+    setState(() => _isVerifying = false);
+    if (res['success'] == true) {
+      setState(() {
+        _statusNote = 'Email verified successfully. Redirecting...';
+        _statusIsWarning = false;
+      });
+      Navigator.of(context, rootNavigator: true).pop(res);
+      return;
+    }
+    final msg = _friendlyOtpMessage(res);
+    setState(() {
+      _error = msg;
+      _statusNote = null;
+    });
+  }
+
+  Widget _buildOtpBoxes() {
+    final code = _otpController.text;
+    final isFocused = _otpFocusNode.hasFocus;
+    return GestureDetector(
+      onTap: () => FocusScope.of(context).requestFocus(_otpFocusNode),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFF),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFD6DFEE)),
+        ),
+        child: Column(
+          children: [
+            Opacity(
+              opacity: 0.0,
+              child: SizedBox(
+                height: 0,
+                child: TextField(
+                  controller: _otpController,
+                  focusNode: _otpFocusNode,
+                  keyboardType: TextInputType.number,
+                  textInputAction: TextInputAction.done,
+                ),
+              ),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: List.generate(6, (index) {
+                final hasChar = index < code.length;
+                final isActive = isFocused && (index == code.length || (code.length == 6 && index == 5));
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 40,
+                  height: 50,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isActive ? const Color(0xFF4F67A9) : const Color(0xFFD7E0EF),
+                      width: isActive ? 2 : 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0F172A).withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Text(
+                    hasChar ? code[index] : '',
+                    style: const TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _resend() async {
+    if (_resendCooldown > 0) return;
+    setState(() {
+      _isResending = true;
+      _error = null;
+    });
+    final res = await ApiService.resendJobseekerOtp(email: widget.email);
+    if (!mounted) return;
+    setState(() => _isResending = false);
+    final msg = _friendlyOtpMessage(res);
+    final retryAfter = (res['retry_after_seconds'] as num?)?.toInt();
+    final cooldown = (res['cooldown_seconds'] as num?)?.toInt();
+    final remaining = (res['remaining_daily_sends'] as num?)?.toInt();
+    if (remaining != null) {
+      setState(() => _remainingDailySends = remaining);
+    }
+    if (res['success'] == true) {
+      if (cooldown != null && cooldown > 0) {
+        _startResendCooldown(Duration(seconds: cooldown));
+      } else {
+        _startResendCooldown(const Duration(seconds: 60));
+      }
+      setState(() {
+        _statusNote = 'New OTP sent. Check your email.';
+        _statusIsWarning = false;
+      });
+    } else if (retryAfter != null && retryAfter > 0) {
+      _startResendCooldown(Duration(seconds: retryAfter));
+      setState(() {
+        _statusNote = 'Please wait before requesting another OTP.';
+        _statusIsWarning = true;
+      });
+    } else {
+      setState(() {
+        _statusNote = msg;
+        _statusIsWarning = true;
+      });
+    }
+  }
+
+  void _startResendCooldown(Duration duration) {
+    _cooldownTimer?.cancel();
+    setState(() => _resendCooldown = duration.inSeconds);
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_resendCooldown <= 1) {
+        timer.cancel();
+        setState(() => _resendCooldown = 0);
+      } else {
+        setState(() => _resendCooldown--);
+      }
+    });
+  }
+
+  String _friendlyOtpMessage(Map<String, dynamic> res) {
+    final raw = (res['message'] as String?)?.trim();
+    final message = (raw ?? '').toLowerCase();
+    if (message.contains('daily otp limit reached') || message.contains('7/day')) {
+      return 'You have reached today\'s OTP limit (7/day). Try again tomorrow.';
+    }
+    if (message.contains('expired after 24 hours') || message.contains('deleted')) {
+      return 'Your unverified account expired after 24 hours. Please register again.';
+    }
+    if (message.contains('invalid verification code')) {
+      return 'Incorrect OTP. Please check the code and try again.';
+    }
+    if (message.contains('verification code has expired')) {
+      return 'This OTP has expired. Tap Resend OTP to get a new code.';
+    }
+    if (message.contains('please wait')) {
+      return 'Please wait before requesting another OTP.';
+    }
+    if (message.contains('failed to send otp')) {
+      return 'Unable to send OTP right now. Please try again shortly.';
+    }
+    return raw ?? 'Something went wrong. Please try again.';
+  }
+
+  Widget _buildStatusBanner() {
+    if (_statusNote == null || _statusNote!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final color = _statusIsWarning ? const Color(0xFFB45309) : const Color(0xFF1D4ED8);
+    final bg = _statusIsWarning ? const Color(0xFFFFF7ED) : const Color(0xFFEFF6FF);
+    return Container(
+      margin: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            _statusIsWarning ? Icons.info_outline_rounded : Icons.check_circle_outline_rounded,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _statusNote!,
+              style: TextStyle(
+                fontSize: 12.5,
+                color: color,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Verify your email',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Enter the 6-digit OTP sent to ${widget.email}.',
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF64748B),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _buildOtpBoxes(),
+            _buildStatusBanner(),
+            if (_remainingDailySends != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '$_remainingDailySends sends left today',
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  color: Color(0xFFDC2626),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton(
+                  onPressed: _isResending || _isVerifying || _resendCooldown > 0
+                      ? null
+                      : _resend,
+                  child: Text(
+                    _isResending
+                        ? 'Resending...'
+                        : _resendCooldown > 0
+                            ? 'Resend in ${_resendCooldown}s'
+                            : 'Resend OTP',
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: _isVerifying
+                      ? null
+                      : () => Navigator.of(context, rootNavigator: true).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: (_isVerifying || _isResending) ? null : _verify,
+                  child: Text(_isVerifying ? 'Verifying...' : 'Verify'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

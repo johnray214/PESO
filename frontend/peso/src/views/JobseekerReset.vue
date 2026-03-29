@@ -18,7 +18,7 @@
             </svg>
           </div>
           <div>
-            <span class="brand-name">PESO</span>
+            <span class="brand-name">PESO Connect</span>
             <span class="brand-tag">Jobseeker Portal</span>
           </div>
         </div>
@@ -180,7 +180,7 @@ export default {
       recoverySteps: [
         { title: 'Click reset link',   sub: 'Verified from your email' },
         { title: 'New password',       sub: 'Create a new secure key' },
-        { title: 'Access account',     sub: 'Sign in to PESO automatically' },
+        { title: 'Access account',     sub: 'Sign in to PESO Connect' },
       ],
     }
   },

@@ -322,6 +322,7 @@ class EmployerApplicationController extends Controller
             }
             $jobseeker->match_score = $maxScore;
             $jobseeker->best_job_match = $bestJob?->title ?? null;
+            $jobseeker->best_job_id = $bestJob?->id ?? null;
             return $jobseeker;
         });
 

@@ -92,6 +92,7 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
             color:     AVATAR_COLORS[i % AVATAR_COLORS.length],
             score:     Math.round(a.match_score || 70),
             bestFor:   a.best_job_match || '',
+            jobId:     a.best_job_id || null,
             jobColor:  AVATAR_COLORS[i % AVATAR_COLORS.length],
             skills,
             location:  a.address   || 'Unknown',

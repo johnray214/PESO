@@ -14,6 +14,9 @@ import '_error_state_widget.dart';
 import 'job_action_service.dart';
 import 'skills_profile_page.dart';
 import 'my_documents_page.dart';
+import 'session_prefs.dart';
+import 'settings_page.dart';
+import 'app_nav.dart';
 
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
 class ProfileTab extends StatefulWidget {
@@ -315,7 +318,11 @@ class _ProfileTabState extends State<ProfileTab> {
                   _buildMenuItem(
                     icon: Icons.settings_outlined,
                     title: 'Settings',
-                    onTap: () {},
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SettingsPage(),
+                      ),
+                    ),
                   ),
                   _buildMenuItem(
                     icon: Icons.help_outline_rounded,
@@ -434,11 +441,12 @@ class _ProfileTabState extends State<ProfileTab> {
     }
 
     UserSession().clear();
+    await SessionPrefs.clear();
 
     if (!mounted) return;
     Navigator.pop(context); // close loading
-    // Return all the way to the initial landing page
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // Home is already the root route — popUntil does nothing. Replace stack with auth.
+    navigateToAuthEntryReplacingStack();
   }
 
   Widget _buildMenuItem({
