@@ -5,7 +5,8 @@ import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.254.102:8000/api';
+  static const String baseUrl =
+      'https://newpesobackend-production.up.railway.app/api';
 
   /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
   static String get apiOrigin {
@@ -56,16 +57,17 @@ class ApiService {
 
   static Map<String, dynamic> _handleError(Object e, {String? customMessage}) {
     // Check if it's a network-related failure
-    final isNetwork = e is SocketException || 
-                     e is TimeoutException || 
-                     e.toString().contains('SocketException') || 
-                     e.toString().contains('Connection failed');
+    final isNetwork = e is SocketException ||
+        e is TimeoutException ||
+        e.toString().contains('SocketException') ||
+        e.toString().contains('Connection failed');
 
     if (isNetwork) {
       onNetworkError?.call();
       return {
         'success': false,
-        'message': 'No internet connection. Please check your network and try again.',
+        'message':
+            'No internet connection. Please check your network and try again.',
         'is_network_error': true,
       };
     }
@@ -103,22 +105,24 @@ class ApiService {
     String? dateOfBirth, // 'YYYY-MM-DD'
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/jobseeker/register'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'first_name': firstName,
-          'middle_initial': middleInitial,
-          'last_name': lastName,
-          'email': email,
-          'password': password,
-          'password_confirmation': passwordConfirmation,
-          'contact': contact,
-          'address': address,
-          'sex': sex,
-          'date_of_birth': dateOfBirth,
-        }),
-      ).timeout(const Duration(seconds: 25));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/jobseeker/register'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'first_name': firstName,
+              'middle_initial': middleInitial,
+              'last_name': lastName,
+              'email': email,
+              'password': password,
+              'password_confirmation': passwordConfirmation,
+              'contact': contact,
+              'address': address,
+              'sex': sex,
+              'date_of_birth': dateOfBirth,
+            }),
+          )
+          .timeout(const Duration(seconds: 25));
 
       return jsonDecode(response.body);
     } catch (e) {
@@ -149,7 +153,8 @@ class ApiService {
       }
       final map = Map<String, dynamic>.from(decoded);
       if (map['success'] == null) {
-        map['success'] = response.statusCode >= 200 && response.statusCode < 300;
+        map['success'] =
+            response.statusCode >= 200 && response.statusCode < 300;
       }
       return map;
     } catch (e) {
@@ -188,7 +193,8 @@ class ApiService {
       }
       final map = Map<String, dynamic>.from(decoded);
       if (map['success'] == null) {
-        map['success'] = response.statusCode >= 200 && response.statusCode < 300;
+        map['success'] =
+            response.statusCode >= 200 && response.statusCode < 300;
       }
       return map;
     } catch (e) {
@@ -221,14 +227,16 @@ class ApiService {
     required String otpCode,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/jobseeker/verify-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'otp_code': otpCode,
-        }),
-      ).timeout(const Duration(seconds: 20));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/jobseeker/verify-otp'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'email': email,
+              'otp_code': otpCode,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
       return _handleError(e);
@@ -239,11 +247,13 @@ class ApiService {
     required String email,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('$baseUrl/jobseeker/resend-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'email': email}),
-      ).timeout(const Duration(seconds: 20));
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/jobseeker/resend-otp'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'email': email}),
+          )
+          .timeout(const Duration(seconds: 20));
       return jsonDecode(response.body) as Map<String, dynamic>;
     } on TimeoutException {
       return {
@@ -382,10 +392,13 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       );
       final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) return {'success': false, 'message': 'Invalid response'};
+      if (decoded is! Map<String, dynamic>)
+        return {'success': false, 'message': 'Invalid response'};
 
       final data = decoded['data'];
-      if (decoded['success'] == true && data is Map<String, dynamic> && data['data'] is List) {
+      if (decoded['success'] == true &&
+          data is Map<String, dynamic> &&
+          data['data'] is List) {
         return {
           'success': true,
           'data': data['data'],
@@ -474,12 +487,15 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
       );
       final decoded = jsonDecode(response.body);
-      if (decoded is! Map<String, dynamic>) return {'success': false, 'message': 'Invalid response'};
+      if (decoded is! Map<String, dynamic>)
+        return {'success': false, 'message': 'Invalid response'};
 
       // Normalize Laravel pagination shape:
       // { success: true, data: { data: [...] , ...pagination } }
       final data = decoded['data'];
-      if (decoded['success'] == true && data is Map<String, dynamic> && data['data'] is List) {
+      if (decoded['success'] == true &&
+          data is Map<String, dynamic> &&
+          data['data'] is List) {
         return {
           'success': true,
           'data': data['data'],
@@ -520,7 +536,9 @@ class ApiService {
         return {'success': false, 'message': 'Invalid response'};
       }
       final data = decoded['data'];
-      if (decoded['success'] == true && data is Map<String, dynamic> && data['data'] is List) {
+      if (decoded['success'] == true &&
+          data is Map<String, dynamic> &&
+          data['data'] is List) {
         return {
           'success': true,
           'data': data['data'],
@@ -572,7 +590,9 @@ class ApiService {
         return {'success': false, 'message': 'Invalid response'};
       }
       final data = decoded['data'];
-      if (decoded['success'] == true && data is Map<String, dynamic> && data['data'] is List) {
+      if (decoded['success'] == true &&
+          data is Map<String, dynamic> &&
+          data['data'] is List) {
         return {
           'success': true,
           'data': data['data'],
@@ -651,13 +671,18 @@ class ApiService {
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
-        await http.MultipartFile.fromPath('avatar', filePath, filename: fileName),
+        await http.MultipartFile.fromPath('avatar', filePath,
+            filename: fileName),
       );
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
       final body = response.body.trim();
       if (response.statusCode != 200) {
-        return {'success': false, 'message': response.statusCode == 422 ? 'Invalid image' : 'Upload failed'};
+        return {
+          'success': false,
+          'message':
+              response.statusCode == 422 ? 'Invalid image' : 'Upload failed'
+        };
       }
       try {
         return jsonDecode(body) as Map<String, dynamic>;
@@ -688,7 +713,11 @@ class ApiService {
       final response = await http.Response.fromStream(streamed);
       final body = response.body.trim();
       if (response.statusCode != 200) {
-        return {'success': false, 'message': response.statusCode == 422 ? 'Invalid image' : 'Upload failed'};
+        return {
+          'success': false,
+          'message':
+              response.statusCode == 422 ? 'Invalid image' : 'Upload failed'
+        };
       }
       try {
         return jsonDecode(body) as Map<String, dynamic>;
@@ -739,7 +768,8 @@ class ApiService {
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
-        await http.MultipartFile.fromPath('resume', filePath, filename: fileName),
+        await http.MultipartFile.fromPath('resume', filePath,
+            filename: fileName),
       );
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
@@ -817,7 +847,8 @@ class ApiService {
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
-        await http.MultipartFile.fromPath('certificate', filePath, filename: fileName),
+        await http.MultipartFile.fromPath('certificate', filePath,
+            filename: fileName),
       );
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
@@ -839,7 +870,8 @@ class ApiService {
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
-        http.MultipartFile.fromBytes('certificate', fileBytes, filename: fileName),
+        http.MultipartFile.fromBytes('certificate', fileBytes,
+            filename: fileName),
       );
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
@@ -861,7 +893,8 @@ class ApiService {
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
-        await http.MultipartFile.fromPath('barangay_clearance', filePath, filename: fileName),
+        await http.MultipartFile.fromPath('barangay_clearance', filePath,
+            filename: fileName),
       );
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
@@ -883,7 +916,8 @@ class ApiService {
       );
       request.headers['Authorization'] = 'Bearer $token';
       request.files.add(
-        http.MultipartFile.fromBytes('barangay_clearance', fileBytes, filename: fileName),
+        http.MultipartFile.fromBytes('barangay_clearance', fileBytes,
+            filename: fileName),
       );
       final streamed = await request.send();
       final response = await http.Response.fromStream(streamed);
@@ -893,7 +927,8 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> submitSatisfactionRating(String token, int rating) async {
+  static Future<Map<String, dynamic>> submitSatisfactionRating(
+      String token, int rating) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/jobseeker/satisfaction-rating'),
@@ -1265,7 +1300,8 @@ class ApiService {
   }
 
   /// Send the FCM device token to the Laravel backend (Step 9)
-  static Future<Map<String, dynamic>> updateFCMToken(String token, String fcmToken) async {
+  static Future<Map<String, dynamic>> updateFCMToken(
+      String token, String fcmToken) async {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/jobseeker/save-fcm-token'),
