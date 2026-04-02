@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1076648737382",
+    "project_id": "peso-connect-8dfe5",
+    "storage_bucket": "peso-connect-8dfe5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1076648737382:android:a418ce0b54a16183cf4ba7",
+        "android_client_info": {
+          "package_name": "com.pesostgo.pesoconnect"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCp32g3B2dKjDjxc56qjvETY6eJpk7JI_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'notification_service.dart';
 import 'api_service.dart';
 import 'user_session.dart';
 
@@ -9,6 +10,9 @@ class SessionPrefs {
   static Future<void> saveToken(String token) async {
     final p = await SharedPreferences.getInstance();
     await p.setString(_kToken, token);
+    
+    // Trigger sync for new logins
+    NotificationService().initialize();
   }
 
   static Future<void> clear() async {
@@ -41,6 +45,10 @@ class SessionPrefs {
 
     UserSession().token = token;
     UserSession().updateFromUser(user);
+
+    // Trigger sync for restored sessions
+    NotificationService().initialize();
+
     return true;
   }
 }

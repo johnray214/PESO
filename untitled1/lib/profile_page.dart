@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -19,6 +20,7 @@ import 'my_documents_page.dart';
 import 'session_prefs.dart';
 import 'settings_page.dart';
 import 'app_nav.dart';
+import 'notification_service.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -51,21 +53,17 @@ class _ProfileTabState extends State<ProfileTab> {
   void initState() {
     super.initState();
     _loadStats();
-    _startLiveStatsRefresh();
     _loadAvatar();
+    
+    // Auto-update stats when a push notification (like application update) arrives
+    NotificationService.addListener(_loadStats);
   }
 
   @override
   void dispose() {
+    NotificationService.removeListener(_loadStats);
     _statsRefreshTimer?.cancel();
     super.dispose();
-  }
-
-  void _startLiveStatsRefresh() {
-    _statsRefreshTimer?.cancel();
-    _statsRefreshTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      _loadStats();
-    });
   }
 
   Future<void> _loadAvatar() async {
@@ -152,6 +150,8 @@ class _ProfileTabState extends State<ProfileTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true, // Explicitly allow tap outside to close
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (context) => EditProfileSheet(onUpdate: () {
         _loadStats();
@@ -164,263 +164,230 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
-    const coverHeight = 170.0;
-    const avatarSize = 90.0;
+    const coverHeight = 180.0;
+    const avatarSize = 100.0;
     const avatarTop = coverHeight - avatarSize / 2;
-    const headerHeight = coverHeight + avatarSize / 2 + 72.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      body: Column(
-        children: [
-          // ── Cover + Avatar + Name/Stats side by side ────────────────────────
-          SizedBox(
-            height: headerHeight,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Cover gradient (full bleed to top)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: coverHeight,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [Color(0xFF1E3A8A), Color(0xFF2563EB), Color(0xFF60A5FA)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    child: SafeArea(
-                      bottom: false,
-                      child: Align(
-                        alignment: Alignment.topRight,
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: GestureDetector(
-                            onTap: () => _showEditProfileSheet(context),
-                            child: Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.18),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.35),
-                                  width: 1,
-                                ),
-                              ),
-                              child: const Icon(
-                                Icons.edit_rounded,
-                                color: Colors.white,
-                                size: 17,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Light grey background beneath cover (matches page)
-                Positioned(
-                  top: coverHeight,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: Container(color: const Color(0xFFF1F5F9)),
-                ),
-
-                // Avatar straddling the cover boundary, centered
-                Positioned(
-                  top: avatarTop,
-                  left: 0,
-                  right: 0,
-                  child: Center(
+      backgroundColor: const Color(0xFFF8FAFC), // Brighter background
+      body: CustomScrollView(
+        physics: const ClampingScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: SizedBox(
+              height: coverHeight + avatarSize / 2 + 20,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Cover gradient
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: coverHeight,
                     child: Container(
-                    width: avatarSize,
-                    height: avatarSize,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 3.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.35),
-                          blurRadius: 20,
-                          offset: const Offset(0, 8),
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Color(0xFF1E3A8A),
+                            Color(0xFF2563EB),
+                            Color(0xFF3B82F6)
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
-                      ],
-                    ),
-                    child: ClipOval(
-                      child: _avatarBytes != null && _avatarBytes!.isNotEmpty
-                          ? Image.memory(
-                              Uint8List.fromList(_avatarBytes!),
-                              width: avatarSize,
-                              height: avatarSize,
-                              fit: BoxFit.cover,
-                            )
-                          : Center(
-                              child: Text(
-                                UserSession().initials,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 32,
-                                  fontWeight: FontWeight.w700,
+                      ),
+                      child: SafeArea(
+                        bottom: false,
+                        child: Stack(
+                          children: [
+                            Positioned(
+                              right: -40,
+                              top: -20,
+                              child: Icon(
+                                Icons.person_rounded,
+                                size: 240,
+                                color: Colors.white.withOpacity(0.05),
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.topRight,
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: IconButton(
+                                  onPressed: () =>
+                                      _showEditProfileSheet(context),
+                                  icon: const Icon(Icons.edit_rounded,
+                                      color: Colors.white, size: 20),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.white24,
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                  ),
                                 ),
                               ),
                             ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
 
-                // Name + email centered under avatar
-                Positioned(
-                  top: coverHeight + avatarSize / 2 + 8,
-                  left: 20,
-                  right: 20,
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Text(
-                          UserSession().displayName,
-                          style: const TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
-                          ),
-                          textAlign: TextAlign.center,
+                  // Avatar
+                  Positioned(
+                    top: avatarTop,
+                    left: 0,
+                    right: 0,
+                    child: Center(
+                      child: Container(
+                        width: avatarSize,
+                        height: avatarSize,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF2563EB).withOpacity(0.2),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          UserSession().email ?? '',
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            color: Color(0xFF64748B),
-                          ),
-                          textAlign: TextAlign.center,
+                        child: ClipOval(
+                          child: _avatarBytes != null &&
+                                  _avatarBytes!.isNotEmpty
+                              ? Image.memory(
+                                  Uint8List.fromList(_avatarBytes!),
+                                  width: avatarSize,
+                                  height: avatarSize,
+                                  fit: BoxFit.cover,
+                                )
+                              : Container(
+                                  color: const Color(0xFF2563EB),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    UserSession().initials,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
                         ),
-                      ],
+                      ),
                     ),
                   ),
+                ],
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                Text(
+                  UserSession().displayName,
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                    letterSpacing: -0.5,
+                  ),
                 ),
+                const SizedBox(height: 2),
+                Text(
+                  UserSession().email ?? '',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                // Transparent Stats Row
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 40),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildCompactStat('$_appliedCount', 'Applied'),
+                      Container(width: 1, height: 24, color: Colors.grey[200]),
+                      _buildCompactStat('$_interviewCount', 'Processing'),
+                      Container(width: 1, height: 24, color: Colors.grey[200]),
+                      _buildCompactStat('$_savedCount', 'Saved'),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
             ),
           ),
-
-          // ── Scrollable content ──────────────────────────────────────────────
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                bottom: MediaQuery.of(context).padding.bottom + 96,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 16),
-
-                  // Status counts - punchy white card
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 20,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildCompactStat('$_appliedCount', 'Applied'),
-                        _buildCompactStat('$_interviewCount', 'Processing'),
-                        _buildCompactStat('$_savedCount', 'Saved'),
-                      ],
-                    ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                _buildMenuItem(
+                  icon: Icons.folder_rounded,
+                  title: 'My Applications',
+                  color: const Color(0xFF2563EB),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
+                    );
+                    _loadStats();
+                  },
+                ),
+                _buildMenuItem(
+                  icon: Icons.bookmark_rounded,
+                  title: 'Saved Jobs',
+                  color: const Color(0xFFEC4899),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SavedJobsPage()),
+                    );
+                    _loadStats();
+                  },
+                ),
+                _buildMenuItem(
+                  icon: Icons.psychology_alt_rounded,
+                  title: 'Skills Profile',
+                  color: const Color(0xFF8B5CF6),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SkillsProfilePage()),
                   ),
-
-                  const SizedBox(height: 22),
-
-                  // Menu items
-                  _buildMenuItem(
-                    icon: Icons.folder_outlined,
-                    title: 'My Applications',
-                    onTap: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
-                      );
-                      if (!mounted) return;
-                      _loadStats();
-                    },
+                ),
+                _buildMenuItem(
+                  icon: Icons.description_rounded,
+                  title: 'My Documents',
+                  color: const Color(0xFF10B981),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const MyDocumentsPage()),
                   ),
-                  _buildMenuItem(
-                    icon: Icons.bookmark_outline_rounded,
-                    title: 'Saved Jobs',
-                    onTap: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => const SavedJobsPage()),
-                      );
-                      if (!mounted) return;
-                      _loadStats();
-                    },
+                ),
+                _buildMenuItem(
+                  icon: Icons.settings_rounded,
+                  title: 'Settings',
+                  color: const Color(0xFF64748B),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsPage()),
                   ),
-                  _buildMenuItem(
-                    icon: Icons.psychology_outlined,
-                    title: 'Skills Profile',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SkillsProfilePage()),
-                    ),
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.folder_copy_outlined,
-                    title: 'My documents',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const MyDocumentsPage()),
-                    ),
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.settings_outlined,
-                    title: 'Settings',
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SettingsPage(),
-                      ),
-                    ),
-                  ),
-                  _buildMenuItem(
-                    icon: Icons.help_outline_rounded,
-                    title: 'Help & Support',
-                    onTap: () {},
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  _buildMenuItem(
-                    icon: Icons.logout_rounded,
-                    title: 'Sign Out',
-                    isSignOut: true,
-                    onTap: () => _confirmSignOut(context),
-                  ),
-
-                  const SizedBox(height: 24),
-                ],
-              ),
+                ),
+                _buildMenuItem(
+                  icon: Icons.help_center_rounded,
+                  title: 'Help & Support',
+                  color: const Color(0xFFF59E0B),
+                  onTap: () {},
+                ),
+                const SizedBox(height: 12),
+                _buildMenuItem(
+                  icon: Icons.logout_rounded,
+                  title: 'Sign Out',
+                  color: const Color(0xFFEF4444),
+                  isSignOut: true,
+                  onTap: () => _confirmSignOut(context),
+                ),
+              ]),
             ),
           ),
         ],
@@ -430,14 +397,13 @@ class _ProfileTabState extends State<ProfileTab> {
 
   Widget _buildCompactStat(String value, String label) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           value,
           style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
             color: Color(0xFF0F172A),
           ),
         ),
@@ -520,18 +486,19 @@ class _ProfileTabState extends State<ProfileTab> {
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
+    required Color color,
     required VoidCallback onTap,
     bool isSignOut = false,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: isSignOut ? const Color(0xFFFEF2F2) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 12,
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 15,
             offset: const Offset(0, 4),
           ),
         ],
@@ -540,37 +507,34 @@ class _ProfileTabState extends State<ProfileTab> {
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
             child: Row(
               children: [
-                Icon(
-                  icon,
-                  size: 22,
-                  color: isSignOut
-                      ? const Color(0xFFDC2626)
-                      : const Color(0xFF64748B),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, size: 20, color: color),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Text(
                     title,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: isSignOut
-                          ? const Color(0xFFDC2626)
-                          : const Color(0xFF0F172A),
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
                 ),
-                Icon(
+                const Icon(
                   Icons.chevron_right_rounded,
-                  size: 22,
-                  color: isSignOut
-                      ? const Color(0xFFDC2626)
-                      : const Color(0xFF94A3B8),
+                  size: 24,
+                  color: Color(0xFFCBD5E1),
                 ),
               ],
             ),
@@ -1106,11 +1070,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     setState(() => _jobExperiences.remove(value));
   }
 
-  InputDecoration _fieldDec(String label, IconData icon) {
+  InputDecoration _fieldDec(String label, IconData? icon) {
     return InputDecoration(
       labelText: label,
       labelStyle: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
-      prefixIcon: Icon(icon, color: const Color(0xFF2563EB)),
+      prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF2563EB)) : null,
       filled: true,
       fillColor: const Color(0xFFF8FAFC),
       border: OutlineInputBorder(
@@ -1193,7 +1157,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               Expanded(
                 child: SingleChildScrollView(
                   controller: scrollController,
-                  physics: const BouncingScrollPhysics(),
+                  physics: const ClampingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Form(
                     key: _formKey,  
@@ -1276,7 +1240,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                         Row(
                           children: [
                             Expanded(
-                              flex: 2,
+                              flex: 3,
                               child: TextFormField(
                                 controller: _firstNameController,
                                 decoration:
@@ -1289,21 +1253,21 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              flex: 1,
+                              flex: 2,
                               child: TextFormField(
                                 controller: _middleInitialController,
                                 textCapitalization: TextCapitalization.characters,
-                                maxLength: 2,
+                                maxLength: 1,
                                 inputFormatters: [
                                   LengthLimitingTextInputFormatter(1),
                                   UpperCaseTextFormatter(),
                                 ],
-                                decoration: _fieldDec('M.I.', Icons.text_format_rounded).copyWith(counterText: ''),
+                                decoration: _fieldDec('M.I.', null).copyWith(counterText: ''),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              flex: 2,
+                              flex: 3,
                               child: TextFormField(
                                 controller: _lastNameController,
                                 decoration:
@@ -1693,6 +1657,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                           UserSession().updateFromUser(userResult['data'] as Map<String, dynamic>);
                                         }
                                       }
+                                      widget.onUpdate(); // <--- This triggers the immediate UI refresh
                                       if (!mounted) return;
                                       Navigator.pop(context);
                                       ScaffoldMessenger.of(context).showSnackBar(
@@ -2001,7 +1966,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                       onRefresh: _fetchApplications,
                       child: ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(
-                          parent: BouncingScrollPhysics(),
+                          parent: const ClampingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                         itemCount: _applications.length,
@@ -2029,36 +1994,47 @@ class _ApplicationCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF0F172A).withOpacity(0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(24),
           onTap: () => _openApplicationDetail(context, application),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header row: avatar + title + status pill
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CompanyLogoBox(
-                      job: job,
-                      size: 48,
-                      boxShadow: const [],
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: CompanyLogoBox(
+                        job: job,
+                        size: 52,
+                        boxShadow: const [],
+                      ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2066,32 +2042,30 @@ class _ApplicationCard extends StatelessWidget {
                           Text(
                             job.title,
                             style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
                               color: Color(0xFF0F172A),
+                              letterSpacing: -0.5,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           Text(
                             job.company,
                             style: const TextStyle(
-                              fontSize: 13,
+                              fontSize: 14,
                               color: Color(0xFF2563EB),
-                              fontWeight: FontWeight.w500,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_outlined,
-                                  size: 12, color: Color(0xFF94A3B8)),
-                              const SizedBox(width: 3),
+                              const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   job.location,
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF64748B)),
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -2100,84 +2074,41 @@ class _ApplicationCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: application.statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                          color: application.statusColor.withOpacity(0.3),
-                        ),
+                        color: application.statusColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: application.statusColor.withOpacity(0.2)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(application.statusIcon,
-                              size: 11, color: application.statusColor),
-                          const SizedBox(width: 4),
+                          Icon(application.statusIcon, size: 14, color: application.statusColor),
+                          const SizedBox(width: 6),
                           Text(
-                            application.status,
+                            application.status.toUpperCase(),
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                               color: application.statusColor,
+                              letterSpacing: 0.5,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 12),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 10),
-
-                // Bottom row: salary, type chip, applied date
-                Row(
-                  children: [
-                    Icon(Icons.payments_outlined,
-                        size: 14, color: Colors.grey[500]),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Text(
-                        '${job.salaryMin} – ${job.salaryMax}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[700],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        job.employmentType,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2563EB),
-                        ),
-                      ),
-                    ),
                     const Spacer(),
-                    Icon(Icons.access_time_rounded,
-                        size: 12, color: Colors.grey[400]),
-                    const SizedBox(width: 3),
                     Text(
-                      application.appliedDate,
+                      'Applied ${application.appliedDate}',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                         color: Colors.grey[500],
                       ),
                     ),
@@ -2188,7 +2119,10 @@ class _ApplicationCard extends StatelessWidget {
           ),
         ),
       ),
-    );
+    )
+        .animate()
+        .fadeIn(duration: 400.ms, curve: Curves.easeOutQuad)
+        .slideY(begin: 0.1, end: 0, duration: 400.ms, curve: Curves.easeOutQuad);
   }
 }
 
@@ -2449,7 +2383,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                       onRefresh: _fetchSavedJobs,
                       child: ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(
-                          parent: BouncingScrollPhysics(),
+                          parent: const ClampingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                         itemCount: _savedJobs.length,
@@ -2491,20 +2425,20 @@ class _SavedJobCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: const Color(0xFF0F172A).withOpacity(0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(24),
           onTap: () {
             final jobActionService = JobActionService();
             showJobDetailSheet(
@@ -2517,20 +2451,31 @@ class _SavedJobCard extends StatelessWidget {
             );
           },
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header: avatar + title + match badge
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CompanyLogoBox(
-                      job: job,
-                      size: 48,
-                      boxShadow: const [],
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: CompanyLogoBox(
+                        job: job,
+                        size: 52,
+                        boxShadow: const [],
+                      ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2538,32 +2483,30 @@ class _SavedJobCard extends StatelessWidget {
                           Text(
                             job.title,
                             style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
                               color: Color(0xFF0F172A),
+                              letterSpacing: -0.5,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 4),
                           Text(
                             job.company,
                             style: const TextStyle(
-                              fontSize: 13,
-                              color: Color(0xFF2563EB),
-                              fontWeight: FontWeight.w500,
+                              fontSize: 14,
+                              color: Color(0xFF10B981),
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_outlined,
-                                  size: 12, color: Color(0xFF94A3B8)),
-                              const SizedBox(width: 3),
+                              const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   job.location,
-                                  style: const TextStyle(
-                                      fontSize: 11,
-                                      color: Color(0xFF64748B)),
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -2574,71 +2517,44 @@ class _SavedJobCard extends StatelessWidget {
                     ),
                     if (job.matchPercentage > 0)
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF10B981),
-                          borderRadius: BorderRadius.circular(10),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF10B981), Color(0xFF059669)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
-                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star_rounded,
-                                size: 12, color: Colors.white),
+                            const Icon(Icons.star_rounded, size: 14, color: Colors.white),
                             Text(
                               '${job.matchPercentage}%',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
                             ),
                           ],
                         ),
                       ),
                   ],
                 ),
-
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 10),
-
-                // Bottom: salary + type + actions
+                const SizedBox(height: 16),
                 Row(
                   children: [
-                    Icon(Icons.payments_outlined,
-                        size: 14, color: Colors.grey[500]),
-                    const SizedBox(width: 4),
+                    Icon(Icons.payments_outlined, size: 16, color: Colors.grey[500]),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         '${job.salaryMin} – ${job.salaryMax}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
                           color: Colors.grey[700],
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFEFF6FF),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        job.employmentType,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2563EB),
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
+                    const SizedBox(width: 12),
                     GestureDetector(
                       onTap: onUnsave,
                       child: Container(
