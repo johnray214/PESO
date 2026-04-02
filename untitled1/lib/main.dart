@@ -102,7 +102,7 @@ class PESOApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
-      title: 'PESO Santiago City',
+      title: 'PESO Connect',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
       theme: ThemeData(
@@ -215,6 +215,8 @@ class _SplashScreenState extends State<SplashScreen>
       if (!mounted) return;
       if (hasSession) {
         await JobActionService().loadFromBackend();
+        // ENSURE FCM IS SYNCED EVERY TIME APP STARTS (Fix for Railway switching)
+        await NotificationService().syncTokenNow(); 
         if (!mounted) return;
 
         final needsPostAuth =
@@ -2851,6 +2853,7 @@ class _LoginModalState extends State<LoginModal>
                                     if (!mounted) return;
                                     // Load job action state after login
                                     await JobActionService().loadFromBackend();
+                                    await NotificationService().syncTokenNow();
                                     if (!mounted) return;
                                     if (widget.renderAsModal)
                                       Navigator.pop(context);

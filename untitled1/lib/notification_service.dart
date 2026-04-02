@@ -136,6 +136,15 @@ class NotificationService {
     }
   }
 
+  /// Public method to force a sync (call this after Login)
+  Future<void> syncTokenNow() async {
+    print("🔔 NotificationService: Forcing FCM token sync...");
+    String? fcmToken = await _fcm.getToken();
+    if (fcmToken != null) {
+      await _syncToken(fcmToken);
+    }
+  }
+
   // Show a local notification for foreground messages
   Future<void> _showLocalNotification(RemoteMessage message) async {
     RemoteNotification? notification = message.notification;
