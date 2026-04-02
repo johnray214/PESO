@@ -78,15 +78,24 @@ class FcmService
                         'title' => $title,
                         'body' => $body,
                     ],
+                    'android' => [
+                        'notification' => [
+                            'channel_id' => 'high_importance_channel',
+                        ],
+                    ],
+                    'data' => (object) array_merge($data, [
+                        'click_action' => 'FLUTTER_NOTIFICATION_CLICK',
+                    ]),
                 ]
             ]);
 
             if ($response->successful()) {
-                Log::info("FCM Success: Message sent to {$jobseeker->email}");
+                Log::info("🔔 FCM SUCCESS: Notification delivered to {$jobseeker->email} using project {$projectId}");
                 return true;
             }
 
-            Log::error("FCM Google Error: " . $response->body());
+            Log::error("❌ FCM Google Error Details: " . $response->body());
+            Log::error("❌ FCM Target Token (Last 5): " . substr($token, -5));
             return false;
 
         } catch (\Exception $e) {
