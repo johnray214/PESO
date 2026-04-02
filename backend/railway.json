@@ -1,11 +1,11 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "buildCommand": "composer install --no-dev --no-interaction && echo 'Skipping unnecessary NPM build!'"
   },
   "deploy": {
     "startCommand": "php artisan serve --host=0.0.0.0 --port=$PORT",
-    "healthcheckPath": "/api",
     "restartPolicyType": "ON_FAILURE"
   }
 }
