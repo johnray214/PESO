@@ -150,6 +150,8 @@ class _ProfileTabState extends State<ProfileTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true, // Explicitly allow tap outside to close
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (context) => EditProfileSheet(onUpdate: () {
         _loadStats();
@@ -1068,11 +1070,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     setState(() => _jobExperiences.remove(value));
   }
 
-  InputDecoration _fieldDec(String label, IconData icon) {
+  InputDecoration _fieldDec(String label, IconData? icon) {
     return InputDecoration(
       labelText: label,
       labelStyle: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
-      prefixIcon: Icon(icon, color: const Color(0xFF2563EB)),
+      prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF2563EB)) : null,
       filled: true,
       fillColor: const Color(0xFFF8FAFC),
       border: OutlineInputBorder(
@@ -1238,7 +1240,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                         Row(
                           children: [
                             Expanded(
-                              flex: 2,
+                              flex: 3,
                               child: TextFormField(
                                 controller: _firstNameController,
                                 decoration:
@@ -1251,21 +1253,21 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              flex: 1,
+                              flex: 2,
                               child: TextFormField(
                                 controller: _middleInitialController,
                                 textCapitalization: TextCapitalization.characters,
-                                maxLength: 2,
+                                maxLength: 1,
                                 inputFormatters: [
                                   LengthLimitingTextInputFormatter(1),
                                   UpperCaseTextFormatter(),
                                 ],
-                                decoration: _fieldDec('M.I.', Icons.text_format_rounded).copyWith(counterText: ''),
+                                decoration: _fieldDec('M.I.', null).copyWith(counterText: ''),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              flex: 2,
+                              flex: 3,
                               child: TextFormField(
                                 controller: _lastNameController,
                                 decoration:
@@ -1655,6 +1657,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                           UserSession().updateFromUser(userResult['data'] as Map<String, dynamic>);
                                         }
                                       }
+                                      widget.onUpdate(); // <--- This triggers the immediate UI refresh
                                       if (!mounted) return;
                                       Navigator.pop(context);
                                       ScaffoldMessenger.of(context).showSnackBar(

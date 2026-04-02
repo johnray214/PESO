@@ -78,9 +78,7 @@ class EmployerApplicationController extends Controller
             abort(404);
         }
 
-        $fullPath = Storage::disk('public')->path($path);
-
-        return response()->file($fullPath, [
+        return Storage::disk('public')->response($path, basename($path), [
             'Content-Disposition' => 'inline; filename="'.basename($path).'"',
         ]);
     }

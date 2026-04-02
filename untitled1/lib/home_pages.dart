@@ -1170,6 +1170,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   String? _errorMessage;
   final _jobActionService = JobActionService();
   List<int>? _avatarBytes;
+  bool _isAvatarLoading = false;
   int _unreadNotificationCount = 0;
   /// -1 before first successful read; ring when count increases vs previous.
   int _previousUnreadForBell = -1;
@@ -1257,10 +1258,19 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _loadAvatar() async {
+    if (_isAvatarLoading) return;
+    _isAvatarLoading = true;
     final token = UserSession().token;
-    if (token == null || UserSession().avatarPath == null) return;
-    final bytes = await ApiService.getAvatarBytes(token);
-    if (mounted) setState(() => _avatarBytes = bytes);
+    if (token == null || UserSession().avatarPath == null) {
+      _isAvatarLoading = false;
+      return;
+    }
+    try {
+      final bytes = await ApiService.getAvatarBytes(token);
+      if (mounted) setState(() => _avatarBytes = bytes);
+    } finally {
+      if (mounted) _isAvatarLoading = false;
+    }
   }
 
   void _onJobActionsChanged() {
@@ -1959,7 +1969,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     }
 
     // Reload avatar when user has one but we haven't loaded it yet (e.g. after updating profile)
-    if (UserSession().avatarPath != null && _avatarBytes == null) {
+    if (UserSession().avatarPath != null && _avatarBytes == null && !_isAvatarLoading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _loadAvatar();
       });
