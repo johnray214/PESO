@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://127.0.0.1:8000/api';
+  static const String baseUrl = 'http://192.168.254.102:8000/api';
 
   /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
   static String get apiOrigin {
@@ -51,6 +52,30 @@ class ApiService {
     return publicStorageUrl(t);
   }
 
+  static void Function()? onNetworkError;
+
+  static Map<String, dynamic> _handleError(Object e, {String? customMessage}) {
+    // Check if it's a network-related failure
+    final isNetwork = e is SocketException || 
+                     e is TimeoutException || 
+                     e.toString().contains('SocketException') || 
+                     e.toString().contains('Connection failed');
+
+    if (isNetwork) {
+      onNetworkError?.call();
+      return {
+        'success': false,
+        'message': 'No internet connection. Please check your network and try again.',
+        'is_network_error': true,
+      };
+    }
+
+    return {
+      'success': false,
+      'message': customMessage ?? 'Connection error: ${e.toString()}',
+    };
+  }
+
   static Future<Map<String, dynamic>> checkJobseekerEmail(String email) async {
     try {
       final response = await http.get(
@@ -58,8 +83,10 @@ class ApiService {
         headers: {'Accept': 'application/json'},
       ).timeout(const Duration(seconds: 10));
       return jsonDecode(response.body);
-    } catch (_) {
-      return {'success': false, 'exists': false};
+    } catch (e) {
+      // For this one, we might not want to show the global modal if it's just a quick check,
+      // but the user wants to change "all of them", so let's be consistent.
+      return _handleError(e, customMessage: 'Check email failed');
     }
   }
 
@@ -94,16 +121,8 @@ class ApiService {
       ).timeout(const Duration(seconds: 25));
 
       return jsonDecode(response.body);
-    } on TimeoutException {
-      return {
-        'success': false,
-        'message': 'Registration request timed out. Please check your connection and try again.',
-      };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -134,10 +153,7 @@ class ApiService {
       }
       return map;
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -176,10 +192,7 @@ class ApiService {
       }
       return map;
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -199,10 +212,7 @@ class ApiService {
 
       return jsonDecode(response.body);
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -220,16 +230,8 @@ class ApiService {
         }),
       ).timeout(const Duration(seconds: 20));
       return jsonDecode(response.body) as Map<String, dynamic>;
-    } on TimeoutException {
-      return {
-        'success': false,
-        'message': 'OTP verification timed out. Please try again.',
-      };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -249,10 +251,7 @@ class ApiService {
         'message': 'Resend request timed out. Please try again shortly.',
       };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -268,10 +267,7 @@ class ApiService {
 
       return jsonDecode(response.body);
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -302,16 +298,8 @@ class ApiService {
       final decoded = jsonDecode(response.body);
       if (decoded is Map<String, dynamic>) return decoded;
       return {'success': false, 'message': 'Unexpected response from server.'};
-    } on TimeoutException {
-      return {
-        'success': false,
-        'message': 'Request timed out. Check your connection and try again.',
-      };
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -327,10 +315,7 @@ class ApiService {
 
       return jsonDecode(response.body);
     } catch (e) {
-      return {
-        'success': false,
-        'message': 'Connection error: ${e.toString()}',
-      };
+      return _handleError(e);
     }
   }
 
@@ -347,7 +332,7 @@ class ApiService {
       }
       return [];
     } catch (e) {
-      print('Error fetching provinces: $e');
+      _handleError(e, customMessage: 'Error fetching provinces');
       return [];
     }
   }
@@ -365,7 +350,7 @@ class ApiService {
       }
       return [];
     } catch (e) {
-      print('Error fetching cities: $e');
+      _handleError(e, customMessage: 'Error fetching cities');
       return [];
     }
   }
@@ -383,7 +368,7 @@ class ApiService {
       }
       return [];
     } catch (e) {
-      print('Error fetching barangays: $e');
+      _handleError(e, customMessage: 'Error fetching barangays');
       return [];
     }
   }
@@ -414,7 +399,7 @@ class ApiService {
 
       return decoded;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -458,7 +443,7 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -476,7 +461,7 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -508,7 +493,7 @@ class ApiService {
 
       return decoded;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -543,7 +528,7 @@ class ApiService {
       }
       return decoded;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -562,7 +547,7 @@ class ApiService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -595,7 +580,7 @@ class ApiService {
       }
       return decoded;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -614,7 +599,7 @@ class ApiService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -632,7 +617,7 @@ class ApiService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -680,7 +665,7 @@ class ApiService {
         return {'success': false, 'message': 'Invalid response'};
       }
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -711,7 +696,7 @@ class ApiService {
         return {'success': false, 'message': 'Invalid response'};
       }
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -760,7 +745,7 @@ class ApiService {
       final response = await http.Response.fromStream(streamed);
       return _parseResumeResponse(response);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -815,7 +800,7 @@ class ApiService {
       final response = await http.Response.fromStream(streamed);
       return _parseResumeResponse(response);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -838,7 +823,7 @@ class ApiService {
       final response = await http.Response.fromStream(streamed);
       return _parseResumeResponse(response);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -860,7 +845,7 @@ class ApiService {
       final response = await http.Response.fromStream(streamed);
       return _parseResumeResponse(response);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -882,7 +867,7 @@ class ApiService {
       final response = await http.Response.fromStream(streamed);
       return _parseResumeResponse(response);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -904,7 +889,7 @@ class ApiService {
       final response = await http.Response.fromStream(streamed);
       return _parseResumeResponse(response);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -920,8 +905,8 @@ class ApiService {
       );
       final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
       return jsonResponse;
-    } catch (_) {
-      return {'success': false, 'message': 'Network error submitting rating.'};
+    } catch (e) {
+      return _handleError(e, customMessage: 'Network error submitting rating.');
     }
   }
 
@@ -987,7 +972,7 @@ class ApiService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1008,7 +993,7 @@ class ApiService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1026,7 +1011,7 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1066,7 +1051,7 @@ class ApiService {
 
       return data;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1078,7 +1063,7 @@ class ApiService {
       );
       return jsonDecode(response.body);
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1096,7 +1081,7 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1111,7 +1096,7 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1132,7 +1117,7 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1159,7 +1144,7 @@ class ApiService {
         'barangays': [],
       };
     } catch (e) {
-      print('Error fetching all locations: $e');
+      _handleError(e, customMessage: 'Error fetching all locations');
       return {
         'provinces': [],
         'cities': [],
@@ -1184,7 +1169,7 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1204,7 +1189,8 @@ class ApiService {
         return (data['data'] as Map<String, dynamic>)['unread_count'] as int;
       }
       return 0;
-    } catch (_) {
+    } catch (e) {
+      _handleError(e);
       return 0;
     }
   }
@@ -1223,7 +1209,7 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
     }
   }
 
@@ -1241,7 +1227,8 @@ class ApiService {
       );
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return data['success'] == true;
-    } catch (_) {
+    } catch (e) {
+      _handleError(e);
       return false;
     }
   }
@@ -1257,7 +1244,8 @@ class ApiService {
       );
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return data['success'] == true;
-    } catch (_) {
+    } catch (e) {
+      _handleError(e);
       return false;
     }
   }
@@ -1272,7 +1260,24 @@ class ApiService {
       );
       return jsonDecode(response.body) as Map<String, dynamic>;
     } catch (e) {
-      return {'success': false, 'message': 'Connection error: ${e.toString()}'};
+      return _handleError(e);
+    }
+  }
+
+  /// Send the FCM device token to the Laravel backend (Step 9)
+  static Future<Map<String, dynamic>> updateFCMToken(String token, String fcmToken) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/save-fcm-token'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'fcm_token': fcmToken}),
+      );
+      return jsonDecode(response.body);
+    } catch (e) {
+      return _handleError(e);
     }
   }
 }

@@ -16,11 +16,18 @@ import 'onboarding_prefs.dart';
 import 'session_prefs.dart';
 import 'password_rules.dart';
 import 'app_nav.dart';
+import 'connectivity_wrapper.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  await Firebase.initializeApp();
+  NotificationService().initialize();
+
   FlutterError.onError = (FlutterErrorDetails details) {
     final message = details.exceptionAsString();
     if (kIsWeb && message.contains('_viewInsets.isNonNegative')) {
@@ -110,6 +117,9 @@ class PESOApp extends StatelessWidget {
         ),
       ),
       home: const SplashScreen(),
+      builder: (context, child) {
+        return ConnectivityWrapper(child: child!);
+      },
     );
   }
 }

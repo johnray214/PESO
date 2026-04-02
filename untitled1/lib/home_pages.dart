@@ -14,6 +14,7 @@ import 'job_models.dart';
 import 'event_models.dart';
 import 'user_session.dart';
 import 'api_service.dart';
+import 'notification_service.dart';
 import 'job_action_service.dart';
 import 'micro_interactions.dart';
 import 'package:http/http.dart' as http;
@@ -50,30 +51,10 @@ final ValueNotifier<int?> homeNavRequestNotifier = ValueNotifier<int?>(null);
 final ValueNotifier<MapFocusRequest?> mapFocusRequestNotifier =
     ValueNotifier<MapFocusRequest?>(null);
 
-Widget _pesoEventDetailRow(IconData icon, String text) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20, color: const Color(0xFF2563EB)),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: TextStyle(fontSize: 15, color: Colors.grey[800], height: 1.4),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
 /// Reliable live updates after register/unregister (StatefulBuilder can miss rebuilds on web).
 class _EventDetailDialog extends StatefulWidget {
   final PesoEvent initialEvent;
   final VoidCallback onRegistrationChanged;
-  /// Host context (e.g. Home) for SnackBars after the dialog closes.
   final BuildContext hostContext;
 
   const _EventDetailDialog({
@@ -147,148 +128,177 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
     final primaryDisabled = _busy || (!_event.isRegistered && _event.isFull);
 
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      _event.typeLabel,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF2563EB),
-                      ),
-                    ),
+              // Header Image/Color area
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _event.isRegistered
-                          ? const Color(0xFF10B981).withOpacity(0.15)
-                          : const Color(0xFFF1F5F9),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: _event.isRegistered
-                            ? const Color(0xFF10B981).withOpacity(0.35)
-                            : const Color(0xFFE2E8F0),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: -20,
+                      top: -20,
+                      child: Icon(
+                        Icons.event_note_rounded,
+                        size: 140,
+                        color: Colors.white.withOpacity(0.1),
                       ),
                     ),
-                    child: Text(
-                      _event.isRegistered ? 'Registered' : 'Not registered',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: _event.isRegistered ? const Color(0xFF059669) : const Color(0xFF64748B),
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.of(context).pop(),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.grey[100],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _event.title,
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              const SizedBox(height: 16),
-              _pesoEventDetailRow(Icons.calendar_today_rounded, _event.formattedDate),
-              if (_event.eventTime != null) _pesoEventDetailRow(Icons.access_time_rounded, _event.eventTime!),
-              _pesoEventDetailRow(Icons.location_on_rounded, _event.location),
-              _pesoEventDetailRow(Icons.people_outline_rounded, _event.slotsLabel),
-              if (_event.organizer != null) _pesoEventDetailRow(Icons.business_rounded, _event.organizer!),
-              const SizedBox(height: 16),
-              Text(
-                'Description',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.grey[700],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _event.description,
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.5,
-                  color: Colors.grey[800],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _busy ? null : () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF64748B),
-                        side: const BorderSide(color: Color(0xFFE2E8F0)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white12,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
-                      child: const Text('Close'),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton(
+                    Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _event.typeLabel.toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: 1.1,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _event.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _detailInfoRow(Icons.calendar_today_rounded, _event.formattedDate),
+                    if (_event.eventTime != null) _detailInfoRow(Icons.access_time_rounded, _event.eventTime!),
+                    _detailInfoRow(Icons.location_on_rounded, _event.location),
+                    _detailInfoRow(Icons.people_alt_rounded, _event.slotsLabel),
+                    if (_event.organizer != null) _detailInfoRow(Icons.business_rounded, 'Organized by ${_event.organizer}'),
+                    
+                    const SizedBox(height: 20),
+                    const Text(
+                      'About this Event',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _event.description,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        height: 1.6,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
                       onPressed: primaryDisabled ? null : () => _onPrimaryAction(context),
                       style: FilledButton.styleFrom(
-                        backgroundColor:
-                            _event.isRegistered ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                        backgroundColor: _event.isRegistered ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
+                        minimumSize: const Size(double.infinity, 56),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
                       ),
                       child: _busy
                           ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                             )
                           : Text(
-                              _event.isRegistered ? 'Cancel registration' : 'Register',
+                              _event.isRegistered ? 'Cancel Registration' : 'Register Now',
+                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                             ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _detailInfoRow(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2563EB).withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: const Color(0xFF2563EB)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF334155),
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -340,382 +350,238 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.75,
-      ),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[300],
-              borderRadius: BorderRadius.circular(2),
-            ),
+    return DraggableScrollableSheet(
+      initialChildSize: 0.7,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      snap: true,
+      expand: false,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
           ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2563EB).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(
-                    Icons.event_rounded,
-                    color: Color(0xFF2563EB),
-                    size: 28,
-                  ),
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2563EB).withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.event_note_rounded, color: Color(0xFF2563EB), size: 28),
+                        ),
+                        const SizedBox(width: 16),
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Events',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              'Stay updated on job fairs and seminars',
+                              style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                const Expanded(
+              ),
+              Expanded(
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: _future,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)));
+                    }
+                    final data = snapshot.data;
+                    if (data == null || data['success'] != true) {
+                      return const Center(child: Text('Failed to load events'));
+                    }
+                    final events = widget.parseEventsPayload(data);
+                    if (events.isEmpty) {
+                      return const Center(
+                        child: Text('No upcoming events found', style: TextStyle(color: Colors.grey)),
+                      );
+                    }
+                    return ListView.builder(
+                      controller: scrollController,
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                      itemCount: events.length,
+                      itemBuilder: (context, index) {
+                        final e = events[index];
+                        return _buildEventCard(e).animate()
+                          .fadeIn(delay: (index * 50).ms, duration: 400.ms)
+                          .slideY(begin: 0.1, curve: Curves.easeOutCubic);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEventCard(PesoEvent e) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _openEventDetail(e),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Date Section
+                Container(
+                  width: 80,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                    ),
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Events',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
+                        e.dateBadgeDay,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          height: 1.1,
                         ),
                       ),
-                      SizedBox(height: 4),
                       Text(
-                        'Job fairs, seminars, and career events',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Color(0xFF64748B),
+                        e.dateBadgeMonthUpper,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white70,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        e.dateBadgeYear,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white54,
                         ),
                       ),
                     ],
                   ),
                 ),
+                // Content Section
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              e.typeLabel.toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF2563EB),
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (e.isRegistered)
+                              const Icon(Icons.check_circle_rounded, size: 16, color: Colors.green)
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          e.title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF64748B)),
+                            const SizedBox(width: 4),
+                            Text(
+                              e.eventTime ?? 'TBA',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF64748B)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                e.location,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-          Flexible(
-            child: FutureBuilder<Map<String, dynamic>>(
-              future: _future,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32),
-                      child: CircularProgressIndicator(color: Color(0xFF2563EB)),
-                    ),
-                  );
-                }
-                final data = snapshot.data;
-                if (data == null || data['success'] != true) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.error_outline_rounded, size: 48, color: Colors.grey[400]),
-                          const SizedBox(height: 16),
-                          Text(
-                            data?['message'] ?? 'Failed to load events',
-                            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                final events = widget.parseEventsPayload(data);
-                if (events.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.event_available_rounded, size: 64, color: Colors.grey[300]),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No upcoming events',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey[500],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Check back soon for job fairs and career events.',
-                            style: TextStyle(fontSize: 14, color: Colors.grey[400]),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                return ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                  itemCount: events.length,
-                  itemBuilder: (context, index) {
-                    final e = events[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.grey[200]!),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => _openEventDetail(e),
-                          borderRadius: BorderRadius.circular(16),
-                          child: IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Container(
-                                  width: 82,
-                                  color: const Color(0xFF2563EB),
-                                  alignment: Alignment.center,
-                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
-                                      horizontal: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.1),
-                                          blurRadius: 10,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          e.dateBadgeDay,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 22,
-                                            fontWeight: FontWeight.w800,
-                                            height: 1.05,
-                                            color: Color(0xFF2563EB),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          e.dateBadgeMonthUpper,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: 0.5,
-                                            color: Color(0xFF2563EB),
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          e.dateBadgeYear,
-                                          textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.grey[600],
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Container(
-                                    color: const Color(0xFFF8FAFC),
-                                    padding: const EdgeInsets.fromLTRB(12, 14, 14, 14),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(
-                                              child: Align(
-                                                alignment: Alignment.centerLeft,
-                                                child: Container(
-                                                  padding: const EdgeInsets.symmetric(
-                                                    horizontal: 10,
-                                                    vertical: 4,
-                                                  ),
-                                                  decoration: BoxDecoration(
-                                                    color: const Color(0xFF2563EB).withOpacity(0.12),
-                                                    borderRadius: BorderRadius.circular(8),
-                                                  ),
-                                                  child: Text(
-                                                    e.typeLabel,
-                                                    maxLines: 2,
-                                                    overflow: TextOverflow.ellipsis,
-                                                    style: const TextStyle(
-                                                      fontSize: 12,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: Color(0xFF2563EB),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            AnimatedSwitcher(
-                                              duration: const Duration(milliseconds: 240),
-                                              switchInCurve: Curves.easeOutCubic,
-                                              switchOutCurve: Curves.easeInCubic,
-                                              transitionBuilder: (child, anim) => FadeTransition(
-                                                opacity: anim,
-                                                child: ScaleTransition(scale: anim, child: child),
-                                              ),
-                                              child: Container(
-                                                key: ValueKey<bool>(e.isRegistered),
-                                                constraints: const BoxConstraints(maxWidth: 118),
-                                                padding: const EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 5,
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color: e.isRegistered
-                                                      ? const Color(0xFFE8F5E9)
-                                                      : Colors.white,
-                                                  borderRadius: BorderRadius.circular(8),
-                                                  border: Border.all(
-                                                    color: e.isRegistered
-                                                        ? const Color(0xFF81C784).withOpacity(0.6)
-                                                        : const Color(0xFFE2E8F0),
-                                                  ),
-                                                ),
-                                                child: Row(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      e.isRegistered
-                                                          ? Icons.check_circle_rounded
-                                                          : Icons.circle_outlined,
-                                                      size: 14,
-                                                      color: e.isRegistered
-                                                          ? const Color(0xFF2E7D32)
-                                                          : const Color(0xFF757575),
-                                                    ),
-                                                    const SizedBox(width: 5),
-                                                    Flexible(
-                                                      child: Text(
-                                                        e.isRegistered
-                                                            ? 'Registered'
-                                                            : 'Not registered',
-                                                        maxLines: 2,
-                                                        textAlign: TextAlign.right,
-                                                        style: TextStyle(
-                                                          fontSize: 10,
-                                                          fontWeight: FontWeight.w700,
-                                                          height: 1.2,
-                                                          color: e.isRegistered
-                                                              ? const Color(0xFF2E7D32)
-                                                              : const Color(0xFF757575),
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 10),
-                                        Text(
-                                          e.title,
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFF0F172A),
-                                          ),
-                                        ),
-                                        if (e.eventTime != null) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            e.eventTime!,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: Colors.grey[600],
-                                            ),
-                                          ),
-                                        ],
-                                        const SizedBox(height: 6),
-                                        Row(
-                                          children: [
-                                            Icon(Icons.location_on_outlined,
-                                                size: 14, color: Colors.grey[600]),
-                                            const SizedBox(width: 4),
-                                            Expanded(
-                                              child: Text(
-                                                e.location,
-                                                style: TextStyle(
-                                                    fontSize: 13, color: Colors.grey[600]),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                        if (e.organizer != null) ...[
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            'by ${e.organizer}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[500],
-                                              fontStyle: FontStyle.italic,
-                                            ),
-                                          ),
-                                        ],
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          e.slotsLabel,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey[600],
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -948,11 +814,26 @@ class _HomePageState extends State<HomePage> {
         if (x is num) regIds.add(x.toInt());
       }
     }
+    final now = DateTime.now();
+
     return raw.map((item) {
       final e = item as Map<String, dynamic>;
       final id = (e['id'] as num).toInt();
       return PesoEvent.fromJson(e, isRegistered: regIds.contains(id));
-    }).where((event) => event.status != 'completed').toList();
+    }).where((event) {
+      // Match public API intent: only events that are not finished or cancelled
+      // and with an eventDate that is today or in the future.
+      final s = event.status.toLowerCase();
+      final isActiveStatus = s == 'upcoming' || s == 'ongoing';
+
+      // Normalize both dates to midnight to avoid off‑by‑one from time parts / time zones.
+      final eventDay = DateTime(event.eventDate.year, event.eventDate.month, event.eventDate.day);
+      final today = DateTime(now.year, now.month, now.day);
+
+      final isTodayOrFuture = !eventDay.isBefore(today);
+
+      return isActiveStatus && isTodayOrFuture;
+    }).toList();
   }
 
   void _reloadEventsFuture() {
@@ -1017,6 +898,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       extendBody: true,
       body: Stack(
         // Keep child order stable: IndexedStack → nav → events FAB.
@@ -1049,7 +931,8 @@ class _HomePageState extends State<HomePage> {
                   final count = snapshot.hasData &&
                           snapshot.data!['success'] == true &&
                           snapshot.data!['data'] != null
-                      ? (snapshot.data!['data'] as List).length
+                      ? _parseEventsPayload(snapshot.data!)
+                          .length
                       : 0;
                   if (snapshot.connectionState == ConnectionState.done &&
                       snapshot.hasData &&
@@ -1188,19 +1071,13 @@ class _HomePageState extends State<HomePage> {
                 Row(
                   children: [
                     Expanded(
-                      child: Center(
-                        child: _buildNavItem(0, Icons.home_rounded, Icons.home_outlined, 'Home'),
-                      ),
+                      child: _buildNavItem(0, Icons.home_rounded, Icons.home_outlined, 'Home'),
                     ),
                     Expanded(
-                      child: Center(
-                        child: _buildNavItem(1, Icons.map_rounded, Icons.map_outlined, 'Map'),
-                      ),
+                      child: _buildNavItem(1, Icons.map_rounded, Icons.map_outlined, 'Map'),
                     ),
                     Expanded(
-                      child: Center(
-                        child: _buildNavItem(2, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
-                      ),
+                      child: _buildNavItem(2, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
                     ),
                   ],
                 ),
@@ -1216,49 +1093,52 @@ class _HomePageState extends State<HomePage> {
     final isSelected = _selectedIndex == index;
     final iconColor = isSelected ? const Color(0xFF2563EB) : Colors.white.withOpacity(0.7);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => setState(() => _selectedIndex = index),
-      child: AnimatedScale(
-        scale: isSelected ? 1.05 : 1.0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.elasticOut,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (index == 2)
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isSelected
-                      ? const Color(0xFF2563EB).withOpacity(0.14)
-                      : Colors.white.withOpacity(0.22),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
+      child: Center(
+        child: AnimatedScale(
+          scale: isSelected ? 1.05 : 1.0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.elasticOut,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (index == 2)
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected
+                        ? const Color(0xFF2563EB).withOpacity(0.14)
+                        : Colors.white.withOpacity(0.22),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(
+                    isSelected ? activeIcon : inactiveIcon,
+                    color: iconColor,
+                    size: 18,
+                  ),
+                )
+              else
+                Icon(
                   isSelected ? activeIcon : inactiveIcon,
                   color: iconColor,
-                  size: 18,
+                  size: 22,
                 ),
-              )
-            else
-              Icon(
-                isSelected ? activeIcon : inactiveIcon,
-                color: iconColor,
-                size: 22,
-              ),
-            if (isSelected) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Color(0xFF2563EB),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 14,
+              if (isSelected) ...[
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Color(0xFF2563EB),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1360,8 +1240,16 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
     _loadUnreadNotifications();
+    // Listen for real-time notification arrivals to refresh the red badge
+    NotificationService.addListener(_onPushReceived);
+
     _startLiveUpdates();
   }
+
+  void _onPushReceived() {
+    if (mounted) _loadUnreadNotifications();
+  }
+
 
   void _ringBell() {
     HapticFeedback.lightImpact();
@@ -1381,6 +1269,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
   @override
   void dispose() {
+    NotificationService.removeListener(_onPushReceived);
     _notificationPollTimer?.cancel();
     _greetingTimer?.cancel();
     _jobActionService.removeListener(_onJobActionsChanged);
@@ -1391,10 +1280,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   }
 
   void _startLiveUpdates() {
-    _notificationPollTimer?.cancel();
-    _notificationPollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      _loadUnreadNotifications();
-    });
+    // FCM handles real-time notification updates now. No polling needed.
 
     _greetingTimer?.cancel();
     _greetingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -2235,142 +2121,155 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               ],
             ),
           ),
-            // Search section: punchy white card
+            // Search & Filter section: punchy white card with quick filters
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
               margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Find a job',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF0F172A),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: const Text(
+                      'Find a job',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                        letterSpacing: -0.5,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 14),
-                  // Search bar
-                  Row(
-                    children: [
-                      Expanded(
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          curve: Curves.easeOutCubic,
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: _searchFocused
-                                  ? const Color(0xFF2563EB)
-                                  : Colors.transparent,
-                              width: _searchFocused ? 2 : 0,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (_searchFocused
-                                        ? const Color(0xFF2563EB)
-                                        : Colors.black)
-                                    .withOpacity(_searchFocused ? 0.12 : 0.04),
-                                blurRadius: _searchFocused ? 14 : 8,
-                                offset: const Offset(0, 2),
+                  // Integrated Search bar
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF1F5F9),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: _searchFocused
+                                    ? const Color(0xFF2563EB).withOpacity(0.5)
+                                    : Colors.transparent,
+                                width: 1.5,
                               ),
-                            ],
-                          ),
-                          child: TextField(
-                            focusNode: _searchFocus,
-                            controller: _searchController,
-                            onChanged: (v) => setState(() => _searchText = v),
-                            style: const TextStyle(
-                              fontSize: 15,
-                              color: Color(0xFF0F172A),
                             ),
-                            decoration: InputDecoration(
-                              border: InputBorder.none,
-                              icon: Icon(
-                                Icons.search_rounded,
-                                color: Colors.grey[500],
-                                size: 22,
-                              ),
-                              hintText: 'Search jobs, companies...',
-                              hintStyle: TextStyle(
-                                color: Colors.grey[500],
+                            child: TextField(
+                              focusNode: _searchFocus,
+                              controller: _searchController,
+                              onChanged: (v) => setState(() => _searchText = v),
+                              style: const TextStyle(
                                 fontSize: 15,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF0F172A),
                               ),
-                              suffixIcon: _searchText.isNotEmpty
-                                  ? IconButton(
-                                      icon: Icon(
-                                        Icons.clear_rounded,
-                                        color: Colors.grey[500],
-                                        size: 20,
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                icon: Icon(
+                                  Icons.search_rounded,
+                                  color: const Color(0xFF64748B),
+                                  size: 22,
+                                ),
+                                hintText: 'Search jobs, companies...',
+                                hintStyle: const TextStyle(
+                                  color: Color(0xFF94A3B8),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                                suffixIcon: _searchText.isNotEmpty
+                                    ? IconButton(
+                                        icon: const Icon(
+                                          Icons.clear_rounded,
+                                          color: Color(0xFF64748B),
+                                          size: 20,
+                                        ),
+                                        onPressed: () {
+                                          _searchController.clear();
+                                          setState(() => _searchText = '');
+                                        },
+                                      )
+                                    : Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            height: 24,
+                                            width: 1,
+                                            color: const Color(0xFFCBD5E1),
+                                          ),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.tune_rounded,
+                                              color: _hasActiveFilters ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                                              size: 20,
+                                            ),
+                                            onPressed: _showFilterSheet,
+                                          ),
+                                        ],
                                       ),
-                                      onPressed: () {
-                                        _searchController.clear();
-                                        setState(() => _searchText = '');
-                                      },
-                                    )
-                                  : null,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Filter button
-                      GestureDetector(
-                        onTap: _showFilterSheet,
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB),
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF2563EB).withOpacity(0.4),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              const Icon(
-                                Icons.tune_rounded,
-                                color: Colors.white,
-                                size: 20,
-                              ),
-                              if (_hasActiveFilters)
-                                Positioned(
-                                  top: 8,
-                                  right: 8,
-                                  child: Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFFBBF24),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  // Horizontal Quick Filters
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: _employmentTypes.map((type) {
+                        final isSelected = _selectedEmploymentTypes.contains(type);
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: InkWell(
+                            onTap: () {
+                              setState(() {
+                                if (isSelected) {
+                                  _selectedEmploymentTypes.remove(type);
+                                } else {
+                                  _selectedEmploymentTypes.add(type);
+                                }
+                              });
+                            },
+                            borderRadius: BorderRadius.circular(12),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+                                  width: 1,
                                 ),
-                            ],
+                              ),
+                              child: Text(
+                                type,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: isSelected ? Colors.white : const Color(0xFF475569),
+                                ),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    ],
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ],
               ),
@@ -2578,7 +2477,7 @@ class _JobCard extends StatefulWidget {
   final Job job;
   final String formattedDate;
   final VoidCallback onTap;
-  final VoidCallback onSave;
+  final VoidCallback onSave; 
   final VoidCallback onApply;
   final bool isSaved;
   final bool isApplied;
@@ -2626,24 +2525,18 @@ class _JobCardState extends State<_JobCard> {
   @override
   Widget build(BuildContext context) {
     final job = widget.job;
-    final formattedDate = widget.formattedDate;
     final isSaved = widget.isSaved;
     final isApplied = widget.isApplied;
     return Container(
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-          BoxShadow(
             color: Colors.black.withOpacity(0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
@@ -2651,341 +2544,177 @@ class _JobCardState extends State<_JobCard> {
         color: Colors.transparent,
         child: InkWell(
           onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top accent bar
-              Container(
-                height: 4,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      job.companyColor,
-                      job.companyColor.withOpacity(0.4),
-                    ],
-                  ),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
-                child: Column(
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Row: Logo and Primary Info
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Header row
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Hero(
-                          tag: 'job_logo_${job.id}',
-                          child: Material(
-                            color: Colors.transparent,
-                            child: CompanyLogoBox(
-                              job: job,
-                              size: 52,
-                              borderRadius: 18,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: job.companyColor.withOpacity(0.35),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                        // Job title and company
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                job.title,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF0F172A),
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                job.company,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF64748B),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        // Match percentage badge (always visible, including 0%)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            gradient: job.matchPercentage > 0
-                                ? const LinearGradient(
-                                    colors: [Color(0xFF10B981), Color(0xFF059669)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  )
-                                : const LinearGradient(
-                                    colors: [Color(0xFF94A3B8), Color(0xFF64748B)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (job.matchPercentage > 0
-                                        ? const Color(0xFF10B981)
-                                        : const Color(0xFF64748B))
-                                    .withOpacity(0.30),
-                                blurRadius: 8,
-                                offset: const Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.star_rounded, size: 13, color: Colors.white),
-                              const SizedBox(width: 3),
-                              Text(
-                                '${job.matchPercentage}%',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
+                    CompanyLogoBox(
+                      job: job,
+                      size: 50,
+                      borderRadius: 14,
+                      boxShadow: [
+                        BoxShadow(
+                          color: job.companyColor.withOpacity(0.12),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-
-                    const SizedBox(height: 14),
-
-                    // Location and type chips
-                    Row(
-                      children: [
-                        _buildChip(Icons.location_on_outlined, job.location),
-                        const SizedBox(width: 8),
-                        _buildChip(Icons.work_outline_rounded, job.employmentType),
-                      ],
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Salary and date row
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withOpacity(0.10),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.payments_outlined,
-                              size: 15,
-                              color: Color(0xFF2563EB),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${job.salaryMin} - ${job.salaryMax}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
                           Text(
-                            formattedDate,
+                            job.title,
                             style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF94A3B8),
-                              fontWeight: FontWeight.w500,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFF0F172A),
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            job.company,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
                     ),
-
-                    const SizedBox(height: 12),
-
-                    // Description
-                    Text(
-                      job.description,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF64748B),
-                        height: 1.55,
+                    if (job.matchPercentage > 0) ...[
+                      const SizedBox(width: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.star_rounded, size: 12, color: Color(0xFF059669)),
+                            const SizedBox(height: 1),
+                            Text(
+                              '${job.matchPercentage}%',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF059669),
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const Text(
+                              'Match',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF059669),
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Skills tags
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: job.skills.map((skill) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB).withOpacity(0.07),
-                            borderRadius: BorderRadius.circular(8),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 16),
+                
+                // Metadata Row
+                Row(
+                  children: [
+                    Flexible(child: _buildChip(Icons.location_on_rounded, job.location)),
+                    const SizedBox(width: 8),
+                    _buildChip(Icons.work_rounded, job.employmentType),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                
+                // Salary Band (Full Width)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.payments_rounded, size: 16, color: Color(0xFF2563EB)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          '${job.salaryMin} - ${job.salaryMax}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
                           ),
-                          child: Text(
-                            skill,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF2563EB),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Action buttons
-                    Row(
-                      children: [
-                        // Save button
-                        GestureDetector(
-                          onTap: widget.onSave,
-                          child: AnimatedScale(
-                            scale: _savePulse,
-                            duration: const Duration(milliseconds: 180),
-                            curve: Curves.elasticOut,
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                              decoration: BoxDecoration(
-                                color: isSaved
-                                    ? const Color(0xFF2563EB).withOpacity(0.08)
-                                    : const Color(0xFFF8FAFC),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSaved
-                                      ? const Color(0xFF2563EB)
-                                      : const Color(0xFFE2E8F0),
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isSaved
-                                        ? Icons.bookmark_rounded
-                                        : Icons.bookmark_outline_rounded,
-                                    size: 18,
-                                    color: isSaved
-                                        ? const Color(0xFF2563EB)
-                                        : const Color(0xFF64748B),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    isSaved ? 'Saved' : 'Save',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: isSaved
-                                          ? const Color(0xFF2563EB)
-                                          : const Color(0xFF64748B),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(width: 10),
-                        // Apply button
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: isApplied ? null : widget.onApply,
-                            child: AnimatedScale(
-                              scale: _applyPulse,
-                              duration: const Duration(milliseconds: 180),
-                              curve: Curves.elasticOut,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    colors: isApplied
-                                        ? [const Color(0xFF10B981), const Color(0xFF059669)]
-                                        : [const Color(0xFF2563EB), const Color(0xFF1D4ED8)],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: (isApplied
-                                              ? const Color(0xFF10B981)
-                                              : const Color(0xFF2563EB))
-                                          .withOpacity(0.35),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      isApplied ? 'Applied' : 'Apply Now',
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Icon(
-                                      isApplied
-                                          ? Icons.check_circle_outline_rounded
-                                          : Icons.arrow_forward_rounded,
-                                      size: 17,
-                                      color: Colors.white,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
+                    ],
+                  ),
+                ),
+                 const SizedBox(height: 12),
+                
+                // Description
+                Text(
+                  job.description,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: Color(0xFF475569),
+                    height: 1.5,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                
+                // Footer Buttons (Anchored to Right)
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    _buildActionButton(
+                      icon: isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                      color: isSaved ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                      isSelected: isSaved,
+                      onTap: widget.onSave,
+                      pulseScale: _savePulse,
+                    ),
+                    const SizedBox(width: 10),
+                    _buildActionButton(
+                      icon: isApplied ? Icons.check_circle_rounded : Icons.arrow_forward_rounded,
+                      color: isApplied ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                      isSelected: isApplied,
+                      label: isApplied ? 'Applied' : 'Apply',
+                      onTap: widget.onApply,
+                      pulseScale: _applyPulse,
                     ),
                   ],
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -2997,23 +2726,77 @@ class _JobCardState extends State<_JobCard> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: const Color(0xFF2563EB)),
-          const SizedBox(width: 5),
-          Text(
-            text,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF64748B),
+          Icon(icon, size: 14, color: const Color(0xFF64748B)),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF475569),
+              ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required double pulseScale,
+    String? label,
+  }) {
+    return AnimatedScale(
+      scale: pulseScale,
+      duration: const Duration(milliseconds: 150),
+      curve: Curves.easeOutBack,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(
+            horizontal: label != null ? 16 : 12,
+            vertical: 10,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected ? color : color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 18,
+                color: isSelected ? Colors.white : color,
+              ),
+              if (label != null) ...[
+                const SizedBox(width: 8),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: isSelected ? Colors.white : color,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -4406,22 +4189,28 @@ class _NotificationsTabState extends State<NotificationsTab> {
   void initState() {
     super.initState();
     _loadNotifications();
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      _loadNotifications(showLoader: false);
-    });
+    // Refresh the list if a new notification arrives while looking at it
+    NotificationService.addListener(_onPushReceived);
+
     _jobActionService.addListener(_onJobActionsChanged);
+  }
+
+  void _onPushReceived() {
+    if (mounted) _loadNotifications(showLoader: false);
+  }
+
+  @override
+  void dispose() {
+    NotificationService.removeListener(_onPushReceived);
+    _jobActionService.removeListener(_onJobActionsChanged);
+    _pollTimer?.cancel();
+    super.dispose();
   }
 
   void _onJobActionsChanged() {
     if (mounted) setState(() {});
   }
 
-  @override
-  void dispose() {
-    _pollTimer?.cancel();
-    _jobActionService.removeListener(_onJobActionsChanged);
-    super.dispose();
-  }
 
   Future<void> _loadNotifications({bool showLoader = true}) async {
     if (_isPolling) return;
@@ -4691,7 +4480,6 @@ class _NotificationsTabState extends State<NotificationsTab> {
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
     
-    // Mark as read first if not read
     if (n['read_at'] == null) {
       _openNotification(index);
     }
@@ -4699,87 +4487,180 @@ class _NotificationsTabState extends State<NotificationsTab> {
     int selectedRating = 0;
     bool isSubmitting = false;
 
-    await showDialog(
+    await showGeneralDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Rate Application Process'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'How was the processing of your application? Rate your experience from 1 to 5.',
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(5, (i) {
-                      return IconButton(
-                        icon: Icon(
-                          i < selectedRating ? Icons.star_rounded : Icons.star_border_rounded,
-                          color: Colors.amber,
-                          size: 32,
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: Colors.black54,
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (ctx, anim1, anim2) => Container(),
+      transitionBuilder: (ctx, anim1, anim2, child) {
+        final curve = Curves.easeInOutBack.transform(anim1.value);
+        return Transform.scale(
+          scale: curve,
+          child: Opacity(
+            opacity: anim1.value,
+            child: StatefulBuilder(
+              builder: (ctx, setDialogState) {
+                return AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  elevation: 24,
+                  shadowColor: Colors.black26,
+                  titlePadding: const EdgeInsets.fromLTRB(28, 28, 28, 12),
+                  contentPadding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  title: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withOpacity(0.1),
+                          shape: BoxShape.circle,
                         ),
-                        onPressed: () {
-                          setDialogState(() {
-                            selectedRating = i + 1;
-                          });
-                        },
-                      );
-                    }),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    selectedRating == 1 ? 'Very Dissatisfied' :
-                    selectedRating == 2 ? 'Dissatisfied' :
-                    selectedRating == 3 ? 'Neutral' :
-                    selectedRating == 4 ? 'Satisfied' :
-                    selectedRating == 5 ? 'Very Satisfied' : 'Select a rating',
-                    style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: (selectedRating == 0 || isSubmitting) ? null : () async {
-                    setDialogState(() => isSubmitting = true);
-                    final result = await ApiService.submitSatisfactionRating(token, selectedRating);
-                    if (!mounted) return;
-                    setDialogState(() => isSubmitting = false);
-                    if (result['success'] == true) {
-                      Navigator.of(ctx).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Thank you for your rating!'),
-                          backgroundColor: Colors.green,
+                        child: const Icon(Icons.stars_rounded, color: Color(0xFF10B981), size: 36),
+                      ),
+                      const SizedBox(height: 18),
+                      const Text(
+                        'How did we do?',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.5,
                         ),
-                      );
-                      _deleteNotification(index); // Remove after rating
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(result['message'] ?? 'Failed to submit rating.'),
-                          backgroundColor: Colors.red,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Your feedback helps us improve the application process for everyone.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF64748B),
+                          height: 1.5,
                         ),
-                      );
-                    }
-                  },
-                  child: isSubmitting
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Text('Submit'),
-                ),
-              ],
-            );
-          },
+                      ),
+                      const SizedBox(height: 32),
+                      // Emoji Feedback
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Text(
+                          selectedRating == 1 ? '😟' :
+                          selectedRating == 2 ? '😕' :
+                          selectedRating == 3 ? '😐' :
+                          selectedRating == 4 ? '🙂' :
+                          selectedRating == 5 ? '🤩' : '✨',
+                          key: ValueKey(selectedRating),
+                          style: const TextStyle(fontSize: 48),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(5, (i) {
+                          final starIndex = i + 1;
+                          final isSelected = starIndex <= selectedRating;
+                          return GestureDetector(
+                            onTap: () => setDialogState(() => selectedRating = starIndex),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              child: Icon(
+                                isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
+                                color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFCBD5E1),
+                                size: 40,
+                              ).animate(
+                                target: isSelected ? 1 : 0,
+                              ).scale(begin: const Offset(1, 1), end: const Offset(1.2, 1.2), duration: 200.ms, curve: Curves.easeOutBack)
+                               .then().scale(begin: const Offset(1.2, 1.2), end: const Offset(1, 1), duration: 150.ms),
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        selectedRating == 1 ? 'Very Dissatisfied' :
+                        selectedRating == 2 ? 'Dissatisfied' :
+                        selectedRating == 3 ? 'Neutral' :
+                        selectedRating == 4 ? 'Satisfied' :
+                        selectedRating == 5 ? 'Excellent!' : 'Tap to rate',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: selectedRating == 0 ? const Color(0xFF94A3B8) : const Color(0xFF1E293B),
+                        ),
+                      ),
+                    ],
+                  ),
+                  actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+                  actions: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextButton(
+                            onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                            ),
+                            child: const Text(
+                              'Maybe Later',
+                              style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: (selectedRating == 0 || isSubmitting) ? null : () async {
+                              setDialogState(() => isSubmitting = true);
+                              final result = await ApiService.submitSatisfactionRating(token, selectedRating);
+                              if (!mounted) return;
+                              setDialogState(() => isSubmitting = false);
+                              if (result['success'] == true) {
+                                Navigator.of(ctx).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text('Thank you! Your feedback was shared.'),
+                                    backgroundColor: const Color(0xFF10B981),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                );
+                                _deleteNotification(index);
+                              } else {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(result['message'] ?? 'Failed to submit rating.'),
+                                    backgroundColor: const Color(0xFFEF4444),
+                                    behavior: SnackBarBehavior.floating,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              disabledBackgroundColor: const Color(0xFFE2E8F0),
+                            ),
+                            child: isSubmitting
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Text('Submit', style: TextStyle(fontWeight: FontWeight.w800)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
         );
       },
     );
@@ -5158,9 +5039,9 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                     borderRadius: BorderRadius.circular(16),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
+                                        color: Colors.black.withOpacity(0.04),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 8),
                                       ),
                                     ],
                                   ),
@@ -5169,20 +5050,17 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                     child: Material(
                                       color: Colors.white,
                                       child: InkWell(
-                                        onTap: () => _openNotification(index),
+                                        onTap: () => _showRatingDialog(index, n),
                                         child: Container(
                                           decoration: BoxDecoration(
                                             border: Border(
                                               left: BorderSide(
-                                                color: isRead ? Colors.transparent : const Color(0xFF10B981), // Emerald
-                                                width: 4,
+                                                color: isRead ? Colors.transparent : const Color(0xFF10B981),
+                                                width: 5,
                                               ),
-                                              top: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF10B981).withOpacity(0.3)),
-                                              right: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF10B981).withOpacity(0.3)),
-                                              bottom: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF10B981).withOpacity(0.3)),
                                             ),
                                           ),
-                                          padding: const EdgeInsets.all(16),
+                                          padding: const EdgeInsets.all(20),
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             mainAxisSize: MainAxisSize.min,
@@ -5191,37 +5069,39 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
                                                   Container(
-                                                    width: 40,
-                                                    height: 40,
+                                                    width: 44,
+                                                    height: 44,
                                                     decoration: BoxDecoration(
-                                                      color: const Color(0xFF10B981).withOpacity(0.1),
+                                                      color: const Color(0xFF10B981).withOpacity(0.12),
                                                       shape: BoxShape.circle,
                                                     ),
                                                     child: const Icon(
                                                       Icons.rate_review_rounded,
-                                                      color: Color(0xFF10B981),
-                                                      size: 20,
+                                                      color: Color(0xFF059669),
+                                                      size: 22,
                                                     ),
                                                   ),
-                                                  const SizedBox(width: 12),
+                                                  const SizedBox(width: 14),
                                                   Expanded(
                                                     child: Column(
                                                       crossAxisAlignment: CrossAxisAlignment.start,
                                                       children: [
                                                         Text(
-                                                          subject,
+                                                          'Rate Your Experience',
                                                           style: TextStyle(
-                                                            fontSize: 15,
-                                                            fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                                                            fontSize: 16,
+                                                            fontWeight: isRead ? FontWeight.w700 : FontWeight.w900,
                                                             color: const Color(0xFF0F172A),
+                                                            letterSpacing: -0.5,
                                                           ),
                                                         ),
-                                                        const SizedBox(height: 2),
+                                                        const SizedBox(height: 3),
                                                         Text(
                                                           '$timeAgo • $dateFormatted',
                                                           style: const TextStyle(
                                                             fontSize: 12,
                                                             color: Color(0xFF94A3B8),
+                                                            fontWeight: FontWeight.w500,
                                                           ),
                                                         ),
                                                       ],
@@ -5239,39 +5119,44 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                                     ),
                                                 ],
                                               ),
-                                              const SizedBox(height: 16),
+                                              const SizedBox(height: 18),
                                               Container(
                                                 width: double.infinity,
-                                                padding: const EdgeInsets.all(14),
+                                                padding: const EdgeInsets.all(16),
                                                 decoration: BoxDecoration(
                                                   color: const Color(0xFFF0FDF4),
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                                                  borderRadius: BorderRadius.circular(14),
+                                                  border: Border.all(color: const Color(0xFF10B981).withOpacity(0.15)),
                                                 ),
                                                 child: Text(
                                                   message,
                                                   style: const TextStyle(
                                                     fontSize: 14,
-                                                    color: Color(0xFF334155),
+                                                    color: Color(0xFF1E293B),
+                                                    height: 1.5,
+                                                    fontWeight: FontWeight.w500,
                                                   ),
                                                 ),
                                               ),
-                                              const SizedBox(height: 16),
+                                              const SizedBox(height: 18),
                                               SizedBox(
                                                 width: double.infinity,
-                                                height: 44,
+                                                height: 48,
                                                 child: FilledButton.icon(
                                                   onPressed: () => _showRatingDialog(index, n),
-                                                  icon: const Icon(Icons.star_half_rounded, size: 18),
+                                                  icon: const Icon(Icons.stars_rounded, size: 20),
                                                   label: const Text('Rate Application Process'),
                                                   style: FilledButton.styleFrom(
-                                                    backgroundColor: const Color(0xFF10B981),
+                                                    backgroundColor: const Color(0xFF059669),
+                                                    foregroundColor: Colors.white,
+                                                    elevation: 0,
                                                     shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(12),
+                                                      borderRadius: BorderRadius.circular(14),
                                                     ),
                                                     textStyle: const TextStyle(
                                                       fontSize: 14,
-                                                      fontWeight: FontWeight.w700,
+                                                      fontWeight: FontWeight.w800,
+                                                      letterSpacing: 0.2,
                                                     ),
                                                   ),
                                                 ),

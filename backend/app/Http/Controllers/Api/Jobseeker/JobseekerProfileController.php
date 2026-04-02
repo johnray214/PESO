@@ -332,4 +332,19 @@ class JobseekerProfileController extends Controller
             'message' => 'Satisfaction rating submitted successfully',
         ]);
     }
+
+    public function saveFcmToken(Request $request)
+    {
+        $request->validate([
+            'fcm_token' => 'required|string',
+        ]);
+
+        $jobseeker = $request->user();
+        $jobseeker->update(['fcm_token' => $request->fcm_token]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'FCM token saved successfully',
+        ]);
+    }
 }
