@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <!-- SKELETON -->
-    <template v-if="loading && !applicants.length">
+    <template v-if="loading || tabsLoading">
       <div class="filters-bar" style="margin-bottom: 20px;">
         <div class="skel" style="width: 300px; height: 38px; border-radius: 10px;"></div>
         <div style="display:flex; gap:8px;">
@@ -22,12 +22,18 @@
     <template v-else>
       <!-- Filters -->
       <div class="filters-bar">
-        <div class="search-box">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input v-model="search" type="text" placeholder="Search applicant, skill, location…" class="search-input"/>
+        <div style="display: flex; gap: 8px; flex: 1; max-width: 480px;">
+          <div class="search-box" style="flex: 1; max-width: none;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input v-model="search" type="text" placeholder="Search applicant, skill, location…" class="search-input" @keyup.enter="applySearch"/>
+          </div>
+          <button class="search-btn" @click="applySearch" :disabled="pageLoading">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Search
+          </button>
         </div>
         <div class="filter-group">
-          <select v-model="filterStatus" class="filter-select">
+          <select v-model="filterStatus" class="filter-select" @change="applyDropdownFilter">
             <option value="">All Status</option>
             <option value="reviewing">Reviewing</option>
             <option value="shortlisted">Shortlisted</option>
@@ -35,11 +41,11 @@
             <option value="hired">Hired</option>
             <option value="rejected">Rejected</option>
           </select>
-          <select v-model="filterSkill" class="filter-select">
+          <select v-model="filterSkill" class="filter-select" @change="applyDropdownFilter">
             <option value="">All Skills</option>
             <option v-for="sk in skillOptions" :key="sk" :value="sk">{{ sk }}</option>
           </select>
-          <select v-model="filterDate" class="filter-select">
+          <select v-model="filterDate" class="filter-select" @change="applyDropdownFilter">
             <option value="">All Time</option>
             <option value="today">Today</option>
             <option value="week">This Week</option>
@@ -54,7 +60,7 @@
           v-for="tab in statusTabs"
           :key="tab.value"
           :class="['tab-btn', { active: activeTab === tab.value }]"
-          @click="activeTab = tab.value"
+          @click="switchTab(tab.value)"
         >
           {{ tab.label }}
           <span class="tab-count" :class="tab.value">{{ tab.count }}</span>
@@ -132,6 +138,17 @@
                   <button class="act-btn view" @click="openDrawer(a)" title="View">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
+                </td>
+              </tr>
+              <tr v-if="filteredApplicants.length === 0 && !loading && !pageLoading">
+                <td colspan="9">
+                  <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v2"/><path d="M11 14h.01"/>
+                    </svg>
+                    <p>No matches found</p>
+                    <span>Try adjusting your filters or search terms.</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -236,7 +253,10 @@ import api from '@/services/api'
 export default {
   name: 'ApplicantsPage',
   async mounted() {
-    await this.fetchApplicants()
+    await Promise.all([
+      this.fetchApplicants(),
+      this.fetchTabCounts(),
+    ])
   },
   data() {
     return {
@@ -249,6 +269,7 @@ export default {
       drawerTab: 'Profile',
       selected: null,
       loading: false,
+      tabsLoading: true,
       pageLoading: false,  // separate flag for pagination skeleton
       drawerTabList: ['Profile', 'Files'],
       fileList: [
@@ -256,6 +277,7 @@ export default {
         { label: 'Certificate / Diploma',  key: 'cert'      },
         { label: 'Barangay Clearance',     key: 'clearance' },
       ],
+      tabCounts: { all: 0, reviewing: 0, shortlisted: 0, interview: 0, hired: 0, rejected: 0 },
       statusTabs: [
         { label: 'All',         value: 'all',         count: 0 },
         { label: 'Reviewing',   value: 'reviewing',   count: 0 },
@@ -280,19 +302,55 @@ export default {
       return pages
     },
     filteredApplicants() {
-      return this.applicants.filter(a => {
-        const matchTab    = this.activeTab === 'all' || a.status === this.activeTab
-        const matchSearch = !this.search ||
-          a.name.toLowerCase().includes(this.search.toLowerCase()) ||
-          a.skills.some(s => s.toLowerCase().includes(this.search.toLowerCase())) ||
-          a.location.toLowerCase().includes(this.search.toLowerCase())
-        const matchStatus = !this.filterStatus || a.status === this.filterStatus
-        const matchSkill  = !this.filterSkill  || a.skills.includes(this.filterSkill)
-        return matchTab && matchSearch && matchStatus && matchSkill
-      })
+      return this.applicants
     },
   },
   methods: {
+    applySearch() {
+      this.currentPage = 1
+      this.fetchApplicants(true)
+    },
+    applyDropdownFilter() {
+      this.search = ''
+      this.applySearch()
+    },
+
+    switchTab(tab) {
+      this.activeTab = tab
+      this.search = ''
+      this.filterStatus = ''
+      this.filterSkill = ''
+      this.filterDate = ''
+      this.currentPage = 1
+      this.fetchApplicants(true)
+    },
+
+    async fetchTabCounts() {
+      this.tabsLoading = true
+      try {
+        const statuses = ['', 'reviewing', 'shortlisted', 'interview', 'hired', 'rejected']
+        const keys     = ['all', 'reviewing', 'shortlisted', 'interview', 'hired', 'rejected']
+        const results  = await Promise.all(
+          statuses.map(s => api.get('/admin/applications', { params: s ? { status: s, page: 1 } : { page: 1 } }))
+        )
+        results.forEach((res, i) => {
+          const payload = res.data.data || res.data
+          const total   = Array.isArray(payload) ? payload.length : (payload.meta?.total || payload.total || 0)
+          this.tabCounts[keys[i]] = total
+        })
+        this.statusTabs[0].count = this.tabCounts.all
+        this.statusTabs[1].count = this.tabCounts.reviewing
+        this.statusTabs[2].count = this.tabCounts.shortlisted
+        this.statusTabs[3].count = this.tabCounts.interview
+        this.statusTabs[4].count = this.tabCounts.hired
+        this.statusTabs[5].count = this.tabCounts.rejected
+      } catch (e) {
+        console.error('fetchTabCounts error:', e)
+      } finally {
+        this.tabsLoading = false
+      }
+    },
+
     async fetchApplicants(isPaginating = false) {
       // Use pageLoading for pagination changes, loading for initial mount
       if (isPaginating) {
@@ -353,12 +411,7 @@ export default {
     },
 
     updateTabCounts() {
-      this.statusTabs[0].count = this.applicants.length
-      this.statusTabs[1].count = this.applicants.filter(a => a.status === 'reviewing').length
-      this.statusTabs[2].count = this.applicants.filter(a => a.status === 'shortlisted').length
-      this.statusTabs[3].count = this.applicants.filter(a => a.status === 'interview').length
-      this.statusTabs[4].count = this.applicants.filter(a => a.status === 'hired').length
-      this.statusTabs[5].count = this.applicants.filter(a => a.status === 'rejected').length
+      // no-op: counts are loaded independently by fetchTabCounts()
     },
 
     changePage(page) {
@@ -474,6 +527,9 @@ export default {
 }
 .search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
 .search-input::placeholder { color: #cbd5e1; }
+.search-btn { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; white-space: nowrap; }
+.search-btn:hover:not(:disabled) { background: #1d4ed8; }
+.search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .filter-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .filter-select {
   background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
@@ -516,6 +572,13 @@ export default {
 .table-row { cursor: pointer; transition: background 0.12s; }
 .table-row:hover { background: #f8fafc; }
 .data-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; color: #94a3b8;
+}
+.empty-state p { margin: 12px 0 4px; font-size: 15px; font-weight: 600; color: #475569; }
+.empty-state span { font-size: 13px; }
 
 .person-cell { display: flex; align-items: center; gap: 10px; }
 .avatar {

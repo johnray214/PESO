@@ -50,6 +50,11 @@
             Active
             <span class="ltab-pill">{{ activeJobs.length }}</span>
           </button>
+          <button :class="['listing-main-tab', { active: listingTab === 'drafts' }]" @click="listingTab = 'drafts'">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            Drafts
+            <span class="ltab-pill">{{ draftJobs.length }}</span>
+          </button>
           <button :class="['listing-main-tab', 'archived-tab', { active: listingTab === 'archived' }]" @click="listingTab = 'archived'">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
             Archived
@@ -181,9 +186,26 @@
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   Edit
                 </button>
-                <button class="card-btn close-btn" v-if="job.status === 'Open'" @click="closeJob(job)">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <button class="card-btn close-btn" v-if="job.status === 'Open'" @click="closeJob(job)" :disabled="closingJobId === job.id">
+                  <span v-if="closingJobId === job.id" class="spinner-sm" style="border-color: #ef4444; border-top-color: transparent; width: 12px; height: 12px;"></span>
+                  <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   Close
+                </button>
+                <button class="card-btn remove-btn" @click="promptRemove(job)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  Remove
+                </button>
+              </template>
+
+              <!-- Drafts: Publish + Edit + Remove -->
+              <template v-else-if="listingTab === 'drafts'">
+                <button class="card-btn edit-btn" style="color:#16a34a; background:#f0fdf4;" @click="publishJob(job)" :disabled="savingJob">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  Publish
+                </button>
+                <button class="card-btn edit-btn" @click="openModal(job)">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  Edit
                 </button>
                 <button class="card-btn remove-btn" @click="promptRemove(job)">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -204,11 +226,20 @@
               </template>
             </div>
           </div>
+          
+          <!-- Load More -->
+          <div v-if="hasMorePages" style="text-align: center; margin-top: 16px; grid-column: 1 / -1; width: 100%;">
+            <button class="btn-ghost" @click="loadMoreJobs" :disabled="isLoadingMore">
+              <span v-if="isLoadingMore" class="spinner-sm" style="border-width: 2px; border-color: rgba(0,0,0,0.1); border-top-color: #64748b; margin-right: 6px;"></span>
+              {{ isLoadingMore ? 'Loading...' : 'Load more jobs' }}
+            </button>
+          </div>
 
           <!-- Empty state -->
           <div v-if="filteredJobs.length === 0" class="empty-state">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             <p v-if="listingTab === 'archived'">No archived listings yet.</p>
+            <p v-else-if="listingTab === 'drafts'">No draft listings yet.</p>
             <p v-else>No active listings match your filters.</p>
           </div>
         </div>
@@ -601,6 +632,8 @@ export default {
       catalogCategory: '',
       jobs: [],
       toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
+      currentPage: 1, hasMorePages: false, isLoadingMore: false, searchTimeout: null,
+      closingJobId: null,
     }
   },
   computed: {
@@ -608,8 +641,12 @@ export default {
       return this.jobs.filter(j => {
         const expired = j.daysLeft <= 0
         const isClosed = j.status === 'Closed'
-        return !expired && !isClosed
+        const isDraft = j.status === 'Draft'
+        return !expired && !isClosed && !isDraft
       })
+    },
+    draftJobs() {
+      return this.jobs.filter(j => j.status === 'Draft' && j.daysLeft > 0)
     },
     archivedJobs() {
       return this.jobs.filter(j => {
@@ -619,7 +656,7 @@ export default {
       })
     },
     filteredJobs() {
-      const source = this.listingTab === 'archived' ? this.archivedJobs : this.activeJobs
+      const source = this.listingTab === 'archived' ? this.archivedJobs : (this.listingTab === 'drafts' ? this.draftJobs : this.activeJobs)
       return source.filter(j => {
         const matchSearch = !this.search || j.title.toLowerCase().includes(this.search.toLowerCase())
         const matchType   = !this.filterType || j.type === this.filterType
@@ -650,6 +687,19 @@ export default {
         return matchCat && matchQ
       })
     },
+  },
+  watch: {
+    search() {
+      clearTimeout(this.searchTimeout)
+      this.searchTimeout = setTimeout(() => {
+        this.currentPage = 1
+        this.fetchJobs()
+      }, 500)
+    },
+    filterType() {
+      this.currentPage = 1
+      this.fetchJobs()
+    }
   },
   methods: {
     mapJobFromApi(j, idx) {
@@ -691,7 +741,7 @@ export default {
         experience_required: j.experience_required || '',
         daysLeft:            j.deadline
           ? Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))
-          : 30,
+          : 9999,
         postedDate:  j.posted_date
           ? new Date(j.posted_date).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
           : '—',
@@ -730,34 +780,52 @@ export default {
       return map[val] || val || '—'
     },
 
-    async fetchJobs() {
-      this.isLoading = true
+    async fetchJobs(append = false) {
+      if (!append) this.isLoading = true
+      else this.isLoadingMore = true
       try {
-        const params = {}
+        const params = { page: this.currentPage }
         if (this.search)     params.search = this.search
         if (this.filterType) params.type   = this.filterType
         const { data } = await api.get('/employer/jobs', { params })
         const jobsData  = data.data?.data || data.data || data || []
         const jobsArray = Array.isArray(jobsData) ? jobsData : []
-        this.jobs = jobsArray.map((j, idx) => this.mapJobFromApi(j, idx))
+        const mapped = jobsArray.map((j, idx) => this.mapJobFromApi(j, idx))
+        
+        if (append) {
+          this.jobs = [...this.jobs, ...mapped]
+        } else {
+          this.jobs = mapped
+        }
+        
+        const meta = data.data?.meta || data.meta || data.data || {}
+        this.hasMorePages = meta.current_page < meta.last_page || (jobsArray.length === 50)
       } catch (e) {
         console.error('Failed to fetch jobs:', e)
-        this.jobs = []
+        if (!append) this.jobs = []
       } finally {
         this.isLoading = false
+        this.isLoadingMore = false
       }
+    },
+
+    async loadMoreJobs() {
+      this.currentPage++
+      await this.fetchJobs(true)
     },
 
     async fetchHiredApplicants(job) {
       if (!job) return
+      if (job._hiredApplicants) {
+        this.hiredApplicants = job._hiredApplicants
+        return
+      }
       this.hiredLoading = true
       this.hiredApplicants = []
       try {
         const { data } = await api.get('/employer/applications', {
           params: { job_listing_id: job.id, status: 'hired' }
         })
-
-        console.log('RAW hired response:', JSON.stringify(data, null, 2))
 
         const list = data.data?.data || data.data || data || []
         const colorPool = ['#2563eb','#22c55e','#f97316','#8b5cf6','#ef4444','#06b6d4','#14b8a6']
@@ -766,9 +834,7 @@ export default {
           name:      a.jobseeker?.full_name
                     || `${a.jobseeker?.first_name || ''} ${a.jobseeker?.last_name || ''}`.trim()
                     || 'Unknown',
-          photo:     a.jobseeker?.photo
-                    ? (a.jobseeker.photo.startsWith('http') ? a.jobseeker.photo : '/storage/' + a.jobseeker.photo)
-                    : null,
+          photo:     a.jobseeker?.photo || null,
           course:    a.jobseeker?.education_level || null,
           school:    a.jobseeker?.address || null,
           hiredDate: a.updated_at
@@ -776,6 +842,7 @@ export default {
             : '—',
           color: colorPool[i % colorPool.length],
         }))
+        job._hiredApplicants = this.hiredApplicants
       } catch (e) {
         console.error('Failed to fetch hired applicants:', e)
         this.hiredApplicants = []
@@ -950,16 +1017,44 @@ export default {
       }
     },
 
+    async publishJob(job) {
+      if (this.savingJob) return
+      this.savingJob = true
+      try {
+        await api.put(`/employer/jobs/${job.id}`, { ...job, status: 'Open' })
+        const idx = this.jobs.findIndex(j => j.id === job.id)
+        if (idx !== -1) {
+          this.jobs[idx].status = 'Open'
+          this.jobs[idx].postedDate = new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })
+        }
+        this.showToastMsg('Job published successfully', 'success')
+      } catch (e) {
+        console.error(e)
+        this.showToastMsg('Failed to publish job', 'error')
+      } finally {
+        this.savingJob = false
+      }
+    },
+
     async closeJob(job) {
+      if (this.closingJobId) return
+      this.closingJobId = job.id
+      const idx = this.jobs.findIndex(j => j.id === job.id)
+      const oldStatus = idx !== -1 ? this.jobs[idx].status : job.status
+      
+      if (idx !== -1) this.jobs[idx].status = 'Closed'
+      if (this.selected?.id === job.id) this.selected.status = 'Closed'
+
       try {
         await api.patch(`/employer/jobs/${job.id}/close`)
-        const idx = this.jobs.findIndex(j => j.id === job.id)
-        if (idx !== -1) this.jobs[idx].status = 'Closed'
-        if (this.selected?.id === job.id) this.selected.status = 'Closed'
         this.showToastMsg('Job closed and moved to Archived', 'success')
       } catch (e) {
         console.error(e)
+        if (idx !== -1) this.jobs[idx].status = oldStatus
+        if (this.selected?.id === job.id) this.selected.status = oldStatus
         this.showToastMsg('Failed to close job', 'error')
+      } finally {
+        this.closingJobId = null
       }
     },
 

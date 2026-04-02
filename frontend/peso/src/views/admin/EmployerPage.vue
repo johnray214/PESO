@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <!-- SKELETON — initial load only -->
-    <template v-if="loading && !employers.length">
+    <template v-if="loading || tabsLoading">
       <div class="filters-bar" style="margin-bottom: 20px;">
         <div class="skel" style="width: 300px; height: 38px; border-radius: 10px;"></div>
         <div style="display:flex; gap:8px;">
@@ -21,19 +21,25 @@
     <template v-else>
       <!-- Filters -->
       <div class="filters-bar">
-        <div class="search-box">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input v-model="search" type="text" placeholder="Search company, industry, contact…" class="search-input"/>
+        <div style="display: flex; gap: 8px; flex: 1; max-width: 480px;">
+          <div class="search-box" style="flex: 1; max-width: none;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input v-model="search" type="text" placeholder="Search company, industry, contact…" class="search-input" @keyup.enter="applySearch"/>
+          </div>
+          <button class="search-btn" @click="applySearch" :disabled="pageLoading">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Search
+          </button>
         </div>
         <div class="filter-group">
-          <select v-model="filterStatus" class="filter-select">
+          <select v-model="filterStatus" class="filter-select" @change="applyDropdownFilter">
             <option value="">All Status</option>
             <option value="Verified">Verified</option>
             <option value="Pending">Pending</option>
             <option value="Suspended">Suspended</option>
             <option value="Rejected">Rejected</option>
           </select>
-          <select v-model="filterIndustry" class="filter-select">
+          <select v-model="filterIndustry" class="filter-select" @change="applyDropdownFilter">
             <option value="">All Industries</option>
             <option v-for="ind in industryOptions" :key="ind" :value="ind">{{ ind }}</option>
           </select>
@@ -44,7 +50,7 @@
       <div class="status-tabs">
         <button v-for="tab in statusTabs" :key="tab.value"
           :class="['tab-btn', { active: activeTab === tab.value }]"
-          @click="activeTab = tab.value">
+          @click="switchTab(tab.value)">
           {{ tab.label }}
           <span class="tab-count" :class="tab.cls">{{ tab.count }}</span>
         </button>
@@ -114,6 +120,17 @@
                   <button class="act-btn edit" @click="openDrawer(emp)" title="View">
                     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
                   </button>
+                </td>
+              </tr>
+              <tr v-if="filteredEmployers.length === 0 && !loading && !pageLoading">
+                <td colspan="9">
+                  <div class="empty-state">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v2"/><path d="M11 14h.01"/>
+                    </svg>
+                    <p>No matches found</p>
+                    <span>Try adjusting your filters or search terms.</span>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -240,9 +257,11 @@ export default {
       drawerTab: 'Info',
       selected: null,
       loading: true,
+      tabsLoading: true,
       pageLoading: false,
       drawerTabList: ['Info', 'Job Listings', 'Hired'],
       industryOptions: ['Information Technology', 'Food & Beverage', 'Retail', 'Real Estate', 'Healthcare', 'Manufacturing', 'Banking & Finance', 'Telecommunications', 'Utilities', 'Aviation'],
+      tabCounts: { all: 0, verified: 0, pending: 0, suspended: 0, rejected: 0 },
       statusTabs: [
         { label: 'All',       value: 'all',       count: 0, cls: '' },
         { label: 'Verified',  value: 'verified',  count: 0, cls: 'active-cls' },
@@ -257,17 +276,14 @@ export default {
     }
   },
   async mounted() {
-    await this.fetchEmployers()
+    await Promise.all([
+      this.fetchEmployers(),
+      this.fetchTabCounts(),
+    ])
   },
   computed: {
     filteredEmployers() {
-      return this.employers.filter(e => {
-        const matchTab      = this.activeTab === 'all' || e.status.toLowerCase() === this.activeTab.toLowerCase()
-        const matchSearch   = !this.search || e.name.toLowerCase().includes(this.search.toLowerCase()) || (e.industry || '').toLowerCase().includes(this.search.toLowerCase()) || (e.contactPerson || '').toLowerCase().includes(this.search.toLowerCase())
-        const matchStatus   = !this.filterStatus || e.status.toLowerCase() === this.filterStatus.toLowerCase()
-        const matchIndustry = !this.filterIndustry || e.industry === this.filterIndustry
-        return matchTab && matchSearch && matchStatus && matchIndustry
-      })
+      return this.employers
     },
     paginationPages() {
       const pages = []
@@ -278,6 +294,49 @@ export default {
     },
   },
   methods: {
+    applySearch() {
+      this.currentPage = 1
+      this.fetchEmployers(true)
+    },
+    applyDropdownFilter() {
+      this.search = ''
+      this.applySearch()
+    },
+
+    switchTab(tab) {
+      this.activeTab = tab
+      this.search = ''
+      this.filterStatus = ''
+      this.filterIndustry = ''
+      this.currentPage = 1
+      this.fetchEmployers(true)
+    },
+
+    async fetchTabCounts() {
+      this.tabsLoading = true
+      try {
+        const statuses = ['', 'verified', 'pending', 'suspended', 'rejected']
+        const keys     = ['all', 'verified', 'pending', 'suspended', 'rejected']
+        const results  = await Promise.all(
+          statuses.map(s => api.get('/admin/employers', { params: s ? { status: s, page: 1 } : { page: 1 } }))
+        )
+        results.forEach((res, i) => {
+          const payload = res.data.data || res.data
+          const total   = Array.isArray(payload) ? payload.length : (payload.meta?.total || payload.total || 0)
+          this.tabCounts[keys[i]] = total
+        })
+        this.statusTabs[0].count = this.tabCounts.all
+        this.statusTabs[1].count = this.tabCounts.verified
+        this.statusTabs[2].count = this.tabCounts.pending
+        this.statusTabs[3].count = this.tabCounts.suspended
+        this.statusTabs[4].count = this.tabCounts.rejected
+      } catch (e) {
+        console.error('fetchTabCounts error:', e)
+      } finally {
+        this.tabsLoading = false
+      }
+    },
+
     async fetchEmployers(isPaginating = false) {
       if (isPaginating) {
         this.pageLoading = true
@@ -287,9 +346,10 @@ export default {
 
       try {
         const params = { page: this.currentPage }
-        if (this.search)           params.search = this.search
-        if (this.filterStatus)     params.status = this.filterStatus.toLowerCase()
-        if (this.activeTab !== 'all') params.status = this.activeTab.toLowerCase()
+        if (this.search)              params.search   = this.search
+        if (this.filterStatus)        params.status   = this.filterStatus.toLowerCase()
+        if (this.filterIndustry)      params.industry = this.filterIndustry
+        if (this.activeTab !== 'all') params.status   = this.activeTab.toLowerCase()
 
         const response = await api.get('/admin/employers', { params })
         const payload  = response.data.data || response.data
@@ -351,11 +411,7 @@ export default {
     },
 
     updateStatusTabCounts() {
-      this.statusTabs[0].count = this.totalEmployers
-      this.statusTabs[1].count = this.employers.filter(e => e.status.toLowerCase() === 'verified').length
-      this.statusTabs[2].count = this.employers.filter(e => e.status.toLowerCase() === 'pending').length
-      this.statusTabs[3].count = this.employers.filter(e => e.status.toLowerCase() === 'suspended').length
-      this.statusTabs[4].count = this.employers.filter(e => e.status.toLowerCase() === 'rejected').length
+      // no-op: counts are loaded independently by fetchTabCounts()
     },
 
     getRandomColor() {
@@ -409,6 +465,9 @@ export default {
 .search-box { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; flex: 1; max-width: 360px; }
 .search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
 .search-input::placeholder { color: #cbd5e1; }
+.search-btn { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; white-space: nowrap; }
+.search-btn:hover:not(:disabled) { background: #1d4ed8; }
+.search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .filter-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .filter-select { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; outline: none; font-family: inherit; }
 
@@ -428,6 +487,13 @@ export default {
 .table-row { cursor: pointer; transition: background 0.12s; }
 .table-row:hover { background: #f8fafc; }
 .data-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; color: #94a3b8;
+}
+.empty-state p { margin: 12px 0 4px; font-size: 15px; font-weight: 600; color: #475569; }
+.empty-state span { font-size: 13px; }
 
 .company-cell { display: flex; align-items: center; gap: 10px; }
 .company-logo { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; color: #fff; flex-shrink: 0; }

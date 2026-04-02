@@ -237,31 +237,33 @@
       <div class="section-inner">
         <div class="split-layout reverse">
           <div class="split-image-wrap reveal" :class="{ visible: split2Visible }">
-            <div class="carousel-wrap">
-              <img
-                v-for="(img, i) in carouselImages"
-                :key="i"
-                :src="img"
-                :class="['carousel-img', { active: carouselIndex === i }]"
-                alt="Local hiring platform"
-              />
-
-              <!-- Arrows -->
-              <button class="carousel-arrow left" @click="prevSlide">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-              </button>
-              <button class="carousel-arrow right" @click="nextSlide">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>
-              </button>
-
-              <!-- Dots -->
-              <div class="carousel-dots">
-                <button
+            <div class="carousel-outer">
+              <div class="carousel-wrap">
+                <img
                   v-for="(img, i) in carouselImages"
                   :key="i"
-                  :class="['carousel-dot', { active: carouselIndex === i }]"
-                  @click="goToSlide(i)"
-                ></button>
+                  :src="img"
+                  :class="['carousel-img', { active: carouselIndex === i }]"
+                  alt="Local hiring platform"
+                />
+
+                <!-- Arrows -->
+                <button class="carousel-arrow left" @click="prevSlide">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                <button class="carousel-arrow right" @click="nextSlide">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 6 15 12 9 18"/></svg>
+                </button>
+
+                <!-- Dots -->
+                <div class="carousel-dots">
+                  <button
+                    v-for="(img, i) in carouselImages"
+                    :key="i"
+                    :class="['carousel-dot', { active: carouselIndex === i }]"
+                    @click="goToSlide(i)"
+                  ></button>
+                </div>
               </div>
             </div>
           </div>
@@ -883,12 +885,22 @@ export default {
 .ripple-btn { position: relative; overflow: hidden; }
 
 /* CAROUSEL */
+.carousel-outer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0 24px;   /* breathing room for shadow */
+}
+
 .carousel-wrap {
   position: relative;
   width: 100%;
   aspect-ratio: 800 / 519;
   overflow: hidden;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.12);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.06);
+  background: #f8fafc;    /* shows while image loads */
 }
 .carousel-img {
   position: absolute;
@@ -903,14 +915,20 @@ export default {
   opacity: 1;
 }
 
+/* REPLACE these two rules */
 .match-img {
   width: 100%;
-  height: 900px;
+  height: auto;
   object-fit: contain;
   border-radius: 20px;
+  display: block;
 }
+
 .split-image-wrap {
-  min-height: 700px;    /* adjust as needed */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* remove the min-height: 700px line */
 }
 
 /* Carousel arrows */
@@ -943,25 +961,51 @@ export default {
 /* Dots */
 .carousel-dots {
   position: absolute;
-  bottom: 14px;
+  bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
-  gap: 7px;
+  gap: 6px;
   z-index: 10;
+  background: rgba(0,0,0,0.25);
+  padding: 5px 10px;
+  border-radius: 99px;
+  backdrop-filter: blur(6px);
 }
+
 .carousel-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 28px;
+  height: 4px;
+  border-radius: 99px;
   border: none;
-  background: rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.45);
   cursor: pointer;
-  transition: background 0.25s, transform 0.25s;
+  transition: background 0.25s, width 0.25s;
   padding: 0;
 }
+
 .carousel-dot.active {
   background: #fff;
-  transform: scale(1.35);
+  width: 36px;      /* active dot is wider (progress bar feel) */
+}
+
+/* Bigger, more visible arrow buttons */
+.carousel-arrow {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,0.95);
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
 }
 </style>

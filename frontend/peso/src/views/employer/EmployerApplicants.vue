@@ -21,28 +21,34 @@
         <div v-else>
           <!-- Filters -->
           <div class="filters-bar">
-            <div class="search-box">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              <input v-model="search" type="text" :placeholder="activeTab === 'potential' ? 'Search by name or skill…' : 'Search by name, skill, position…'" class="search-input"/>
+            <div style="display: flex; gap: 8px; flex: 1; max-width: 480px;">
+              <div class="search-box" style="flex: 1; max-width: none;">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input v-model="search" type="text" :placeholder="activeTab === 'potential' ? 'Search by name or skill…' : 'Search by name, skill, position…'" class="search-input" @keyup.enter="applySearch"/>
+              </div>
+              <button class="search-btn" @click="applySearch" :disabled="pageLoading">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Search
+              </button>
             </div>
             <div class="filter-group">
               <template v-if="activeTab !== 'potential'">
-                <select v-model="filterJob" class="filter-select"><option value="">All Positions</option><option v-for="j in jobOptions" :key="j" :value="j">{{ j }}</option></select>
-                <select v-model="filterStatus" class="filter-select"><option value="">All Status</option><option value="Reviewing">Reviewing</option><option value="Shortlisted">Shortlisted</option><option value="Interview">Interview</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option></select>
+                <select v-model="filterJob" class="filter-select" @change="applyDropdownFilter"><option value="">All Positions</option><option v-for="j in jobOptions" :key="j" :value="j">{{ j }}</option></select>
+                <select v-model="filterStatus" class="filter-select" @change="applyDropdownFilter"><option value="">All Status</option><option value="Reviewing">Reviewing</option><option value="Shortlisted">Shortlisted</option><option value="Interview">Interview</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option></select>
               </template>
               <template v-else>
-                <select v-model="potentialJobFilter" @change="potentialPage = 1" class="filter-select"><option value="">All Job Listings</option><option v-for="j in jobOptions" :key="j" :value="j">{{ j }}</option></select>
+                <select v-model="potentialJobFilter" @change="applyPotentialDropdownFilter" class="filter-select"><option value="">All Job Listings</option><option v-for="j in jobOptions" :key="j" :value="j">{{ j }}</option></select>
               </template>
             </div>
           </div>
 
           <!-- Main Tabs -->
           <div class="main-tabs">
-            <button :class="['main-tab', { active: activeTab !== 'potential' }]" @click="activeTab = activeStatusTab">
+            <button :class="['main-tab', { active: activeTab !== 'potential' }]" @click="switchTab(activeStatusTab)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
               Applied Applicants <span class="main-count">{{ applicants.length }}</span>
             </button>
-            <button :class="['main-tab', 'potential-tab', { active: activeTab === 'potential' }]" @click="activeTab = 'potential'">
+            <button :class="['main-tab', 'potential-tab', { active: activeTab === 'potential' }]" @click="switchTab('potential')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
               Potential Applicants <span class="main-count potential-count">{{ potentialApplicants.length }}</span>
             </button>
@@ -51,7 +57,7 @@
           <!-- ===== APPLIED VIEW ===== -->
           <template v-if="activeTab !== 'potential'">
             <div class="status-tabs">
-              <button v-for="tab in statusTabs" :key="tab.value" :class="['tab-btn', { active: activeTab === tab.value }]" @click="activeTab = tab.value; activeStatusTab = tab.value">
+              <button v-for="tab in statusTabs" :key="tab.value" :class="['tab-btn', { active: activeTab === tab.value }]" @click="switchTab(tab.value)">
                 {{ tab.label }}<span class="tab-count" :class="tab.cls">{{ tab.count }}</span>
               </button>
             </div>
@@ -59,7 +65,13 @@
               <table class="data-table">
                 <thead><tr><th>No.</th><th>Applicant</th><th>Skills</th><th>Applied For</th><th>Applied Date</th><th>Match Score</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
-                  <tr v-for="(a, index) in pagedApplicants" :key="a.id" class="table-row" @click="openDrawer(a)">
+                  <template v-if="pageLoading">
+                    <tr v-for="i in 5" :key="'sk'+i">
+                      <td colspan="8" style="padding: 14px;"><div class="skeleton" style="height: 40px; width: 100%; border-radius: 8px;"></div></td>
+                    </tr>
+                  </template>
+                  <template v-else>
+                    <tr v-for="(a, index) in pagedApplicants" :key="a.id" class="table-row" @click="openDrawer(a)">
                     <td @click.stop style="font-weight:600;color:#64748b;font-size:12px;padding-left:18px;">{{ (appliedPage - 1) * perPage + index + 1 }}</td>
                     <td><div class="person-cell"><div class="avatar" :style="{ background: a.avatarBg }">{{ a.name[0] }}</div><div><p class="person-name">{{ a.name }}</p><p class="person-meta">{{ a.location }}</p></div></div></td>
                     <td><div class="skill-tags"><span v-for="sk in a.skills.slice(0,2)" :key="sk" class="skill-tag">{{ sk }}</span><span v-if="a.skills.length > 2" class="skill-more">+{{ a.skills.length - 2 }}</span></div></td>
@@ -84,15 +96,26 @@
                       </div>
                     </td>
                   </tr>
-                  <tr v-if="pagedApplicants.length === 0"><td colspan="8" class="empty-cell">No applicants found.</td></tr>
+                  <tr v-if="pagedApplicants.length === 0 && !loading && !pageLoading">
+                    <td colspan="8">
+                      <div class="empty-state">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v2"/><path d="M11 14h.01"/>
+                        </svg>
+                        <p>No matches found</p>
+                        <span>Try adjusting your filters or search terms.</span>
+                      </div>
+                    </td>
+                  </tr>
+                  </template>
                 </tbody>
               </table>
               <div class="pagination">
-                <span class="page-info">Showing {{ filteredApplicants.length === 0 ? 0 : (appliedPage - 1) * perPage + 1 }}–{{ Math.min(appliedPage * perPage, filteredApplicants.length) }} of {{ filteredApplicants.length }} applicants</span>
+                <span class="page-info">Showing {{ localTotal === 0 ? 0 : (localCurrentPage - 1) * perPage + 1 }}–{{ Math.min(localCurrentPage * perPage, localTotal) }} of {{ localTotal }} applicants</span>
                 <div class="page-btns">
-                  <button class="page-btn" :disabled="appliedPage === 1" @click="appliedPage--">‹</button>
-                  <button v-for="p in appliedTotalPages" :key="p" class="page-btn" :class="{ active: appliedPage === p }" @click="appliedPage = p">{{ p }}</button>
-                  <button class="page-btn" :disabled="appliedPage === appliedTotalPages" @click="appliedPage++">›</button>
+                  <button class="page-btn" :disabled="localCurrentPage === 1 || pageLoading" @click="changeAppliedPage(localCurrentPage - 1)">‹</button>
+                  <button v-for="p in localPaginationPages" :key="p" class="page-btn" :class="{ active: localCurrentPage === p }" :disabled="pageLoading" @click="changeAppliedPage(p)">{{ p }}</button>
+                  <button class="page-btn" :disabled="localCurrentPage === localLastPage || pageLoading" @click="changeAppliedPage(localCurrentPage + 1)">›</button>
                 </div>
               </div>
             </div>
@@ -102,29 +125,46 @@
           <template v-if="activeTab === 'potential'">
             <div class="potential-notice"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2872A1" stroke-width="2" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>These are registered jobseekers whose skills match your active listings — but <strong>&nbsp;have not applied yet</strong>.</div>
             <div class="listing-tabs">
-              <button class="listing-tab" :class="{ active: potentialJobFilter === '' }" @click="potentialJobFilter = ''; potentialPage = 1">All <span class="ltab-count">{{ potentialApplicants.length }}</span></button>
-              <button v-for="j in jobOptions" :key="j" class="listing-tab" :class="{ active: potentialJobFilter === j }" @click="potentialJobFilter = j; potentialPage = 1">{{ j }} <span class="ltab-count">{{ potentialApplicants.filter(a => a.bestFor === j).length }}</span></button>
+              <button class="listing-tab" :class="{ active: potentialJobFilter === '' }" @click="potentialJobFilter = ''; applyPotentialDropdownFilter()">All <span class="ltab-count">{{ potentialApplicants.length }}</span></button>
+              <button v-for="j in jobOptions" :key="j" class="listing-tab" :class="{ active: potentialJobFilter === j }" @click="potentialJobFilter = j; applyPotentialDropdownFilter()">{{ j }} <span class="ltab-count">{{ potentialApplicants.filter(a => a.bestFor === j).length }}</span></button>
             </div>
             <div class="table-card">
               <table class="data-table">
                 <thead><tr><th>Jobseeker</th><th>Matched Skills</th><th>Matches Your Listing</th><th>Skill Match Score</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
-                  <tr v-for="a in pagedPotential" :key="a.name" class="table-row" style="cursor:pointer;" @click="openPotentialDrawer(a)">
-                    <td><div class="person-cell"><div class="avatar" :style="{ background: a.color }">{{ a.name[0] }}</div><div><p class="person-name">{{ a.name }}</p><p class="person-meta">{{ a.education }}</p></div></div></td>
-                    <td><div class="skill-tags"><span v-for="sk in a.skills" :key="sk" class="skill-tag matched-tag">{{ sk }}</span></div></td>
-                    <td><div class="listing-match-cell"><div class="listing-bar" :style="{ background: a.jobColor }"></div><div><p class="person-name" style="font-size:12.5px">{{ a.bestFor }}</p><p class="person-meta">Active listing</p></div></div></td>
-                    <td><div class="score-cell"><div class="score-bar-bg"><div class="score-bar-fill" :style="{ width: a.score + '%', background: scoreColor(a.score) }"></div></div><span class="score-val" :style="{ color: scoreColor(a.score) }">{{ a.score }}%</span></div></td>
-                    <td><div class="loc-cell"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>{{ a.location }}</div></td>
-                    <td><span class="not-applied-badge"><span class="na-dot"></span>Not Applied</span></td>
-                    <td><div class="action-btns">
-                      <button class="act-btn view" @click.stop="openPotentialDrawer(a)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-                      <button class="act-btn invite-act" @click.stop="confirmSendInvite(a)" :disabled="a.invited">
-                        <svg v-if="!a.invited" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                        <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-                      </button>
-                    </div></td>
-                  </tr>
-                  <tr v-if="pagedPotential.length === 0"><td colspan="7" class="empty-cell">No jobseekers match your current filters.</td></tr>
+                  <template v-if="pageLoading">
+                    <tr v-for="i in 5" :key="'psk'+i">
+                      <td colspan="7" style="padding: 14px;"><div class="skeleton" style="height: 40px; width: 100%; border-radius: 8px;"></div></td>
+                    </tr>
+                  </template>
+                  <template v-else>
+                      <tr v-for="a in pagedPotential" :key="a.name" class="table-row" style="cursor:pointer;" @click="openPotentialDrawer(a)">
+                      <td><div class="person-cell"><div class="avatar" :style="{ background: a.color }">{{ a.name[0] }}</div><div><p class="person-name">{{ a.name }}</p><p class="person-meta">{{ a.education }}</p></div></div></td>
+                      <td><div class="skill-tags"><span v-for="sk in a.skills" :key="sk" class="skill-tag matched-tag">{{ sk }}</span></div></td>
+                      <td><div class="listing-match-cell"><div class="listing-bar" :style="{ background: a.jobColor }"></div><div><p class="person-name" style="font-size:12.5px">{{ a.bestFor }}</p><p class="person-meta">Active listing</p></div></div></td>
+                      <td><div class="score-cell"><div class="score-bar-bg"><div class="score-bar-fill" :style="{ width: a.score + '%', background: scoreColor(a.score) }"></div></div><span class="score-val" :style="{ color: scoreColor(a.score) }">{{ a.score }}%</span></div></td>
+                      <td><div class="loc-cell"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>{{ a.location }}</div></td>
+                      <td><span class="not-applied-badge"><span class="na-dot"></span>Not Applied</span></td>
+                      <td><div class="action-btns">
+                        <button class="act-btn view" @click.stop="openPotentialDrawer(a)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+                        <button class="act-btn invite-act" @click.stop="confirmSendInvite(a)" :disabled="a.invited">
+                          <svg v-if="!a.invited" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        </button>
+                      </div></td>
+                    </tr>
+                    <tr v-if="pagedPotential.length === 0">
+                      <td colspan="7">
+                        <div class="empty-state">
+                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v2"/><path d="M11 14h.01"/>
+                          </svg>
+                          <p>No matches found</p>
+                          <span>Try adjusting your filters or search terms.</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </template>
                 </tbody>
               </table>
               <div class="pagination">
@@ -412,9 +452,12 @@ export default {
   data() {
     return {
       isLoading: true,
+      pageLoading: false,
       activeTab: 'all', activeStatusTab: 'all',
-      search: '', filterJob: '', filterStatus: '',
+      search: '', potentialSearchApplied: '',
+      filterJob: '', filterStatus: '',
       appliedPage: 1, perPage: 15,
+      localApplicants: [], localTotal: 0, localLastPage: 1, localCurrentPage: 1,
       drawerOpen: false, drawerTab: 'Profile', selected: null,
       openingResume: false,
       hireModal: { show: false, applicant: null, startDate: '', companyName: '', salary: '', employmentType: '' },
@@ -427,9 +470,16 @@ export default {
     }
   },
   computed: {
-    applicants()          { return this.applicantsStore.applicants },
+    applicants()          { return this.localApplicants },
     potentialApplicants() { return this.applicantsStore.potentialApplicants },
-    jobOptions() { return [...new Set(this.applicants.map((a) => a.jobApplied).filter(Boolean))] },
+    jobOptions() { return [...new Set(this.applicantsStore.applicants.map((a) => a.jobApplied).filter(Boolean))] },
+    localPaginationPages() {
+      const pages = []
+      const start = Math.max(1, this.localCurrentPage - 2)
+      const end   = Math.min(this.localLastPage, this.localCurrentPage + 2)
+      for (let i = start; i <= end; i++) pages.push(i)
+      return pages
+    },
     statusTabs() {
       return [
         { label: 'All',         value: 'all',         count: this.applicantsStore.totalApplicants,  cls: '' },
@@ -441,19 +491,16 @@ export default {
       ]
     },
     filteredApplicants() {
-      return this.applicants.filter((a) => {
-        const matchTab    = this.activeTab === 'all' || a.status === this.activeTab
-        const matchSearch = !this.search || a.name.toLowerCase().includes(this.search.toLowerCase()) || a.skills.some((s) => s.toLowerCase().includes(this.search.toLowerCase()))
-        const matchJob    = !this.filterJob    || a.jobApplied === this.filterJob
-        const matchStatus = !this.filterStatus || a.status === this.filterStatus
-        return matchTab && matchSearch && matchJob && matchStatus
-      })
+      return this.localApplicants
     },
-    appliedTotalPages() { return Math.max(1, Math.ceil(this.filteredApplicants.length / this.perPage)) },
-    pagedApplicants() { const s = (this.appliedPage - 1) * this.perPage; return this.filteredApplicants.slice(s, s + this.perPage) },
+    appliedTotalPages() { return Math.max(1, this.localLastPage) },
+    pagedApplicants() { return this.localApplicants },
     filteredPotential() {
       let list = [...this.potentialApplicants]
-      if (this.search) { const q = this.search.toLowerCase(); list = list.filter((a) => a.name.toLowerCase().includes(q) || a.skills.some((s) => s.toLowerCase().includes(q)) || a.bestFor.toLowerCase().includes(q)) }
+      if (this.potentialSearchApplied && this.activeTab === 'potential') {
+        const q = this.potentialSearchApplied.toLowerCase()
+        list = list.filter((a) => a.name.toLowerCase().includes(q) || a.skills.some((s) => s.toLowerCase().includes(q)) || a.bestFor.toLowerCase().includes(q))
+      }
       if (this.potentialJobFilter) list = list.filter((a) => a.bestFor === this.potentialJobFilter)
       return list.sort((a, b) => b.score - a.score)
     },
@@ -462,6 +509,130 @@ export default {
     todayFormatted() { return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) },
   },
   methods: {
+    applySearch() {
+      this.potentialSearchApplied = this.search
+      this.localCurrentPage = 1
+      this.potentialPage = 1
+      if (this.activeTab !== 'potential') {
+        this.fetchLocalApplicants()
+      } else {
+        // simulate page loader for visual consistency on potential search
+        this.pageLoading = true
+        setTimeout(() => { this.pageLoading = false }, 300)
+      }
+    },
+    applyDropdownFilter() {
+      this.search = ''
+      this.applySearch()
+    },
+    applyPotentialDropdownFilter() {
+      this.search = ''
+      this.potentialSearchApplied = ''
+      // simulate network loading for potential tab since it's local
+      this.pageLoading = true
+      setTimeout(() => {
+        this.potentialPage = 1
+        this.pageLoading = false
+      }, 300)
+    },
+
+    switchTab(tab) {
+      const isSwitchingMainArea = (tab === 'potential' && this.activeTab !== 'potential') || (tab !== 'potential' && this.activeTab === 'potential')
+
+      if (tab !== 'potential') {
+        this.activeStatusTab = tab
+        if (!isSwitchingMainArea) this.filterStatus = tab === 'all' ? '' : tab
+      }
+      this.activeTab = tab
+
+      // Only reset search/filters when switching BETWEEN applied and potential areas
+      if (isSwitchingMainArea) {
+        this.search = ''
+        this.potentialSearchApplied = ''
+        this.filterStatus = ''
+        this.filterJob = ''
+        this.potentialJobFilter = ''
+      }
+      // When switching status tabs within applied, also reset the dropdown filters
+      if (!isSwitchingMainArea && tab !== 'potential') {
+        this.search = ''
+        this.filterStatus = ''
+        this.filterJob = ''
+      }
+
+      this.localCurrentPage = 1
+      this.potentialPage = 1
+      if (this.activeTab !== 'potential') {
+        this.fetchLocalApplicants()
+      } else if (isSwitchingMainArea) {
+        this.pageLoading = true
+        setTimeout(() => { this.pageLoading = false }, 300)
+      }
+    },
+
+    changeAppliedPage(page) {
+      if (page >= 1 && page <= this.localLastPage && !this.pageLoading) {
+        this.localCurrentPage = page
+        this.fetchLocalApplicants()
+      }
+    },
+
+    async fetchLocalApplicants() {
+      this.pageLoading = true
+      try {
+        const params = { page: this.localCurrentPage }
+        if (this.search)      params.search       = this.search
+        if (this.filterStatus && this.filterStatus !== '') params.status = this.filterStatus.toLowerCase()
+        if (this.filterJob)   params.job_title    = this.filterJob
+        if (this.activeTab !== 'all' && this.activeTab !== 'potential') params.status = this.activeTab.toLowerCase()
+
+        const { data } = await employerApi.getApplications(params)
+        // Backend now returns: { success, data: [...items], meta: { current_page, last_page, total } }
+        const payload = Array.isArray(data.data) ? data.data : (data.data?.data || [])
+        const meta    = data.meta || data.data || {}
+        this.localCurrentPage = meta.current_page || 1
+        this.localLastPage    = meta.last_page    || 1
+        this.localTotal       = meta.total        || (Array.isArray(data.data) ? data.data.length : 0)
+
+        const AVATAR_COLORS = ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b82f6','#14b8a6','#6366f1','#f43f5e']
+        const EDU_LABELS = {
+          no_requirement:'No Requirement',elementary:'Elementary Graduate',highschool:'High School Graduate',
+          senior_highschool:'Senior High School / K-12',vocational:'Vocational / TESDA',
+          college_level:'At Least College Level',college_graduate:'College Graduate',
+          related_course:'College Graduate (Related Course)',postgraduate:"Post-Graduate / Master's",
+        }
+        this.localApplicants = (Array.isArray(payload) ? payload : []).map((a, i) => {
+          const js     = a.jobseeker?.data || a.jobseeker || {}
+          const skills = Array.isArray(js.skills) ? js.skills : []
+          return {
+            id:              a.id,
+            name:            js.full_name || `${js.first_name || ''} ${js.last_name || ''}`.trim() || 'Unknown',
+            location:        js.address   || 'Unknown',
+            contact:         js.contact   || '',
+            email:           js.email     || '',
+            sex:             js.sex       || '',
+            dateOfBirth:     js.date_of_birth || '',
+            education:       EDU_LABELS[js.education_level] || js.education_level || '',
+            experience:      js.job_experience || '',
+            skills,
+            jobApplied:      a.job_listing?.title || 'Unknown Position',
+            salary:          a.job_listing?.salary_range || 'Negotiable',
+            employmentType:  (a.job_listing && a.job_listing.type) ? a.job_listing.type.charAt(0).toUpperCase() + a.job_listing.type.slice(1) : 'Full-time',
+            date:            new Date(a.applied_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
+            matchScore:      a.match_score || 0,
+            status:          a.status ? (a.status.charAt(0).toUpperCase() + a.status.slice(1)) : 'Reviewing',
+            avatarBg:        AVATAR_COLORS[i % AVATAR_COLORS.length],
+            notes:           a.notes || '',
+            hasResume:       !!js.has_resume,
+          }
+        })
+      } catch (e) {
+        console.error('[EmployerApplicants] fetchLocalApplicants error:', e)
+      } finally {
+        this.pageLoading = false
+      }
+    },
+
     statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', Hired:'hired', Rejected:'rejected' }[s] || '' },
     scoreColor(v)  { return v >= 85 ? '#22c55e' : v >= 70 ? '#2872A1' : '#ef4444' },
     scoreBg(v)     { return v >= 85 ? '#f0fdf4' : v >= 70 ? '#eff8ff' : '#fef2f2' },
@@ -654,7 +825,10 @@ export default {
     },
   },
   async mounted() {
+    // Load the store (for sidebar counts + potential applicants)
     await this.applicantsStore.fetch()
+    // Load the current page's applicants with server-side filtering
+    await this.fetchLocalApplicants()
     this.isLoading = false
   },
 }
@@ -671,6 +845,9 @@ export default {
 .search-box { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; flex: 1; max-width: 360px; }
 .search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
 .search-input::placeholder { color: #cbd5e1; }
+.search-btn { display: flex; align-items: center; gap: 6px; background: #2872A1; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; white-space: nowrap; }
+.search-btn:hover:not(:disabled) { background: #1a5f8a; }
+.search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .filter-group { display: flex; align-items: center; gap: 8px; }
 .filter-select { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; outline: none; font-family: inherit; }
 .btn-icon { display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; font-family: inherit; }
@@ -704,6 +881,14 @@ export default {
 .table-row { cursor: pointer; transition: background 0.12s; }
 .table-row:hover { background: #eff8ff; }
 .data-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; color: #94a3b8;
+}
+.empty-state p { margin: 12px 0 4px; font-size: 15px; font-weight: 600; color: #475569; }
+.empty-state span { font-size: 13px; }
+
 .empty-cell { text-align: center; color: #94a3b8; font-size: 13px; padding: 36px !important; }
 .person-cell { display: flex; align-items: center; gap: 10px; }
 .avatar { width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }

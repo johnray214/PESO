@@ -26,12 +26,18 @@
     <template v-else>
       <!-- Filters -->
       <div class="filters-bar">
-        <div class="search-box">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input v-model="search" type="text" placeholder="Search by name or email…" class="search-input"/>
+        <div style="display: flex; gap: 8px; flex: 1; max-width: 480px;">
+          <div class="search-box" style="flex: 1; max-width: none;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input v-model="search" type="text" placeholder="Search by name or email…" class="search-input" @keyup.enter="applySearch"/>
+          </div>
+          <button class="search-btn" @click="applySearch" :disabled="pageLoading">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Search
+          </button>
         </div>
         <div class="filter-group">
-          <select v-model="filterStatus" class="filter-select">
+          <select v-model="filterStatus" class="filter-select" @change="applyDropdownFilter">
             <option value="">All Status</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
@@ -111,11 +117,14 @@
                   </div>
                 </td>
               </tr>
-              <tr v-if="filteredJobseekers.length === 0">
-                <td colspan="8" class="empty-cell">
+              <tr v-if="filteredJobseekers.length === 0 && !loading && !pageLoading">
+                <td colspan="8">
                   <div class="empty-state">
-                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
-                    <p>No jobseekers found</p>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v2"/><path d="M11 14h.01"/>
+                    </svg>
+                    <p>No matches found</p>
+                    <span>Try adjusting your filters or search terms.</span>
                   </div>
                 </td>
               </tr>
@@ -304,14 +313,7 @@ export default {
   },
   computed: {
     filteredJobseekers() {
-      const q = this.search.toLowerCase()
-      return this.jobseekers.filter(js => {
-        const matchSearch = !q ||
-          `${js.firstName} ${js.lastName}`.toLowerCase().includes(q) ||
-          js.email.toLowerCase().includes(q)
-        const matchStatus = !this.filterStatus || js.status === this.filterStatus
-        return matchSearch && matchStatus
-      })
+      return this.jobseekers
     },
     paginationPages() {
       const pages = []
@@ -322,6 +324,15 @@ export default {
     },
   },
   methods: {
+    applySearch() {
+      this.currentPage = 1
+      this.fetchJobseekers(true)
+    },
+    applyDropdownFilter() {
+      this.search = ''
+      this.applySearch()
+    },
+
     async fetchJobseekers(isPaginating = false) {
       if (isPaginating) { this.pageLoading = true } else { this.loading = true }
       try {
@@ -512,8 +523,11 @@ export default {
 .search-box { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; flex: 1; max-width: 360px; }
 .search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
 .search-input::placeholder { color: #cbd5e1; }
-.filter-group { display: flex; gap: 8px; }
+.filter-group { display: flex; gap: 8px; align-items: center; }
 .filter-select { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; outline: none; font-family: inherit; }
+.search-btn { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; white-space: nowrap; }
+.search-btn:hover:not(:disabled) { background: #1d4ed8; }
+.search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .table-card { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; }
 .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -523,6 +537,13 @@ export default {
 .table-row { cursor: pointer; transition: background 0.12s; }
 .table-row:hover { background: #f8fafc; }
 .data-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 48px 24px; text-align: center; color: #94a3b8;
+}
+.empty-state p { margin: 12px 0 4px; font-size: 15px; font-weight: 600; color: #475569; }
+.empty-state span { font-size: 13px; }
 
 .person-cell { display: flex; align-items: center; gap: 10px; }
 .person-avatar { width: 34px; height: 34px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }

@@ -553,23 +553,27 @@ export default {
         const dataList   = payload.data || payload
         const timeFormat = (time) => time ? new Date(`2000-01-01T${time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''
 
-        this.events = dataList.map(e => ({
-          id:          e.id,
-          title:       e.title,
-          type:        e.type,
-          description: e.description,
-          date:        e.event_date ? e.event_date.split('T')[0] : '',
-          day:         String(new Date(e.event_date).getDate()).padStart(2, '0'),
-          month:       new Date(e.event_date).toLocaleString('default', { month: 'short' }).toUpperCase(),
-          year:        String(new Date(e.event_date).getFullYear()),
-          time:        e.end_time ? `${timeFormat(e.start_time)} - ${timeFormat(e.end_time)}` : timeFormat(e.start_time),
-          venue:       e.location,
-          slots:       e.max_participants   || 0,
-          registered:  e.participants_count || 0,
-          status:      e.status ? e.status.charAt(0).toUpperCase() + e.status.slice(1) : 'Upcoming',
-          _start_time: e.start_time,
-          _end_time:   e.end_time,
-        }))
+        this.events = dataList.map(e => {
+          const d = e.event_date ? new Date(e.event_date) : null
+          const localIsoDate = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : ''
+          return {
+            id:          e.id,
+            title:       e.title,
+            type:        e.type,
+            description: e.description,
+            date:        localIsoDate,
+            day:         d ? String(d.getDate()).padStart(2, '0') : '',
+            month:       d ? d.toLocaleString('default', { month: 'short' }).toUpperCase() : '',
+            year:        d ? String(d.getFullYear()) : '',
+            time:        e.end_time ? `${timeFormat(e.start_time)} - ${timeFormat(e.end_time)}` : timeFormat(e.start_time),
+            venue:       e.location,
+            slots:       e.max_participants   || 0,
+            registered:  e.participants_count || 0,
+            status:      e.status ? e.status.charAt(0).toUpperCase() + e.status.slice(1) : 'Upcoming',
+            _start_time: e.start_time,
+            _end_time:   e.end_time,
+          }
+        })
 
         this.updateTabCounts()
       } catch (err) {
