@@ -57,8 +57,8 @@ class AdminActivityFeedController extends Controller
             });
 
         // 3. New Job Listing posted
-        \App\Models\JobListing::with('employer:id,company_name')
-            ->select('id', 'employer_id', 'title', 'created_at', 'status')
+        \App\Models\JobListing::withTrashed()->with('employer:id,company_name')
+            ->select('id', 'employer_id', 'title', 'created_at', 'status', 'deleted_at')
             ->orderByDesc('created_at')
             ->limit(5)
             ->get()
@@ -67,7 +67,7 @@ class AdminActivityFeedController extends Controller
                 $feed->push([
                     'id'      => 'jl_' . $jl->id,
                     'type'    => 'System',
-                    'title   '=> 'New Job Listing posted',
+                    'title'=> 'New Job Listing posted',
                     'message' => "{$empName} posted a new job listing for {$jl->title}.",
                     'time'    => $jl->created_at,
                     'read'    => false,
@@ -77,7 +77,9 @@ class AdminActivityFeedController extends Controller
         // 4 & 5. Recent applications (New and Status Changed)
         Application::with([
                 'jobseeker:id,first_name,last_name',
-                'jobListing:id,title',
+                'jobListing' => function ($q) {
+                    $q->withTrashed()->select('id', 'title');
+                },
             ])
             ->select('id', 'jobseeker_id', 'job_listing_id', 'status', 'applied_at', 'updated_at', 'created_at')
             ->orderByDesc('updated_at')
@@ -139,7 +141,7 @@ class AdminActivityFeedController extends Controller
             ->values()
             ->map(fn($item) => array_merge($item, [
                 'time' => $this->formatRelative($item['time']),
-                'title' => $item['title'] ?? $item['title   '] ?? 'Notification' // fix typo 
+                'title' => $item['title'] ?? 'Notification'
             ]));
 
         return response()->json([

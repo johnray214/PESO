@@ -1,15 +1,12 @@
 <template>
-  <div class="layout-wrapper">
+  <div>
     <transition name="toast">
       <div v-if="toast.show" class="toast" :class="toast.type">
         <span class="toast-icon" v-html="toast.icon"></span>
         <span class="toast-msg">{{ toast.text }}</span>
       </div>
     </transition>
-    <EmployerSidebar />
-    <div class="main-area">
-      <EmployerTopbar title="Company Profile" subtitle="Manage your company information and account settings" />
-      <div class="page">
+    <div class="page">
         <div v-if="isLoading" class="profile-layout">
           <!-- Left Col Skeletons -->
           <div class="left-col">
@@ -320,7 +317,6 @@
             </div>
           </div>
         </div>
-      </div>
     </div>
   </div>
 </template>
@@ -328,8 +324,6 @@
 <script>
 import api from '@/services/api'
 import { normalizeStorageUrl } from '@/utils/storageUrl'
-import EmployerSidebar from '@/components/EmployerSidebar.vue'
-import EmployerTopbar from '@/components/EmployerTopbar.vue'
 import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 const JOB_PALETTE = [
@@ -342,7 +336,6 @@ const JOB_PALETTE = [
 
 export default {
   name: 'EmployerProfile',
-  components: { EmployerSidebar, EmployerTopbar },
 
   setup() {
     const authStore = useEmployerAuthStore()

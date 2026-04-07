@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api\Jobseeker;
 
+use App\Events\AdminActivityEvent;
+use App\Events\EmployerNotificationEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\JobListing;
@@ -121,12 +123,29 @@ class JobseekerApplicationController extends Controller
             'created_by'     => null,
         ]);
 
-        NotificationRead::create([
+        $employerNotifRead = NotificationRead::create([
             'notification_id' => $employerNotification->id,
             'recipient_type'  => 'employer',
             'recipient_id'    => $jobListing->employer_id,
             'read_at'         => null,
         ]);
+
+        // 🔴 Real-time: push to admin feed channel
+        event(new AdminActivityEvent(
+            'Status',
+            'New Application',
+            "{$jobseeker->fullName()} applied for {$jobListing->title}.",
+            'app_new_' . $application->id
+        ));
+
+        // 🔴 Real-time: push to the specific employer's private channel
+        event(new EmployerNotificationEvent(
+            $jobListing->employer_id,
+            $employerNotifRead->id,
+            'applicant',
+            'New Job Applicant',
+            "{$jobseeker->fullName()} has submitted an application for the {$jobListing->title} position."
+        ));
 
         return response()->json([
             'success' => true,

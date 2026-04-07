@@ -7,6 +7,7 @@ use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
 use App\Models\Notification;
 use App\Models\NotificationRead;
+use App\Events\AdminActivityEvent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -315,6 +316,13 @@ class EmployerApplicationController extends Controller
 
                 $jobseeker->update(['has_received_satisfaction_survey' => true]);
             }
+
+            event(new AdminActivityEvent(
+                'Status',
+                'Application Status Updated',
+                "{$company} updated {$jobseeker->first_name}'s application for {$job->title} to " . ucfirst($newStatus) . ".",
+                'app_' . $application->id . '_' . time()
+            ));
         }
 
         return response()->json([
@@ -331,7 +339,7 @@ class EmployerApplicationController extends Controller
         $jobListings = $employer->jobListings()->with('skills')->get();
         $jobSkills = $jobListings->pluck('skills')->flatten()->pluck('skill')->unique();
         
-        $query = \App\Models\Jobseeker::with('skills')
+        $query = \App\Models\Jobseeker::with(['skills', 'applications'])
             ->where('status', 'active')
             ->whereHas('skills', function ($q) use ($jobSkills) {
                 $q->whereIn('skill', $jobSkills);
@@ -348,13 +356,14 @@ class EmployerApplicationController extends Controller
             });
         }
 
-        $jobseekers = $query->orderByDesc('created_at')->paginate(15);
+        $jobseekers = $query->orderByDesc('created_at')->get();
 
-        // Calculate match score and best matching job for each
-        $jobseekers->getCollection()->transform(function ($jobseeker) use ($jobListings) {
+        $processed = $jobseekers->map(function ($jobseeker) use ($jobListings) {
             $maxScore = 0;
             $bestJob  = null;
             foreach ($jobListings as $job) {
+                if ($jobseeker->applications->contains('job_listing_id', $job->id)) continue;
+
                 $score = \App\Models\Application::calculateMatchScore($jobseeker, $job);
                 if ($score > $maxScore) {
                     $maxScore = $score;
@@ -365,12 +374,29 @@ class EmployerApplicationController extends Controller
             $jobseeker->best_job_match = $bestJob?->title ?? null;
             $jobseeker->best_job_skills = $bestJob ? $bestJob->skills->pluck('skill')->values() : [];
             $jobseeker->best_job_id = $bestJob?->id ?? null;
+            $jobseeker->education_level = ucwords(str_replace('_', ' ', $jobseeker->education_level ?? 'Not specified'));
             return $jobseeker;
-        });
+        })->filter(function ($jobseeker) {
+            return $jobseeker->match_score > 0;
+        })->values();
+
+        $page = \Illuminate\Pagination\Paginator::resolveCurrentPage('page') ?: 1;
+        $perPage = 15;
+        
+        $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
+            $processed->forPage($page, $perPage)->values(),
+            $processed->count(),
+            $perPage,
+            $page,
+            [
+                'path' => \Illuminate\Pagination\Paginator::resolveCurrentPath(),
+                'query' => request()->query()
+            ]
+        );
 
         return response()->json([
             'success' => true,
-            'data' => $jobseekers,
+            'data' => $paginated,
         ]);
     }
 

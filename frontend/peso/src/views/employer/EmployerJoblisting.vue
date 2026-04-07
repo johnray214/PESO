@@ -1,5 +1,5 @@
 <template>
-  <div class="layout-wrapper">
+  <div>
     <!-- Toast -->
     <transition name="toast">
       <div v-if="toast.show" class="toast" :class="toast.type">
@@ -7,10 +7,7 @@
         <span class="toast-msg">{{ toast.text }}</span>
       </div>
     </transition>
-    <EmployerSidebar />
-    <div class="main-area">
-      <EmployerTopbar title="Job Listings" subtitle="Create and manage your open positions" />
-      <div class="page">
+    <div class="page">
 
         <!-- Filters + Add Skeleton -->
         <div v-if="isLoading" class="filters-bar" style="align-items: center;">
@@ -557,8 +554,6 @@
       </div>
     </transition>
 
-  </div>
-
   <!-- REMOVE CONFIRMATION MODAL -->
   <transition name="modal">
     <div v-if="removeTarget" class="modal-overlay" @click.self="removeTarget = null">
@@ -588,18 +583,14 @@
       </div>
     </div>
   </transition>
-
 </template>
 
 <script>
 import api from '@/services/api'
-import EmployerSidebar from '@/components/EmployerSidebar.vue'
-import EmployerTopbar from '@/components/EmployerTopbar.vue'
 import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 export default {
   name: 'EmployerJobListings',
-  components: { EmployerSidebar, EmployerTopbar },
   async mounted() {
     await this.fetchJobs()
   },

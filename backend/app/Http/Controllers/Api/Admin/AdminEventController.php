@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Events\AdminActivityEvent;
 use App\Models\Event;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -94,6 +95,13 @@ class AdminEventController extends Controller
         
         $event = Event::create($validated);
         $event->loadCount(['registrations as participants_count']);
+
+        event(new AdminActivityEvent(
+            'Event',
+            'New Event Created',
+            "A new event \"" . $event->title . "\" has been scheduled on " . \Carbon\Carbon::parse($event->event_date)->format('M d, Y') . '.',
+            'evt_' . $event->id
+        ));
 
         return response()->json([
             'success' => true,

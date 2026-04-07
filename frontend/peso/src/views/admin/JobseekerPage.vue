@@ -325,6 +325,7 @@ export default {
   },
   methods: {
     applySearch() {
+      this.filterStatus = ''
       this.currentPage = 1
       this.fetchJobseekers(true)
     },
