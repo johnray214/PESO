@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Events\AdminActivityEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Jobseeker;
 use App\Support\JobseekerPassword;

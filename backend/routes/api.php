@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
 // Auth Controllers
@@ -10,6 +11,11 @@ use App\Http\Controllers\Api\Auth\JobseekerAuthController;
 Route::get('/debug-notifs', function() {
     return \App\Models\NotificationRead::with('notification')->where('recipient_type', 'employer')->orderByDesc('created_at')->limit(10)->get();
 });
+
+// Pusher private channel auth endpoint for employers (stateless, uses Bearer token)
+Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
+    return Broadcast::auth($request);
+})->middleware('auth:employer');
 
 // Admin Controllers
 use App\Http\Controllers\Api\Admin\AdminDashboardController;

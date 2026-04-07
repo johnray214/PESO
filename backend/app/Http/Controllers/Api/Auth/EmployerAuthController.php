@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Auth;
 
+use App\Events\AdminActivityEvent;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EmployerResource;
 use App\Models\Employer;
@@ -80,6 +81,14 @@ class EmployerAuthController extends Controller
         } catch (\Exception $e) {
             Log::error("Failed to create welcome notification for employer {$employer->id}: " . $e->getMessage());
         }
+
+        // 🔴 Real-time: push to admin feed channel
+        event(new AdminActivityEvent(
+            'Registration',
+            'New Employer Registered',
+            "{$employer->company_name} signed up and needs verification/approval.",
+            'emp_' . $employer->id
+        ));
 
         return response()->json([
             'success' => true,

@@ -19,23 +19,16 @@
     <!-- ACTUAL CONTENT -->
     <template v-else>
     <div class="notifications-header" style="display: flex; justify-content: space-between; align-items: center;">
-      <div class="main-tabs">
-        <button class="main-tab" :class="{ active: activeTab === 'feed' }" @click="activeTab = 'feed'">Activity Feed</button>
-        <button class="main-tab" :class="{ active: activeTab === 'sent' }" @click="activeTab = 'sent'">Sent Notifications</button>
-      </div>
-      <button class="btn-primary" @click="openCompose">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-        Send Notification
-      </button>
+      <h2 style="font-size: 20px; font-weight: 800; color: #1e293b;">Activity Feed</h2>
     </div>
 
     <!-- NOTIFICATIONS LIST -->
       <div class="tab-content" style="margin-top: 12px;">
         
         <!-- ACTIVITY FEED -->
-      <div v-if="activeTab === 'feed'" class="notif-list">
+      <div class="notif-list">
         <div v-if="feedNotifs.length === 0" style="padding: 30px; text-align: center; color: #94a3b8; font-size: 13px;">No recent activity found.</div>
-        <div v-for="notif in feedNotifs" :key="notif.id" :class="['notif-row', { unread: !notif.read }]" @click="markAsRead(notif)">
+        <div v-for="notif in feedNotifs" :key="notif.id" :class="['notif-row', { unread: !notif.read }]">
           <div class="notif-icon-wrap" :style="getIconStyle(notif.type)" v-html="getIconPath(notif.type)"></div>
           <div class="notif-body">
             <div class="notif-top">
@@ -47,120 +40,24 @@
               <span class="notif-type-tag" :style="getTagStyle(notif.type)">{{ notif.type }}</span>
             </div>
           </div>
-          <div v-if="!notif.read" class="unread-dot"></div>
+          <div v-if="!notif.read" class="unread-dot" @click.stop="markAsRead(notif)" title="Mark as read"></div>
         </div>
       </div>
 
-      <!-- SENT NOTIFICATIONS -->
-      <div v-if="activeTab === 'sent'" class="sent-list">
-        <div v-for="sent in sentNotifs" :key="sent.id" class="sent-card">
-          <div class="sent-header">
-            <div class="sent-title-row">
-              <p class="sent-subject">{{ sent.subject }}</p>
-              <span class="status-badge" :class="sent.status === 'Sent' ? 'sent-s' : 'sched-s'">{{ sent.status }}</span>
-            </div>
-            <p class="sent-time">{{ sent.time }}</p>
-          </div>
-          <p class="sent-message">{{ sent.message }}</p>
-          <div class="sent-footer">
-            <div class="sent-recipients">
-              <span class="recip-chip" v-for="r in sent.recipients" :key="r">{{ r }}</span>
-            </div>
-            <div class="sent-stats">
-              <span class="stat-chip">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012.18 1h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.59 8a16 16 0 006.35 6.35l.86-.86a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg>
-                {{ sent.delivered }} delivered
-              </span>
-              <span class="stat-chip read-chip">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                {{ sent.read }} read
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
+
       </div>
     </template>
 
-    <!-- COMPOSE MODAL -->
-    <transition name="modal">
-      <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-        <div class="modal">
-          <div class="modal-header">
-            <h3>Send Notification</h3>
-            <button class="modal-close" @click="showModal = false">✕</button>
-          </div>
-          <div class="modal-body">
-            <div class="form-group">
-              <label class="form-label">Recipients</label>
-              <div class="recipient-options">
-                <label v-for="opt in recipientOptions" :key="opt.value" class="recip-option" :class="{ selected: form.recipients === opt.value }" @click="form.recipients = opt.value">
-                  <span v-html="opt.icon" class="recip-icon"></span>
-                  {{ opt.label }}
-                </label>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Filter By (optional)</label>
-              <div class="form-row">
-                <select v-model="form.filterSkill" class="form-input">
-                  <option value="">All Skills</option>
-                  <option>IT / Dev</option>
-                  <option>Nursing</option>
-                  <option>Accounting</option>
-                  <option>Electrical</option>
-                </select>
-                <select v-model="form.filterLocation" class="form-input">
-                  <option value="">All Locations</option>
-                  <option>Quezon City</option>
-                  <option>Marikina</option>
-                  <option>Pasig</option>
-                  <option>Taguig</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Subject</label>
-              <input v-model="form.subject" class="form-input" placeholder="e.g. Job Fair This December!"/>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Message</label>
-              <textarea v-model="form.message" class="form-textarea" placeholder="Write your message here…" rows="4"></textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Schedule</label>
-              <div class="schedule-options">
-                <label class="sched-opt" :class="{ active: form.schedule === 'now' }">
-                  <input type="radio" v-model="form.schedule" value="now"/> Send Now
-                </label>
-                <label class="sched-opt" :class="{ active: form.schedule === 'later' }">
-                  <input type="radio" v-model="form.schedule" value="later"/> Schedule
-                </label>
-              </div>
-              <input v-if="form.schedule === 'later'" v-model="form.scheduleDate" type="datetime-local" class="form-input" style="margin-top: 8px;"/>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button class="btn-ghost" @click="showModal = false">Cancel</button>
-            <button class="btn-primary" @click="sendNotification">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-              {{ form.schedule === 'later' ? 'Schedule' : 'Send Now' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </transition>
+
   </div>
 </template>
 
 <script>
-import api from '@/services/api'
 import { useAdminAppStore } from '@/stores/adminAppStore'
 
 export default {
   name: 'NotificationsPage',
   async mounted() {
-    await this.fetchNotifications()
     const store = useAdminAppStore()
     await store.fetchNotifications()
     this.loading = false
@@ -172,56 +69,11 @@ export default {
   },
   data() {
     return {
-      activeTab: 'feed',
-      showModal: false,
-      loading: true,
-      form: { recipients: 'jobseekers', filterSkill: '', filterLocation: '', subject: '', message: '', schedule: 'now', scheduleDate: '' },
-      recipientOptions: [
-        { value: 'jobseekers', label: 'All Jobseekers', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
-        { value: 'employers', label: 'All Employers', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
-        { value: 'specific', label: 'Specific Users', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>` },
-      ],
-      sentNotifs: []
+      loading: true
     }
   },
   methods: {
-    async fetchNotifications() {
-      try {
-        const res = await api.get('/admin/notifications')
-        const items = res.data.data?.data || res.data.data || res.data
-        this.sentNotifs = items.map(n => ({
-          id: n.id,
-          subject: n.subject,
-          message: n.message,
-          recipients: [n.recipients === 'jobseekers' ? 'All Jobseekers' : n.recipients === 'employers' ? 'All Employers' : 'Specific Users'],
-          time: new Date(n.created_at).toLocaleString(),
-          delivered: 0,
-          read: 0,
-          status: n.status ? n.status.charAt(0).toUpperCase() + n.status.slice(1) : 'Sent'
-        }))
-      } catch (err) {
-        console.error('Error fetching notifications:', err)
-      }
-    },
-    openCompose() { 
-      this.form = { recipients: 'jobseekers', filterSkill: '', filterLocation: '', subject: '', message: '', schedule: 'now', scheduleDate: '' }; 
-      this.showModal = true 
-    },
-    async sendNotification() {
-      try {
-        await api.post('/admin/notifications', {
-          subject: this.form.subject,
-          message: this.form.message,
-          recipients: this.form.recipients,
-          scheduled_at: this.form.schedule === 'later' && this.form.scheduleDate ? this.form.scheduleDate : null
-        })
-        await this.fetchNotifications()
-        this.showModal = false
-      } catch (e) {
-        console.error('Failed to send notification:', e)
-      }
-    },
-    async markAsRead(notif) {
+    markAsRead(notif) {
       if (notif.read) return;
       const store = useAdminAppStore()
       store.markRead(notif.id)

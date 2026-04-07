@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Employer;
 
+use App\Events\AdminActivityEvent;
 use App\Http\Controllers\Controller;
 use App\Models\JobListing;
 use App\Models\JobSkill;
@@ -233,6 +234,15 @@ class EmployerJobListingController extends Controller
                 'applications',
                 'applications as hired_count' => fn ($q) => $q->where('status', 'hired'),
             ]);
+
+            // 🔴 Real-time: push to admin feed channel
+            $empName = $employer->company_name ?? 'An employer';
+            event(new AdminActivityEvent(
+                'System',
+                'New Job Listing posted',
+                "{$empName} posted a new job listing for {$jobListing->title}.",
+                'jl_' . $jobListing->id
+            ));
 
             return response()->json([
                 'success' => true,
