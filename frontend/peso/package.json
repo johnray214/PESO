@@ -10,8 +10,10 @@
   "dependencies": {
     "axios": "^1.13.6",
     "core-js": "^3.8.3",
+    "laravel-echo": "^2.3.3",
     "phil-reg-prov-mun-brgy": "^1.1.0",
     "pinia": "^3.0.4",
+    "pusher-js": "^8.5.0",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3"
   },

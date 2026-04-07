@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\Admin;
 
+use App\Events\EmployerNotificationEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Notification;
 use App\Models\NotificationRead;
@@ -115,13 +116,22 @@ class AdminNotificationController extends Controller
                 ]);
             }
         } elseif ($notification->recipients === 'employers') {
-            $employers = \App\Models\Employer::where('status', 'approved')->get();
+            $employers = \App\Models\Employer::where('status', 'verified')->get(); // Changed 'approved' to 'verified' to match actual DB enum
             foreach ($employers as $employer) {
-                NotificationRead::create([
+                $nr = NotificationRead::create([
                     'notification_id' => $notification->id,
                     'recipient_type' => 'employer',
                     'recipient_id' => $employer->id,
                 ]);
+
+                // 🔴 Real-time push to the employer
+                event(new EmployerNotificationEvent(
+                    $employer->id,
+                    $nr->id,
+                    'system',
+                    $notification->subject,
+                    $notification->message
+                ));
             }
         }
 

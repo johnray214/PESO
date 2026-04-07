@@ -1,9 +1,5 @@
 <template>
-  <div class="layout-wrapper">
-    <EmployerSidebar />
-    <div class="main-area">
-      <EmployerTopbar title="Dashboard" subtitle="Welcome back 👋" />
-      <div class="page">
+  <div class="page">
         <!-- SKELETON LOADER -->
         <div v-if="isLoading">
           <div class="period-bar skeleton" style="height: 52px; width: 100%; border-radius: 14px; margin-bottom: 16px;"></div>
@@ -371,24 +367,20 @@
         </div>
 
         </div>
-      </div>
     </div>
-  </div>
 </template>
 
 <script>
 import employerApi from '@/services/employerApi'
-import EmployerSidebar from '@/components/EmployerSidebar.vue'
-import EmployerTopbar  from '@/components/EmployerTopbar.vue'
+import { refreshEcho } from '@/services/echo'
+import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 export default {
   name: 'EmployerDashboard',
-  components: { EmployerSidebar, EmployerTopbar },
 
   data() {
     return {
       isLoading: true,
-      // ── Period filter ─────────────────────────────────────────────
       activePeriod: 'monthly',
       customFrom: '',
       customTo: '',
@@ -400,7 +392,6 @@ export default {
         { value: 'custom',  label: 'Custom'  },
       ],
 
-      // ── Stats ─────────────────────────────────────────────────────
       stats: [
         { label: 'Total Applicants',    value: '0', sub: '—', iconBg: '#eff8ff', iconColor: '#2872A1', trendVal: '0%', trendUp: true,
           icon: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>` },
@@ -413,7 +404,6 @@ export default {
       ],
 
       chartData: [],
-
       funnelStages: [
         { label: 'Applications Received', count: 0, color: '#2872A1' },
         { label: 'Reviewed',              count: 0, color: '#3b82f6' },
@@ -431,7 +421,6 @@ export default {
       recentApplicants: [],
       activeJobs:       [],
 
-      // ── animation flags ──────────────────────────────────────────
       appAnimated:    false,
       funnelAnimated: false,
       scoreAnimated:  false,
@@ -443,21 +432,32 @@ export default {
 
   async mounted() {
     await this.fetchDashboard()
+    this._startPusher()
+  },
+
+  unmounted() {
+    try {
+      if (this._echoChannel && this._pusherHandler) {
+        this._echoChannel.stopListening('.EmployerNotificationEvent', this._pusherHandler)
+      }
+    } catch (e) { console.warn('[EmployerDashboard] cleanup error:', e?.message) }
+    clearTimeout(this._refreshTimer)
   },
 
   computed: {
-    // ── Period label ──────────────────────────────────────────────
     chartSubLabel() {
+      const now   = new Date()
+      const month = now.toLocaleString('en-US', { month: 'short' })
+      const year  = now.getFullYear()
       const map = {
-        weekly:  'This week',
-        monthly: `${new Date().getFullYear()}`,
-        yearly:  'Last 5 years',
+        weekly:  `This week`,
+        monthly: `This month (${month} ${year})`,
+        yearly:  `This year (${year})`,
         custom:  'Custom range',
       }
       return map[this.activePeriod] || ''
     },
 
-    // ── Chart helpers ─────────────────────────────────────────────
     chartMax()  { return Math.max(...this.chartData.flatMap(d => [d.applications, d.hired]), 1) },
     chartNice() { return this.niceMax(this.chartMax) },
 
@@ -482,7 +482,6 @@ export default {
     appArea()     { const p=this.appPoints;   return p.length ? this.buildPath(p)+` L${p[p.length-1].x},158 L${p[0].x},158 Z`:'' },
     hiredArea()   { const p=this.hiredPoints; return p.length ? this.buildPath(p)+` L${p[p.length-1].x},158 L${p[0].x},158 Z`:'' },
 
-    // ── Funnel ────────────────────────────────────────────────────
     funnelMax()      { return Math.max(...this.funnelStages.map(s=>s.count), 1) },
     conversionRate() {
       const top = this.funnelStages[0].count
@@ -490,7 +489,6 @@ export default {
       return top ? Math.round(bot/top*100) : 0
     },
 
-    // ── Potential applicants ──────────────────────────────────────
     filteredPotential() {
       let list = [...this.topMatchApplicants]
       if (this.potentialSearch) {
@@ -501,8 +499,8 @@ export default {
           a.bestFor.toLowerCase().includes(q)
         )
       }
-      if (this.potentialJobFilter) list = list.filter(a => a.bestFor===this.potentialJobFilter)
-      return list.sort((a,b) => b.score-a.score)
+      if (this.potentialJobFilter) list = list.filter(a => a.bestFor === this.potentialJobFilter)
+      return list.sort((a,b) => b.score - a.score)
     },
     potentialTotalPages() { return Math.max(Math.ceil(this.filteredPotential.length/this.potentialPerPage), 1) },
     pagedPotential() {
@@ -512,14 +510,38 @@ export default {
   },
 
   methods: {
-    // ── Period control ────────────────────────────────────────────
+    _startPusher() {
+      try {
+        const authStore = useEmployerAuthStore()
+        if (!authStore.user?.id) return
+
+        // Use refreshEcho so the Bearer token is always the current employer token.
+        // getEcho() caches on first call which may have had a stale/missing token.
+        const token = localStorage.getItem('employer_token') || ''
+        const echo  = refreshEcho(token)
+
+        this._pusherHandler = () => {
+          clearTimeout(this._refreshTimer)
+          this._refreshTimer = setTimeout(() => this.fetchDashboard(true), 1500)
+        }
+
+        // Store the channel ref so we can cleanly stop listening on unmount
+        this._echoChannel = echo.private(`employer.${authStore.user.id}`)
+        this._echoChannel.listen('.EmployerNotificationEvent', this._pusherHandler)
+
+        console.log('[EmployerDashboard] Pusher subscribed to employer.' + authStore.user.id)
+      } catch (e) {
+        console.warn('[EmployerDashboard] Pusher listen error:', e?.message)
+      }
+    },
+
     setPeriod(p) {
       this.activePeriod = p
       if (p !== 'custom') this.fetchDashboard()
     },
 
-    // ── Fetch ─────────────────────────────────────────────────────
-    async fetchDashboard() {
+    async fetchDashboard(isBackground = false) {
+      if (!isBackground) this.isLoading = true
       try {
         const params = { period: this.activePeriod }
         if (this.activePeriod === 'custom') {
@@ -531,24 +553,26 @@ export default {
         const d = data.data
 
         if (d?.stats) {
-          const periodLabel = this.chartSubLabel
-          this.stats[0].value   = String(d.stats.total_applications || 0)
-          this.stats[0].sub     = periodLabel
+          // Use period_label from API — matches admin dashboard format exactly
+          const periodLabel = d.stats.period_label || this.chartSubLabel
+
+          this.stats[0].value    = String(d.stats.total_applications || 0)
+          this.stats[0].sub      = periodLabel
           this.stats[0].trendVal = (d.stats.trends?.applications ?? '0') + '%'
           this.stats[0].trendUp  = (d.stats.trends?.applications ?? 0) >= 0
 
-          this.stats[1].value   = String(d.stats.open_jobs || 0)
-          this.stats[1].sub     = periodLabel
+          this.stats[1].value    = String(d.stats.open_jobs || 0)
+          this.stats[1].sub      = periodLabel
           this.stats[1].trendVal = String(d.stats.trends?.jobs ?? '0')
           this.stats[1].trendUp  = (d.stats.trends?.jobs ?? 0) >= 0
 
-          this.stats[2].value   = String(d.stats.application_status_counts?.hired || 0)
-          this.stats[2].sub     = periodLabel
+          this.stats[2].value    = String(d.stats.application_status_counts?.hired || 0)
+          this.stats[2].sub      = periodLabel
           this.stats[2].trendVal = (d.stats.trends?.hired ?? '0') + '%'
           this.stats[2].trendUp  = (d.stats.trends?.hired ?? 0) >= 0
 
-          this.stats[3].value   = String(d.stats.application_status_counts?.reviewing || 0)
-          this.stats[3].sub     = periodLabel
+          this.stats[3].value    = String(d.stats.application_status_counts?.reviewing || 0)
+          this.stats[3].sub      = periodLabel
           this.stats[3].trendVal = (d.stats.trends?.reviewing ?? '0') + '%'
           this.stats[3].trendUp  = (d.stats.trends?.reviewing ?? 0) >= 0
         }
@@ -568,7 +592,8 @@ export default {
         if (d?.potential_applicants?.length) {
           const colors = ['#2563eb','#8b5cf6','#d946ef','#22c55e','#2872A1','#f97316','#06b6d4','#10b981','#6366f1','#f43f5e']
           this.topMatchApplicants = d.potential_applicants.map((a,i) => ({
-            id: a.id, name: a.name,
+            id:        a.id,
+            name:      a.name,
             color:     colors[i%colors.length],
             score:     a.score,
             bestFor:   a.job_title,
@@ -589,7 +614,7 @@ export default {
               skill:       (js.skills||[])[0]?.skill || 'N/A',
               job:         a.job_listing?.title || 'Unknown',
               date:        new Date(a.applied_at).toLocaleDateString('en-US',{ month:'short', day:'2-digit', year:'numeric' }),
-              status:      (a.status?.charAt(0).toUpperCase()+a.status?.slice(1)) || 'Reviewing',
+              status:      (a.status?.charAt(0).toUpperCase() + a.status?.slice(1)) || 'Reviewing',
               statusClass: a.status?.toLowerCase() || 'reviewing',
               color:       colors[i%colors.length],
             }
@@ -611,19 +636,21 @@ export default {
         console.error('Dashboard fetch error:', e)
       }
 
-      this.isLoading = false
-      // Kick off entrance animations
-      this.$nextTick(() => {
-        setTimeout(() => { this.appAnimated    = true }, 120)
-        setTimeout(() => { this.funnelAnimated = true }, 200)
-        setTimeout(() => { this.scoreAnimated  = true }, 350)
-        setTimeout(() => { this.jobsAnimated   = true }, 280)
-      })
+      if (!isBackground) {
+        this.isLoading = false
+        this.$nextTick(() => {
+          setTimeout(() => { this.appAnimated    = true }, 120)
+          setTimeout(() => { this.funnelAnimated = true }, 200)
+          setTimeout(() => { this.scoreAnimated  = true }, 350)
+          setTimeout(() => { this.jobsAnimated   = true }, 280)
+        })
+      } else {
+        this.lastUpdated = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      }
     },
 
-    // ── Chart X / Y ──────────────────────────────────────────────
-    getX(i)    { return 50 + i*(560/Math.max(this.chartData.length-1,1)) },
-    valToY(v)  { return 158 - ((v/this.chartNice)*144) },
+    getX(i)   { return 50 + i*(560/Math.max(this.chartData.length-1,1)) },
+    valToY(v) { return 158 - ((v/this.chartNice)*144) },
 
     niceMax(raw) {
       if (raw<=0) return 1
@@ -678,7 +705,7 @@ export default {
       const raw = this.chartData[idx]
       const pos = this._tipPos(evt.clientX, evt.clientY, this.$refs.appWrap)
       this.appTip = {
-        i: idx,
+        i:            idx,
         label:        String(raw.label        ?? ''),
         applications: Number(raw.applications ?? 0),
         hired:        Number(raw.hired        ?? 0),

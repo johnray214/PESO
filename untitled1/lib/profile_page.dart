@@ -21,6 +21,7 @@ import 'session_prefs.dart';
 import 'settings_page.dart';
 import 'app_nav.dart';
 import 'notification_service.dart';
+import 'main.dart';
 
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -673,8 +674,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not pick image: $e')),
+        CustomToast.show(
+          context,
+          message: 'Could not pick image: $e',
+          type: ToastType.error,
         );
       }
     }
@@ -876,38 +879,60 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     return showModalBottomSheet<Map<String, String>>(
       context: context,
       isScrollControlled: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setLocalState) {
-            return Container(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.85,
-              ),
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 12),
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
-                  ),
-                  Padding(
+            return PopScope(
+              canPop: alreadyPopped,
+              onPopInvokedWithResult: (didPop, result) async {
+                if (didPop || alreadyPopped) return;
+                
+                // Block the instant pop and perform the smooth sequence
+                primaryFocus?.unfocus();
+                setLocalState(() => picking = true);
+                
+                await Future.delayed(const Duration(milliseconds: 600));
+                
+                if (ctx.mounted) {
+                  alreadyPopped = true;
+                  Navigator.of(ctx).pop(result);
+                }
+              },
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                ),
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                ),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 18),
+                    Padding(
                     padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
                     child: Row(
                       children: [
                         Expanded(
                           child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: Color(0xFF0F172A))),
                         ),
-                        IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
+                        IconButton(
+                          onPressed: () async {
+                            if (picking) return;
+                            primaryFocus?.unfocus();
+                            setLocalState(() => picking = true);
+                            await Future.delayed(const Duration(milliseconds: 600));
+                            if (!ctx.mounted) return;
+                            Navigator.pop(ctx);
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
                       ],
                     ),
                   ),
@@ -978,10 +1003,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                   ),
                 ],
               ),
-            );
-          },
-        );
-      },
+            ),
+          );
+        },
+      );
+    },
     ).whenComplete(() {
       try {
         queryController?.dispose();
@@ -1049,11 +1075,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     if (value.isEmpty) return;
 
     if (value.length > 30) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Each experience item must be 30 characters max.'),
-          backgroundColor: Color(0xFFDC2626),
-        ),
+      CustomToast.show(
+        context,
+        message: 'Each experience item must be 30 characters max.',
+        type: ToastType.error,
       );
       return;
     }
@@ -1540,8 +1565,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                             });
                           } catch (e) {
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Could not select barangay: $e')));
+                              CustomToast.show(
+                                context,
+                                message: 'Could not select barangay: $e',
+                                type: ToastType.error,
+                              );
                             }
                           }
                         },
@@ -1590,12 +1618,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                         _cityCode == null ||
                                         _barangayCode == null;
                                     if (missingLocation) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                              'Please complete Province, City/Municipality, and Barangay.'),
-                                          backgroundColor: Color(0xFFEF4444),
-                                        ),
+                                      CustomToast.show(
+                                        context,
+                                        message: 'Please complete Province, City/Municipality, and Barangay.',
+                                        type: ToastType.error,
                                       );
                                       return;
                                     }
@@ -1610,12 +1636,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                       );
                                       if (uploadResult['success'] != true && mounted) {
                                         setState(() => _isSaving = false);
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              uploadResult['message'] as String? ?? 'Failed to upload photo',
-                                            ),
-                                          ),
+                                        CustomToast.show(
+                                          context,
+                                          message: uploadResult['message'] as String? ?? 'Failed to upload photo',
+                                          type: ToastType.error,
                                         );
                                         return;
                                       }
@@ -1660,36 +1684,16 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                       widget.onUpdate(); // <--- This triggers the immediate UI refresh
                                       if (!mounted) return;
                                       Navigator.pop(context);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: const Row(
-                                            children: [
-                                              Icon(Icons.check_circle_rounded,
-                                                  color: Colors.white, size: 18),
-                                              SizedBox(width: 8),
-                                              Text('Profile updated successfully!'),
-                                            ],
-                                          ),
-                                          backgroundColor: const Color(0xFF10B981),
-                                          behavior: SnackBarBehavior.floating,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                        ),
+                                      CustomToast.show(
+                                        context,
+                                        message: 'Profile updated successfully!',
+                                        type: ToastType.success,
                                       );
                                     } else {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            result['message'] as String? ??
-                                                'Failed to update profile.',
-                                          ),
-                                          backgroundColor: const Color(0xFFEF4444),
-                                          behavior: SnackBarBehavior.floating,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                        ),
+                                      CustomToast.show(
+                                        context,
+                                        message: result['message'] as String? ?? 'Failed to update profile.',
+                                        type: ToastType.error,
                                       );
                                     }
                                   },

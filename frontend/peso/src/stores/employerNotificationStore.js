@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import employerApi from '@/services/employerApi'
+import { getEcho } from '@/services/echo'
 
 export const useEmployerNotificationStore = defineStore('employerNotifications', {
   state: () => ({
@@ -7,6 +8,7 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
     unreadCount: 0,
     loaded: false,
     loading: false,
+    _pusherListening: false,
   }),
 
   getters: {
@@ -16,6 +18,8 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
 
   actions: {
     async fetch() {
+      // Guard: only do the HTTP fetch once per session
+      if (this.loaded) return
       if (this.loading) return
 
       // Show cached notifications instantly while fresh data loads in background
@@ -26,7 +30,6 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
       }
       if (cachedCount !== null) this.unreadCount = Number(cachedCount)
 
-      // Always fetch fresh from backend
       await this._load()
     },
 
@@ -36,15 +39,6 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
 
     async _load() {
       this.loading = true
-
-      // load from cache first so notifications show instantly on reload
-      const cachedNotifs = localStorage.getItem('employer_notifications')
-      const cachedCount  = localStorage.getItem('employer_unread_count')
-      if (cachedNotifs) {
-        try { this.notifications = JSON.parse(cachedNotifs) } catch { this.notifications = [] }
-      }
-      if (cachedCount !== null) this.unreadCount = Number(cachedCount)
-
       try {
         const [notifRes, countRes] = await Promise.all([
           employerApi.getNotifications(),
@@ -62,7 +56,7 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
             read:       !!n.read,
             created_at: n.created_at,
           }))
-          // save to cache
+          localStorage.setItem('employer_notifications', JSON.stringify(this.notifications))
           localStorage.setItem('employer_notifications_time', Date.now())
         }
 
@@ -76,6 +70,49 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
         console.error('[NotificationStore] fetch error:', e)
       } finally {
         this.loading = false
+      }
+
+      // Start Pusher listener after first successful load
+      this._listenPusher()
+    },
+
+    // ── Pusher Listener ───────────────────────────────────────────────────────
+    _listenPusher() {
+      if (this._pusherListening) return
+      this._pusherListening = true
+
+      // Get the employer's ID from localStorage (set on login)
+      let employerId = null
+      try {
+        const raw = localStorage.getItem('employer_user')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          employerId = parsed?.id ?? parsed?.employer?.id ?? null
+        }
+      } catch { /* ignore */ }
+
+      if (!employerId) { this._pusherListening = false; return }
+
+      try {
+        const echo = getEcho()
+        echo.private(`employer.${employerId}`).listen('.EmployerNotificationEvent', (payload) => {
+          // Prepend so newest shows first
+          this.notifications.unshift({
+            id:      payload.id,
+            type:    payload.type    || 'applicant',
+            title:   payload.title   || 'New Notification',
+            message: payload.message || '',
+            time:    'just now',
+            read:    false,
+            created_at: new Date().toISOString(),
+          })
+          this.unreadCount++
+          localStorage.setItem('employer_notifications', JSON.stringify(this.notifications))
+          localStorage.setItem('employer_unread_count', this.unreadCount)
+        })
+      } catch (e) {
+        console.warn('[NotificationStore] Pusher listen error:', e?.message)
+        this._pusherListening = false
       }
     },
 

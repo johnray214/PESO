@@ -1,5 +1,4 @@
 <template>
-  <div class="layout-wrapper">
     <!-- Toast -->
     <transition name="toast">
       <div v-if="toast.show" class="toast" :class="toast.type">
@@ -7,10 +6,7 @@
         <span class="toast-msg">{{ toast.text }}</span>
       </div>
     </transition>
-    <EmployerSidebar />
-    <div class="main-area">
-      <EmployerTopbar title="Applicants" subtitle="Review and manage people who applied to your job listings" />
-      <div class="page">
+    <div class="page">
 
         <div v-if="isLoading">
           <div class="filters-bar skeleton" style="height: 52px; width: 100%; border-radius: 12px; margin-bottom: 16px;"></div>
@@ -179,7 +175,6 @@
           </template>
         </div>
       </div>
-    </div>
 
     <!-- DRAWER -->
     <transition name="drawer">
@@ -288,7 +283,6 @@
         </div>
       </div>
     </div>
-  </div>
 
   <!-- ═══════════ CONFIRMATION MODAL ═══════════ -->
   <transition name="modal-pop">
@@ -369,7 +363,7 @@
         </div>
         <div class="fm-footer">
           <button class="fm-cancel" @click="interviewModal.show = false">Cancel</button>
-          <button class="fm-submit purple-btn" @click="submitInterview" :disabled="savingStatus">
+          <button class="fm-submit purple-btn" @click="submitInterview" :disabled="savingStatus || !interviewModal.date || !interviewModal.time || !interviewModal.location || !interviewModal.interviewer">
             <span v-if="savingStatus" class="spinner-action" style="border-color:#fff;border-right-color:transparent;margin-right:7px;width:12px;height:12px;"></span>
             <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:7px"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             {{ savingStatus ? 'Sending email…' : 'Schedule & Send Email' }}
@@ -422,28 +416,25 @@
         </div>
         <div class="fm-footer">
           <button class="fm-cancel" @click="hireModal.show = false">Cancel</button>
-          <button class="fm-submit green-btn" @click="submitHire" :disabled="savingStatus">
+          <button class="fm-submit green-btn" @click="submitHire" :disabled="savingStatus || !hireModal.startDate">
             <span v-if="savingStatus" class="spinner-action" style="border-color:#fff;border-right-color:transparent;margin-right:7px;width:12px;height:12px;"></span>
             <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:7px"><polyline points="20 6 9 17 4 12"/></svg>
             {{ savingStatus ? 'Sending offer…' : 'Confirm & Send Offer Email' }}
           </button>
         </div>
-      </div>
     </div>
-  </transition>
+  </div>
+</transition>
 
 </template>
 
 <script>
-import EmployerSidebar from '@/components/EmployerSidebar.vue'
-import EmployerTopbar  from '@/components/EmployerTopbar.vue'
 import employerApi from '@/services/employerApi'
 import { useEmployerApplicantsStore } from '@/stores/employerApplicantsStore'
 import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 export default {
   name: 'EmployerApplicants',
-  components: { EmployerSidebar, EmployerTopbar },
   setup() {
     const applicantsStore = useEmployerApplicantsStore()
     const authStore = useEmployerAuthStore()
@@ -510,6 +501,9 @@ export default {
   },
   methods: {
     applySearch() {
+      this.filterStatus = ''
+      this.filterJob = ''
+      this.potentialJobFilter = ''
       this.potentialSearchApplied = this.search
       this.localCurrentPage = 1
       this.potentialPage = 1
@@ -577,8 +571,8 @@ export default {
       }
     },
 
-    async fetchLocalApplicants() {
-      this.pageLoading = true
+    async fetchLocalApplicants(background = false) {
+      if (!background) this.pageLoading = true
       try {
         const params = { page: this.localCurrentPage }
         if (this.search)      params.search       = this.search
@@ -688,7 +682,7 @@ export default {
         desc: `${applicant.name} will be moved to Shortlisted and notified by email.`,
         icon: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>`,
         okHtml: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Yes, Shortlist`,
-        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'Shortlisted', true) },
+        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'Shortlisted') },
       }
     },
 
@@ -711,7 +705,7 @@ export default {
         desc: `${applicant.name} will be marked as Rejected and notified by email. You can still change the status manually afterward.`,
         icon: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
         okHtml: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Yes, Reject`,
-        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'Rejected', true) },
+        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'Rejected') },
       }
     },
 
@@ -769,6 +763,7 @@ export default {
         this.showToastMsg('Please fill in all interview details.', 'error'); return
       }
       this.savingStatus = true
+      this.updatingStatusId = this.interviewModal.applicant.id
       try {
         await this.applicantsStore.updateStatus(this.interviewModal.applicant.id, 'Interview', {
           interview_date:     this.interviewModal.date,
@@ -779,21 +774,30 @@ export default {
         })
         if (this.selected?.id === this.interviewModal.applicant.id) this.selected.status = 'Interview'
         this.showToastMsg('Interview scheduled & email sent!', 'success')
+        
+        await this.applicantsStore.refresh()
+        await this.fetchLocalApplicants(true)
+
         this.interviewModal.show = false; this.drawerOpen = false
       } catch (e) { this.showToastMsg('Failed to schedule interview', 'error') }
-      finally { this.savingStatus = false }
+      finally { this.savingStatus = false; this.updatingStatusId = null }
     },
 
     async submitHire() {
       if (!this.hireModal.startDate) { this.showToastMsg('Please enter a start date.', 'error'); return }
       this.savingStatus = true
+      this.updatingStatusId = this.hireModal.applicant.id
       try {
         await this.applicantsStore.updateStatus(this.hireModal.applicant.id, 'Hired', { start_date: this.hireModal.startDate })
         if (this.selected?.id === this.hireModal.applicant.id) this.selected.status = 'Hired'
         this.showToastMsg('Offer sent and status updated to Hired!', 'success')
+        
+        await this.applicantsStore.refresh()
+        await this.fetchLocalApplicants(true)
+
         this.hireModal.show = false; this.drawerOpen = false
       } catch (e) { this.showToastMsg('Failed to process hiring', 'error') }
-      finally { this.savingStatus = false }
+      finally { this.savingStatus = false; this.updatingStatusId = null }
     },
 
     handleDrawerSave() {
@@ -803,18 +807,26 @@ export default {
       if (newStatus === 'Interview'   && oldStatus !== 'Interview')   { this.openInterviewModal(this.selected); return }
       if (newStatus === 'Rejected'    && oldStatus !== 'Rejected')    { this.confirmReject(this.selected);      return }
       if (newStatus === 'Shortlisted' && oldStatus !== 'Shortlisted') { this.confirmShortlist(this.selected);   return }
-      this.updateStatus(this.selected, newStatus, true)
+      this.updateStatus(this.selected, newStatus)
     },
 
-    async updateStatus(applicant, status, isDrawer = false) {
-      if (isDrawer) this.savingStatus = true; else this.updatingStatusId = applicant.id
+    async updateStatus(applicant, status) {
+      this.savingStatus = true
+      this.updatingStatusId = applicant.id
       try {
         await this.applicantsStore.updateStatus(applicant.id, status)
         if (this.selected?.id === applicant.id) this.selected.status = status
         this.showToastMsg(`Status updated to ${status}`, 'success')
-        if (isDrawer) this.drawerOpen = false
+        
+        await this.applicantsStore.refresh()
+        await this.fetchLocalApplicants(true)
+
+        this.drawerOpen = false
       } catch (e) { this.showToastMsg('Failed to update status', 'error') }
-      finally { if (isDrawer) this.savingStatus = false; else this.updatingStatusId = null }
+      finally { 
+        this.savingStatus = false; 
+        this.updatingStatusId = null;
+      }
     },
 
     showToastMsg(text, type = 'success') {

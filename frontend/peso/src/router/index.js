@@ -207,26 +207,31 @@ const routes = [
         path: 'dashboard',
         name: 'employer-dashboard',
         component: () => import('@/views/employer/EmployerDashboard.vue'),
+        meta: { title: 'Dashboard', subtitle: 'Welcome back \uD83D\uDC4B' }
       },
       {
         path: 'applicants',
         name: 'employer-applicants',
         component: () => import('@/views/employer/EmployerApplicants.vue'),
+        meta: { title: 'Applicants', subtitle: 'Manage and track application statuses' }
       },
       {
         path: 'job-listings',
         name: 'employer-job-listings',
         component: () => import('@/views/employer/EmployerJoblisting.vue'),
+        meta: { title: 'Job Listings', subtitle: 'Manage your active and drafted postings' }
       },
       {
         path: 'profile',
         name: 'employer-profile',
         component: () => import('@/views/employer/EmployerPorfile.vue'),
+        meta: { title: 'Company Profile', subtitle: 'Manage your company details and logo' }
       },
       {
         path: 'notifications',
         name: 'employer-notifications',
         component: () => import('@/views/employer/EmployerNotifications.vue'),
+        meta: { title: 'Notifications', subtitle: 'Recent activities and alerts' }
       },
     ],
   },

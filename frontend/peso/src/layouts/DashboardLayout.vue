@@ -172,13 +172,13 @@ export default {
     // ✅ always show skeleton first
     await this.$nextTick()
 
-    // fetch notifications and count in parallel
+    // Guard-based fetch: stores skip HTTP if already loaded (Pusher handles updates)
     await Promise.all([
       this.appStore.fetchNotifications(),
       this.appStore.fetchApplicantsCount(),
     ])
 
-    // ✅ minimum skeleton visibility
+    // ✅ minimum skeleton visibility (only feels slow on very first load)
     setTimeout(() => {
       this.topbarLoading = false
     }, 600)

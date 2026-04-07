@@ -307,6 +307,9 @@ export default {
   },
   methods: {
     applySearch() {
+      this.filterStatus = ''
+      this.filterSkill = ''
+      this.filterDate = ''
       this.currentPage = 1
       this.fetchApplicants(true)
     },

@@ -1,9 +1,5 @@
 <template>
-  <div class="layout-wrapper">
-    <EmployerSidebar />
-    <div class="main-area">
-      <EmployerTopbar title="Notifications" subtitle="Stay updated on applicants and job activity" />
-      <div class="page">
+  <div class="page">
 
         <div v-if="isLoading">
           <div class="filters-bar skeleton" style="height: 52px; width: 100%; border-radius: 12px; margin-bottom: 16px;"></div>
@@ -73,10 +69,8 @@
           </div>
 
         </div>
-
         </div>
       </div>
-    </div>
 
     <!-- COMPOSE MODAL -->
     <transition name="modal">
@@ -129,21 +123,19 @@
         </div>
       </div>
     </transition>
-  </div>
 </template>
 
 <script>
-import EmployerSidebar from '@/components/EmployerSidebar.vue'
-import EmployerTopbar  from '@/components/EmployerTopbar.vue'
 import { useEmployerNotificationStore } from '@/stores/employerNotificationStore'
+import { useEmployerAuthStore } from '@/stores/employerAuth'
 
 export default {
   name: 'EmployerNotifications',
-  components: { EmployerSidebar, EmployerTopbar },
 
   setup() {
-    const notifStore = useEmployerNotificationStore()
-    return { notifStore }
+    const notifStore  = useEmployerNotificationStore()
+    const authStore   = useEmployerAuthStore()
+    return { notifStore, authStore }
   },
 
   data() {
@@ -154,9 +146,6 @@ export default {
       filterType:  '',
       showCompose: false,
       composeForm: { recipients: 'all', subject: '', message: '', schedule: 'now' },
-      notifTabs: [
-        { label: 'Received', value: 'received', icon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>` },
-      ],
       sentNotifications: [],
       typeConfig: {
         applicant: { bg: '#eff8ff', color: '#2872A1', icon: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
@@ -169,6 +158,18 @@ export default {
 
   computed: {
     unreadCount() { return this.notifStore.unreadCount },
+
+    // Dynamic tabs so the badge count is always reactive
+    notifTabs() {
+      return [
+        {
+          label:  'Received',
+          value:  'received',
+          unread: this.notifStore.unreadCount,
+          icon:   `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>`,
+        },
+      ]
+    },
 
     filteredNotifications() {
       return this.notifStore.notifications.filter((n) => {

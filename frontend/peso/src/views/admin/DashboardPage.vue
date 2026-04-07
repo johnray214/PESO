@@ -662,6 +662,7 @@
 
 <script>
 import api from '@/services/api'
+import { getEcho } from '@/services/echo'
 
 export default {
   name: 'PESODashboard',
@@ -706,6 +707,32 @@ export default {
   async mounted() {
     await this.$nextTick()
     await this.fetchDashboard()
+
+    try {
+      const echo = getEcho()
+      // Store reference to specific callback to avoid wiping store's callback
+      this._pusherHandler = () => {
+        // Debounce fetch to prevent spam if multiple events arrive instantly
+        clearTimeout(this._refreshTimer)
+        this._refreshTimer = setTimeout(() => {
+          this.fetchDashboard(true)
+        }, 1500)
+      }
+      echo.channel('admin-feed').listen('.AdminActivityEvent', this._pusherHandler)
+    } catch (e) {
+      console.warn('Dashboard pusher listen error:', e)
+    }
+  },
+
+  unmounted() {
+    try {
+      if (this._pusherHandler) {
+        const echo = getEcho()
+        echo.channel('admin-feed').stopListening('.AdminActivityEvent', this._pusherHandler)
+      }
+    } catch (e) {
+      // Ignore
+    }
   },
 
   computed: {
@@ -821,9 +848,11 @@ export default {
     },
 
     // ── Fetch ────────────────────────────────────────────────────────
-    async fetchDashboard() {
-      this.loading = true
-      this._resetAnimations()
+    async fetchDashboard(isBackground = false) {
+      if (!isBackground) {
+        this.loading = true
+        this._resetAnimations()
+      }
 
       const params = { period: this.activePeriod }
       if (this.activePeriod === 'custom') {
@@ -838,8 +867,10 @@ export default {
       } catch (e) {
         console.error('Dashboard load error:', e)
       } finally {
-        this.loading = false
-        this.$nextTick(() => this._setupObservers())
+        if (!isBackground) {
+          this.loading = false
+          this.$nextTick(() => this._setupObservers())
+        }
       }
     },
 

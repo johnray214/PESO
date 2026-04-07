@@ -13,10 +13,13 @@ class EmployerDashboardController extends Controller
     public function index(Request $request)
     {
         $employer = $request->user();
+        $period   = $request->input('period', 'monthly');
 
         [$from, $to, $prevFrom, $prevTo] = $this->resolvePeriod($request);
 
-        // ── Job Listings (not period-filtered — always show current state) ──
+        $periodLabel = $this->periodLabel($period, $from, $to);
+
+        // ── Job Listings ──────────────────────────────────────────────────
         $jobListings = $employer->jobListings()
             ->withCount('applications')
             ->with('skills')
@@ -44,7 +47,6 @@ class EmployerDashboardController extends Controller
         $prevHired      = $baseQuery()->where('status', 'hired')->whereBetween('updated_at', [$prevFrom, $prevTo])->count();
         $prevReviewing  = $baseQuery()->where('status', 'reviewing')->whereBetween('applied_at', [$prevFrom, $prevTo])->count();
 
-        // Safe % trend helper
         $trendPct = fn ($cur, $prev) => $prev > 0
             ? round(($cur - $prev) / $prev * 100)
             : ($cur > 0 ? 100 : 0);
@@ -81,17 +83,18 @@ class EmployerDashboardController extends Controller
                     'open_jobs'                 => $openJobs,
                     'total_applications'        => $totalApplications,
                     'application_status_counts' => $applicationStatusCounts,
+                    'period_label'              => $periodLabel,
                     'trends' => [
                         'applications' => $trendPct($totalApplications, $prevApplications),
-                        'jobs'         => $openJobs,   // raw count, no prev comparison needed
+                        'jobs'         => $openJobs,
                         'hired'        => $trendPct($hiredCount,     $prevHired),
                         'reviewing'    => $trendPct($reviewingCount, $prevReviewing),
                     ],
                 ],
-                'chart_data'            => $chartData,
-                'active_jobs'           => $activeJobs,
-                'potential_applicants'  => array_slice($potentialApplicants, 0, 10),
-                'recent_applications'   => $recentApplications,
+                'chart_data'           => $chartData,
+                'active_jobs'          => $activeJobs,
+                'potential_applicants' => $potentialApplicants,
+                'recent_applications'  => $recentApplications,
             ],
         ]);
     }
@@ -126,7 +129,7 @@ class EmployerDashboardController extends Controller
                 $prevTo   = $from->copy()->subDay()->endOfDay();
                 break;
 
-            default: // monthly
+            default:
                 $from     = $now->copy()->startOfMonth();
                 $to       = $now->copy()->endOfMonth();
                 $prevFrom = $from->copy()->subMonth()->startOfMonth();
@@ -135,6 +138,16 @@ class EmployerDashboardController extends Controller
         }
 
         return [$from, $to, $prevFrom, $prevTo];
+    }
+
+    private function periodLabel(string $period, $from, $to): string
+    {
+        return match ($period) {
+            'weekly'  => 'This week (' . $from->format('M d') . '–' . $to->format('M d') . ')',
+            'yearly'  => 'This year (' . $from->format('Y') . ')',
+            'custom'  => $from->format('M d') . ' – ' . $to->format('M d, Y'),
+            default   => 'This month (' . $from->format('M Y') . ')',
+        };
     }
 
     // ── Chart builder ─────────────────────────────────────────────────────
@@ -165,7 +178,6 @@ class EmployerDashboardController extends Controller
         $buckets = [];
 
         if ($period === 'weekly') {
-            // 7 individual days
             for ($i = 0; $i < 7; $i++) {
                 $day = $from->copy()->addDays($i);
                 $buckets[] = [
@@ -176,7 +188,6 @@ class EmployerDashboardController extends Controller
             }
 
         } elseif ($period === 'yearly') {
-            // Last 5 years
             for ($y = 4; $y >= 0; $y--) {
                 $yr = now()->year - $y;
                 $buckets[] = [
@@ -190,7 +201,6 @@ class EmployerDashboardController extends Controller
             $diff = $from->diffInDays($to);
 
             if ($diff <= 31) {
-                // Daily
                 $cur = $from->copy();
                 while ($cur->lte($to)) {
                     $buckets[] = [
@@ -201,7 +211,6 @@ class EmployerDashboardController extends Controller
                     $cur->addDay();
                 }
             } elseif ($diff <= 90) {
-                // Weekly
                 $cur = $from->copy()->startOfWeek();
                 while ($cur->lte($to)) {
                     $weekEnd   = $cur->copy()->endOfWeek();
@@ -213,7 +222,6 @@ class EmployerDashboardController extends Controller
                     $cur->addWeek();
                 }
             } else {
-                // Monthly
                 $cur = $from->copy()->startOfMonth();
                 while ($cur->lte($to)) {
                     $buckets[] = [
@@ -226,7 +234,6 @@ class EmployerDashboardController extends Controller
             }
 
         } else {
-            // Monthly default — all 12 months of current year
             $months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             $year   = now()->year;
             for ($m = 1; $m <= 12; $m++) {
@@ -254,7 +261,7 @@ class EmployerDashboardController extends Controller
 
         $jobseekers = Jobseeker::whereHas('skills', fn ($q) =>
                 $q->whereIn('skill', $employerJobSkills)
-            )->with('skills')->limit(20)->get();
+            )->with(['skills', 'applications'])->get();
 
         $potentialApplicants = [];
 
@@ -265,6 +272,8 @@ class EmployerDashboardController extends Controller
             $bestScore = 0;
 
             foreach ($jobListings as $job) {
+                if ($js->applications->contains('job_listing_id', $job->id)) continue;
+
                 $jobSkills = $job->skills->pluck('skill')->toArray();
                 if (empty($jobSkills)) continue;
 
@@ -286,7 +295,7 @@ class EmployerDashboardController extends Controller
                     'job_id'    => $bestJob->id,
                     'job_title' => $bestJob->title,
                     'location'  => $js->address         ?? 'Unknown',
-                    'education' => $js->education_level ?? 'Not specified',
+                    'education' => ucwords(str_replace('_', ' ', $js->education_level ?? 'Not specified')),
                 ];
             }
         }

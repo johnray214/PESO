@@ -295,6 +295,8 @@ export default {
   },
   methods: {
     applySearch() {
+      this.filterStatus = ''
+      this.filterIndustry = ''
       this.currentPage = 1
       this.fetchEmployers(true)
     },

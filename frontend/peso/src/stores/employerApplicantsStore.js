@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import employerApi from '@/services/employerApi'
+import { getEcho } from '@/services/echo'
 
 const AVATAR_COLORS = [
   '#2563eb','#f97316','#22c55e','#06b6d4',
@@ -14,6 +15,7 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
     counts: { applicants: 0, potential: 0 },
     loaded: false,
     loading: false,
+    _pusherListening: false,
   }),
 
   getters: {
@@ -29,6 +31,7 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
   actions: {
     async fetch() {
       if (this.loading) return
+      if (this.loaded) return    // Guard: only fetch once per session; Pusher handles updates after
 
       // Show cached counts instantly while fresh data loads
       const cachedCounts = localStorage.getItem('employer_applicants_counts')
@@ -40,7 +43,6 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
         }
       }
 
-      // Always load fresh data from backend on every page visit
       await this._load()
     },
 
@@ -136,6 +138,42 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
         console.error('[ApplicantsStore] fetch error:', e)
       } finally {
         this.loading = false
+      }
+
+      // Start Pusher listener after first successful load
+      this._listenPusher()
+    },
+
+    // ── Pusher Listener ─────────────────────────────────────────────
+    _listenPusher() {
+      if (this._pusherListening) return
+      this._pusherListening = true
+
+      let employerId = null
+      try {
+        const raw = localStorage.getItem('employer_user')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          employerId = parsed?.id ?? parsed?.employer?.id ?? null
+        }
+      } catch { /* ignore */ }
+
+      if (!employerId) { this._pusherListening = false; return }
+
+      try {
+        const echo = getEcho()
+        echo.private(`employer.${employerId}`).listen('.EmployerNotificationEvent', (payload) => {
+          // Only react to new application events
+          if (payload.type === 'applicant' || payload.type === 'new_application') {
+            // Increment reviewing count immediately so sidebar badge updates
+            this.counts.reviewing = (this.counts.reviewing || 0) + 1
+            this.counts.applicants = (this.counts.applicants || 0) + 1
+            localStorage.setItem('employer_applicants_counts', JSON.stringify(this.counts))
+          }
+        })
+      } catch (e) {
+        console.warn('[ApplicantsStore] Pusher listen error:', e?.message)
+        this._pusherListening = false
       }
     },
 
