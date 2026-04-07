@@ -95,8 +95,11 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (res['success'] == true) {
+      HapticFeedback.lightImpact(); // Added subtle buzz for event registration toggle
       final data = res['data'];
-      final pc = data is Map<String, dynamic> ? (data['participants_count'] as num?)?.toInt() : null;
+      final pc = data is Map<String, dynamic>
+          ? (data['participants_count'] as num?)?.toInt()
+          : null;
       final nextRegistered = !_event.isRegistered;
       setState(() {
         _event = _event.copyWith(
@@ -104,14 +107,18 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
           participantsCount: pc ??
               (nextRegistered
                   ? _event.participantsCount + 1
-                  : (_event.participantsCount > 0 ? _event.participantsCount - 1 : 0)),
+                  : (_event.participantsCount > 0
+                      ? _event.participantsCount - 1
+                      : 0)),
         );
       });
       microInteractionSuccess();
       widget.onRegistrationChanged();
       CustomToast.show(
         widget.hostContext,
-        message: _event.isRegistered ? 'Registered for ${_event.title}' : 'Cancelled registration',
+        message: _event.isRegistered
+            ? 'Registered for ${_event.title}'
+            : 'Cancelled registration',
         type: ToastType.success,
       );
     } else {
@@ -146,7 +153,8 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
                     end: Alignment.bottomRight,
                     colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
                   ),
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(24)),
                 ),
                 child: Stack(
                   children: [
@@ -163,11 +171,13 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
                       top: 16,
                       right: 16,
                       child: IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        icon: const Icon(Icons.close_rounded,
+                            color: Colors.white),
                         onPressed: () => Navigator.pop(context),
                         style: IconButton.styleFrom(
                           backgroundColor: Colors.white12,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ),
@@ -178,7 +188,8 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(6),
@@ -215,12 +226,16 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _detailInfoRow(Icons.calendar_today_rounded, _event.formattedDate),
-                    if (_event.eventTime != null) _detailInfoRow(Icons.access_time_rounded, _event.eventTime!),
+                    _detailInfoRow(
+                        Icons.calendar_today_rounded, _event.formattedDate),
+                    if (_event.eventTime != null)
+                      _detailInfoRow(
+                          Icons.access_time_rounded, _event.eventTime!),
                     _detailInfoRow(Icons.location_on_rounded, _event.location),
                     _detailInfoRow(Icons.people_alt_rounded, _event.slotsLabel),
-                    if (_event.organizer != null) _detailInfoRow(Icons.business_rounded, 'Organized by ${_event.organizer}'),
-                    
+                    if (_event.organizer != null)
+                      _detailInfoRow(Icons.business_rounded,
+                          'Organized by ${_event.organizer}'),
                     const SizedBox(height: 20),
                     const Text(
                       'About this Event',
@@ -241,22 +256,31 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: primaryDisabled ? null : () => _onPrimaryAction(context),
+                      onPressed: primaryDisabled
+                          ? null
+                          : () => _onPrimaryAction(context),
                       style: FilledButton.styleFrom(
-                        backgroundColor: _event.isRegistered ? const Color(0xFFEF4444) : const Color(0xFF2563EB),
+                        backgroundColor: _event.isRegistered
+                            ? const Color(0xFFEF4444)
+                            : const Color(0xFF2563EB),
                         minimumSize: const Size(double.infinity, 56),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
                         elevation: 0,
                       ),
                       child: _busy
                           ? const SizedBox(
                               height: 24,
                               width: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2.5, color: Colors.white),
                             )
                           : Text(
-                              _event.isRegistered ? 'Cancel Registration' : 'Register Now',
-                              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                              _event.isRegistered
+                                  ? 'Cancel Registration'
+                                  : 'Register Now',
+                              style: const TextStyle(
+                                  fontSize: 16, fontWeight: FontWeight.w700),
                             ),
                     ),
                   ],
@@ -386,7 +410,8 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
                             color: const Color(0xFF2563EB).withOpacity(0.1),
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(Icons.event_note_rounded, color: Color(0xFF2563EB), size: 28),
+                          child: const Icon(Icons.event_note_rounded,
+                              color: Color(0xFF2563EB), size: 28),
                         ),
                         const SizedBox(width: 16),
                         const Column(
@@ -402,7 +427,10 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
                             ),
                             Text(
                               'Stay updated on job fairs and seminars',
-                              style: TextStyle(fontSize: 13, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -416,7 +444,9 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
                   future: _future,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator(color: Color(0xFF2563EB)));
+                      return const Center(
+                          child: CircularProgressIndicator(
+                              color: Color(0xFF2563EB)));
                     }
                     final data = snapshot.data;
                     if (data == null || data['success'] != true) {
@@ -425,7 +455,8 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
                     final events = widget.parseEventsPayload(data);
                     if (events.isEmpty) {
                       return const Center(
-                        child: Text('No upcoming events found', style: TextStyle(color: Colors.grey)),
+                        child: Text('No upcoming events found',
+                            style: TextStyle(color: Colors.grey)),
                       );
                     }
                     return ListView.builder(
@@ -434,9 +465,10 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
                       itemCount: events.length,
                       itemBuilder: (context, index) {
                         final e = events[index];
-                        return _buildEventCard(e).animate()
-                          .fadeIn(delay: (index * 50).ms, duration: 400.ms)
-                          .slideY(begin: 0.1, curve: Curves.easeOutCubic);
+                        return _buildEventCard(e)
+                            .animate()
+                            .fadeIn(delay: (index * 50).ms, duration: 400.ms)
+                            .slideY(begin: 0.1, curve: Curves.easeOutCubic);
                       },
                     );
                   },
@@ -536,7 +568,8 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
                             ),
                             const Spacer(),
                             if (e.isRegistered)
-                              const Icon(Icons.check_circle_rounded, size: 16, color: Colors.green)
+                              const Icon(Icons.check_circle_rounded,
+                                  size: 16, color: Colors.green)
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -551,25 +584,33 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(Icons.access_time_rounded, size: 14, color: Color(0xFF64748B)),
+                            const Icon(Icons.access_time_rounded,
+                                size: 14, color: Color(0xFF64748B)),
                             const SizedBox(width: 4),
                             Text(
                               e.eventTime ?? 'TBA',
-                              style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF64748B)),
+                            const Icon(Icons.location_on_rounded,
+                                size: 14, color: Color(0xFF64748B)),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 e.location,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                                style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF64748B),
+                                    fontWeight: FontWeight.w500),
                               ),
                             ),
                           ],
@@ -620,7 +661,8 @@ class Business {
     );
   }
 
-  static double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+  static double _calculateDistance(
+      double lat1, double lon1, double lat2, double lon2) {
     const double earthRadius = 6371000;
     double dLat = _degreesToRadians(lat2 - lat1);
     double dLon = _degreesToRadians(lon2 - lon1);
@@ -643,8 +685,10 @@ final List<Business> demoBusinesses = [
   Business(
     id: 'sm_savemore',
     name: 'SM SaveMore Market Fourlanes',
-    description: 'SM SaveMore Market is a supermarket chain in the Philippines. We offer various career opportunities in retail, customer service, and management.',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/SM_Savemore_logo.svg/1200px-SM_Savemore_logo.svg.png',
+    description:
+        'SM SaveMore Market is a supermarket chain in the Philippines. We offer various career opportunities in retail, customer service, and management.',
+    imageUrl:
+        'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/SM_Savemore_logo.svg/1200px-SM_Savemore_logo.svg.png',
     latitude: 16.691563823014416,
     longitude: 121.55501604272028,
     availableJobs: [
@@ -655,7 +699,8 @@ final List<Business> demoBusinesses = [
         companyInitial: 'S',
         companyColor: const Color(0xFFE11D48),
         location: 'Santiago City, Isabela',
-        description: 'We are looking for friendly and efficient cashiers to provide excellent customer service and handle transactions accurately.',
+        description:
+            'We are looking for friendly and efficient cashiers to provide excellent customer service and handle transactions accurately.',
         requirements: [
           'High school graduate',
           'Good communication skills',
@@ -679,7 +724,8 @@ final List<Business> demoBusinesses = [
         companyInitial: 'S',
         companyColor: const Color(0xFFE11D48),
         location: 'Santiago City, Isabela',
-        description: 'Responsible for organizing and stocking merchandise, maintaining inventory levels, and ensuring products are properly displayed.',
+        description:
+            'Responsible for organizing and stocking merchandise, maintaining inventory levels, and ensuring products are properly displayed.',
         requirements: [
           'High school graduate',
           'Physically fit',
@@ -701,8 +747,10 @@ final List<Business> demoBusinesses = [
   Business(
     id: 'robinsons',
     name: 'Robinsons Place Santiago',
-    description: 'Robinsons Place Santiago is a shopping mall offering retail, dining, and entertainment options. Join our team and be part of a dynamic work environment.',
-    imageUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Robinsons_Malls_logo.svg/1200px-Robinsons_Malls_logo.svg.png',
+    description:
+        'Robinsons Place Santiago is a shopping mall offering retail, dining, and entertainment options. Join our team and be part of a dynamic work environment.',
+    imageUrl:
+        'https://upload.wikimedia.org/wikipedia/en/thumb/c/cc/Robinsons_Malls_logo.svg/1200px-Robinsons_Malls_logo.svg.png',
     latitude: 16.69708186022431,
     longitude: 121.56100412697754,
     availableJobs: [
@@ -713,7 +761,8 @@ final List<Business> demoBusinesses = [
         companyInitial: 'R',
         companyColor: const Color(0xFF7C3AED),
         location: 'Santiago City, Isabela',
-        description: 'Be part of our sales team! Assist customers in finding products, provide product information, and ensure excellent shopping experience.',
+        description:
+            'Be part of our sales team! Assist customers in finding products, provide product information, and ensure excellent shopping experience.',
         requirements: [
           'At least high school graduate',
           'Good communication skills',
@@ -737,7 +786,8 @@ final List<Business> demoBusinesses = [
         companyInitial: 'R',
         companyColor: const Color(0xFF7C3AED),
         location: 'Santiago City, Isabela',
-        description: 'Maintain safety and security of the mall premises. Monitor CCTV, conduct patrols, and respond to emergencies.',
+        description:
+            'Maintain safety and security of the mall premises. Monitor CCTV, conduct patrols, and respond to emergencies.',
         requirements: [
           'High school graduate',
           'With security training/license',
@@ -761,7 +811,8 @@ final List<Business> demoBusinesses = [
         companyInitial: 'R',
         companyColor: const Color(0xFF7C3AED),
         location: 'Santiago City, Isabela',
-        description: 'Handle customer inquiries, complaints, and requests. Provide information about mall services and promotions.',
+        description:
+            'Handle customer inquiries, complaints, and requests. Provide information about mall services and promotions.',
         requirements: [
           'College graduate preferred',
           'Excellent communication skills',
@@ -782,7 +833,6 @@ final List<Business> demoBusinesses = [
   ),
 ];
 
-
 // ─── Home Page with Bottom Navigation ────────────────────────────────────────
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -794,6 +844,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   late Future<Map<String, dynamic>> _eventsFuture;
+
   /// Tracks event list length to pulse FAB when new events appear (count increases).
   int _lastSeenEventCount = -1;
   double _fabPulseScale = 1.0;
@@ -827,7 +878,8 @@ class _HomePageState extends State<HomePage> {
       final isActiveStatus = s == 'upcoming' || s == 'ongoing';
 
       // Normalize both dates to midnight to avoid off‑by‑one from time parts / time zones.
-      final eventDay = DateTime(event.eventDate.year, event.eventDate.month, event.eventDate.day);
+      final eventDay = DateTime(
+          event.eventDate.year, event.eventDate.month, event.eventDate.day);
       final today = DateTime(now.year, now.month, now.day);
 
       final isTodayOrFuture = !eventDay.isBefore(today);
@@ -855,6 +907,19 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _eventsFuture = ApiService.getEventsWithRegistration();
     homeNavRequestNotifier.addListener(_onHomeNavRequested);
+    
+    // Kick off global background sync tasks immediately (non-blocking)
+    _startGlobalBackgroundSync();
+  }
+
+  void _startGlobalBackgroundSync() {
+    final token = UserSession().token;
+    if (token != null && token.isNotEmpty) {
+      // Sync saved/applied jobs list in background
+      JobActionService().loadFromBackend();
+      // Ensure FCM/Push token is fresh and synced
+      NotificationService().syncTokenNow();
+    }
   }
 
   @override
@@ -931,8 +996,7 @@ class _HomePageState extends State<HomePage> {
                   final count = snapshot.hasData &&
                           snapshot.data!['success'] == true &&
                           snapshot.data!['data'] != null
-                      ? _parseEventsPayload(snapshot.data!)
-                          .length
+                      ? _parseEventsPayload(snapshot.data!).length
                       : 0;
                   if (snapshot.connectionState == ConnectionState.done &&
                       snapshot.hasData &&
@@ -952,71 +1016,76 @@ class _HomePageState extends State<HomePage> {
                     duration: const Duration(milliseconds: 240),
                     curve: Curves.easeOutBack,
                     child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: _showEventsSheet,
-                      borderRadius: BorderRadius.circular(16),
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          Container(
-                            width: 56,
-                            height: 56,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                              ),
-                              borderRadius: BorderRadius.circular(16),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF2563EB).withOpacity(0.4),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(
-                              Icons.event_rounded,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                          ),
-                          if (count > 0)
-                            Positioned(
-                              top: -4,
-                              right: -4,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 4,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.2),
-                                      blurRadius: 4,
-                                      offset: const Offset(0, 2),
-                                    ),
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _showEventsSheet,
+                        borderRadius: BorderRadius.circular(16),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF2563EB),
+                                    Color(0xFF1D4ED8)
                                   ],
                                 ),
-                                constraints: const BoxConstraints(minWidth: 24),
-                                child: Text(
-                                  count > 99 ? '99+' : '$count',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF2563EB)
+                                        .withOpacity(0.4),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
                                   ),
-                                  textAlign: TextAlign.center,
-                                ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.event_rounded,
+                                color: Colors.white,
+                                size: 28,
                               ),
                             ),
-                        ],
+                            if (count > 0)
+                              Positioned(
+                                top: -4,
+                                right: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    borderRadius: BorderRadius.circular(12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  constraints:
+                                      const BoxConstraints(minWidth: 24),
+                                  child: Text(
+                                    count > 99 ? '99+' : '$count',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                   );
                 },
               ),
@@ -1046,7 +1115,8 @@ class _HomePageState extends State<HomePage> {
           const pillWidth = 108.0;
           final width = constraints.maxWidth;
           final itemWidth = width / 3;
-          final pillLeft = itemWidth * _selectedIndex + (itemWidth - pillWidth) / 2;
+          final pillLeft =
+              itemWidth * _selectedIndex + (itemWidth - pillWidth) / 2;
 
           return SizedBox(
             height: 52,
@@ -1071,13 +1141,16 @@ class _HomePageState extends State<HomePage> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildNavItem(0, Icons.home_rounded, Icons.home_outlined, 'Home'),
+                      child: _buildNavItem(
+                          0, Icons.home_rounded, Icons.home_outlined, 'Home'),
                     ),
                     Expanded(
-                      child: _buildNavItem(1, Icons.map_rounded, Icons.map_outlined, 'Map'),
+                      child: _buildNavItem(
+                          1, Icons.map_rounded, Icons.map_outlined, 'Map'),
                     ),
                     Expanded(
-                      child: _buildNavItem(2, Icons.person_rounded, Icons.person_outline_rounded, 'Profile'),
+                      child: _buildNavItem(2, Icons.person_rounded,
+                          Icons.person_outline_rounded, 'Profile'),
                     ),
                   ],
                 ),
@@ -1089,12 +1162,19 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
+  Widget _buildNavItem(
+      int index, IconData activeIcon, IconData inactiveIcon, String label) {
     final isSelected = _selectedIndex == index;
-    final iconColor = isSelected ? const Color(0xFF2563EB) : Colors.white.withOpacity(0.7);
+    final iconColor =
+        isSelected ? const Color(0xFF2563EB) : Colors.white.withOpacity(0.7);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => setState(() => _selectedIndex = index),
+      onTap: () {
+        if (_selectedIndex != index) {
+          HapticFeedback.selectionClick();
+          setState(() => _selectedIndex = index);
+        }
+      },
       child: Center(
         child: AnimatedScale(
           scale: isSelected ? 1.05 : 1.0,
@@ -1158,8 +1238,9 @@ class HomeTab extends StatefulWidget {
 class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
-  bool _searchFocused = false;
-  String _searchText = '';
+  final ValueNotifier<bool> _searchFocusNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<String> _searchTextNotifier = ValueNotifier<String>('');
+  String _searchText = ''; // Still keep for getter convenience if needed
   String _sortOption = 'Latest';
   final Set<String> _selectedEmploymentTypes = <String>{};
   final Set<String> _selectedSkillFilters = <String>{};
@@ -1172,6 +1253,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   List<int>? _avatarBytes;
   bool _isAvatarLoading = false;
   int _unreadNotificationCount = 0;
+
   /// -1 before first successful read; ring when count increases vs previous.
   int _previousUnreadForBell = -1;
   late AnimationController _bellRingController;
@@ -1185,8 +1267,6 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   static const List<String> _sortOptions = [
     'Latest',
     'Oldest',
-    'Highest Salary',
-    'Lowest Salary',
     'Best Match',
   ];
   static const List<String> _employmentTypes = [
@@ -1203,6 +1283,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     }
     return null;
   }
+
   @override
   void initState() {
     super.initState();
@@ -1229,8 +1310,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       }
     });
     _searchFocus.addListener(() {
-      final f = _searchFocus.hasFocus;
-      if (f != _searchFocused) setState(() => _searchFocused = f);
+      _searchFocusNotifier.value = _searchFocus.hasFocus;
     });
     final preferredType = _preferredEmploymentTypeFromSession();
     if (preferredType != null) {
@@ -1250,7 +1330,6 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   void _onPushReceived() {
     if (mounted) _loadUnreadNotifications();
   }
-
 
   void _ringBell() {
     HapticFeedback.lightImpact();
@@ -1305,15 +1384,15 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   void _openNotifications() {
     Navigator.of(context)
         .push(
-          MaterialPageRoute(
-            builder: (_) => NotificationsTab(
-              onOpenMapRequested: (focus) {
-                Navigator.of(context).pop();
-                widget.onOpenMapRequested?.call(focus);
-              },
-            ),
-          ),
-        )
+      MaterialPageRoute(
+        builder: (_) => NotificationsTab(
+          onOpenMapRequested: (focus) {
+            Navigator.of(context).pop();
+            widget.onOpenMapRequested?.call(focus);
+          },
+        ),
+      ),
+    )
         .then((_) {
       if (mounted) {
         _loadUnreadNotifications();
@@ -1336,8 +1415,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     }
     _isUnreadLoading = true;
     try {
-      final count =
-          await ApiService.getJobseekerUnreadNotificationCount(token);
+      final count = await ApiService.getJobseekerUnreadNotificationCount(token);
       if (!mounted) return;
       final prevBell = _previousUnreadForBell;
       final shouldRing = prevBell >= 0 && count > prevBell;
@@ -1377,7 +1455,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     } else {
       if (showPageLoader) {
         setState(() {
-          _errorMessage = result['message'] as String? ?? 'Failed to load jobs.';
+          _errorMessage =
+              result['message'] as String? ?? 'Failed to load jobs.';
           _isLoading = false;
         });
       } else {
@@ -1442,7 +1521,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       microInteractionSuccess();
       CustomToast.show(
         context,
-        message: wasSaved ? 'Job removed from saved.' : 'Job saved successfully.',
+        message:
+            wasSaved ? 'Job removed from saved.' : 'Job saved successfully.',
         type: ToastType.info,
       );
     } else {
@@ -1494,20 +1574,6 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       case 'Best Match':
         jobs.sort((a, b) => b.matchPercentage.compareTo(a.matchPercentage));
         break;
-      case 'Highest Salary':
-        jobs.sort((a, b) {
-          final aVal = int.tryParse(a.salaryMax.replaceAll(RegExp(r'[₱,]'), '')) ?? 0;
-          final bVal = int.tryParse(b.salaryMax.replaceAll(RegExp(r'[₱,]'), '')) ?? 0;
-          return bVal.compareTo(aVal);
-        });
-        break;
-      case 'Lowest Salary':
-        jobs.sort((a, b) {
-          final aVal = int.tryParse(a.salaryMin.replaceAll(RegExp(r'[₱,]'), '')) ?? 0;
-          final bVal = int.tryParse(b.salaryMin.replaceAll(RegExp(r'[₱,]'), '')) ?? 0;
-          return aVal.compareTo(bVal);
-        });
-        break;
     }
     return jobs;
   }
@@ -1523,7 +1589,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         if (s.isNotEmpty) unique.add(s);
       }
     }
-    final list = unique.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final list = unique.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return list.take(30).toList(); // keep filter sheet compact
   }
 
@@ -1579,7 +1646,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? const Color(0xFF2563EB).withOpacity(0.08)
@@ -1598,9 +1666,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                           opt,
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: isSelected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
                             color: isSelected
                                 ? const Color(0xFF2563EB)
                                 : const Color(0xFF0F172A),
@@ -1646,248 +1713,253 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      const Text(
-                        'Filter Jobs',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      const Spacer(),
-                      TextButton(
-                        onPressed: () {
-                          setSheetState(() {
-                            _selectedEmploymentTypes.clear();
-                            _selectedSkillFilters.clear();
-                            _skillFilterQuery = '';
-                          });
-                          setState(() {});
-                        },
-                        child: const Text(
-                          'Clear All',
-                          style: TextStyle(
-                            color: Color(0xFF2563EB),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Employment Type',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _employmentTypes.map((type) {
-                      final isSelected = _selectedEmploymentTypes.contains(type);
-                      return GestureDetector(
-                        onTap: () {
-                          setSheetState(() {
-                            if (isSelected) {
-                              _selectedEmploymentTypes.remove(type);
-                            } else {
-                              _selectedEmploymentTypes.add(type);
-                            }
-                          });
-                          setState(() {});
-                        },
-                        child: AnimatedScale(
-                          scale: isSelected ? 1.04 : 1.0,
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 9),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFFDBEAFE)
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF93C5FD)
-                                    : const Color(0xFFE2E8F0),
-                                width: isSelected ? 1.5 : 1,
-                              ),
-                            ),
-                            child: Text(
-                              type,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? const Color(0xFF1D4ED8)
-                                    : const Color(0xFF0F172A),
+                  Expanded(
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Center(
+                            child: Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[300],
+                                borderRadius: BorderRadius.circular(2),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Skills',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    onChanged: (value) {
-                      setSheetState(() => _skillFilterQuery = value);
-                    },
-                    decoration: InputDecoration(
-                      hintText: 'Search skills...',
-                      prefixIcon: const Icon(
-                        Icons.search_rounded,
-                        size: 20,
-                        color: Color(0xFF94A3B8),
-                      ),
-                      filled: true,
-                      fillColor: const Color(0xFFF8FAFC),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF2563EB)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _visibleSkillFilters.map((skill) {
-                      final isSelected = _selectedSkillFilters.contains(skill);
-                      return GestureDetector(
-                        onTap: () {
-                          setSheetState(() {
-                            if (isSelected) {
-                              _selectedSkillFilters.remove(skill);
-                            } else {
-                              _selectedSkillFilters.add(skill);
-                            }
-                          });
-                          setState(() {});
-                        },
-                        child: AnimatedScale(
-                          scale: isSelected ? 1.04 : 1.0,
-                          duration: const Duration(milliseconds: 180),
-                          curve: Curves.easeOutCubic,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 9),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFFDBEAFE)
-                                  : const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF93C5FD)
-                                    : const Color(0xFFE2E8F0),
-                                width: isSelected ? 1.5 : 1,
+                          const SizedBox(height: 20),
+                          Row(
+                            children: [
+                              const Text(
+                                'Filter Jobs',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0F172A),
+                                ),
                               ),
-                            ),
-                            child: Text(
-                              skill,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: isSelected
-                                    ? const Color(0xFF1D4ED8)
-                                    : const Color(0xFF0F172A),
+                              const Spacer(),
+                              TextButton(
+                                onPressed: () {
+                                  setSheetState(() {
+                                    _selectedEmploymentTypes.clear();
+                                    _selectedSkillFilters.clear();
+                                    _skillFilterQuery = '';
+                                  });
+                                  setState(() {});
+                                },
+                                child: const Text(
+                                  'Clear All',
+                                  style: TextStyle(
+                                    color: Color(0xFF2563EB),
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
-                            ),
+                            ],
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                      const SizedBox(height: 8),
-                    ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF2563EB), Color(0xFF1E88E5)],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(16),
-                        onTap: () => Navigator.pop(ctx),
-                        child: const Center(
-                          child: Text(
-                            'Apply Filters',
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Employment Type',
                             style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _employmentTypes.map((type) {
+                              final isSelected =
+                                  _selectedEmploymentTypes.contains(type);
+                              return GestureDetector(
+                                onTap: () {
+                                  setSheetState(() {
+                                    if (isSelected) {
+                                      _selectedEmploymentTypes.remove(type);
+                                    } else {
+                                      _selectedEmploymentTypes.add(type);
+                                    }
+                                  });
+                                  setState(() {});
+                                },
+                                child: AnimatedScale(
+                                  scale: isSelected ? 1.04 : 1.0,
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOutCubic,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 9),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFFDBEAFE)
+                                          : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? const Color(0xFF93C5FD)
+                                            : const Color(0xFFE2E8F0),
+                                        width: isSelected ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      type,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isSelected
+                                            ? const Color(0xFF1D4ED8)
+                                            : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Skills',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          TextField(
+                            onChanged: (value) {
+                              setSheetState(() => _skillFilterQuery = value);
+                            },
+                            decoration: InputDecoration(
+                              hintText: 'Search skills...',
+                              prefixIcon: const Icon(
+                                Icons.search_rounded,
+                                size: 20,
+                                color: Color(0xFF94A3B8),
+                              ),
+                              filled: true,
+                              fillColor: const Color(0xFFF8FAFC),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 10),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFFE2E8F0)),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide:
+                                    const BorderSide(color: Color(0xFF2563EB)),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: _visibleSkillFilters.map((skill) {
+                              final isSelected =
+                                  _selectedSkillFilters.contains(skill);
+                              return GestureDetector(
+                                onTap: () {
+                                  setSheetState(() {
+                                    if (isSelected) {
+                                      _selectedSkillFilters.remove(skill);
+                                    } else {
+                                      _selectedSkillFilters.add(skill);
+                                    }
+                                  });
+                                  setState(() {});
+                                },
+                                child: AnimatedScale(
+                                  scale: isSelected ? 1.04 : 1.0,
+                                  duration: const Duration(milliseconds: 180),
+                                  curve: Curves.easeOutCubic,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14, vertical: 9),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFFDBEAFE)
+                                          : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? const Color(0xFF93C5FD)
+                                            : const Color(0xFFE2E8F0),
+                                        width: isSelected ? 1.5 : 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      skill,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isSelected
+                                            ? const Color(0xFF1D4ED8)
+                                            : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF2563EB), Color(0xFF1E88E5)],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF2563EB).withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => Navigator.pop(ctx),
+                          child: const Center(
+                            child: Text(
+                              'Apply Filters',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
               ),
             );
           },
@@ -1930,7 +2002,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.cloud_off_rounded, size: 72, color: Colors.grey[300]),
+                Icon(Icons.cloud_off_rounded,
+                    size: 72, color: Colors.grey[300]),
                 const SizedBox(height: 16),
                 const Text(
                   'Could not load jobs',
@@ -1944,7 +2017,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                 Text(
                   _errorMessage!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
+                  style:
+                      const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
                 ),
                 const SizedBox(height: 24),
                 ElevatedButton.icon(
@@ -1969,7 +2043,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     }
 
     // Reload avatar when user has one but we haven't loaded it yet (e.g. after updating profile)
-    if (UserSession().avatarPath != null && _avatarBytes == null && !_isAvatarLoading) {
+    if (UserSession().avatarPath != null &&
+        _avatarBytes == null &&
+        !_isAvatarLoading) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _loadAvatar();
       });
@@ -1979,6 +2055,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     final topPadding = MediaQuery.of(context).padding.top;
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
+      resizeToAvoidBottomInset:
+          false, // Prevents squashing the header when keyb is up
       body: SafeArea(
         top: false,
         left: false,
@@ -1986,151 +2064,151 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         child: Column(
           children: [
             // Greeting banner: full-width blue card with mascot peeking from left
-          Container(
-            width: double.infinity,
-            height: 155 + topPadding,
-            padding: EdgeInsets.fromLTRB(20, 12 + topPadding, 16, 32),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF2563EB),
-                  Color(0xFF1D4ED8),
+            Container(
+              width: double.infinity,
+              height: 155 + topPadding,
+              padding: EdgeInsets.fromLTRB(20, 12 + topPadding, 16, 32),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF2563EB),
+                    Color(0xFF1D4ED8),
+                  ],
+                ),
+                borderRadius: BorderRadius.zero,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF2563EB).withOpacity(0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
               ),
-              borderRadius: BorderRadius.zero,
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF2563EB).withOpacity(0.35),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.06),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Robot mascot – adjust position via left, bottom, width, height
-                Positioned(
-                  left: -30,
-                  bottom: -62.4,
-                  child: Image.asset(
-                    'assets/empoy_homescreen.png',
-                    width: 150,
-                    height: 160,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) {
-                      debugPrint('Image load error: $error');
-                      return Icon(
-                        Icons.smart_toy_rounded,
-                        size: 72,
-                        color: Colors.white.withOpacity(0.9),
-                      );
-                    },
-                  ),
-                ),
-                // Greeting text + notifications
-                // Vertical position: Alignment(x, y) — y: -1=top, 0=center, 1=bottom
-                Align(
-                  alignment: const Alignment(0, 0.3),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(width: 120),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _getPhilippinesGreeting(),
-                            style: GoogleFonts.poppins(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white.withOpacity(0.98),
-                              height: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            UserSession().displayName,
-                            style: GoogleFonts.poppins(
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 0.2,
-                              height: 1.2,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 2,
-                          ),
-                        ],
-                      ),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Robot mascot – adjust position via left, bottom, width, height
+                  Positioned(
+                    left: -60,
+                    bottom: -99.4,
+                    child: Image.asset(
+                      'assets/empoy_homescreen.png',
+                      width: 220,
+                      height: 230,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        debugPrint('Image load error: $error');
+                        return Icon(
+                          Icons.smart_toy_rounded,
+                          size: 72,
+                          color: Colors.white.withOpacity(0.9),
+                        );
+                      },
                     ),
-                    Stack(
-                      clipBehavior: Clip.none,
+                  ),
+                  // Greeting text + notifications
+                  // Vertical position: Alignment(x, y) — y: -1=top, 0=center, 1=bottom
+                  Align(
+                    alignment: const Alignment(0, 0.3),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        AnimatedBuilder(
-                          animation: _bellAngle,
-                          builder: (context, child) {
-                            return Transform.rotate(
-                              angle: _bellAngle.value,
-                              alignment: Alignment.topCenter,
-                              child: child,
-                            );
-                          },
-                          child: IconButton(
-                            onPressed: _openNotifications,
-                            icon: const Icon(
-                              Icons.notifications_none_rounded,
-                              color: Colors.white,
-                              size: 26,
-                            ),
+                        const SizedBox(width: 120),
+                        Expanded(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _getPhilippinesGreeting(),
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white.withOpacity(0.98),
+                                  height: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                UserSession().displayName,
+                                style: GoogleFonts.poppins(
+                                  fontSize: 19,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 0.2,
+                                  height: 1.2,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
+                              ),
+                            ],
                           ),
                         ),
-                        if (_unreadNotificationCount > 0)
-                          Positioned(
-                            right: 8,
-                            top: 8,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 5, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFEF4444),
-                                borderRadius: BorderRadius.circular(999),
-                              ),
-                              constraints: const BoxConstraints(
-                                minWidth: 16,
-                                minHeight: 16,
-                              ),
-                              child: Center(
-                                child: Text(
-                                  _unreadNotificationCount > 9
-                                      ? '9+'
-                                      : '$_unreadNotificationCount',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            AnimatedBuilder(
+                              animation: _bellAngle,
+                              builder: (context, child) {
+                                return Transform.rotate(
+                                  angle: _bellAngle.value,
+                                  alignment: Alignment.topCenter,
+                                  child: child,
+                                );
+                              },
+                              child: IconButton(
+                                onPressed: _openNotifications,
+                                icon: const Icon(
+                                  Icons.notifications_none_rounded,
+                                  color: Colors.white,
+                                  size: 26,
                                 ),
                               ),
                             ),
-                          ),
+                            if (_unreadNotificationCount > 0)
+                              Positioned(
+                                right: 8,
+                                top: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 5, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFEF4444),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 16,
+                                    minHeight: 16,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      _unreadNotificationCount > 9
+                                          ? '9+'
+                                          : '$_unreadNotificationCount',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ],
                     ),
-                  ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
             // Search & Filter section: punchy white card with quick filters
             Container(
               width: double.infinity,
@@ -2138,7 +2216,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               margin: const EdgeInsets.only(top: 12),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
+                borderRadius:
+                    BorderRadius.vertical(bottom: Radius.circular(24)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2162,23 +2241,34 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     child: Row(
                       children: [
                         Expanded(
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1F5F9),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: _searchFocused
-                                    ? const Color(0xFF2563EB).withOpacity(0.5)
-                                    : Colors.transparent,
-                                width: 1.5,
-                              ),
-                            ),
+                          child: ValueListenableBuilder<bool>(
+                            valueListenable: _searchFocusNotifier,
+                            builder: (context, isFocused, child) {
+                              return AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF1F5F9),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isFocused
+                                        ? const Color(0xFF2563EB)
+                                            .withOpacity(0.5)
+                                        : Colors.transparent,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: child,
+                              );
+                            },
                             child: TextField(
                               focusNode: _searchFocus,
                               controller: _searchController,
-                              onChanged: (v) => setState(() => _searchText = v),
+                              onChanged: (v) {
+                                _searchText = v;
+                                _searchTextNotifier.value = v;
+                              },
                               style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w500,
@@ -2197,36 +2287,44 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   fontSize: 15,
                                   fontWeight: FontWeight.w400,
                                 ),
-                                suffixIcon: _searchText.isNotEmpty
-                                    ? IconButton(
-                                        icon: const Icon(
-                                          Icons.clear_rounded,
-                                          color: Color(0xFF64748B),
-                                          size: 20,
-                                        ),
-                                        onPressed: () {
-                                          _searchController.clear();
-                                          setState(() => _searchText = '');
-                                        },
-                                      )
-                                    : Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Container(
-                                            height: 24,
-                                            width: 1,
-                                            color: const Color(0xFFCBD5E1),
-                                          ),
-                                          IconButton(
-                                            icon: Icon(
-                                              Icons.tune_rounded,
-                                              color: _hasActiveFilters ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                                suffixIcon: ValueListenableBuilder<String>(
+                                  valueListenable: _searchTextNotifier,
+                                  builder: (context, text, _) {
+                                    return text.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(
+                                              Icons.clear_rounded,
+                                              color: Color(0xFF64748B),
                                               size: 20,
                                             ),
-                                            onPressed: _showFilterSheet,
-                                          ),
-                                        ],
-                                      ),
+                                            onPressed: () {
+                                              _searchController.clear();
+                                              _searchText = '';
+                                              _searchTextNotifier.value = '';
+                                            },
+                                          )
+                                        : Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Container(
+                                                height: 24,
+                                                width: 1,
+                                                color: const Color(0xFFCBD5E1),
+                                              ),
+                                              IconButton(
+                                                icon: Icon(
+                                                  Icons.tune_rounded,
+                                                  color: _hasActiveFilters
+                                                      ? const Color(0xFF2563EB)
+                                                      : const Color(0xFF64748B),
+                                                  size: 20,
+                                                ),
+                                                onPressed: _showFilterSheet,
+                                              ),
+                                            ],
+                                          );
+                                  },
+                                ),
                               ),
                             ),
                           ),
@@ -2242,11 +2340,13 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     physics: const BouncingScrollPhysics(),
                     child: Row(
                       children: _employmentTypes.map((type) {
-                        final isSelected = _selectedEmploymentTypes.contains(type);
+                        final isSelected =
+                            _selectedEmploymentTypes.contains(type);
                         return Padding(
                           padding: const EdgeInsets.only(right: 10),
                           child: InkWell(
                             onTap: () {
+                              HapticFeedback.selectionClick();
                               setState(() {
                                 if (isSelected) {
                                   _selectedEmploymentTypes.remove(type);
@@ -2258,12 +2358,17 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             borderRadius: BorderRadius.circular(12),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFF1F5F9),
+                                color: isSelected
+                                    ? const Color(0xFF2563EB)
+                                    : const Color(0xFFF1F5F9),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+                                  color: isSelected
+                                      ? const Color(0xFF2563EB)
+                                      : const Color(0xFFE2E8F0),
                                   width: 1,
                                 ),
                               ),
@@ -2272,7 +2377,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w700,
-                                  color: isSelected ? Colors.white : const Color(0xFF475569),
+                                  color: isSelected
+                                      ? Colors.white
+                                      : const Color(0xFF475569),
                                 ),
                               ),
                             ),
@@ -2302,7 +2409,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                   ),
                   const Spacer(),
                   GestureDetector(
-                    onTap: _showSortSheet,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      _showSortSheet();
+                    },
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
@@ -2344,117 +2454,134 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
             const SizedBox(height: 16),
 
-            // Job listings
+            // Job listings locked in a RepaintBoundary for smooth scrolling and faster keyboard response
             Expanded(
-              child: Stack(
-                children: [
-                  RefreshIndicator(
-                onRefresh: () async {
-                  await _fetchJobs(showPageLoader: false);
-                  if (mounted) microInteractionSelection();
-                },
-                color: const Color(0xFF2563EB),
-                child: jobs.isEmpty
-                    ? ListView(
-                        children: [
-                          SizedBox(
-                            height: MediaQuery.of(context).size.height * 0.35,
-                            child: Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
+              child: ValueListenableBuilder<String>(
+                valueListenable: _searchTextNotifier,
+                builder: (context, _, __) {
+                  final jobs = _filteredJobs;
+                  return Stack(
+                    children: [
+                      RefreshIndicator(
+                        onRefresh: () async {
+                          await _fetchJobs(showPageLoader: false);
+                          if (mounted) microInteractionSelection();
+                        },
+                        color: const Color(0xFF2563EB),
+                        child: jobs.isEmpty
+                            ? ListView(
                                 children: [
-                                  Icon(
-                                    Icons.search_off_rounded,
-                                    size: 64,
-                                    color: Colors.grey[300],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    'No jobs found',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.grey[400],
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Try adjusting your search or filters',
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Colors.grey[400],
+                                  SizedBox(
+                                    height: MediaQuery.of(context).size.height *
+                                        0.35,
+                                    child: Center(
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.search_off_rounded,
+                                            size: 64,
+                                            color: Colors.grey[300],
+                                          ),
+                                          const SizedBox(height: 16),
+                                          Text(
+                                            'No jobs found',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.grey[400],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'Try adjusting your search or filters',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: Colors.grey[400],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ],
+                              )
+                            : ListView.builder(
+                                physics: const AlwaysScrollableScrollPhysics(
+                                  parent: BouncingScrollPhysics(),
+                                ),
+                                padding: EdgeInsets.only(
+                                  left: 20,
+                                  right: 20,
+                                  bottom:
+                                      MediaQuery.of(context).padding.bottom +
+                                          96,
+                                ),
+                                itemCount: jobs.length,
+                                itemBuilder: (context, index) {
+                                  final job = jobs[index];
+                                  final isSaved =
+                                      _jobActionService.isSaved(job.id);
+                                  final isApplied =
+                                      _jobActionService.isApplied(job.id);
+                                  return RepaintBoundary(
+                                    child: _JobCard(
+                                      key:
+                                          ValueKey('${job.id}_$_jobListSerial'),
+                                      job: job,
+                                      formattedDate:
+                                          _formatDate(job.postedDate),
+                                      isSaved: isSaved,
+                                      isApplied: isApplied,
+                                      onTap: () =>
+                                          _showJobDetails(context, job),
+                                      onSave: () => _toggleSaveJob(job),
+                                      onApply: () =>
+                                          _showJobDetails(context, job),
+                                    )
+                                        .animate()
+                                        .fadeIn(
+                                          duration: 320.ms,
+                                          delay: (index * 42).ms,
+                                          curve: Curves.easeOutCubic,
+                                        )
+                                        .slideY(
+                                          begin: 0.07,
+                                          end: 0,
+                                          duration: 320.ms,
+                                          delay: (index * 42).ms,
+                                          curve: Curves.easeOutCubic,
+                                        ),
+                                  );
+                                },
+                              ),
+                      ),
+                      // Gradient fade overlay at bottom of list
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 100,
+                        child: IgnorePointer(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  const Color(0xFFF8FAFC).withOpacity(0.0),
+                                  const Color(0xFFF8FAFC).withOpacity(0.85),
+                                  const Color(0xFFF8FAFC),
+                                ],
+                                stops: const [0.0, 0.5, 1.0],
                               ),
                             ),
                           ),
-                        ],
-                      )
-                    : ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(
-                          parent: BouncingScrollPhysics(),
-                        ),
-                        padding: EdgeInsets.only(
-                          left: 20,
-                          right: 20,
-                          bottom: MediaQuery.of(context).padding.bottom + 96,
-                        ),
-                        itemCount: jobs.length,
-                        itemBuilder: (context, index) {
-                          final job = jobs[index];
-                          final isSaved = _jobActionService.isSaved(job.id);
-                          final isApplied = _jobActionService.isApplied(job.id);
-                          return _JobCard(
-                            key: ValueKey('${job.id}_$_jobListSerial'),
-                            job: job,
-                            formattedDate: _formatDate(job.postedDate),
-                            isSaved: isSaved,
-                            isApplied: isApplied,
-                            onTap: () => _showJobDetails(context, job),
-                            onSave: () => _toggleSaveJob(job),
-                            onApply: () => _showJobDetails(context, job),
-                          )
-                              .animate()
-                              .fadeIn(
-                                duration: 320.ms,
-                                delay: (index * 42).ms,
-                                curve: Curves.easeOutCubic,
-                              )
-                              .slideY(
-                                begin: 0.07,
-                                end: 0,
-                                duration: 320.ms,
-                                delay: (index * 42).ms,
-                                curve: Curves.easeOutCubic,
-                              );
-                        },
-                      ),
-              ),
-                  // Gradient fade overlay at bottom of list
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    height: 100,
-                    child: IgnorePointer(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              const Color(0xFFF8FAFC).withOpacity(0.0),
-                              const Color(0xFFF8FAFC).withOpacity(0.85),
-                              const Color(0xFFF8FAFC),
-                            ],
-                            stops: const [0.0, 0.5, 1.0],
-                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
+                    ],
+                  );
+                },
               ),
             ),
           ],
@@ -2487,7 +2614,7 @@ class _JobCard extends StatefulWidget {
   final Job job;
   final String formattedDate;
   final VoidCallback onTap;
-  final VoidCallback onSave; 
+  final VoidCallback onSave;
   final VoidCallback onApply;
   final bool isSaved;
   final bool isApplied;
@@ -2605,11 +2732,13 @@ class _JobCardState extends State<_JobCard> {
                     if (job.matchPercentage > 0) ...[
                       const SizedBox(width: 12),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF0FDF4),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF10B981).withOpacity(0.2)),
+                          border: Border.all(
+                              color: const Color(0xFF10B981).withOpacity(0.2)),
                           boxShadow: [
                             BoxShadow(
                               color: const Color(0xFF10B981).withOpacity(0.05),
@@ -2621,7 +2750,8 @@ class _JobCardState extends State<_JobCard> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star_rounded, size: 12, color: Color(0xFF059669)),
+                            const Icon(Icons.star_rounded,
+                                size: 12, color: Color(0xFF059669)),
                             const SizedBox(height: 1),
                             Text(
                               '${job.matchPercentage}%',
@@ -2648,21 +2778,24 @@ class _JobCardState extends State<_JobCard> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Metadata Row
                 Row(
                   children: [
-                    Flexible(child: _buildChip(Icons.location_on_rounded, job.location)),
+                    Flexible(
+                        child: _buildChip(
+                            Icons.location_on_rounded, job.location)),
                     const SizedBox(width: 8),
                     _buildChip(Icons.work_rounded, job.employmentType),
                   ],
                 ),
                 const SizedBox(height: 12),
-                
+
                 // Salary Band (Full Width)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(12),
@@ -2670,7 +2803,8 @@ class _JobCardState extends State<_JobCard> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.payments_rounded, size: 16, color: Color(0xFF2563EB)),
+                      const Icon(Icons.payments_rounded,
+                          size: 16, color: Color(0xFF2563EB)),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -2687,8 +2821,8 @@ class _JobCardState extends State<_JobCard> {
                     ],
                   ),
                 ),
-                 const SizedBox(height: 12),
-                
+                const SizedBox(height: 12),
+
                 // Description
                 Text(
                   job.description,
@@ -2700,22 +2834,30 @@ class _JobCardState extends State<_JobCard> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                
+
                 // Footer Buttons (Anchored to Right)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     _buildActionButton(
-                      icon: isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
-                      color: isSaved ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                      icon: isSaved
+                          ? Icons.bookmark_rounded
+                          : Icons.bookmark_outline_rounded,
+                      color: isSaved
+                          ? const Color(0xFF2563EB)
+                          : const Color(0xFF64748B),
                       isSelected: isSaved,
                       onTap: widget.onSave,
                       pulseScale: _savePulse,
                     ),
                     const SizedBox(width: 10),
                     _buildActionButton(
-                      icon: isApplied ? Icons.check_circle_rounded : Icons.arrow_forward_rounded,
-                      color: isApplied ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                      icon: isApplied
+                          ? Icons.check_circle_rounded
+                          : Icons.arrow_forward_rounded,
+                      color: isApplied
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF2563EB),
                       isSelected: isApplied,
                       label: isApplied ? 'Applied' : 'Apply',
                       onTap: widget.onApply,
@@ -2900,7 +3042,9 @@ class _MapTabState extends State<MapTab> {
             Business(
               id: 'emp_${emp['id']}',
               name: company,
-              description: locationText.isNotEmpty ? locationText : (emp['tagline']?.toString() ?? ''),
+              description: locationText.isNotEmpty
+                  ? locationText
+                  : (emp['tagline']?.toString() ?? ''),
               imageUrl: imageUrl,
               latitude: lat,
               longitude: lng,
@@ -3092,18 +3236,23 @@ class _MapTabState extends State<MapTab> {
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.person, color: Colors.white, size: 14),
+                          child: const Icon(Icons.person,
+                              color: Colors.white, size: 14),
                         ),
                         const SizedBox(height: 2),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: const Color(0xFF2563EB),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
                             'You',
-                            style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -3158,7 +3307,8 @@ class _MapTabState extends State<MapTab> {
                                           width: pinSize,
                                           height: pinSize,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Container(
+                                          errorBuilder: (_, __, ___) =>
+                                              Container(
                                             width: pinSize,
                                             height: pinSize,
                                             color: color,
@@ -3186,7 +3336,8 @@ class _MapTabState extends State<MapTab> {
                             ),
                             const SizedBox(height: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(6),
@@ -3234,7 +3385,8 @@ class _MapTabState extends State<MapTab> {
               child: Material(
                 color: Colors.transparent,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
                     color: const Color(0xFFDC2626),
                     borderRadius: BorderRadius.circular(12),
@@ -3283,10 +3435,12 @@ class _MapTabState extends State<MapTab> {
                         decoration: InputDecoration(
                           hintText: 'Search businesses...',
                           hintStyle: TextStyle(color: Colors.grey[500]),
-                          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF2563EB)),
+                          prefixIcon: const Icon(Icons.search_rounded,
+                              color: Color(0xFF2563EB)),
                           suffixIcon: _searchController.text.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.clear_rounded, color: Colors.grey),
+                                  icon: const Icon(Icons.clear_rounded,
+                                      color: Colors.grey),
                                   onPressed: () {
                                     _searchController.clear();
                                     _onSearch('');
@@ -3294,10 +3448,12 @@ class _MapTabState extends State<MapTab> {
                                 )
                               : null,
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 20, vertical: 16),
                         ),
                       ),
-                      if (_searchController.text.isNotEmpty && _filteredBusinesses.isNotEmpty)
+                      if (_searchController.text.isNotEmpty &&
+                          _filteredBusinesses.isNotEmpty)
                         Container(
                           constraints: const BoxConstraints(maxHeight: 200),
                           decoration: BoxDecoration(
@@ -3320,10 +3476,12 @@ class _MapTabState extends State<MapTab> {
                                           width: 40,
                                           height: 40,
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Container(
+                                          errorBuilder: (_, __, ___) =>
+                                              Container(
                                             width: 40,
                                             height: 40,
-                                            color: const Color(0xFF2563EB).withOpacity(0.1),
+                                            color: const Color(0xFF2563EB)
+                                                .withOpacity(0.1),
                                             child: const Icon(
                                               Icons.store_rounded,
                                               color: Color(0xFF2563EB),
@@ -3335,8 +3493,10 @@ class _MapTabState extends State<MapTab> {
                                           width: 40,
                                           height: 40,
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF2563EB).withOpacity(0.1),
-                                            borderRadius: BorderRadius.circular(10),
+                                            color: const Color(0xFF2563EB)
+                                                .withOpacity(0.1),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
                                           ),
                                           child: const Icon(
                                             Icons.store_rounded,
@@ -3347,11 +3507,13 @@ class _MapTabState extends State<MapTab> {
                                 ),
                                 title: Text(
                                   business.name,
-                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
                                 ),
                                 subtitle: Text(
                                   '${_formatDistance(business.getDistanceFromUser())} away',
-                                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                                  style: TextStyle(
+                                      color: Colors.grey[600], fontSize: 12),
                                 ),
                                 onTap: () {
                                   _searchController.clear();
@@ -3370,7 +3532,8 @@ class _MapTabState extends State<MapTab> {
 
                 // Business Cards List
                 Padding(
-                  padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom + 80),
+                  padding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).padding.bottom + 80),
                   child: SizedBox(
                     height: 160,
                     child: ListView.builder(
@@ -3379,55 +3542,85 @@ class _MapTabState extends State<MapTab> {
                       itemCount: _filteredBusinesses.isNotEmpty
                           ? _filteredBusinesses.length
                           : _allBusinesses.length,
-                    itemBuilder: (context, index) {
-                      final source = _filteredBusinesses.isNotEmpty ? _filteredBusinesses : _allBusinesses;
-                      final business = source[index];
-                      final distance = business.getDistanceFromUser();
-                      final isSelected = _selectedBusiness?.id == business.id;
-                      
-                      return GestureDetector(
-                        onTap: () => _centerOnBusiness(business),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          width: 280,
-                          margin: const EdgeInsets.only(right: 12, bottom: 16),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isSelected ? const Color(0xFF2563EB) : Colors.transparent,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 15,
-                                offset: const Offset(0, 5),
+                      itemBuilder: (context, index) {
+                        final source = _filteredBusinesses.isNotEmpty
+                            ? _filteredBusinesses
+                            : _allBusinesses;
+                        final business = source[index];
+                        final distance = business.getDistanceFromUser();
+                        final isSelected = _selectedBusiness?.id == business.id;
+
+                        return GestureDetector(
+                          onTap: () => _centerOnBusiness(business),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            width: 280,
+                            margin:
+                                const EdgeInsets.only(right: 12, bottom: 16),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected
+                                    ? const Color(0xFF2563EB)
+                                    : Colors.transparent,
+                                width: 2,
                               ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: business.imageUrl.isNotEmpty
-                                        ? Image.network(
-                                            business.imageUrl,
-                                            width: 44,
-                                            height: 44,
-                                            fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: business.imageUrl.isNotEmpty
+                                          ? Image.network(
+                                              business.imageUrl,
+                                              width: 44,
+                                              height: 44,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  Container(
+                                                width: 44,
+                                                height: 44,
+                                                decoration: BoxDecoration(
+                                                  color: (index % 2 == 0)
+                                                      ? const Color(0xFFE11D48)
+                                                          .withOpacity(0.1)
+                                                      : const Color(0xFF7C3AED)
+                                                          .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                                child: Icon(
+                                                  Icons.store_rounded,
+                                                  color: (index % 2 == 0)
+                                                      ? const Color(0xFFE11D48)
+                                                      : const Color(0xFF7C3AED),
+                                                  size: 24,
+                                                ),
+                                              ),
+                                            )
+                                          : Container(
                                               width: 44,
                                               height: 44,
                                               decoration: BoxDecoration(
                                                 color: (index % 2 == 0)
-                                                    ? const Color(0xFFE11D48).withOpacity(0.1)
-                                                    : const Color(0xFF7C3AED).withOpacity(0.1),
-                                                borderRadius: BorderRadius.circular(12),
+                                                    ? const Color(0xFFE11D48)
+                                                        .withOpacity(0.1)
+                                                    : const Color(0xFF7C3AED)
+                                                        .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
                                               ),
                                               child: Icon(
                                                 Icons.store_rounded,
@@ -3437,129 +3630,116 @@ class _MapTabState extends State<MapTab> {
                                                 size: 24,
                                               ),
                                             ),
-                                          )
-                                        : Container(
-                                            width: 44,
-                                            height: 44,
-                                            decoration: BoxDecoration(
-                                              color: (index % 2 == 0)
-                                                  ? const Color(0xFFE11D48).withOpacity(0.1)
-                                                  : const Color(0xFF7C3AED).withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            business.name,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF0F172A),
                                             ),
-                                            child: Icon(
-                                              Icons.store_rounded,
-                                              color: (index % 2 == 0)
-                                                  ? const Color(0xFFE11D48)
-                                                  : const Color(0xFF7C3AED),
-                                              size: 24,
-                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
                                           ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          business.name,
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFF0F172A),
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Row(
-                                          children: [
-                                            const Icon(
-                                              Icons.location_on_rounded,
-                                              size: 14,
-                                              color: Color(0xFF2563EB),
-                                            ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              _formatDistance(distance),
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
+                                          const SizedBox(height: 2),
+                                          Row(
+                                            children: [
+                                              const Icon(
+                                                Icons.location_on_rounded,
+                                                size: 14,
                                                 color: Color(0xFF2563EB),
                                               ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                _formatDistance(distance),
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF2563EB),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const Spacer(),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF10B981).withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        const Icon(
-                                          Icons.work_rounded,
-                                          size: 14,
-                                          color: Color(0xFF10B981),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          '${business.availableJobs.length} Jobs',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
+                                  ],
+                                ),
+                                const Spacer(),
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981)
+                                            .withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.work_rounded,
+                                            size: 14,
                                             color: Color(0xFF10B981),
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '${business.availableJobs.length} Jobs',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF10B981),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                  const Spacer(),
-                                  TextButton(
-                                    onPressed: () => _showBusinessDetails(business),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      minimumSize: const Size(0, 32),
-                                    ),
-                                    child: const Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          'View',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
+                                    const Spacer(),
+                                    TextButton(
+                                      onPressed: () =>
+                                          _showBusinessDetails(business),
+                                      style: TextButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12),
+                                        minimumSize: const Size(0, 32),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'View',
+                                            style: TextStyle(
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF2563EB),
+                                            ),
+                                          ),
+                                          SizedBox(width: 4),
+                                          Icon(
+                                            Icons.arrow_forward_rounded,
+                                            size: 16,
                                             color: Color(0xFF2563EB),
                                           ),
-                                        ),
-                                        SizedBox(width: 4),
-                                        Icon(
-                                          Icons.arrow_forward_rounded,
-                                          size: 16,
-                                          color: Color(0xFF2563EB),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
-                ),
                 ),
               ],
             ),
@@ -3576,7 +3756,8 @@ class _MapTabState extends State<MapTab> {
               mini: true,
               backgroundColor: Colors.white,
               onPressed: _centerOnUser,
-              child: const Icon(Icons.my_location_rounded, color: Color(0xFF2563EB)),
+              child: const Icon(Icons.my_location_rounded,
+                  color: Color(0xFF2563EB)),
             ),
           ),
 
@@ -3710,7 +3891,8 @@ class _BusinessPopupCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        const Icon(Icons.location_on_rounded, size: 16, color: Color(0xFF2563EB)),
+                        const Icon(Icons.location_on_rounded,
+                            size: 16, color: Color(0xFF2563EB)),
                         const SizedBox(width: 4),
                         Text(
                           '${formatDistance(business.getDistanceFromUser())} away',
@@ -3734,7 +3916,8 @@ class _BusinessPopupCard extends StatelessWidget {
                     color: Colors.grey[100],
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                  child: const Icon(Icons.close_rounded,
+                      size: 18, color: Colors.grey),
                 ),
               ),
             ],
@@ -3754,7 +3937,8 @@ class _BusinessPopupCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFF10B981).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
@@ -3762,7 +3946,8 @@ class _BusinessPopupCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.work_rounded, size: 16, color: Color(0xFF10B981)),
+                    const Icon(Icons.work_rounded,
+                        size: 16, color: Color(0xFF10B981)),
                     const SizedBox(width: 6),
                     Text(
                       '${business.availableJobs.length} Jobs Available',
@@ -3781,7 +3966,8 @@ class _BusinessPopupCard extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -3790,7 +3976,8 @@ class _BusinessPopupCard extends StatelessWidget {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('View Jobs', style: TextStyle(fontWeight: FontWeight.w600)),
+                    Text('View Jobs',
+                        style: TextStyle(fontWeight: FontWeight.w600)),
                     SizedBox(width: 4),
                     Icon(Icons.arrow_forward_rounded, size: 18),
                   ],
@@ -3862,7 +4049,8 @@ class _BusinessDetailSheet extends StatelessWidget {
                                     errorBuilder: (_, __, ___) => Container(
                                       width: 72,
                                       height: 72,
-                                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                                      color: const Color(0xFF2563EB)
+                                          .withOpacity(0.1),
                                       child: const Icon(
                                         Icons.store_rounded,
                                         color: Color(0xFF2563EB),
@@ -3874,7 +4062,8 @@ class _BusinessDetailSheet extends StatelessWidget {
                                     width: 72,
                                     height: 72,
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF2563EB).withOpacity(0.1),
+                                      color: const Color(0xFF2563EB)
+                                          .withOpacity(0.1),
                                       borderRadius: BorderRadius.circular(18),
                                     ),
                                     child: const Icon(
@@ -3901,18 +4090,23 @@ class _BusinessDetailSheet extends StatelessWidget {
                                 Row(
                                   children: [
                                     Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 6),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF2563EB).withOpacity(0.1),
+                                        color: const Color(0xFF2563EB)
+                                            .withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF2563EB)),
+                                          const Icon(Icons.location_on_rounded,
+                                              size: 14,
+                                              color: Color(0xFF2563EB)),
                                           const SizedBox(width: 4),
                                           Text(
-                                            formatDistance(business.getDistanceFromUser()),
+                                            formatDistance(
+                                                business.getDistanceFromUser()),
                                             style: const TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w600,
@@ -3947,7 +4141,8 @@ class _BusinessDetailSheet extends StatelessWidget {
                       // Available Jobs Section
                       Row(
                         children: [
-                          const Icon(Icons.work_rounded, size: 22, color: Color(0xFF2563EB)),
+                          const Icon(Icons.work_rounded,
+                              size: 22, color: Color(0xFF2563EB)),
                           const SizedBox(width: 10),
                           const Text(
                             'Available Jobs',
@@ -3959,7 +4154,8 @@ class _BusinessDetailSheet extends StatelessWidget {
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: const Color(0xFF10B981),
                               borderRadius: BorderRadius.circular(12),
@@ -3980,12 +4176,13 @@ class _BusinessDetailSheet extends StatelessWidget {
 
                       // Job List
                       ...business.availableJobs.map((job) => _JobListItem(
-                        job: job,
-                        onTap: () {
-                          Navigator.pop(context);
-                          Future.microtask(() => _showJobDetails(hostContext, job));
-                        },
-                      )),
+                            job: job,
+                            onTap: () {
+                              Navigator.pop(context);
+                              Future.microtask(
+                                  () => _showJobDetails(hostContext, job));
+                            },
+                          )),
                     ],
                   ),
                 ),
@@ -4114,6 +4311,7 @@ class _JobListItem extends StatelessWidget {
                 CompanyLogoBox(
                   job: job,
                   size: 48,
+                  borderRadius: 14,
                   boxShadow: const [],
                 ),
                 const SizedBox(width: 14),
@@ -4135,7 +4333,8 @@ class _JobListItem extends StatelessWidget {
                           ),
                           if (job.isUrgent)
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
                                 color: const Color(0xFFEF4444),
                                 borderRadius: BorderRadius.circular(6),
@@ -4221,7 +4420,6 @@ class _NotificationsTabState extends State<NotificationsTab> {
     if (mounted) setState(() {});
   }
 
-
   Future<void> _loadNotifications({bool showLoader = true}) async {
     if (_isPolling) return;
     _isPolling = true;
@@ -4272,7 +4470,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
     if (token == null || token.isEmpty) return;
     try {
       await http.post(
-        Uri.parse('${ApiService.baseUrl}/jobseeker/notifications/mark-all-read'),
+        Uri.parse(
+            '${ApiService.baseUrl}/jobseeker/notifications/mark-all-read'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -4280,7 +4479,10 @@ class _NotificationsTabState extends State<NotificationsTab> {
       );
       setState(() {
         _notifications = _notifications
-            .map((n) => {...n, 'read_at': n['read_at'] ?? DateTime.now().toIso8601String()})
+            .map((n) => {
+                  ...n,
+                  'read_at': n['read_at'] ?? DateTime.now().toIso8601String()
+                })
             .toList();
       });
     } catch (_) {}
@@ -4289,6 +4491,25 @@ class _NotificationsTabState extends State<NotificationsTab> {
   bool get _allRead =>
       _notifications.isNotEmpty &&
       _notifications.every((n) => n['read_at'] != null);
+
+  List<Map<String, dynamic>> get _sortedNotifications {
+    final list = List<Map<String, dynamic>>.from(_notifications);
+    list.sort((a, b) {
+      final notifA = a['notification'] as Map<String, dynamic>? ?? {};
+      final notifB = b['notification'] as Map<String, dynamic>? ?? {};
+      final typeA = notifA['type'] as String?;
+      final typeB = notifB['type'] as String?;
+
+      if (typeA == 'satisfaction_survey' && typeB != 'satisfaction_survey') return -1;
+      if (typeB == 'satisfaction_survey' && typeA != 'satisfaction_survey') return 1;
+
+      // Otherwise maintain time order (newest first)
+      final dateA = DateTime.tryParse(notifA['created_at'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final dateB = DateTime.tryParse(notifB['created_at'] ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return dateB.compareTo(dateA);
+    });
+    return list;
+  }
 
   Future<void> _applyToJob(Job job) async {
     final confirmed = await showDialog<bool>(
@@ -4342,7 +4563,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
       microInteractionSuccess();
       CustomToast.show(
         context,
-        message: wasSaved ? 'Job removed from saved.' : 'Job saved successfully.',
+        message:
+            wasSaved ? 'Job removed from saved.' : 'Job saved successfully.',
         type: wasSaved ? ToastType.info : ToastType.info,
       );
     } else {
@@ -4355,6 +4577,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
   }
 
   Future<void> _openNotification(int index) async {
+    HapticFeedback.selectionClick();
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
     final n = _notifications[index];
@@ -4385,7 +4608,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
     // Try job listing data from eager-loaded relationship first
     final jobListing = notif['job_listing'] as Map<String, dynamic>?;
     final rawJobId = notif['job_listing_id'];
-    final jobId = rawJobId is int ? rawJobId : int.tryParse(rawJobId?.toString() ?? '');
+    final jobId =
+        rawJobId is int ? rawJobId : int.tryParse(rawJobId?.toString() ?? '');
 
     if (jobId == null) return;
 
@@ -4404,35 +4628,39 @@ class _NotificationsTabState extends State<NotificationsTab> {
     final job = Job.fromJson(jobData);
     if (!mounted) return;
     showJobDetailSheet(
-      context, 
+      context,
       job,
       isSaved: _jobActionService.isSaved(job.id),
       isApplied: _jobActionService.isApplied(job.id),
       onSave: () => _toggleSaveJob(job),
       onApply: () => _applyToJob(job),
-      onViewMap: widget.onOpenMapRequested != null ? () {
-        Navigator.of(context).pop();
-        widget.onOpenMapRequested!(MapFocusRequest.fromJob(job));
-      } : null,
+      onViewMap: widget.onOpenMapRequested != null
+          ? () {
+              Navigator.of(context).pop();
+              widget.onOpenMapRequested!(MapFocusRequest.fromJob(job));
+            }
+          : null,
     );
   }
 
-  Future<void> _deleteNotification(int index) async {
-    final n = _notifications[index];
-    final notif = n['notification'] as Map<String, dynamic>? ?? {};
-    if (notif['type'] == 'satisfaction_survey') {
-      // Prevents deletion via manual swipe if UI somehow allows it
-      return;
-    }
+  Future<void> _deleteNotification(int idxInSortedList) async {
+    HapticFeedback.mediumImpact();
+    // Use the sorted list to find the actual notification object
+    final n = _sortedNotifications[idxInSortedList];
+    final notifId = n['id'];
+    
+    final notifData = n['notification'] as Map<String, dynamic>? ?? {};
+    if (notifData['type'] == 'satisfaction_survey') return;
+
+    // Immediately remove from the underlying source list by finding the matching ID
+    // This fixed the "Dismissible widget still part of tree" and index-mismatch error.
+    setState(() {
+       _notifications.removeWhere((item) => item['id'] == notifId);
+    });
 
     final token = UserSession().token;
-    if (token == null || token.isEmpty) {
-      setState(() => _notifications.removeAt(index));
-      return;
-    }
-    final notifId = n['id'];
-    setState(() => _notifications.removeAt(index));
-    if (notifId == null) return;
+    if (token == null || token.isEmpty || notifId == null) return;
+    
     await ApiService.deleteJobseekerNotification(
       token: token,
       id: notifId is int ? notifId : int.tryParse(notifId.toString()) ?? 0,
@@ -4442,11 +4670,14 @@ class _NotificationsTabState extends State<NotificationsTab> {
   Future<void> _deleteAllRead() async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
-    
-    // Filter to show only read notifications that are NOT surveys
+
+    // Filter to show only read notifications that are NOT unrated surveys
     final toDelete = _notifications.where((n) {
       final notif = n['notification'] as Map<String, dynamic>? ?? {};
-      return n['read_at'] != null && notif['type'] != 'satisfaction_survey';
+      final type = notif['type'] as String?;
+      // If it's a survey, only allow deletion if it was already read/rated (optional: strictly un-deletable)
+      if (type == 'satisfaction_survey') return false; 
+      return n['read_at'] != null;
     }).toList();
 
     if (toDelete.isEmpty) return;
@@ -4489,7 +4720,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
   Future<void> _showRatingDialog(int index, Map<String, dynamic> n) async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
-    
+
     if (n['read_at'] == null) {
       _openNotification(index);
     }
@@ -4513,7 +4744,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
             child: StatefulBuilder(
               builder: (ctx, setDialogState) {
                 return AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(28)),
                   elevation: 24,
                   shadowColor: Colors.black26,
                   titlePadding: const EdgeInsets.fromLTRB(28, 28, 28, 12),
@@ -4526,7 +4758,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
                           color: const Color(0xFF10B981).withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.stars_rounded, color: Color(0xFF10B981), size: 36),
+                        child: const Icon(Icons.stars_rounded,
+                            color: Color(0xFF10B981), size: 36),
                       ),
                       const SizedBox(height: 18),
                       const Text(
@@ -4558,11 +4791,17 @@ class _NotificationsTabState extends State<NotificationsTab> {
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
                         child: Text(
-                          selectedRating == 1 ? '😟' :
-                          selectedRating == 2 ? '😕' :
-                          selectedRating == 3 ? '😐' :
-                          selectedRating == 4 ? '🙂' :
-                          selectedRating == 5 ? '🤩' : '✨',
+                          selectedRating == 1
+                              ? '😟'
+                              : selectedRating == 2
+                                  ? '😕'
+                                  : selectedRating == 3
+                                      ? '😐'
+                                      : selectedRating == 4
+                                          ? '🙂'
+                                          : selectedRating == 5
+                                              ? '🤩'
+                                              : '✨',
                           key: ValueKey(selectedRating),
                           style: const TextStyle(fontSize: 48),
                         ),
@@ -4574,32 +4813,56 @@ class _NotificationsTabState extends State<NotificationsTab> {
                           final starIndex = i + 1;
                           final isSelected = starIndex <= selectedRating;
                           return GestureDetector(
-                            onTap: () => setDialogState(() => selectedRating = starIndex),
+                            onTap: () => setDialogState(
+                                () => selectedRating = starIndex),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 4),
                               child: Icon(
-                                isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
-                                color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFFCBD5E1),
+                                isSelected
+                                    ? Icons.star_rounded
+                                    : Icons.star_outline_rounded,
+                                color: isSelected
+                                    ? const Color(0xFFF59E0B)
+                                    : const Color(0xFFCBD5E1),
                                 size: 40,
-                              ).animate(
-                                target: isSelected ? 1 : 0,
-                              ).scale(begin: const Offset(1, 1), end: const Offset(1.2, 1.2), duration: 200.ms, curve: Curves.easeOutBack)
-                               .then().scale(begin: const Offset(1.2, 1.2), end: const Offset(1, 1), duration: 150.ms),
+                              )
+                                  .animate(
+                                    target: isSelected ? 1 : 0,
+                                  )
+                                  .scale(
+                                      begin: const Offset(1, 1),
+                                      end: const Offset(1.2, 1.2),
+                                      duration: 200.ms,
+                                      curve: Curves.easeOutBack)
+                                  .then()
+                                  .scale(
+                                      begin: const Offset(1.2, 1.2),
+                                      end: const Offset(1, 1),
+                                      duration: 150.ms),
                             ),
                           );
                         }),
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        selectedRating == 1 ? 'Very Dissatisfied' :
-                        selectedRating == 2 ? 'Dissatisfied' :
-                        selectedRating == 3 ? 'Neutral' :
-                        selectedRating == 4 ? 'Satisfied' :
-                        selectedRating == 5 ? 'Excellent!' : 'Tap to rate',
+                        selectedRating == 1
+                            ? 'Very Dissatisfied'
+                            : selectedRating == 2
+                                ? 'Dissatisfied'
+                                : selectedRating == 3
+                                    ? 'Neutral'
+                                    : selectedRating == 4
+                                        ? 'Satisfied'
+                                        : selectedRating == 5
+                                            ? 'Excellent!'
+                                            : 'Tap to rate',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
-                          color: selectedRating == 0 ? const Color(0xFF94A3B8) : const Color(0xFF1E293B),
+                          color: selectedRating == 0
+                              ? const Color(0xFF94A3B8)
+                              : const Color(0xFF1E293B),
                         ),
                       ),
                     ],
@@ -4610,58 +4873,84 @@ class _NotificationsTabState extends State<NotificationsTab> {
                       children: [
                         Expanded(
                           child: TextButton(
-                            onPressed: isSubmitting ? null : () => Navigator.of(ctx).pop(),
+                            onPressed: isSubmitting
+                                ? null
+                                : () => Navigator.of(ctx).pop(),
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
                             ),
                             child: const Text(
                               'Maybe Later',
-                              style: TextStyle(color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+                              style: TextStyle(
+                                  color: Color(0xFF64748B),
+                                  fontWeight: FontWeight.w700),
                             ),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: (selectedRating == 0 || isSubmitting) ? null : () async {
-                              setDialogState(() => isSubmitting = true);
-                              final result = await ApiService.submitSatisfactionRating(token, selectedRating);
-                              if (!mounted) return;
-                              setDialogState(() => isSubmitting = false);
-                              if (result['success'] == true) {
-                                Navigator.of(ctx).pop();
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: const Text('Thank you! Your feedback was shared.'),
-                                    backgroundColor: const Color(0xFF10B981),
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                );
-                                _deleteNotification(index);
-                              } else {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(result['message'] ?? 'Failed to submit rating.'),
-                                    backgroundColor: const Color(0xFFEF4444),
-                                    behavior: SnackBarBehavior.floating,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                  ),
-                                );
-                              }
-                            },
+                            onPressed: (selectedRating == 0 || isSubmitting)
+                                ? null
+                                : () async {
+                                    setDialogState(() => isSubmitting = true);
+                                    final result = await ApiService
+                                        .submitSatisfactionRating(
+                                            token, selectedRating);
+                                    if (!mounted) return;
+                                    setDialogState(() => isSubmitting = false);
+                                    if (result['success'] == true) {
+                                      Navigator.of(ctx).pop();
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: const Text(
+                                              'Thank you! Your feedback was shared.'),
+                                          backgroundColor:
+                                              const Color(0xFF10B981),
+                                          behavior: SnackBarBehavior.floating,
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12)),
+                                        ),
+                                      );
+                                      _deleteNotification(index);
+                                    } else {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(result['message'] ??
+                                              'Failed to submit rating.'),
+                                          backgroundColor:
+                                              const Color(0xFFEF4444),
+                                          behavior: SnackBarBehavior.floating,
+                                          shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12)),
+                                        ),
+                                      );
+                                    }
+                                  },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF10B981),
                               foregroundColor: Colors.white,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14)),
                               disabledBackgroundColor: const Color(0xFFE2E8F0),
                             ),
                             child: isSubmitting
-                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                                : const Text('Submit', style: TextStyle(fontWeight: FontWeight.w800)),
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        color: Colors.white, strokeWidth: 2))
+                                : const Text('Submit',
+                                    style:
+                                        TextStyle(fontWeight: FontWeight.w800)),
                           ),
                         ),
                       ],
@@ -4706,23 +4995,90 @@ class _NotificationsTabState extends State<NotificationsTab> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: Text(
+          'Notifications',
+          style: GoogleFonts.poppins(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: const Color(0xFF0F172A),
+            letterSpacing: -0.4,
+          ),
+        ),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF0F172A),
         elevation: 0,
         centerTitle: true,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 12),
+          child: Center(
+            child: Material(
+              color: Colors.white,
+              shape: const CircleBorder(),
+              elevation: 4,
+              shadowColor: Colors.black.withOpacity(0.12),
+              child: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back_rounded, size: 20),
+                color: const Color(0xFF0F172A),
+                constraints: const BoxConstraints(),
+                padding: const EdgeInsets.all(8),
+              ),
+            ),
+          ),
+        ),
         actions: [
-          TextButton(
-            onPressed: _notifications.isEmpty ? null : _markAllRead,
-            child: const Text(
-              'Mark all read',
-              style: TextStyle(
-                color: Color(0xFF2563EB),
-                fontWeight: FontWeight.w600,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(
+              child: InkWell(
+                onTap: _notifications.isEmpty ? null : () {
+                  HapticFeedback.selectionClick();
+                  _markAllRead();
+                },
+                borderRadius: BorderRadius.circular(100),
+                child: Opacity(
+                  opacity: _notifications.isEmpty ? 0.5 : 1.0,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(100),
+                      border:
+                          Border.all(color: const Color(0xFFDBEAFE), width: 1),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.done_all_rounded,
+                          size: 14,
+                          color: Color(0xFF2563EB),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Mark all read',
+                          style: GoogleFonts.poppins(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF2563EB),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
         ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            color: const Color(0xFFF1F5F9),
+            height: 1,
+          ),
+        ),
       ),
       body: _isLoading
           ? const Center(
@@ -4806,482 +5162,191 @@ class _NotificationsTabState extends State<NotificationsTab> {
                           parent: BouncingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                        itemCount: _notifications.length,
-                          itemBuilder: (context, index) {
-                            final n = _notifications[index];
-                            final notif = n['notification'] as Map<String, dynamic>? ?? {};
-                            final type = notif['type'] as String?;
-                            final subject = notif['subject'] as String? ?? 'Notification';
-                            final message = notif['message'] as String? ?? '';
-                            final createdAt = DateTime.tryParse(
-                                  (notif['created_at'] as String? ?? ''),
-                                ) ??
-                                DateTime.now();
-                            final isRead = n['read_at'] != null;
-                            final id = n['id'] ?? index;
+                        itemCount: _sortedNotifications.length,
+                        itemBuilder: (context, index) {
+                          final sortedList = _sortedNotifications;
+                          final n = sortedList[index];
+                          final notif =
+                              n['notification'] as Map<String, dynamic>? ?? {};
+                          final type = notif['type'] as String?;
+                          final subject =
+                              notif['subject'] as String? ?? 'Notification';
+                          final message = notif['message'] as String? ?? '';
+                          final createdAt = DateTime.tryParse(
+                                (notif['created_at'] as String? ?? ''),
+                              ) ??
+                              DateTime.now();
+                          final isRead = n['read_at'] != null;
+                          final id = n['id'] ?? index;
 
-                            // Shared time/date formatting (using PH time cluster)
-                            final nowPh = nowInPhilippines();
-                            // If backend sends UTC, parse and convert to PH
-                            final createdAtPh = createdAt.isUtc 
-                              ? createdAt.add(const Duration(hours: 8)) 
+                          // Shared time/date formatting
+                          final nowPh = nowInPhilippines();
+                          final createdAtPh = createdAt.isUtc
+                              ? createdAt.add(const Duration(hours: 8))
                               : createdAt;
-                            
-                            final diff = nowPh.difference(createdAtPh);
-                            final timeAgo = diff.inDays > 0
-                                ? '${diff.inDays}d ago'
-                                : diff.inHours > 0
-                                    ? '${diff.inHours}h ago'
-                                    : diff.inMinutes > 0
-                                        ? '${diff.inMinutes}m ago'
-                                        : 'just now';
+                          final diff = nowPh.difference(createdAtPh);
+                          final timeAgo = diff.inDays > 0
+                              ? '${diff.inDays}d ago'
+                              : diff.inHours > 0
+                                  ? '${diff.inHours}h ago'
+                                  : diff.inMinutes > 0
+                                      ? '${diff.inMinutes}m ago'
+                                      : 'just now';
 
-                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                            final dateFormatted = '${monthNames[createdAtPh.month - 1]}/${createdAtPh.day.toString().padLeft(2, '0')}/${createdAtPh.year}';
+                          const monthNames = [
+                            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                          ];
+                          final dateFormatted =
+                              '${monthNames[createdAtPh.month - 1]}/${createdAtPh.day.toString().padLeft(2, '0')}/${createdAtPh.year}';
 
-                            // ── Invitation card ───────────────────────────
-                            if (type == 'invitation') {
-                              final jobListing = notif['job_listing'] as Map<String, dynamic>?;
-                              final jobTitle = jobListing?['title'] as String? ?? subject;
-                              final jobType = jobListing?['type'] as String? ?? '';
-                              final jobLocation = jobListing?['location'] as String? ?? '';
-                              final companyName = (jobListing?['employer'] as Map<String, dynamic>?)?['company_name'] as String? ?? 'An employer';
-
-                              return Dismissible(
-                                key: ValueKey('notif_$id'),
-                                direction: DismissDirection.endToStart,
-                                background: Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                                  child: const Icon(Icons.delete_rounded, color: Colors.white),
-                                ),
-                                onDismissed: (_) => _deleteNotification(index),
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.05),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Material(
-                                      color: Colors.white,
-                                      child: InkWell(
-                                        onTap: () => _openNotification(index),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            border: Border(
-                                              left: BorderSide(
-                                                color: isRead ? Colors.transparent : const Color(0xFF2563EB),
-                                                width: 4,
-                                              ),
-                                              top: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
-                                              right: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
-                                              bottom: BorderSide(color: isRead ? const Color(0xFFE2E8F0) : const Color(0xFF2563EB).withOpacity(0.3)),
-                                            ),
-                                          ),
-                                          padding: const EdgeInsets.all(16),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              // Header row
-                                              Row(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Container(
-                                                    width: 40,
-                                                    height: 40,
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(0xFF2563EB).withOpacity(0.1),
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.event_seat_rounded,
-                                                      color: Color(0xFF2563EB),
-                                                      size: 20,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        Text(
-                                                          subject,
-                                                          style: TextStyle(
-                                                            fontSize: 15,
-                                                            fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
-                                                            color: const Color(0xFF0F172A),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(height: 2),
-                                                        Text(
-                                                          '$timeAgo • $dateFormatted',
-                                                          style: const TextStyle(
-                                                            fontSize: 12,
-                                                            color: Color(0xFF94A3B8),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  if (!isRead)
-                                                    Container(
-                                                      margin: const EdgeInsets.only(top: 8, right: 4),
-                                                      width: 10,
-                                                      height: 10,
-                                                      decoration: const BoxDecoration(
-                                                        color: Color(0xFF2563EB),
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 16),
-
-                                              // Company + job title box
-                                              Container(
-                                                width: double.infinity,
-                                                padding: const EdgeInsets.all(14),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFF8FAFF),
-                                                  borderRadius: BorderRadius.circular(12),
-                                                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                                                ),
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    Text(
-                                                      companyName,
-                                                      style: const TextStyle(
-                                                        fontSize: 12,
-                                                        fontWeight: FontWeight.w600,
-                                                        color: Color(0xFF2563EB),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      jobTitle,
-                                                      style: const TextStyle(
-                                                        fontSize: 16,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: Color(0xFF0F172A),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 10),
-                                                    Wrap(
-                                                      spacing: 8,
-                                                      runSpacing: 6,
-                                                      children: [
-                                                        if (jobLocation.isNotEmpty)
-                                                          _buildChip(Icons.location_on_outlined, jobLocation),
-                                                        if (jobType.isNotEmpty)
-                                                          _buildChip(Icons.work_outline_rounded, jobType),
-                                                        if ((jobListing?['salary_range'] as String? ?? '').isNotEmpty)
-                                                          _buildChip(Icons.payments_outlined, jobListing!['salary_range']),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              const SizedBox(height: 16),
-
-                                              // View Job Details button
-                                              SizedBox(
-                                                width: double.infinity,
-                                                height: 44,
-                                                child: OutlinedButton.icon(
-                                                  onPressed: () => _openInvitationJob(n),
-                                                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                                                  label: const Text('View Job Details'),
-                                                  style: OutlinedButton.styleFrom(
-                                                    foregroundColor: const Color(0xFF2563EB),
-                                                    side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(12),
-                                                    ),
-                                                    textStyle: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.w700,
-                                                      letterSpacing: 0.3,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
+                          // Header detection
+                          Widget? header;
+                          if (index == 0 && type == 'satisfaction_survey') {
+                            header = Padding(
+                              padding: const EdgeInsets.fromLTRB(4, 8, 0, 16),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.stars_rounded, size: 18, color: Color(0xFF2563EB)),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'ACTION REQUIRED',
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                      color: const Color(0xFF2563EB),
+                                      letterSpacing: 1.1,
                                     ),
                                   ),
-                                ),
-                              );
-                            } else if (type == 'satisfaction_survey') {
-                              return Dismissible(
-                                key: ValueKey('notif_$id'),
-                                direction: DismissDirection.none,
-                                background: Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444),
-                                    borderRadius: BorderRadius.circular(16),
-                                  ),
-                                  alignment: Alignment.centerRight,
-                                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                                  child: const Icon(Icons.delete_rounded, color: Colors.white),
-                                ),
-                                onDismissed: (_) => _deleteNotification(index),
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(16),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.04),
-                                        blurRadius: 16,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(16),
-                                    child: Material(
-                                      color: Colors.white,
-                                      child: InkWell(
-                                        onTap: () => _showRatingDialog(index, n),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            border: Border(
-                                              left: BorderSide(
-                                                color: isRead ? Colors.transparent : const Color(0xFF10B981),
-                                                width: 5,
-                                              ),
-                                            ),
-                                          ),
-                                          padding: const EdgeInsets.all(20),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Row(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                                  Container(
-                                                    width: 44,
-                                                    height: 44,
-                                                    decoration: BoxDecoration(
-                                                      color: const Color(0xFF10B981).withOpacity(0.12),
-                                                      shape: BoxShape.circle,
-                                                    ),
-                                                    child: const Icon(
-                                                      Icons.rate_review_rounded,
-                                                      color: Color(0xFF059669),
-                                                      size: 22,
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 14),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        Text(
-                                                          'Rate Your Experience',
-                                                          style: TextStyle(
-                                                            fontSize: 16,
-                                                            fontWeight: isRead ? FontWeight.w700 : FontWeight.w900,
-                                                            color: const Color(0xFF0F172A),
-                                                            letterSpacing: -0.5,
-                                                          ),
-                                                        ),
-                                                        const SizedBox(height: 3),
-                                                        Text(
-                                                          '$timeAgo • $dateFormatted',
-                                                          style: const TextStyle(
-                                                            fontSize: 12,
-                                                            color: Color(0xFF94A3B8),
-                                                            fontWeight: FontWeight.w500,
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  if (!isRead)
-                                                    Container(
-                                                      margin: const EdgeInsets.only(top: 8, right: 4),
-                                                      width: 10,
-                                                      height: 10,
-                                                      decoration: const BoxDecoration(
-                                                        color: Color(0xFF10B981),
-                                                        shape: BoxShape.circle,
-                                                      ),
-                                                    ),
-                                                ],
-                                              ),
-                                              const SizedBox(height: 18),
-                                              Container(
-                                                width: double.infinity,
-                                                padding: const EdgeInsets.all(16),
-                                                decoration: BoxDecoration(
-                                                  color: const Color(0xFFF0FDF4),
-                                                  borderRadius: BorderRadius.circular(14),
-                                                  border: Border.all(color: const Color(0xFF10B981).withOpacity(0.15)),
-                                                ),
-                                                child: Text(
-                                                  message,
-                                                  style: const TextStyle(
-                                                    fontSize: 14,
-                                                    color: Color(0xFF1E293B),
-                                                    height: 1.5,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 18),
-                                              SizedBox(
-                                                width: double.infinity,
-                                                height: 48,
-                                                child: FilledButton.icon(
-                                                  onPressed: () => _showRatingDialog(index, n),
-                                                  icon: const Icon(Icons.stars_rounded, size: 20),
-                                                  label: const Text('Rate Application Process'),
-                                                  style: FilledButton.styleFrom(
-                                                    backgroundColor: const Color(0xFF059669),
-                                                    foregroundColor: Colors.white,
-                                                    elevation: 0,
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius: BorderRadius.circular(14),
-                                                    ),
-                                                    textStyle: const TextStyle(
-                                                      fontSize: 14,
-                                                      fontWeight: FontWeight.w800,
-                                                      letterSpacing: 0.2,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-
-                            // Determine asset and color for generic card based on status/type
-                            String? statusAsset;
-                            Color statusColor = const Color(0xFF2563EB);
-
-                            if (type != null) {
-                              final t = type.toLowerCase();
-                              final s = subject.toLowerCase();
-                              final m = message.toLowerCase();
-
-                              if (t.contains('shortlisted') || s.contains('shortlisted') || m.contains('shortlisted')) {
-                                statusAsset = 'assets/empoy_notif_shortlisted.png';
-                                statusColor = const Color(0xFFF59E0B); // Amber
-                              } else if (t.contains('interview') || s.contains('interview') || m.contains('interview')) {
-                                statusAsset = 'assets/empoy_notif_interview.png';
-                                statusColor = const Color(0xFF8B5CF6); // Violet
-                              } else if (t.contains('hired') || s.contains('hired') || m.contains('hired')) {
-                                statusAsset = 'assets/empoy_notif_hired.png';
-                                statusColor = const Color(0xFF10B981); // Emerald
-                              } else if (t.contains('rejected') || s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) {
-                                statusAsset = 'assets/empoy_notif_rejected.png';
-                                statusColor = const Color(0xFFEF4444); // Red
-                              } else if (t.contains('reviewing') || s.contains('received') || m.contains('received')) {
-                                statusAsset = 'assets/empoy_notif_application_received.png';
-                                statusColor = const Color(0xFF2563EB); // Blue
-                              }
-                            } else {
-                              // Fallback for null type based on text
-                              final s = subject.toLowerCase();
-                              final m = message.toLowerCase();
-                              if (s.contains('shortlisted') || m.contains('shortlisted')) {
-                                statusAsset = 'assets/empoy_notif_shortlisted.png';
-                                statusColor = const Color(0xFFF59E0B);
-                              } else if (s.contains('interview') || m.contains('interview')) {
-                                statusAsset = 'assets/empoy_notif_interview.png';
-                                statusColor = const Color(0xFF8B5CF6);
-                              } else if (s.contains('hired') || m.contains('hired')) {
-                                statusAsset = 'assets/empoy_notif_hired.png';
-                                statusColor = const Color(0xFF10B981);
-                              } else if (s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) {
-                                statusAsset = 'assets/empoy_notif_rejected.png';
-                                statusColor = const Color(0xFFEF4444);
-                              } else if (s.contains('received') || m.contains('received')) {
-                                statusAsset = 'assets/empoy_notif_application_received.png';
-                                statusColor = const Color(0xFF2563EB);
-                              }
-                            }
-
-                            // ── Generic notification card ─────────────────
-                            return Dismissible(
-                              key: ValueKey('notif_$id'),
-                              direction: type == 'satisfaction_survey' ? DismissDirection.none : DismissDirection.endToStart,
-                              background: Container(
-                                margin: const EdgeInsets.only(bottom: 12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFEF4444),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                alignment: Alignment.centerRight,
-                                padding: const EdgeInsets.symmetric(horizontal: 20),
-                                child: const Icon(Icons.delete_rounded, color: Colors.white),
+                                ],
                               ),
+                            );
+                          } else if (type != 'satisfaction_survey') {
+                            final prevType = index > 0 
+                                ? (sortedList[index - 1]['notification'] as Map<String, dynamic>? ?? {})['type'] as String?
+                                : null;
+                            if (index == 0 || prevType == 'satisfaction_survey') {
+                              header = Padding(
+                                padding: EdgeInsets.fromLTRB(4, index == 0 ? 8 : 12, 0, 16),
+                                child: Text(
+                                  'LATEST UPDATES',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF64748B),
+                                    letterSpacing: 1.1,
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+
+                          Widget card;
+                          if (type == 'invitation') {
+                            final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+                            final jobTitle = jobListing?['title'] as String? ?? subject;
+                            final jobType = jobListing?['type'] as String? ?? '';
+                            final jobLocation = jobListing?['location'] as String? ?? '';
+                            final companyName = (jobListing?['employer'] as Map<String, dynamic>?)?['company_name'] as String? ?? 'An employer';
+
+                            card = Dismissible(
+                              key: ValueKey('notif_$id'),
+                              direction: DismissDirection.endToStart,
+                              background: _buildDismissBackground(),
                               onDismissed: (_) => _deleteNotification(index),
                               child: Container(
                                 margin: const EdgeInsets.only(bottom: 12),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
+                                decoration: _buildCardDecoration(isRead, const Color(0xFF2563EB)),
+                                child: ClipRRect(
                                   borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isRead
-                                        ? const Color(0xFFE2E8F0)
-                                        : statusColor.withOpacity(0.5),
+                                  child: Material(
+                                    color: Colors.white,
+                                    child: InkWell(
+                                      onTap: () => _openNotification(index),
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _buildInvitationHeader(subject, timeAgo, dateFormatted, isRead),
+                                            const SizedBox(height: 16),
+                                            _buildJobBriefBox(companyName, jobTitle, jobLocation, jobType, jobListing),
+                                            const SizedBox(height: 16),
+                                            _buildViewDetailsButton(() => _openInvitationJob(n)),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
+                                ),
+                              ),
+                            );
+                          } else if (type == 'satisfaction_survey') {
+                            card = Dismissible(
+                              key: ValueKey('notif_$id'),
+                              direction: DismissDirection.none,
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 24),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF0F7FF),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: const Color(0xFFE2E8F0)),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: Colors.black.withOpacity(0.04),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
+                                      color: const Color(0xFF2563EB).withOpacity(0.06),
+                                      blurRadius: 15,
+                                      offset: const Offset(0, 6),
                                     ),
                                   ],
                                 ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Stack(
+                                    children: [
+                                      // Main Content
+                                      Padding(
+                                        padding: const EdgeInsets.fromLTRB(25, 20, 20, 20),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            _buildSurveyHeader(timeAgo, dateFormatted, isRead),
+                                            const SizedBox(height: 18),
+                                            _buildSurveyMessageBox(message),
+                                            const SizedBox(height: 18),
+                                            _buildRateButton(() => _showRatingDialog(index, n)),
+                                          ],
+                                        ),
+                                      ),
+                                      // Vertical Accent Bar
+                                      Positioned(
+                                        left: 0,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: 5,
+                                        child: Container(color: const Color(0xFF2563EB)),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else {
+                            // Generic notification card
+                            Color statusColor = _getStatusColor(type, subject, message);
+                            String? statusAsset = _getStatusAsset(type, subject, message);
+
+                            card = Dismissible(
+                              key: ValueKey('notif_$id'),
+                              direction: DismissDirection.endToStart,
+                              background: _buildDismissBackground(),
+                              onDismissed: (_) => _deleteNotification(index),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: _buildCardDecoration(isRead, statusColor),
                                 child: ListTile(
                                   onTap: () => _openNotification(index),
-                                  leading: Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.12),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    padding: const EdgeInsets.all(4),
-                                    child: statusAsset != null
-                                        ? Image.asset(
-                                            statusAsset,
-                                            fit: BoxFit.contain,
-                                          )
-                                        : Icon(
-                                            Icons.notifications_rounded,
-                                            color: statusColor,
-                                            size: 24,
-                                          ),
-                                  ),
+                                  leading: _buildStatusLeading(statusColor, statusAsset),
                                   title: Text(
                                     subject,
                                     style: TextStyle(
@@ -5290,60 +5355,263 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                       color: const Color(0xFF0F172A),
                                     ),
                                   ),
-                                  subtitle: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      const SizedBox(height: 4),
-                                      RichText(
-                                        text: TextSpan(
-                                          children: _parseMessageWithBold(message),
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: Color(0xFF64748B),
-                                            height: 1.4,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        '$timeAgo • $dateFormatted',
-                                        style: const TextStyle(
-                                          fontSize: 11,
-                                          color: Color(0xFF94A3B8),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  trailing: !isRead
-                                      ? Container(
-                                          width: 10,
-                                          height: 10,
-                                          decoration: BoxDecoration(
-                                            color: statusColor,
-                                            shape: BoxShape.circle,
-                                          ),
-                                        )
-                                      : null,
+                                  subtitle: _buildGenericSubtitle(message, timeAgo, dateFormatted),
+                                  trailing: !isRead ? _buildUnreadDot(statusColor) : null,
                                 ),
                               ),
                             );
-                          },
+                          }
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (header != null) header,
+                              card,
+                            ],
+                          );
+                        },
                       ),
                     ),
       floatingActionButton: _notifications.isEmpty
           ? null
           : FloatingActionButton.extended(
-              // Unique tag — avoids Hero flight to Map tab's locate FAB (IndexedStack keeps Map mounted).
               heroTag: 'notifications_delete_all',
-              onPressed: _allRead ? _deleteAllRead : null,
-              backgroundColor: _allRead
-                  ? const Color(0xFFEF4444)
-                  : const Color(0xFFCBD5E1),
+              onPressed: _allRead ? () {
+                // Strong, unique buzz for a destructive "Delete All" action
+                HapticFeedback.vibrate();
+                Future.delayed(const Duration(milliseconds: 200), () => HapticFeedback.mediumImpact());
+                _deleteAllRead();
+              } : null,
+              backgroundColor: _allRead ? const Color(0xFFEF4444) : const Color(0xFFCBD5E1),
               foregroundColor: Colors.white,
               icon: const Icon(Icons.delete_forever_rounded),
               label: const Text('Delete all'),
             ),
     );
   }
-}
 
+  // ── Helper Builders ─────────────────────────────────────────────────────────
+
+  Widget _buildDismissBackground() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEF4444),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: const Icon(Icons.delete_rounded, color: Colors.white),
+    );
+  }
+
+  BoxDecoration _buildCardDecoration(bool isRead, Color statusColor) {
+    return BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(
+        color: isRead ? const Color(0xFFE2E8F0) : statusColor.withOpacity(0.5),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 10,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInvitationHeader(String subject, String timeAgo, String dateFormatted, bool isRead) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(color: const Color(0xFF2563EB).withOpacity(0.1), shape: BoxShape.circle),
+          child: const Icon(Icons.event_seat_rounded, color: Color(0xFF2563EB), size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                subject,
+                style: TextStyle(
+                  fontSize: 15, fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
+                  color: const Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text('$timeAgo • $dateFormatted', style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+            ],
+          ),
+        ),
+        if (!isRead) _buildUnreadDot(const Color(0xFF2563EB)),
+      ],
+    );
+  }
+
+  Widget _buildJobBriefBox(String companyName, String jobTitle, String jobLocation, String jobType, dynamic jobListing) {
+    return Container(
+      width: double.infinity, padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFF), borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(companyName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF2563EB))),
+          const SizedBox(height: 4),
+          Text(jobTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8, runSpacing: 6,
+            children: [
+              if (jobLocation.isNotEmpty) _buildChip(Icons.location_on_outlined, jobLocation),
+              if (jobType.isNotEmpty) _buildChip(Icons.work_outline_rounded, jobType),
+              if ((jobListing?['salary_range'] as String? ?? '').isNotEmpty)
+                _buildChip(Icons.payments_outlined, jobListing!['salary_range']),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewDetailsButton(VoidCallback onTap) {
+    return SizedBox(
+      width: double.infinity, height: 44,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.open_in_new_rounded, size: 18),
+        label: const Text('View Job Details'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFF2563EB),
+          side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSurveyHeader(String timeAgo, String dateFormatted, bool isRead) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(color: const Color(0xFF10B981).withOpacity(0.12), shape: BoxShape.circle),
+          child: const Icon(Icons.rate_review_rounded, color: Color(0xFF059669), size: 22),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Rate Your Experience',
+                style: TextStyle(
+                  fontSize: 16, fontWeight: isRead ? FontWeight.w700 : FontWeight.w900,
+                  color: const Color(0xFF0F172A), letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text('$timeAgo • $dateFormatted', style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+            ],
+          ),
+        ),
+        if (!isRead) _buildUnreadDot(const Color(0xFF10B981)),
+      ],
+    );
+  }
+
+  Widget _buildSurveyMessageBox(String message) {
+    return Container(
+      width: double.infinity, padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0FDF4), borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFF10B981).withOpacity(0.15)),
+      ),
+      child: Text(message, style: const TextStyle(fontSize: 14, color: Color(0xFF1E293B), height: 1.5)),
+    );
+  }
+
+  Widget _buildRateButton(VoidCallback onTap) {
+    return SizedBox(
+      width: double.infinity, height: 48,
+      child: FilledButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.stars_rounded, size: 20),
+        label: const Text('Rate Application Process'),
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF059669), foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatusLeading(Color statusColor, String? asset) {
+    return Container(
+      width: 48, height: 48,
+      decoration: BoxDecoration(color: statusColor.withOpacity(0.12), shape: BoxShape.circle),
+      padding: const EdgeInsets.all(4),
+      child: asset != null
+          ? Image.asset(asset, fit: BoxFit.contain)
+          : Icon(Icons.notifications_rounded, color: statusColor, size: 24),
+    );
+  }
+
+  Widget _buildUnreadDot(Color color) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8, right: 4),
+      width: 10, height: 10,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    );
+  }
+
+  Widget _buildGenericSubtitle(String message, String timeAgo, String dateFormatted) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 4),
+        RichText(
+          text: TextSpan(
+            children: _parseMessageWithBold(message),
+            style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text('$timeAgo • $dateFormatted', style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+      ],
+    );
+  }
+
+  Color _getStatusColor(String? type, String subject, String message) {
+    final t = (type ?? '').toLowerCase();
+    final s = subject.toLowerCase();
+    final m = message.toLowerCase();
+    if (t.contains('shortlisted') || s.contains('shortlisted') || m.contains('shortlisted')) return const Color(0xFFF59E0B);
+    if (t.contains('interview') || s.contains('interview') || m.contains('interview')) return const Color(0xFF8B5CF6);
+    if (t.contains('hired') || s.contains('hired') || m.contains('hired')) return const Color(0xFF10B981);
+    if (t.contains('rejected') || s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) return const Color(0xFFEF4444);
+    return const Color(0xFF2563EB);
+  }
+
+  String? _getStatusAsset(String? type, String subject, String message) {
+    final t = (type ?? '').toLowerCase();
+    final s = subject.toLowerCase();
+    final m = message.toLowerCase();
+    if (t.contains('shortlisted') || s.contains('shortlisted') || m.contains('shortlisted')) return 'assets/empoy_notif_shortlisted.png';
+    if (t.contains('interview') || s.contains('interview') || m.contains('interview')) return 'assets/empoy_notif_interview.png';
+    if (t.contains('hired') || s.contains('hired') || m.contains('hired')) return 'assets/empoy_notif_hired.png';
+    if (t.contains('rejected') || s.contains('rejected') || m.contains('rejected') || s.contains('not selected')) return 'assets/empoy_notif_rejected.png';
+    if (t.contains('reviewing') || s.contains('received') || m.contains('received')) return 'assets/empoy_notif_application_received.png';
+    return null;
+  }
+}

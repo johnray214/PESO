@@ -40,8 +40,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/empoy_app_icon.png"
+  image_path: "assets/empoy_final_app_icon.png"
   min_sdk_android: 21
+  remove_alpha_ios: true
 
 flutter:
 
@@ -57,6 +58,7 @@ flutter:
     - assets/PESOLOGO.jpg
     - assets/testempoy.gif
     - assets/empoy_app_icon.png
+    - assets/empoy_final_app_icon.png
     - assets/empoy_notif_application_received.png
     - assets/empoy_notif_interview.png
     - assets/empoy_notif_rejected.png

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 import 'api_service.dart';
 import 'document_open_io.dart' if (dart.library.html) 'document_open_web.dart' as doc_open;
@@ -417,7 +418,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                             ),
                           ),
                         ],
-                      ),
+                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
                     ),
                   ],
                 ),
@@ -439,7 +440,10 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                       icon: Icons.description_rounded,
                       title: 'Resume / CV',
                       hint: 'PDF format (required for most applications)',
-                    ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 400.ms, delay: 100.ms)
+                        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
                     const SizedBox(height: 14),
                     _buildDocCard(
                       kind: _DocKind.certificate,
@@ -447,7 +451,10 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                       icon: Icons.workspace_premium_rounded,
                       title: 'Certificate / Diploma',
                       hint: 'PDF — educational or training credentials',
-                    ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 400.ms, delay: 200.ms)
+                        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
                     const SizedBox(height: 14),
                     _buildDocCard(
                       kind: _DocKind.clearance,
@@ -455,7 +462,10 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                       icon: Icons.verified_user_rounded,
                       title: 'Barangay clearance',
                       hint: 'PDF — valid barangay clearance',
-                    ),
+                    )
+                        .animate()
+                        .fadeIn(duration: 400.ms, delay: 300.ms)
+                        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
                   ]),
                 ),
               ),

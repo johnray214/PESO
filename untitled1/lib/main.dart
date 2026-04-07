@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 import 'dart:ui';
+import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -117,8 +119,17 @@ class PESOApp extends StatelessWidget {
         ),
       ),
       home: const SplashScreen(),
+      routes: {
+        '/splash': (context) => const SplashScreen(),
+      },
       builder: (context, child) {
-        return ConnectivityWrapper(child: child!);
+        return ValueListenableBuilder<bool>(
+          valueListenable: disableConnectivityModalNotifier,
+          builder: (context, isDisabled, _) {
+            if (isDisabled) return child!;
+            return ConnectivityWrapper(child: child!);
+          },
+        );
       },
     );
   }
@@ -146,6 +157,10 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _orbMovement;
   late Animation<double> _exitScale;
   late Animation<double> _exitOpacity;
+
+  bool _isOffline = false;
+  bool _isRetrying = false;
+  int _shakeKey = 0;
 
   @override
   void initState() {
@@ -176,7 +191,7 @@ class _SplashScreenState extends State<SplashScreen>
     )..repeat(reverse: true);
     _exitCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
     );
 
     _mascotScale = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -201,87 +216,278 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _exitCtrl, curve: Curves.easeIn),
     );
 
+    // 1. Start Mascot Animation
     _mascotCtrl.forward();
 
-    // Auto-navigate sequence
-    Future.delayed(const Duration(milliseconds: 4000), () async {
-      if (!mounted) return;
+    // 2. Parallel Background Initialization
+    _initializeInternalState();
+  }
+
+  Future<void> _initializeInternalState() async {
+    // Wait for 3 seconds for branding, giving the mascot + shimmer time to shine
+    await Future.delayed(const Duration(milliseconds: 3000));
+    if (!mounted) return;
+
+    // ── CONNECTIVITY GATE ────────────────────────────────────────────────────
+    await _proceedIfOnline();
+  }
+
+  Future<bool> _hasRealInternet() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult.isEmpty || connectivityResult.contains(ConnectivityResult.none)) {
+        return false;
+      }
       
-      // Perform exit animation
+      // Perform a gold-standard Captive Portal HTTP check.
+      // E.g., filters out fake Wi-Fis or dead cellular data by expecting a literal '204 No Content'
+      // from Google's reliable network endpoint. If a network intercepts this (e.g. no load), 
+      // it will return a 200 with an HTML login page or throw an exception.
+      final response = await http.get(Uri.parse('https://clients3.google.com/generate_204'))
+          .timeout(const Duration(seconds: 4));
+          
+      return response.statusCode == 204;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _proceedIfOnline() async {
+    final isOnline = await _hasRealInternet();
+
+    if (!mounted) return;
+
+    if (!isOnline) {
+      HapticFeedback.lightImpact();
+      setState(() {
+        _isOffline = true;
+        _shakeKey++;
+        _isRetrying = false;
+      });
+      return; // Stay on splash — user must retry
+    }
+
+    // We have true internet — hide offline UI if it was showing
+    if (_isOffline) {
+      setState(() {
+        _isOffline = false;
+        _isRetrying = false;
+      });
+    }
+
+    try {
+      // Restore session from server (now safe — we have internet)
+      final hasSession = await SessionPrefs.restoreSession();
+      if (!mounted) return;
+
+      // ── EXIT SEQUENCE ──────────────────────────────────────────────────────
       await _exitCtrl.forward();
       if (!mounted) return;
 
-      final hasSession = await SessionPrefs.restoreSession();
-      if (!mounted) return;
       if (hasSession) {
+        // Load saved/applied jobs + sync FCM token before entering home
         await JobActionService().loadFromBackend();
-        // ENSURE FCM IS SYNCED EVERY TIME APP STARTS (Fix for Railway switching)
-        await NotificationService().syncTokenNow(); 
+        await NotificationService().syncTokenNow();
         if (!mounted) return;
 
-        final needsPostAuth =
-            await OnboardingPrefs.needsPostAuth(ignoreDebug: true);
-        if (!mounted) return;
-
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
-            pageBuilder: (_, __, ___) => needsPostAuth
-                ? const PostAuthOnboardingScreen()
-                : const HomePage(),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-        );
-        return;
-      }
-
-      final currentToken = UserSession().token;
-      final localIntroDone = await OnboardingPrefs.isIntroDone(
-        token: currentToken,
-        ignoreDebug: true,
-      );
-      final serverIntroDone = UserSession().isOnboardingDone;
-
-      if (!mounted) return;
-      if (!localIntroDone && !serverIntroDone) {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
-            pageBuilder: (_, __, ___) => IntroOnboardingPage(
-              onComplete: (introContext) {
-                Navigator.of(introContext).pushReplacement(
-                  PageRouteBuilder(
-                    transitionDuration: const Duration(milliseconds: 500),
-                    pageBuilder: (_, __, ___) => const AuthEntryPage(),
-                    transitionsBuilder: (_, animation, __, child) {
-                      return FadeTransition(opacity: animation, child: child);
-                    },
-                  ),
-                );
-              },
-            ),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
+        final needsPostAuth = await OnboardingPrefs.needsPostAuth(ignoreDebug: true);
+        _navigate(
+          needsPostAuth ? const PostAuthOnboardingScreen() : const HomePage(),
         );
       } else {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
-            pageBuilder: (_, __, ___) => const AuthEntryPage(),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-        );
+        final introDone = await OnboardingPrefs.isIntroDone(ignoreDebug: true);
+        if (!mounted) return;
+
+        if (!introDone) {
+          _navigate(IntroOnboardingPage(
+            onComplete: (introCtx) => _navigateFromIntro(introCtx),
+          ));
+        } else {
+          _navigate(const AuthEntryPage());
+        }
       }
-    });
+    } catch (e) {
+      debugPrint('Splash Init Error: $e');
+      if (mounted) _navigate(const AuthEntryPage());
+    }
+  }
+
+  Future<void> _retry() async {
+    if (_isRetrying) return;
+    setState(() => _isRetrying = true);
+
+    // Small delay for UX so the button doesn't flicker
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+
+    await _proceedIfOnline();
+  }
+
+  // ── Loading Pill (default state) ───────────────────────────────────────────
+  Widget _buildLoadingPill() {
+    return Container(
+      key: const ValueKey('loading'),
+      margin: const EdgeInsets.symmetric(horizontal: 40),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.white.withOpacity(0.12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.15),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            child: Column(
+              children: [
+                const _SplashDots()
+                    .animate()
+                    .fadeIn(delay: 1200.ms, duration: 500.ms),
+                const SizedBox(height: 12),
+                Text(
+                  'Connecting you to opportunities...',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF0F172A).withOpacity(0.6),
+                    letterSpacing: 0.3,
+                  ),
+                )
+                    .animate()
+                    .fadeIn(delay: 1400.ms, duration: 500.ms),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Offline Pill (no internet state) ───────────────────────────────────────
+  Widget _buildOfflinePill() {
+    return Container(
+      key: const ValueKey('offline'),
+      margin: const EdgeInsets.symmetric(horizontal: 40),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.white.withOpacity(0.25),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.wifi_off_rounded,
+                  size: 28,
+                  color: const Color(0xFF0F172A).withOpacity(0.5),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'No internet connection',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF0F172A).withOpacity(0.7),
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                GestureDetector(
+                  onTap: _retry,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: _isRetrying
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            'Retry',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate(key: const ValueKey('offline_main'))
+     .fadeIn(duration: 400.ms)
+     .slideY(begin: 0.1, curve: Curves.easeOut)
+     .animate(key: ValueKey('shake_$_shakeKey'))
+     .shake(hz: 8, curve: Curves.easeInOutCubic, duration: 400.ms);
+  }
+
+
+  void _navigate(Widget page) {
+    if (!mounted) return;
+    
+    // Re-enable global modal before leaving
+    disableConnectivityModalNotifier.value = false;
+    
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => page,
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
+  }
+
+  void _navigateFromIntro(BuildContext introContext) {
+    // Re-enable global modal before leaving
+    disableConnectivityModalNotifier.value = false;
+    
+    Navigator.of(introContext).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => const AuthEntryPage(),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
   }
 
   @override
@@ -574,50 +780,12 @@ class _SplashScreenState extends State<SplashScreen>
 
                         const Spacer(),
 
-                        // ── Loading indicator inside a Glass Pill ────────────────────────────
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 40),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
-                            color: Colors.white.withOpacity(0.12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.15),
-                              width: 1,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 16, horizontal: 24),
-                                child: Column(
-                                  children: [
-                                    const _SplashDots()
-                                        .animate()
-                                        .fadeIn(delay: 1200.ms, duration: 500.ms),
-                                    const SizedBox(height: 12),
-                                      Text(
-                                        'Connecting you to opportunities...',
-                                        textAlign: TextAlign.center,
-                                        softWrap: true,
-                                        overflow: TextOverflow.visible,
-                                        style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF0F172A)
-                                            .withOpacity(0.6),
-                                        letterSpacing: 0.3,
-                                      ),
-                                    )
-                                        .animate()
-                                        .fadeIn(delay: 1400.ms, duration: 500.ms),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+                        // ── Status Pill (Loading / Offline) ──────────────────────────────────
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          child: _isOffline
+                              ? _buildOfflinePill()
+                              : _buildLoadingPill(),
                         ),
                         const SizedBox(height: 32),
                       ],
@@ -2583,9 +2751,7 @@ class _LoginModalState extends State<LoginModal>
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: _fieldDec(
-                        _isSignUpMode ? 'Email' : 'Email or Username',
-                        Icons.email_outlined),
+                    decoration: _fieldDec('Email', Icons.email_outlined),
                     onChanged: (v) {
                       if (_serverEmailError != null) {
                         setState(() => _serverEmailError = null);
@@ -2611,9 +2777,7 @@ class _LoginModalState extends State<LoginModal>
                     },
                     validator: (v) {
                       if (v == null || v.isEmpty) {
-                        return _isSignUpMode
-                            ? 'Please enter your email'
-                            : 'Please enter your email or username';
+                        return 'Please enter your email';
                       }
                       if (_isSignUpMode &&
                           (!v.contains('@') || !v.contains('.'))) {

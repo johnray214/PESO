@@ -20,6 +20,20 @@ class SessionPrefs {
     await p.remove(_kToken);
   }
 
+  /// Fast, local-only check — no network call.
+  /// Returns true if a saved token exists on disk.
+  static Future<bool> hasToken() async {
+    final p = await SharedPreferences.getInstance();
+    final token = p.getString(_kToken)?.trim() ?? '';
+    return token.isNotEmpty;
+  }
+
+  /// Returns the raw saved token (or empty string). No network call.
+  static Future<String> getToken() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getString(_kToken)?.trim() ?? '';
+  }
+
   /// Restores session from persisted token by calling profile endpoint.
   /// Returns true only when token exists and backend confirms it's valid.
   static Future<bool> restoreSession() async {

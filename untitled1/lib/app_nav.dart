@@ -11,7 +11,11 @@ void registerJobseekerSignOut(void Function() fn) {
   _jobseekerSignOutToAuth = fn;
 }
 
-/// After clearing session — replaces stack with auth (login) flow.
 void navigateToAuthEntryReplacingStack() {
   _jobseekerSignOutToAuth?.call();
 }
+
+/// A global toggle to turn off the ConnectivityWrapper's global modal
+/// on pages that have their own dedicated offline UI (like the Splash Screen).
+final ValueNotifier<bool> disableConnectivityModalNotifier = ValueNotifier<bool>(true);
+

@@ -1,9 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:http/http.dart' as http;
 import 'api_service.dart';
+import 'app_nav.dart';
 
 /// A global wrapper that monitor's connectivity and shows a premium "No Internet" modal.
 class ConnectivityWrapper extends StatefulWidget {
@@ -19,6 +22,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
   late StreamSubscription<List<ConnectivityResult>> _subscription;
   bool _isShowingModal = false;
   bool _manualRetryLoading = false;
+  int _shakeKey = 0;
 
   @override
   void initState() {
@@ -27,14 +31,22 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     _checkConnectivity();
 
     // 2. Listen for changes
-    _subscription = Connectivity().onConnectivityChanged.listen((results) {
-      final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
-      if (!isOffline && _isShowingModal) {
-        // Auto-dismiss when connection comes back suggestively
-        _hideModal();
-      } else if (isOffline && !_isShowingModal) {
+    _subscription = Connectivity().onConnectivityChanged.listen((results) async {
+      final isOfflineResult = results.isEmpty || results.contains(ConnectivityResult.none);
+      
+      if (isOfflineResult) {
+        if (!_isShowingModal) _showModal();
+        return;
+      }
+      
+      // Even if results say we are 'connected' (Mobile/Wi-Fi), 
+      // check if data is actually flowing (Captive portal / No load check)
+      final hasActualInternet = await _checkActualInternet();
+      if (!hasActualInternet && !_isShowingModal) {
         _showModal();
       }
+      // Note: We deliberately DON'T auto-dismiss here anymore. 
+      // Option B ensures the user must manually hit 'Retry' to trigger a fresh re-sync to the splash.
     });
 
     // 3. Listen to ApiService explicit network failures (e.g. SocketException)
@@ -51,10 +63,27 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     super.dispose();
   }
 
+  Future<bool> _checkActualInternet() async {
+    try {
+      final response = await http.get(Uri.parse('https://clients3.google.com/generate_204'))
+          .timeout(const Duration(seconds: 4));
+      return response.statusCode == 204;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _checkConnectivity() async {
     final results = await Connectivity().checkConnectivity();
-    final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
-    if (isOffline) {
+    final isOfflineResult = results.isEmpty || results.contains(ConnectivityResult.none);
+    
+    if (isOfflineResult) {
+      _showModal();
+      return;
+    }
+
+    final hasActualInternet = await _checkActualInternet();
+    if (!hasActualInternet) {
       _showModal();
     }
   }
@@ -64,28 +93,32 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     setState(() => _isShowingModal = true);
   }
 
-  void _hideModal() {
-    if (!_isShowingModal) return;
-    setState(() {
-      _isShowingModal = false;
-      _manualRetryLoading = false;
-    });
-  }
-
   Future<void> _handleManualRetry() async {
     setState(() => _manualRetryLoading = true);
     
     // Artificial small delay for UX so it doesn't flicker too fast
     await Future.delayed(const Duration(milliseconds: 800));
 
-    final results = await Connectivity().checkConnectivity();
-    final isOffline = results.isEmpty || results.contains(ConnectivityResult.none);
+    final hasActualInternet = await _checkActualInternet();
 
-    if (!isOffline) {
-      _hideModal();
+    if (hasActualInternet) {
+      // Clean up local state BEFORE navigating, so the modal doesn't persist.
+      setState(() {
+        _isShowingModal = false;
+        _manualRetryLoading = false;
+      });
+      
+      // Hard refresh: go back to splash so it re-validates and re-syncs everything properly.
+      rootNavigatorKey.currentState?.pushNamedAndRemoveUntil(
+        '/splash',
+        (route) => false,
+      );
     } else {
-      setState(() => _manualRetryLoading = false);
-      // Keep modal open, maybe shake the button or show a quick toast
+      HapticFeedback.lightImpact();
+      setState(() {
+        _manualRetryLoading = false;
+        _shakeKey++;
+      });
     }
   }
 
@@ -97,6 +130,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
         if (_isShowingModal)
           _NoInternetModal(
             isLoading: _manualRetryLoading,
+            shakeKey: _shakeKey,
             onRetry: _handleManualRetry,
           ),
       ],
@@ -106,10 +140,12 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
 
 class _NoInternetModal extends StatelessWidget {
   final bool isLoading;
+  final int shakeKey;
   final VoidCallback onRetry;
 
   const _NoInternetModal({
     required this.isLoading,
+    required this.shakeKey,
     required this.onRetry,
   });
 
@@ -210,12 +246,12 @@ class _NoInternetModal extends StatelessWidget {
               ).animate().shimmer(delay: 2000.ms, duration: 1500.ms),
             ],
           ),
-        ).animate().scale(
-              begin: const Offset(0.8, 0.8),
-              end: const Offset(1, 1),
-              curve: Curves.elasticOut,
-              duration: 600.ms,
-            ).fadeIn(duration: 300.ms),
+        )
+            .animate(key: const ValueKey('modal_main'))
+            .fadeIn(duration: 400.ms)
+            .scale(begin: const Offset(0.9, 0.9), curve: Curves.easeOutBack)
+            .animate(key: ValueKey('modal_shake_$shakeKey'))
+            .shake(hz: 8, curve: Curves.easeInOutCubic, duration: 400.ms),
       ),
     );
   }

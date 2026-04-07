@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'api_service.dart';
 import 'user_session.dart';
@@ -74,6 +75,19 @@ class NotificationService {
       // 3. Set up the foreground message listener (Step 12)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         print("🔔 FCM: Notification received: ${message.notification?.title}");
+        
+        // Helper for a deep, sustained buzz (Bzzzzzz...)
+        Future<void> longBuzz() async {
+          for (int i = 0; i < 4; i++) {
+             await HapticFeedback.vibrate();
+             await Future.delayed(const Duration(milliseconds: 50));
+          }
+        }
+        
+        // Trigger a premium "Sustained Double Pulse" for in-app awareness
+        longBuzz().then((_) {
+          Future.delayed(const Duration(milliseconds: 400), () => longBuzz());
+        });
         
         _showLocalNotification(message);
         

@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: 'https://newpesobackend-production.up.railway.app/api',
   timeout: 60000,
   headers: { Accept: 'application/json' },
 })
@@ -26,19 +26,19 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       const currentHash = window.location.hash
       const isEmployer = !!localStorage.getItem('employer_token')
-      
+
       // Don't redirect if already on login page to prevent loops
       if (currentHash.includes('/employer/login') || currentHash.includes('/login')) {
         return Promise.reject(error)
       }
-      
+
       // Clear auth data
       localStorage.removeItem('employer_token')
       localStorage.removeItem('employer_user')
       localStorage.removeItem('peso_auth_token')
       localStorage.removeItem('auth_token')
       localStorage.removeItem('peso-auth')
-      
+
       // Redirect to appropriate login
       if (isEmployer) {
         window.location.hash = '#/employer/login'

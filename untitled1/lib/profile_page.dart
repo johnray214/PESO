@@ -22,6 +22,7 @@ import 'settings_page.dart';
 import 'app_nav.dart';
 import 'notification_service.dart';
 import 'main.dart';
+import 'home_pages.dart'; // Added to access global map notifiers
 
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -49,6 +50,7 @@ class _ProfileTabState extends State<ProfileTab> {
   List<int>? _avatarBytes;
   Timer? _statsRefreshTimer;
   bool _isStatsRefreshing = false;
+  int _missingDocsCount = 0;
 
   @override
   void initState() {
@@ -119,15 +121,26 @@ class _ProfileTabState extends State<ProfileTab> {
         saved = list.length;
       }
 
+      final userResult = await ApiService.getUser(token);
+      int missing = 0;
+      if (userResult['success'] == true && userResult['data'] != null) {
+        final user = userResult['data'] as Map<String, dynamic>;
+        if (user['resume_path'] == null || user['resume_path'].toString().isEmpty) missing++;
+        if (user['certificate_path'] == null || user['certificate_path'].toString().isEmpty) missing++;
+        if (user['barangay_clearance_path'] == null || user['barangay_clearance_path'].toString().isEmpty) missing++;
+      }
+
       if (!mounted) return;
       final hasChanges = _appliedCount != applied ||
           _interviewCount != interview ||
-          _savedCount != saved;
+          _savedCount != saved ||
+          _missingDocsCount != missing;
       if (hasChanges) {
         setState(() {
           _appliedCount = applied;
           _interviewCount = interview;
           _savedCount = saved;
+          _missingDocsCount = missing;
         });
       }
     } catch (_) {
@@ -362,9 +375,59 @@ class _ProfileTabState extends State<ProfileTab> {
                   icon: Icons.description_rounded,
                   title: 'My Documents',
                   color: const Color(0xFF10B981),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const MyDocumentsPage()),
-                  ),
+                  trailing: _missingDocsCount > 0
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFFEE2E2), width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFEF4444)),
+                              const SizedBox(width: 4),
+                              Text(
+                                '$_missingDocsCount more',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFEF4444),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFDCFCE7), width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF16A34A)),
+                              const SizedBox(width: 4),
+                              const Text(
+                                'Complete',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF16A34A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                  onTap: () async {
+                    await Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MyDocumentsPage()),
+                    );
+                    _loadStats();
+                  },
                 ),
                 _buildMenuItem(
                   icon: Icons.settings_rounded,
@@ -489,6 +552,7 @@ class _ProfileTabState extends State<ProfileTab> {
     required String title,
     required Color color,
     required VoidCallback onTap,
+    Widget? trailing,
     bool isSignOut = false,
   }) {
     return Container(
@@ -532,6 +596,10 @@ class _ProfileTabState extends State<ProfileTab> {
                     ),
                   ),
                 ),
+                if (trailing != null) ...[
+                  trailing,
+                  const SizedBox(width: 12),
+                ],
                 const Icon(
                   Icons.chevron_right_rounded,
                   size: 24,
@@ -2035,6 +2103,7 @@ class _ApplicationCard extends StatelessWidget {
                       child: CompanyLogoBox(
                         job: job,
                         size: 52,
+                        borderRadius: 14,
                         boxShadow: const [],
                       ),
                     ),
@@ -2140,6 +2209,12 @@ void _openApplicationDetail(BuildContext context, _Application application) {
     headerBanner: banner,
     isApplied: true,
     isSaved: jobActionService.isSaved(job.id),
+    onViewMap: () {
+      Navigator.of(context).pop(); // Pop modal
+      Navigator.of(context).pop(); // Pop the Applications/Detail page to return home
+      homeNavRequestNotifier.value = 1; // Switch to Map Tab
+      mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
+    },
     onSave: () async {
       final error = await jobActionService.toggleSave(job.id);
       if (context.mounted) {
@@ -2399,7 +2474,20 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                             isApplied: isApplied,
                             onApply: () => _applyToJob(saved.job.id, saved.job.title),
                             onUnsave: () => _unsaveJob(saved.job.id),
-                          );
+                          )
+                              .animate()
+                              .fadeIn(
+                                duration: 400.ms,
+                                delay: (index * 50).ms,
+                                curve: Curves.easeOutCubic,
+                              )
+                              .slideY(
+                                begin: 0.1,
+                                end: 0,
+                                duration: 400.ms,
+                                delay: (index * 50).ms,
+                                curve: Curves.easeOutCubic,
+                              );
                         },
                       ),
                     ),
@@ -2452,6 +2540,12 @@ class _SavedJobCard extends StatelessWidget {
               isApplied: jobActionService.isApplied(job.id),
               onApply: onApply,
               onSave: onUnsave,
+              onViewMap: () {
+                Navigator.of(context).pop(); // Pop modal
+                Navigator.of(context).pop(); // Pop SavedJobsPage to return home
+                homeNavRequestNotifier.value = 1; // Switch to Map Tab
+                mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
+              },
             );
           },
           child: Padding(
@@ -2476,6 +2570,7 @@ class _SavedJobCard extends StatelessWidget {
                       child: CompanyLogoBox(
                         job: job,
                         size: 52,
+                        borderRadius: 14,
                         boxShadow: const [],
                       ),
                     ),

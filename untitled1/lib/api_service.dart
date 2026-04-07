@@ -74,7 +74,7 @@ class ApiService {
 
     return {
       'success': false,
-      'message': customMessage ?? 'Connection error: ${e.toString()}',
+      'message': customMessage ?? 'Connection error: Service temporarily unavailable.',
     };
   }
 
