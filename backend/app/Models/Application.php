@@ -13,6 +13,11 @@ class Application extends Model
         'job_listing_id',
         'jobseeker_id',
         'status',
+        'interview_date',
+        'interview_time',
+        'interview_format',
+        'interview_location',
+        'interviewer_name',
         'match_score',
         'applied_at',
     ];
@@ -20,6 +25,7 @@ class Application extends Model
     protected $casts = [
         'match_score' => 'integer',
         'applied_at' => 'datetime',
+        'interview_date' => 'date',
     ];
 
     public function jobListing()

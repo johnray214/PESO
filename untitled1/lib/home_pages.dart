@@ -1316,7 +1316,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     if (preferredType != null) {
       _selectedEmploymentTypes.add(preferredType);
     }
-    _greetingText = '${getPhilippinesGreeting()},';
+    _greetingText = '${getPhilippinesGreeting()}, Kabsat';
     _fetchJobs();
     _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
@@ -5261,17 +5261,20 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                   child: Material(
                                     color: Colors.white,
                                     child: InkWell(
-                                      onTap: () => _openNotification(index),
+                                      onTap: () {
+                                        _openNotification(index);
+                                        _openInvitationJob(n);
+                                      },
                                       child: Padding(
                                         padding: const EdgeInsets.all(16),
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             _buildInvitationHeader(subject, timeAgo, dateFormatted, isRead),
-                                            const SizedBox(height: 16),
+                                            const SizedBox(height: 12),
                                             _buildJobBriefBox(companyName, jobTitle, jobLocation, jobType, jobListing),
                                             const SizedBox(height: 16),
-                                            _buildViewDetailsButton(() => _openInvitationJob(n)),
+                                            _buildViewInvitationChip(),
                                           ],
                                         ),
                                       ),
@@ -5326,6 +5329,318 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                         child: Container(color: const Color(0xFF2563EB)),
                                       ),
                                     ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else if (type == 'status_interview') {
+                            // ── Interview Scheduled notification ────────────
+                            final meta = notif['meta'] as Map<String, dynamic>?;
+                            final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+                            final interviewJobTitle = jobListing?['title'] as String? ?? subject;
+                            final interviewCompany = (jobListing?['employer'] as Map<String, dynamic>?)?['company_name'] as String? ?? 'The employer';
+                            const Color interviewColor = Color(0xFF8B5CF6);
+
+                            card = Dismissible(
+                              key: ValueKey('notif_$id'),
+                              direction: DismissDirection.endToStart,
+                              background: _buildDismissBackground(),
+                              onDismissed: (_) => _deleteNotification(index),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: _buildCardDecoration(isRead, interviewColor),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Material(
+                                    color: Colors.white,
+                                    child: InkWell(
+                                      onTap: () {
+                                        _openNotification(index);
+                                        _showInterviewScheduleModal(
+                                          context,
+                                          companyName: interviewCompany,
+                                          jobTitle: interviewJobTitle,
+                                          meta: meta,
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _buildStatusLeading(interviewColor, 'assets/empoy_notif_interview.png'),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          subject,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
+                                                            color: const Color(0xFF0F172A),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (!isRead) _buildUnreadDot(interviewColor),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  RichText(
+                                                    text: TextSpan(
+                                                      style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+                                                      children: _parseMessageWithBold(
+                                                        'Interview for **$interviewJobTitle** at **$interviewCompany**.',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text('$timeAgo • $dateFormatted', style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                                                  const SizedBox(height: 10),
+                                                  // "View Schedule" chip
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFF5F3FF),
+                                                      borderRadius: BorderRadius.circular(999),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: const [
+                                                        Icon(Icons.calendar_month_rounded, size: 14, color: Color(0xFF7C3AED)),
+                                                        SizedBox(width: 5),
+                                                        Text(
+                                                          'View Schedule',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: Color(0xFF6D28D9),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else if (type == 'status_hired') {
+                            // ── Hired notification ──────────────────────────
+                            final meta = notif['meta'] as Map<String, dynamic>?;
+                            final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+                            final hiredJobTitle  = meta?['job_title']       as String? ?? jobListing?['title'] as String? ?? subject;
+                            final hiredCompany   = meta?['company_name']    as String? ?? (jobListing?['employer'] as Map<String, dynamic>?)?['company_name'] as String? ?? 'The employer';
+                            final hiredStartDate = meta?['start_date']      as String? ?? 'To be discussed';
+                            final hiredSalary    = meta?['salary']          as String? ?? jobListing?['salary_range'] as String? ?? 'Negotiable';
+                            final hiredEmpType   = meta?['employment_type'] as String? ?? jobListing?['type'] as String? ?? 'Full-time';
+                            const Color hiredColor = Color(0xFF10B981);
+
+                            card = Dismissible(
+                              key: ValueKey('notif_$id'),
+                              direction: DismissDirection.endToStart,
+                              background: _buildDismissBackground(),
+                              onDismissed: (_) => _deleteNotification(index),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: _buildCardDecoration(isRead, hiredColor),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Material(
+                                    color: Colors.white,
+                                    child: InkWell(
+                                      onTap: () {
+                                        _openNotification(index);
+                                        _showHiredOfferModal(
+                                          context,
+                                          jobTitle: hiredJobTitle,
+                                          companyName: hiredCompany,
+                                          startDate: hiredStartDate,
+                                          salary: hiredSalary,
+                                          employmentType: hiredEmpType,
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _buildStatusLeading(hiredColor, 'assets/empoy_notif_hired.png'),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          subject,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
+                                                            color: const Color(0xFF0F172A),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (!isRead) _buildUnreadDot(hiredColor),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  RichText(
+                                                    text: TextSpan(
+                                                      style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+                                                      children: _parseMessageWithBold(
+                                                        'Offer extended for **$hiredJobTitle** at **$hiredCompany**.',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text('$timeAgo • $dateFormatted', style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                                                  const SizedBox(height: 10),
+                                                  // "View Offer" chip
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFF0FDF4),
+                                                      borderRadius: BorderRadius.circular(999),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: const [
+                                                        Icon(Icons.workspace_premium_rounded, size: 14, color: Color(0xFF059669)),
+                                                        SizedBox(width: 5),
+                                                        Text(
+                                                          'View Offer',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: Color(0xFF047857),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else if (type == 'status_rejected') {
+                            // ── Rejected notification ────────────────────────
+                            final meta = notif['meta'] as Map<String, dynamic>?;
+                            final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+                            final rejJobTitle  = meta?['job_title']    as String? ?? jobListing?['title'] as String? ?? subject;
+                            final rejCompany   = meta?['company_name'] as String? ?? (jobListing?['employer'] as Map<String, dynamic>?)?['company_name'] as String? ?? 'The employer';
+                            final rejUpdateDate = meta?['update_date'] as String? ?? dateFormatted;
+                            const Color rejColor = Color(0xFFEF4444);
+
+                            card = Dismissible(
+                              key: ValueKey('notif_$id'),
+                              direction: DismissDirection.endToStart,
+                              background: _buildDismissBackground(),
+                              onDismissed: (_) => _deleteNotification(index),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: _buildCardDecoration(isRead, rejColor),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Material(
+                                    color: Colors.white,
+                                    child: InkWell(
+                                      onTap: () {
+                                        _openNotification(index);
+                                        _showRejectedModal(
+                                          context,
+                                          jobTitle: rejJobTitle,
+                                          companyName: rejCompany,
+                                          updateDate: rejUpdateDate,
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _buildStatusLeading(rejColor, 'assets/empoy_notif_rejected.png'),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          subject,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: isRead ? FontWeight.w500 : FontWeight.w700,
+                                                            color: const Color(0xFF0F172A),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (!isRead) _buildUnreadDot(rejColor),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  RichText(
+                                                    text: TextSpan(
+                                                      style: const TextStyle(fontSize: 13, color: Color(0xFF64748B), height: 1.4),
+                                                      children: _parseMessageWithBold(
+                                                        'Application for **$rejJobTitle** at **$rejCompany**.',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text('$timeAgo • $dateFormatted', style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8))),
+                                                  const SizedBox(height: 10),
+                                                  // "View Details" chip
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFFEF2F2),
+                                                      borderRadius: BorderRadius.circular(999),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: const [
+                                                        Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFDC2626)),
+                                                        SizedBox(width: 5),
+                                                        Text(
+                                                          'View Details',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: Color(0xFFB91C1C),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -5480,18 +5795,551 @@ class _NotificationsTabState extends State<NotificationsTab> {
     );
   }
 
-  Widget _buildViewDetailsButton(VoidCallback onTap) {
-    return SizedBox(
-      width: double.infinity, height: 44,
-      child: OutlinedButton.icon(
-        onPressed: onTap,
-        icon: const Icon(Icons.open_in_new_rounded, size: 18),
-        label: const Text('View Job Details'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: const Color(0xFF2563EB),
-          side: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+  /// Small capsule hint shown on invitation notifications to indicate
+  /// that tapping the card will open the full invitation details.
+  Widget _buildViewInvitationChip() {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFEEF2FF),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.visibility_rounded, size: 16, color: Color(0xFF4F46E5)),
+            SizedBox(width: 6),
+            Text(
+              'View Invitation',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF3730A3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showInterviewScheduleModal(
+    BuildContext context, {
+    required String companyName,
+    required String jobTitle,
+    Map<String, dynamic>? meta,
+  }) {
+    final date       = meta?['interview_date']     as String? ?? 'TBA';
+    final time       = meta?['interview_time']     as String? ?? 'TBA';
+    final format     = meta?['interview_format']   as String? ?? 'In-person';
+    final location   = meta?['interview_location'] as String? ?? 'TBA';
+    final interviewer= meta?['interviewer_name']   as String? ?? 'Hiring Manager';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.88,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: scrollCtrl,
+            padding: EdgeInsets.zero,
+            children: [
+              // Drag handle
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Purple header
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF7C3AED), Color(0xFF6D28D9)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.calendar_month_rounded, color: Colors.white, size: 28),
+                    const SizedBox(height: 10),
+                    Text(
+                      '$companyName would like to invite you for a job interview for the',
+                      style: const TextStyle(fontSize: 13, color: Colors.white70, height: 1.5),
+                    ),
+                    Text(
+                      '$jobTitle position.',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: Colors.white, height: 1.5),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Application Status chip
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F3FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFDDD6FE)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.event_available_rounded, size: 20, color: Color(0xFF7C3AED)),
+                      const SizedBox(width: 10),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Application Status: For Interview',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF6D28D9))),
+                          Text('Updated: $jobTitle',
+                              style: const TextStyle(fontSize: 11, color: Color(0xFF8B5CF6))),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Interview Details section
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'INTERVIEW DETAILS',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11, fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1, color: const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildInterviewDetailRow(Icons.calendar_today_rounded, 'Date', date, const Color(0xFF8B5CF6), isFirst: true),
+                          _buildInterviewDetailDivider(),
+                          _buildInterviewDetailRow(Icons.access_time_rounded, 'Time', time, const Color(0xFF8B5CF6)),
+                          _buildInterviewDetailDivider(),
+                          _buildInterviewDetailRow(Icons.chat_bubble_outline_rounded, 'Format', format, const Color(0xFF8B5CF6)),
+                          _buildInterviewDetailDivider(),
+                          _buildInterviewDetailRow(Icons.location_on_outlined, 'Location', location, const Color(0xFF8B5CF6)),
+                          _buildInterviewDetailDivider(),
+                          _buildInterviewDetailRow(Icons.person_outline_rounded, 'Interviewer', interviewer, const Color(0xFF8B5CF6), isLast: true),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // What to prepare
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'What to prepare:',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildPrepItem(1, 'Updated Resume', 'Bring 2 printed copies or have it ready digitally on your device'),
+                    _buildPrepItem(2, 'Valid Government ID', 'Passport, Driver\'s License, SSS, PhilHealth, or any government-issued ID'),
+                    _buildPrepItem(3, 'Portfolio or Work Samples', 'Relevant projects, certifications, or links to your work if applicable'),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInterviewDetailRow(
+    IconData icon, String label, String value, Color iconColor, {
+    bool isFirst = false, bool isLast = false,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Row(
+        children: [
+          Container(
+            width: 36, height: 36,
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: iconColor),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500)),
+              const SizedBox(height: 2),
+              Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInterviewDetailDivider() =>
+      const Divider(height: 1, indent: 16, endIndent: 16, color: Color(0xFFE2E8F0));
+
+  Widget _buildPrepItem(int num, String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28, height: 28,
+            decoration: const BoxDecoration(
+              color: Color(0xFF1E293B),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                '$num',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: Colors.white),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.4)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHiredOfferModal(
+    BuildContext context, {
+    required String jobTitle,
+    required String companyName,
+    required String startDate,
+    required String salary,
+    required String employmentType,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.78,
+        minChildSize: 0.5,
+        maxChildSize: 0.92,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: scrollCtrl,
+            padding: EdgeInsets.zero,
+            children: [
+              // Drag handle
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Green header
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF059669), Color(0xFF047857)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.workspace_premium_rounded, color: Colors.white, size: 28),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Application Status: Hired',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Offer extended on $startDate',
+                      style: const TextStyle(fontSize: 13, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Offer Details section
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'OFFER DETAILS',
+                      style: GoogleFonts.poppins(
+                        fontSize: 11, fontWeight: FontWeight.w900,
+                        letterSpacing: 1.1, color: const Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildOfferDetailRow('Position', jobTitle, isFirst: true),
+                          _buildInterviewDetailDivider(),
+                          _buildOfferDetailRow('Employer', companyName),
+                          _buildInterviewDetailDivider(),
+                          _buildOfferDetailRow('Start Date', startDate, valueColor: const Color(0xFF059669)),
+                          _buildInterviewDetailDivider(),
+                          _buildOfferDetailRow('Salary', salary),
+                          _buildInterviewDetailDivider(),
+                          _buildOfferDetailRow('Employment Type', employmentType, isLast: true),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOfferDetailRow(
+    String label,
+    String value, {
+    bool isFirst = false,
+    bool isLast = false,
+    Color? valueColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8), fontWeight: FontWeight.w500),
+          ),
+          Flexible(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: valueColor ?? const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRejectedModal(
+    BuildContext context, {
+    required String jobTitle,
+    required String companyName,
+    required String updateDate,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.82,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, scrollCtrl) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: scrollCtrl,
+            padding: EdgeInsets.zero,
+            children: [
+              // Drag handle
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Container(
+                    width: 36, height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE2E8F0),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Body text
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hi, ${UserSession().firstName ?? 'there'}',
+                      style: GoogleFonts.poppins(
+                        fontSize: 17, fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    RichText(
+                      text: TextSpan(
+                        style: const TextStyle(fontSize: 14, color: Color(0xFF475569), height: 1.65),
+                        children: [
+                          const TextSpan(text: 'Thank you for applying to '),
+                          TextSpan(text: companyName, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                          const TextSpan(text: ' for the '),
+                          TextSpan(text: jobTitle, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF0F172A))),
+                          const TextSpan(text: ' position, and for the time and effort you invested throughout the application process. We sincerely appreciate your interest.'),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'After careful review, the employer has decided to move forward with another candidate whose experience more closely aligns with their current needs. This was a highly competitive process, and this decision does not reflect your overall qualifications or potential.',
+                      style: TextStyle(fontSize: 14, color: Color(0xFF475569), height: 1.65),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Status chip
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF1F1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFFECACA)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.cancel_outlined, size: 20, color: Color(0xFFDC2626)),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Application Status: Not Selected',
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFFDC2626)),
+                              ),
+                              Text(
+                                'Updated $updateDate',
+                                style: const TextStyle(fontSize: 11, color: Color(0xFFEF4444)),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    Text(
+                      'Do not stop here — keep moving forward:',
+                      style: GoogleFonts.poppins(
+                        fontSize: 14, fontWeight: FontWeight.w800,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildPrepItem(1, 'Update your profile',
+                        'Add new skills, certifications, or accomplishments to strengthen your profile and stand out in future applications.'),
+                    _buildPrepItem(2, 'Explore more job listings',
+                        'There are many more active vacancies on PESO right now — a new opportunity is waiting for you.'),
+                    _buildPrepItem(3, 'Attend PESO Job Fair events',
+                        'Meet employers in person and make a lasting impression at our upcoming events this month.'),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+            ],
+          ),
         ),
       ),
     );

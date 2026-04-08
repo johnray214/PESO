@@ -3,11 +3,71 @@
 namespace App\Http\Controllers\Api\Jobseeker;
 
 use App\Http\Controllers\Controller;
+use App\Models\Application;
 use App\Models\NotificationRead;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class JobseekerNotificationController extends Controller
 {
+    private function hydrateInterviewMetaFromApplication(NotificationRead $notificationRead): void
+    {
+        $notification = $notificationRead->notification;
+        if (! $notification) return;
+
+        $type = $notification->type ?? null;
+
+        // ── Interview backfill ───────────────────────────────────────────────
+        if ($type === 'status_interview' && empty($notification->meta)) {
+            $jobListingId = $notification->job_listing_id;
+            if (! $jobListingId) return;
+
+            $app = Application::where('job_listing_id', $jobListingId)
+                ->where('jobseeker_id', $notificationRead->recipient_id)
+                ->first();
+            if (! $app) return;
+
+            $notification->meta = [
+                'interview_date'     => ! empty($app->interview_date) ? Carbon::parse($app->interview_date)->format('F d, Y') : 'TBA',
+                'interview_time'     => ! empty($app->interview_time) ? Carbon::parse($app->interview_time)->format('h:i A') : 'TBA',
+                'interview_format'   => $app->interview_format ?: 'In-person',
+                'interview_location' => $app->interview_location ?: 'TBA',
+                'interviewer_name'   => $app->interviewer_name ?: 'Hiring Manager',
+            ];
+        }
+
+        // ── Hired backfill ───────────────────────────────────────────────────
+        if ($type === 'status_hired' && empty($notification->meta)) {
+            $jobListingId = $notification->job_listing_id;
+            if (! $jobListingId) return;
+
+            $jobListing = $notification->jobListing;
+            if (! $jobListing) return;
+
+            $notification->meta = [
+                'job_title'       => $jobListing->title ?? 'N/A',
+                'company_name'    => $jobListing->employer->company_name ?? 'N/A',
+                'start_date'      => 'To be discussed',
+                'salary'          => $jobListing->salary_range ?? 'Negotiable',
+                'employment_type' => $jobListing->job_type ?? 'Full-time',
+            ];
+        }
+
+        // ── Rejected backfill ────────────────────────────────────────────────
+        if ($type === 'status_rejected' && empty($notification->meta)) {
+            $jobListing = $notification->jobListing;
+            if (! $jobListing) return;
+
+            $notification->meta = [
+                'job_title'    => $jobListing->title ?? 'N/A',
+                'company_name' => $jobListing->employer->company_name ?? 'N/A',
+                'update_date'  => $notification->created_at
+                    ? Carbon::parse($notification->created_at)->format('F d, Y')
+                    : now()->format('F d, Y'),
+            ];
+        }
+    }
+
     public function index(Request $request)
     {
         $jobseeker = $request->user();
@@ -31,6 +91,14 @@ class JobseekerNotificationController extends Controller
 
         $notifications = $query->orderByDesc('created_at')->paginate(15);
 
+        // Backfill interview schedule details for older notifications that have no meta.
+        $notifications->getCollection()->transform(function ($nr) {
+            if ($nr instanceof NotificationRead) {
+                $this->hydrateInterviewMetaFromApplication($nr);
+            }
+            return $nr;
+        });
+
         return response()->json([
             'success' => true,
             'data' => $notifications,
@@ -45,6 +113,8 @@ class JobseekerNotificationController extends Controller
             ->where('recipient_id', $jobseeker->id)
             ->with('notification')
             ->findOrFail($id);
+
+        $this->hydrateInterviewMetaFromApplication($notificationRead);
         
         // Mark as read when viewed
         $notificationRead->markAsRead();

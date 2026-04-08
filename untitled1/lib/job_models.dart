@@ -209,16 +209,22 @@ class CompanyLogoBox extends StatelessWidget {
     final path = job.companyPhotoPath;
     final url = ApiService.storageOrAbsoluteUrl(path) ?? '';
     final radius = borderRadius ?? size / 2;
+    final hasLogo = url.isNotEmpty;
 
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [job.companyColor, job.companyColor.withOpacity(0.75)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        // When we have an employer logo, use a solid background so that
+        // transparent PNGs don't show the placeholder gradient behind them.
+        color: hasLogo ? Colors.white : null,
+        gradient: hasLogo
+            ? null
+            : LinearGradient(
+                colors: [job.companyColor, job.companyColor.withOpacity(0.75)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
         borderRadius: BorderRadius.circular(radius),
         boxShadow: boxShadow ??
             [
@@ -230,7 +236,7 @@ class CompanyLogoBox extends StatelessWidget {
             ],
       ),
       clipBehavior: Clip.antiAlias,
-      child: url.isNotEmpty
+      child: hasLogo
           ? Image.network(
               url,
               fit: BoxFit.cover,

@@ -105,6 +105,11 @@ class EmployerApplicationController extends Controller
         $validated = $request->validate([
             'status'     => ['required', Rule::in(['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'])],
             'start_date' => ['nullable', 'date'],
+            'interview_date' => ['nullable', 'date'],
+            'interview_time' => ['nullable'],
+            'interview_format' => ['nullable', 'string', 'max:255'],
+            'interview_location' => ['nullable', 'string', 'max:255'],
+            'interviewer_name' => ['nullable', 'string', 'max:255'],
         ]);
 
         $application = Application::whereHas('jobListing', function ($q) use ($employer) {
@@ -115,6 +120,49 @@ class EmployerApplicationController extends Controller
         $application->update($validated);
 
         $newStatus = $application->status;
+
+        // Always persist interview schedule details whenever the application is in interview status.
+        // (Employers may resend/update the schedule while keeping status == interview.)
+        if ($application->status === 'interview') {
+            $rawInterviewDate = $request->input('interview_date');
+            $rawInterviewTime = $request->input('interview_time');
+
+            if ($rawInterviewDate !== null) {
+                $parsedDate = null;
+                if (! empty($rawInterviewDate)) {
+                    try {
+                        $parsedDate = \Carbon\Carbon::parse($rawInterviewDate)->toDateString();
+                    } catch (\Throwable $e) {
+                        $parsedDate = null;
+                    }
+                }
+                $application->interview_date = $parsedDate;
+            }
+
+            if ($rawInterviewTime !== null) {
+                $parsedTime = null;
+                if (! empty($rawInterviewTime)) {
+                    try {
+                        $parsedTime = \Carbon\Carbon::parse($rawInterviewTime)->format('H:i:s');
+                    } catch (\Throwable $e) {
+                        $parsedTime = null;
+                    }
+                }
+                $application->interview_time = $parsedTime;
+            }
+
+            if ($request->has('interview_format')) {
+                $application->interview_format = $request->input('interview_format') ?: null;
+            }
+            if ($request->has('interview_location')) {
+                $application->interview_location = $request->input('interview_location') ?: null;
+            }
+            if ($request->has('interviewer_name')) {
+                $application->interviewer_name = $request->input('interviewer_name') ?: null;
+            }
+
+            $application->save();
+        }
 
         // Only notify when status actually changes
         if ($newStatus !== $oldStatus) {
@@ -162,8 +210,15 @@ class EmployerApplicationController extends Controller
                     break;
                 case 'interview':
                     $subject = 'Interview Scheduled';
-                    $message = "You have been scheduled for an interview for the **{$job->title}** position at **{$company}**. Please check your email for the full details of the schedule.";
+                    $message = "You have been scheduled for an interview for the **{$job->title}** position at **{$company}**.";
                     $type = 'status_interview';
+                    $interviewMeta = [
+                        'interview_date'     => ! empty($application->interview_date) ? \Carbon\Carbon::parse($application->interview_date)->format('F d, Y') : 'TBA',
+                        'interview_time'     => ! empty($application->interview_time) ? \Carbon\Carbon::parse($application->interview_time)->format('h:i A') : 'TBA',
+                        'interview_format'   => $application->interview_format ?: 'In-person',
+                        'interview_location' => $application->interview_location ?: 'TBA',
+                        'interviewer_name'   => $application->interviewer_name ?: 'Hiring Manager',
+                    ];
 
                     try {
                         $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
@@ -179,11 +234,11 @@ class EmployerApplicationController extends Controller
                                         'first_name' => $jobseeker->first_name,
                                         'company_name' => $company,
                                         'job_title' => $job->title,
-                                        'interview_date' => !empty($request->input('interview_date')) ? \Carbon\Carbon::parse($request->input('interview_date'))->format('F d, Y') : 'TBA',
-                                        'interview_time' => !empty($request->input('interview_time')) ? \Carbon\Carbon::parse($request->input('interview_time'))->format('h:i A') : 'TBA',
-                                        'interview_format' => $request->input('interview_format') ?? 'In-person',
-                                        'interview_location' => $request->input('interview_location') ?? 'TBA',
-                                        'interviewer_name' => $request->input('interviewer_name') ?? 'Hiring Manager'
+                                        'interview_date' => $interviewMeta['interview_date'],
+                                        'interview_time' => $interviewMeta['interview_time'],
+                                        'interview_format' => $interviewMeta['interview_format'],
+                                        'interview_location' => $interviewMeta['interview_location'],
+                                        'interviewer_name' => $interviewMeta['interviewer_name'],
                                     ]
                                 ]
                             ]
@@ -200,6 +255,14 @@ class EmployerApplicationController extends Controller
                     $subject = 'Congratulations — You are Hired!';
                     $message = "Outstanding! You have been officially hired for **{$job->title}** at **{$company}**. Welcome to the team!";
                     $type = 'status_hired';
+
+                    $hiredMeta = [
+                        'job_title'       => $job->title,
+                        'company_name'    => $company,
+                        'start_date'      => !empty($request->input('start_date')) ? \Carbon\Carbon::parse($request->input('start_date'))->format('F d, Y') : 'To be discussed',
+                        'salary'          => $job->salary_range ?? 'Negotiable',
+                        'employment_type' => $job->job_type ?? 'Full-time',
+                    ];
 
                     try {
                         $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
@@ -243,6 +306,12 @@ class EmployerApplicationController extends Controller
                     $message = "Thank you for your interest in the **{$job->title}** position at **{$company}**. Unfortunately, the employer has decided not to proceed with your application at this time.";
                     $type = 'status_rejected';
 
+                    $rejectedMeta = [
+                        'job_title'    => $job->title,
+                        'company_name' => $company,
+                        'update_date'  => now()->format('F d, Y'),
+                    ];
+
                     try {
                         $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
                         $body = [
@@ -281,6 +350,7 @@ class EmployerApplicationController extends Controller
                 'message'        => $message,
                 'type'           => $type,
                 'job_listing_id' => $job->id,
+                'meta'           => $interviewMeta ?? $hiredMeta ?? $rejectedMeta ?? null,
                 'recipients'     => 'jobseekers',
                 'scheduled_at'   => null,
                 'sent_at'        => now(),

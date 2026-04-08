@@ -33,6 +33,7 @@ use App\Http\Controllers\Api\Admin\AdminJobseekerDocumentController;
 use App\Http\Controllers\Api\Public\PublicEventController;
 use App\Http\Controllers\Api\Public\PublicMapController;
 use App\Http\Controllers\Api\Public\PublicSkillsController;
+use App\Http\Controllers\Api\Public\PublicStorageController;
 
 // Employer Controllers
 use App\Http\Controllers\Api\Employer\EmployerDashboardController;
@@ -96,6 +97,10 @@ Route::get('/public/events/{id}', [PublicEventController::class, 'show']);
 
 // Public Map endpoints (used by mobile app Map tab)
 Route::get('/public/map/employers', [PublicMapController::class, 'employers']);
+
+// Public storage proxy (for employer company photos, supports private R2 buckets)
+Route::get('/public/storage/{path}', [PublicStorageController::class, 'show'])
+    ->where('path', '.*');
 
 // Public Skills Catalog (used by jobseekers to pick skills)
 Route::get('/public/skills', [PublicSkillsController::class, 'index']);
