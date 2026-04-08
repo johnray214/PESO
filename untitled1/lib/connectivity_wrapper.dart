@@ -155,7 +155,7 @@ class _NoInternetModal extends StatelessWidget {
       color: Colors.black54,
       child: Center(
         child: Container(
-          width: MediaQuery.of(context).size.width * 0.85,
+          width: MediaQuery.sizeOf(context).width * 0.85,
           padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
             color: Colors.white,

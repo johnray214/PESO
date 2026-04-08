@@ -1,6 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'api_service.dart';
 import 'user_session.dart';
@@ -20,12 +21,15 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   // High Importance Channel for Android
-  final AndroidNotificationChannel _channel = const AndroidNotificationChannel(
-    'high_importance_channel', // id
-    'High Importance Notifications', // title
-    description: 'This channel is used for important weight notifications.', // description
+  final AndroidNotificationChannel _channel = AndroidNotificationChannel(
+    'ding_alerts_v2', // id
+    'Ding Alerts', // title
+    description: 'Notification channel with ding sound for in-app alerts.', // description
     importance: Importance.high,
     playSound: true,
+    sound: RawResourceAndroidNotificationSound('ding'),
+    enableVibration: true,
+    vibrationPattern: Int64List.fromList([0, 200, 120, 250]),
   );
 
   static void addListener(void Function() listener) {
@@ -51,9 +55,12 @@ class NotificationService {
       // 1. Initialize Local Notifications
       const AndroidInitializationSettings initializationSettingsAndroid =
           AndroidInitializationSettings('@mipmap/ic_launcher'); // Using your launcher icon
+      const DarwinInitializationSettings initializationSettingsDarwin =
+          DarwinInitializationSettings();
       
       const InitializationSettings initializationSettings = InitializationSettings(
         android: initializationSettingsAndroid,
+        iOS: initializationSettingsDarwin,
       );
 
       await _localNotifications.initialize(
@@ -71,24 +78,18 @@ class NotificationService {
       await _localNotifications
           .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(_channel);
+      
+      // Ensure iOS shows alert/sound while app is in foreground.
+      await _fcm.setForegroundNotificationPresentationOptions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
 
       // 3. Set up the foreground message listener (Step 12)
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         print("🔔 FCM: Notification received: ${message.notification?.title}");
-        
-        // Helper for a deep, sustained buzz (Bzzzzzz...)
-        Future<void> longBuzz() async {
-          for (int i = 0; i < 4; i++) {
-             await HapticFeedback.vibrate();
-             await Future.delayed(const Duration(milliseconds: 50));
-          }
-        }
-        
-        // Trigger a premium "Sustained Double Pulse" for in-app awareness
-        longBuzz().then((_) {
-          Future.delayed(const Duration(milliseconds: 400), () => longBuzz());
-        });
-        
+
         _showLocalNotification(message);
         
         _notifyListeners();
@@ -162,9 +163,8 @@ class NotificationService {
   // Show a local notification for foreground messages
   Future<void> _showLocalNotification(RemoteMessage message) async {
     RemoteNotification? notification = message.notification;
-    AndroidNotification? android = message.notification?.android;
 
-    if (notification != null && android != null) {
+    if (notification != null) {
       _localNotifications.show(
         id: notification.hashCode,
         title: notification.title,
@@ -178,6 +178,14 @@ class NotificationService {
             priority: Priority.high,
             icon: '@mipmap/ic_launcher',
             playSound: true,
+            sound: const RawResourceAndroidNotificationSound('ding'),
+            enableVibration: true,
+            vibrationPattern: Int64List.fromList([0, 200, 120, 250]),
+          ),
+          iOS: const DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
           ),
         ),
       );

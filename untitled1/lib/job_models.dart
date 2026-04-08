@@ -54,6 +54,15 @@ class Job {
     this.isUrgent = false,
   });
 
+  String get salaryDisplay {
+    final min = salaryMin.trim();
+    final max = salaryMax.trim();
+    if (min.isEmpty && max.isEmpty) return 'Not specified';
+    if (min.isEmpty) return max;
+    if (max.isEmpty || min == max) return min;
+    return '$min - $max';
+  }
+
   factory Job.fromJson(Map<String, dynamic> json) {
     // Supports both old app JSON and current Laravel JobListing shape.
     // Laravel returns `employer: { company_name }`, `skills: [{skill}]`,
@@ -531,7 +540,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     final job = widget.job;
     final isSaved = _jobActionService.isSaved(job.id);
     final isApplied = _jobActionService.isApplied(job.id);
-    final bottomPad = MediaQuery.of(context).padding.bottom;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
     final deadlineText = formatJobDeadlineDate(job.deadline);
     final slotsText = (job.slots ?? 0) > 0 ? '${job.slots}' : '—';
     final userSkillsLower =
@@ -942,7 +951,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
               child: _buildDetailCell(
                 icon: Icons.payments_outlined,
                 label: 'Salary Range',
-                value: '${job.salaryMin} – ${job.salaryMax}',
+                value: job.salaryDisplay,
                 color: const Color(0xFF10B981),
               ),
             ),

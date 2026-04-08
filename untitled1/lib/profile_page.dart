@@ -647,7 +647,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     {'name': 'Tertiary Graduate', 'code': 'Tertiary Graduate'},
   ];
   bool _isSaving = false;
-  List<int>? _avatarBytes;
+  Uint8List? _avatarUint8List;
   Uint8List? _pickedImageBytes;
   bool _isLoadingLocations = false;
   bool _updatingLocation = false; // Concurrency guard
@@ -708,7 +708,9 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     final token = UserSession().token;
     if (token == null || UserSession().avatarPath == null) return;
     final bytes = await ApiService.getAvatarBytes(token);
-    if (mounted) setState(() => _avatarBytes = bytes);
+    if (mounted) setState(() {
+      _avatarUint8List = bytes != null ? Uint8List.fromList(bytes) : null;
+    });
   }
 
   Future<void> _pickImage() async {
@@ -970,10 +972,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               },
               child: Container(
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.85,
                 ),
                 padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                  bottom: MediaQuery.viewInsetsOf(ctx).bottom,
                 ),
                 decoration: const BoxDecoration(
                   color: Colors.white,
@@ -1285,12 +1287,13 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                             height: 100,
                                             fit: BoxFit.cover,
                                           )
-                                        : _avatarBytes != null && _avatarBytes!.isNotEmpty
+                                        : _avatarUint8List != null && _avatarUint8List!.isNotEmpty
                                             ? Image.memory(
-                                                Uint8List.fromList(_avatarBytes!),
+                                                _avatarUint8List!,
                                                 width: 100,
                                                 height: 100,
                                                 fit: BoxFit.cover,
+                                                gaplessPlayback: true,
                                               )
                                             : Center(
                                                 child: Text(
@@ -2265,6 +2268,25 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
   String? _errorMessage;
   final _jobActionService = JobActionService();
 
+  String _savedDateLabel(DateTime date) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    final month = months[date.month - 1];
+    return 'Saved $month/${date.day}/${date.year}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -2312,7 +2334,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
         final createdAt =
             DateTime.tryParse(map['created_at'] as String? ?? '') ??
                 DateTime.now();
-        final savedDate = 'Saved ${createdAt.month}/${createdAt.day}/${createdAt.year}';
+        final savedDate = _savedDateLabel(createdAt);
 
         items.add(_SavedJob(job: job, savedDate: savedDate));
       }
@@ -2644,7 +2666,7 @@ class _SavedJobCard extends StatelessWidget {
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
-                        '${job.salaryMin} – ${job.salaryMax}',
+                        job.salaryDisplay,
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,

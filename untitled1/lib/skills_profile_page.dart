@@ -2037,7 +2037,7 @@ class _MatchedJobCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '${job.salaryMin} - ${job.salaryMax}',
+                          job.salaryDisplay,
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

@@ -1003,10 +1003,10 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
               },
               child: Container(
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.85,
                 ),
                 padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                  bottom: MediaQuery.viewInsetsOf(ctx).bottom,
                 ),
                 decoration: const BoxDecoration(
                   color: Colors.white,

@@ -961,7 +961,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
     return Scaffold(
       resizeToAvoidBottomInset: false,
       extendBody: true,
@@ -985,112 +985,112 @@ class _HomePageState extends State<HomePage> {
           Positioned(
             right: 20,
             bottom: bottomPadding + 92,
-            child: Visibility(
-              visible: _selectedIndex == 0,
-              maintainState: true,
-              maintainAnimation: true,
-              maintainSize: false,
-              child: FutureBuilder<Map<String, dynamic>>(
-                future: _eventsFuture,
-                builder: (context, snapshot) {
-                  final count = snapshot.hasData &&
-                          snapshot.data!['success'] == true &&
-                          snapshot.data!['data'] != null
-                      ? _parseEventsPayload(snapshot.data!).length
-                      : 0;
-                  if (snapshot.connectionState == ConnectionState.done &&
-                      snapshot.hasData &&
-                      snapshot.data!['success'] == true) {
-                    if (_lastSeenEventCount != count) {
-                      final prev = _lastSeenEventCount;
-                      _lastSeenEventCount = count;
-                      if (prev >= 0 && count > prev) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) _pulseEventsFab();
-                        });
+              child: Visibility(
+                visible: _selectedIndex == 0,
+                maintainState: true,
+                maintainAnimation: true,
+                maintainSize: false,
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: _eventsFuture,
+                  builder: (context, snapshot) {
+                    final count = snapshot.hasData &&
+                            snapshot.data!['success'] == true &&
+                            snapshot.data!['data'] != null
+                        ? _parseEventsPayload(snapshot.data!).length
+                        : 0;
+                    if (snapshot.connectionState == ConnectionState.done &&
+                        snapshot.hasData &&
+                        snapshot.data!['success'] == true) {
+                      if (_lastSeenEventCount != count) {
+                        final prev = _lastSeenEventCount;
+                        _lastSeenEventCount = count;
+                        if (prev >= 0 && count > prev) {
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) _pulseEventsFab();
+                          });
+                        }
                       }
                     }
-                  }
-                  return AnimatedScale(
-                    scale: _fabPulseScale,
-                    duration: const Duration(milliseconds: 240),
-                    curve: Curves.easeOutBack,
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _showEventsSheet,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF2563EB),
-                                    Color(0xFF1D4ED8)
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF2563EB)
-                                        .withOpacity(0.4),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: const Icon(
-                                Icons.event_rounded,
-                                color: Colors.white,
-                                size: 28,
-                              ),
-                            ),
-                            if (count > 0)
-                              Positioned(
-                                top: -4,
-                                right: -4,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(12),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: Colors.black.withOpacity(0.2),
-                                        blurRadius: 4,
-                                        offset: const Offset(0, 2),
-                                      ),
+                    return AnimatedScale(
+                      scale: _fabPulseScale,
+                      duration: const Duration(milliseconds: 240),
+                      curve: Curves.easeOutBack,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: _showEventsSheet,
+                          borderRadius: BorderRadius.circular(16),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFF2563EB),
+                                      Color(0xFF1D4ED8)
                                     ],
                                   ),
-                                  constraints:
-                                      const BoxConstraints(minWidth: 24),
-                                  child: Text(
-                                    count > 99 ? '99+' : '$count',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
+                                  borderRadius: BorderRadius.circular(16),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF2563EB)
+                                          .withOpacity(0.4),
+                                      blurRadius: 16,
+                                      offset: const Offset(0, 6),
                                     ),
-                                    textAlign: TextAlign.center,
-                                  ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.event_rounded,
+                                  color: Colors.white,
+                                  size: 28,
                                 ),
                               ),
-                          ],
+                              if (count > 0)
+                                Positioned(
+                                  top: -4,
+                                  right: -4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.2),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    constraints:
+                                        const BoxConstraints(minWidth: 24),
+                                    child: Text(
+                                      count > 99 ? '99+' : '$count',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
-          ),
         ],
       ),
     );
@@ -1700,7 +1700,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
-            final sheetHeight = (MediaQuery.of(ctx).size.height * 0.78)
+            final sheetHeight = (MediaQuery.sizeOf(ctx).height * 0.78)
                 .clamp(480.0, 680.0)
                 .toDouble();
             return Container(
@@ -2052,11 +2052,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     }
 
     final jobs = _filteredJobs;
-    final topPadding = MediaQuery.of(context).padding.top;
+    final topPadding = MediaQuery.paddingOf(context).top;
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
-      resizeToAvoidBottomInset:
-          false, // Prevents squashing the header when keyb is up
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         top: false,
         left: false,
@@ -2472,7 +2471,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             ? ListView(
                                 children: [
                                   SizedBox(
-                                    height: MediaQuery.of(context).size.height *
+                                    height: MediaQuery.sizeOf(context).height *
                                         0.35,
                                     child: Center(
                                       child: Column(
@@ -2514,7 +2513,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   left: 20,
                                   right: 20,
                                   bottom:
-                                      MediaQuery.of(context).padding.bottom +
+                                      MediaQuery.paddingOf(context).bottom +
                                           96,
                                 ),
                                 itemCount: jobs.length,
@@ -2808,7 +2807,7 @@ class _JobCardState extends State<_JobCard> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          '${job.salaryMin} - ${job.salaryMax}',
+                          job.salaryDisplay,
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w800,
@@ -3379,7 +3378,7 @@ class _MapTabState extends State<MapTab> {
 
           if (_errorMessage != null)
             Positioned(
-              top: MediaQuery.of(context).padding.top + 72,
+              top: MediaQuery.paddingOf(context).top + 72,
               left: 16,
               right: 16,
               child: Material(
@@ -3533,7 +3532,7 @@ class _MapTabState extends State<MapTab> {
                 // Business Cards List
                 Padding(
                   padding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).padding.bottom + 80),
+                      bottom: MediaQuery.paddingOf(context).bottom + 80),
                   child: SizedBox(
                     height: 160,
                     child: ListView.builder(
@@ -3748,7 +3747,7 @@ class _MapTabState extends State<MapTab> {
           // Center on user button
           Positioned(
             right: 16,
-            bottom: MediaQuery.of(context).padding.bottom + 260,
+            bottom: MediaQuery.paddingOf(context).bottom + 260,
             child: FloatingActionButton(
               // Unique tag — default FAB Hero tags collide with other routes' FABs
               // (e.g. Notifications "Delete all") during pop transitions, causing morphs.
@@ -3766,7 +3765,7 @@ class _MapTabState extends State<MapTab> {
             Positioned(
               left: 16,
               right: 16,
-              bottom: MediaQuery.of(context).padding.bottom + 250,
+              bottom: MediaQuery.paddingOf(context).bottom + 250,
               child: _BusinessPopupCard(
                 business: _selectedBusiness!,
                 onClose: () => setState(() => _selectedBusiness = null),
@@ -4352,7 +4351,7 @@ class _JobListItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${job.salaryMin} - ${job.salaryMax} • ${job.employmentType}',
+                        '${job.salaryDisplay} • ${job.employmentType}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Color(0xFF64748B),

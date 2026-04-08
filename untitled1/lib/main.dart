@@ -502,7 +502,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final size = MediaQuery.sizeOf(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -897,7 +897,6 @@ class _AuthEntryPageState extends State<AuthEntryPage>
     final h = MediaQuery.sizeOf(context).height;
     // Keep Sign in / Create account pinned to the physical bottom; do not resize
     // the scaffold when the keyboard opens (avoids those buttons riding up).
-    final keyboardPad = MediaQuery.viewInsetsOf(context).bottom;
 
     final headerFade = CurvedAnimation(
       parent: _ctrl,
@@ -916,6 +915,8 @@ class _AuthEntryPageState extends State<AuthEntryPage>
     );
 
     return Scaffold(
+      // Keep auth hero/header and form shell fixed while keyboard animates.
+      // The form itself is scrollable, so fields remain usable without full-page jump.
       resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
@@ -1081,7 +1082,7 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                                           4,
                                           6,
                                           4,
-                                          20 + keyboardPad,
+                                          20,
                                         ),
                                         child: LoginModal(
                                           key: ValueKey<bool>(_isSignUpMode),
@@ -1144,7 +1145,7 @@ class _WelcomePageState extends State<WelcomePage>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final size = MediaQuery.sizeOf(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -2280,19 +2281,26 @@ class _LoginModalState extends State<LoginModal>
   Future<void> _showForgotPasswordDialog() async {
     final emailCtrl = TextEditingController(text: _emailController.text.trim());
     var sending = false;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            return AlertDialog(
+    void closeDialogSafely(BuildContext dialogContext) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      if (!dialogContext.mounted) return;
+      Navigator.of(dialogContext).pop();
+    }
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setLocal) {
+              return AlertDialog(
               title: const Text('Forgot password'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Enter your registered email. We’ll send a link to reset your password for PESO Connect (same server as the API).',
+                    'Enter your registered email. We’ll send a link to reset your password for PESO Connect.',
                     style: TextStyle(
                         fontSize: 13.5, height: 1.35, color: Color(0xFF64748B)),
                   ),
@@ -2311,7 +2319,7 @@ class _LoginModalState extends State<LoginModal>
               ),
               actions: [
                 TextButton(
-                  onPressed: sending ? null : () => Navigator.of(ctx).pop(),
+                  onPressed: sending ? null : () => closeDialogSafely(ctx),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
@@ -2335,7 +2343,7 @@ class _LoginModalState extends State<LoginModal>
                           if (!ctx.mounted) return;
                           // Do not call setLocal before pop: rebuilding StatefulBuilder while
                           // closing the route can assert in InheritedWidget disposal.
-                          Navigator.of(ctx).pop();
+                          closeDialogSafely(ctx);
                           if (!mounted) return;
                           final ok = res['success'] == true;
                           String msg;
@@ -2374,12 +2382,18 @@ class _LoginModalState extends State<LoginModal>
                   child: Text(sending ? 'Sending…' : 'Send link'),
                 ),
               ],
-            );
-          },
-        );
-      },
-    );
-    emailCtrl.dispose();
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      // Defer disposal one frame so the dialog TextField fully detaches
+      // before controller teardown (prevents close-time crashes with keyboard up).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        emailCtrl.dispose();
+      });
+    }
   }
 
   void _startOtpReopenCooldown([int seconds = 3]) {
@@ -2542,7 +2556,7 @@ class _LoginModalState extends State<LoginModal>
     final content = SingleChildScrollView(
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          bottom: 24,
           left: 24,
           right: 24,
           top: widget.renderAsModal ? 16 : 4,
@@ -3259,6 +3273,7 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
         _statusNote = 'Email verified successfully. Redirecting...';
         _statusIsWarning = false;
       });
+      FocusManager.instance.primaryFocus?.unfocus();
       Navigator.of(context, rootNavigator: true).pop(res);
       return;
     }
@@ -3281,59 +3296,69 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFD6DFEE)),
         ),
-        child: Column(
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            Opacity(
-              opacity: 0.0,
-              child: SizedBox(
-                height: 0,
-                child: TextField(
-                  controller: _otpController,
-                  focusNode: _otpFocusNode,
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.done,
+            Positioned.fill(
+              child: TextField(
+                controller: _otpController,
+                focusNode: _otpFocusNode,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                enableInteractiveSelection: false,
+                cursorColor: Colors.transparent,
+                style: const TextStyle(color: Colors.transparent),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  counterText: '',
+                  contentPadding: EdgeInsets.zero,
                 ),
+                maxLength: 6,
+                onTapOutside: (_) => FocusScope.of(context).unfocus(),
               ),
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(6, (index) {
-                final hasChar = index < code.length;
-                final isActive = isFocused &&
-                    (index == code.length || (code.length == 6 && index == 5));
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 40,
-                  height: 50,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isActive
-                          ? const Color(0xFF4F67A9)
-                          : const Color(0xFFD7E0EF),
-                      width: isActive ? 2 : 1.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withOpacity(0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+            IgnorePointer(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(6, (index) {
+                  final hasChar = index < code.length;
+                  final isActive = isFocused &&
+                      (index == code.length || (code.length == 6 && index == 5));
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 40,
+                    height: 50,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isActive
+                            ? const Color(0xFF4F67A9)
+                            : const Color(0xFFD7E0EF),
+                        width: isActive ? 2 : 1.2,
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    hasChar ? code[index] : '',
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: Color(0xFF111827),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                  ),
-                );
-              }),
+                    child: Text(
+                      hasChar ? code[index] : '',
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                  );
+                }),
+              ),
             ),
           ],
         ),
@@ -3469,14 +3494,19 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return WillPopScope(
+      onWillPop: () async {
+        FocusManager.instance.primaryFocus?.unfocus();
+        return true;
+      },
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             const Text(
               'Verify your email',
               style: TextStyle(
@@ -3549,8 +3579,10 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                     TextButton(
                       onPressed: _isVerifying
                           ? null
-                          : () =>
-                              Navigator.of(context, rootNavigator: true).pop(),
+                          : () {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              Navigator.of(context, rootNavigator: true).pop();
+                            },
                       child: const Text('Cancel'),
                     ),
                     FilledButton(
@@ -3561,7 +3593,8 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -3945,7 +3978,7 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
     };
 
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 20,
+      top: MediaQuery.paddingOf(context).top + 20,
       right: 20,
       child: SlideTransition(
         position: _offsetAnimation,
@@ -3955,7 +3988,7 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
             color: Colors.transparent,
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: math.min(MediaQuery.of(context).size.width - 40, 320.0),
+                maxWidth: math.min(MediaQuery.sizeOf(context).width - 40, 320.0),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
