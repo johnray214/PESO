@@ -6,7 +6,26 @@ import 'user_session.dart';
 
 class ApiService {
   static const String baseUrl =
-      'https://newpesobackend-production.up.railway.app/api';
+      'http://192.168.1.161:8000/api';
+
+  /// True when [baseUrl] points at a machine-local / emulator-typical host.
+  ///
+  /// Connection failures here mean "API unreachable" (wrong host on emulator,
+  /// backend stopped, etc.), not loss of internet — so the global offline modal
+  /// should not treat them as "no Wi‑Fi / no internet".
+  static bool get isTargetingLocalDevHost {
+    final uri = Uri.tryParse(baseUrl);
+    if (uri == null) return false;
+    final host = uri.host.toLowerCase();
+    if (host == 'localhost' || host == '127.0.0.1' || host == '::1') {
+      return true;
+    }
+    // Android emulator: host loopback maps here, not to 127.0.0.1 on device.
+    if (host == '10.0.2.2') return true;
+    // Common LAN dev (Laravel on another machine).
+    if (host.startsWith('192.168.')) return true;
+    return false;
+  }
 
   /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
   static String get apiOrigin {
@@ -63,11 +82,17 @@ class ApiService {
         e.toString().contains('Connection failed');
 
     if (isNetwork) {
-      onNetworkError?.call();
+      // Local API: "connection refused" / timeouts are almost never "no internet".
+      if (!isTargetingLocalDevHost) {
+        onNetworkError?.call();
+      }
       return {
         'success': false,
-        'message':
-            'No internet connection. Please check your network and try again.',
+        'message': isTargetingLocalDevHost
+            ? 'Cannot reach the server. On Android emulator use 10.0.2.2 '
+                'instead of 127.0.0.1, or use your PC\'s LAN IP — and ensure '
+                'the API is running.'
+            : 'No internet connection. Please check your network and try again.',
         'is_network_error': true,
       };
     }

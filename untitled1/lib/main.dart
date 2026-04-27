@@ -238,6 +238,12 @@ class _SplashScreenState extends State<SplashScreen>
       if (connectivityResult.isEmpty || connectivityResult.contains(ConnectivityResult.none)) {
         return false;
       }
+
+      // Local API debugging: LAN-only or blocked Google endpoints should not
+      // strand the user on the splash "offline" UI.
+      if (kDebugMode && ApiService.isTargetingLocalDevHost) {
+        return true;
+      }
       
       // Perform a gold-standard Captive Portal HTTP check.
       // E.g., filters out fake Wi-Fis or dead cellular data by expecting a literal '204 No Content'

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -20,9 +21,16 @@ class ConnectivityWrapper extends StatefulWidget {
 
 class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
   late StreamSubscription<List<ConnectivityResult>> _subscription;
+  Timer? _connectivityDebounce;
   bool _isShowingModal = false;
   bool _manualRetryLoading = false;
   int _shakeKey = 0;
+
+  /// In debug against a local API, skip the Google captive-portal probe — it
+  /// fails on LAN-only / firewalled dev machines and [onConnectivityChanged]
+  /// already fires often enough without adding false negatives.
+  bool get _skipExternalInternetProbe =>
+      kDebugMode && ApiService.isTargetingLocalDevHost;
 
   @override
   void initState() {
@@ -30,24 +38,8 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     // 1. Initial check
     _checkConnectivity();
 
-    // 2. Listen for changes
-    _subscription = Connectivity().onConnectivityChanged.listen((results) async {
-      final isOfflineResult = results.isEmpty || results.contains(ConnectivityResult.none);
-      
-      if (isOfflineResult) {
-        if (!_isShowingModal) _showModal();
-        return;
-      }
-      
-      // Even if results say we are 'connected' (Mobile/Wi-Fi), 
-      // check if data is actually flowing (Captive portal / No load check)
-      final hasActualInternet = await _checkActualInternet();
-      if (!hasActualInternet && !_isShowingModal) {
-        _showModal();
-      }
-      // Note: We deliberately DON'T auto-dismiss here anymore. 
-      // Option B ensures the user must manually hit 'Retry' to trigger a fresh re-sync to the splash.
-    });
+    // 2. Listen for changes (debounced — the stream can spam on some devices.)
+    _subscription = Connectivity().onConnectivityChanged.listen(_queueConnectivityCheck);
 
     // 3. Listen to ApiService explicit network failures (e.g. SocketException)
     ApiService.onNetworkError = () {
@@ -57,9 +49,37 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     };
   }
 
+  void _queueConnectivityCheck(List<ConnectivityResult> results) {
+    _connectivityDebounce?.cancel();
+    _connectivityDebounce = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) _applyConnectivityResults(results);
+    });
+  }
+
+  Future<void> _applyConnectivityResults(List<ConnectivityResult> results) async {
+    final isOfflineResult =
+        results.isEmpty || results.contains(ConnectivityResult.none);
+
+    if (isOfflineResult) {
+      if (!_isShowingModal) _showModal();
+      return;
+    }
+
+    if (_skipExternalInternetProbe) return;
+
+    final hasActualInternet = await _checkActualInternet();
+    if (!hasActualInternet && !_isShowingModal) {
+      _showModal();
+    }
+  }
+
   @override
   void dispose() {
+    _connectivityDebounce?.cancel();
     _subscription.cancel();
+    if (ApiService.onNetworkError != null) {
+      ApiService.onNetworkError = null;
+    }
     super.dispose();
   }
 
@@ -82,6 +102,8 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
       return;
     }
 
+    if (_skipExternalInternetProbe) return;
+
     final hasActualInternet = await _checkActualInternet();
     if (!hasActualInternet) {
       _showModal();
@@ -99,7 +121,9 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     // Artificial small delay for UX so it doesn't flicker too fast
     await Future.delayed(const Duration(milliseconds: 800));
 
-    final hasActualInternet = await _checkActualInternet();
+    final hasActualInternet = _skipExternalInternetProbe
+        ? true
+        : await _checkActualInternet();
 
     if (hasActualInternet) {
       // Clean up local state BEFORE navigating, so the modal doesn't persist.
