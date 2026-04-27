@@ -306,7 +306,7 @@
                 </div>
 
                 <div class="settings-footer">
-                  <button class="btn-ghost" @click="resetSettings">Cancel</button>
+                 
                   <button class="btn-amber" :disabled="savingSettings" @click="saveSettings">
                     <span v-if="savingSettings" class="spinner-sm"></span>
                     {{ savingSettings ? 'Saving…' : 'Save Changes' }}

@@ -11,6 +11,10 @@ export const employerApi = {
   updateJob: (id, data) => api.put(`/employer/jobs/${id}`, data),
   deleteJob: (id) => api.delete(`/employer/jobs/${id}`),
 
+  // Events
+  getEvents: (params) => api.get('/employer/events', { params }),
+  getEvent:  (id)     => api.get(`/employer/events/${id}`),
+
   // Applications
   getApplications: (params) => api.get('/employer/applications', { params }),
   /** PDF blob — use with employer token */
@@ -20,6 +24,7 @@ export const employerApi = {
   updateApplicationStatus: (id, status, extraData = {}) => api.patch(`/employer/applications/${id}/status`, { status, ...extraData }),
   getPotentialApplicants: (params) => api.get('/employer/potential-applicants', { params }),
   sendInvitation: (jobseekerId, jobListingId) => api.post(`/employer/invite/${jobseekerId}`, { job_listing_id: jobListingId }),
+  getApplicationHistory: (id) => api.get(`/employer/applications/${id}/history`),
 
   // Notifications
   getNotifications:       (params) => api.get('/employer/notifications', { params }),

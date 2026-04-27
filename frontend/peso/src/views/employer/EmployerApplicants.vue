@@ -22,7 +22,7 @@
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 <input v-model="search" type="text" :placeholder="activeTab === 'potential' ? 'Search by name or skill…' : 'Search by name, skill, position…'" class="search-input" @keyup.enter="applySearch"/>
               </div>
-              <button class="search-btn" @click="applySearch" :disabled="pageLoading">
+              <button type="button" class="search-btn" @click="applySearch" :disabled="pageLoading">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                 Search
               </button>
@@ -68,7 +68,7 @@
                   </template>
                   <template v-else>
                     <tr v-for="(a, index) in pagedApplicants" :key="a.id" class="table-row" @click="openDrawer(a)">
-                    <td @click.stop style="font-weight:600;color:#64748b;font-size:12px;padding-left:18px;">{{ (appliedPage - 1) * perPage + index + 1 }}</td>
+                    <td @click.stop style="font-weight:600;color:#64748b;font-size:12px;padding-left:18px;">{{ localTotal - ((localCurrentPage - 1) * perPage) - index }}</td>
                     <td><div class="person-cell"><div class="avatar" :style="{ background: a.avatarBg }">{{ a.name[0] }}</div><div><p class="person-name">{{ a.name }}</p><p class="person-meta">{{ a.location }}</p></div></div></td>
                     <td><div class="skill-tags"><span v-for="sk in a.skills.slice(0,2)" :key="sk" class="skill-tag">{{ sk }}</span><span v-if="a.skills.length > 2" class="skill-more">+{{ a.skills.length - 2 }}</span></div></td>
                     <td class="job-cell">{{ a.jobApplied }}</td>
@@ -126,15 +126,16 @@
             </div>
             <div class="table-card">
               <table class="data-table">
-                <thead><tr><th>Jobseeker</th><th>Matched Skills</th><th>Matches Your Listing</th><th>Skill Match Score</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>No.</th><th>Jobseeker</th><th>Matched Skills</th><th>Matches Your Listing</th><th>Skill Match Score</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                   <template v-if="pageLoading">
                     <tr v-for="i in 5" :key="'psk'+i">
-                      <td colspan="7" style="padding: 14px;"><div class="skeleton" style="height: 40px; width: 100%; border-radius: 8px;"></div></td>
+                      <td colspan="8" style="padding: 14px;"><div class="skeleton" style="height: 40px; width: 100%; border-radius: 8px;"></div></td>
                     </tr>
                   </template>
                   <template v-else>
-                      <tr v-for="a in pagedPotential" :key="a.name" class="table-row" style="cursor:pointer;" @click="openPotentialDrawer(a)">
+                      <tr v-for="(a, index) in pagedPotential" :key="a.name" class="table-row" style="cursor:pointer;" @click="openPotentialDrawer(a)">
+                      <td @click.stop style="font-weight:600;color:#64748b;font-size:12px;padding-left:18px;">{{ filteredPotential.length - ((potentialPage - 1) * perPage) - index }}</td>
                       <td><div class="person-cell"><div class="avatar" :style="{ background: a.color }">{{ a.name[0] }}</div><div><p class="person-name">{{ a.name }}</p><p class="person-meta">{{ a.education }}</p></div></div></td>
                       <td><div class="skill-tags"><span v-for="sk in a.skills" :key="sk" class="skill-tag matched-tag">{{ sk }}</span></div></td>
                       <td><div class="listing-match-cell"><div class="listing-bar" :style="{ background: a.jobColor }"></div><div><p class="person-name" style="font-size:12.5px">{{ a.bestFor }}</p><p class="person-meta">Active listing</p></div></div></td>
@@ -143,14 +144,17 @@
                       <td><span class="not-applied-badge"><span class="na-dot"></span>Not Applied</span></td>
                       <td><div class="action-btns">
                         <button class="act-btn view" @click.stop="openPotentialDrawer(a)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-                        <button class="act-btn invite-act" @click.stop="confirmSendInvite(a)" :disabled="a.invited">
-                          <svg v-if="!a.invited" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                          <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <button class="act-btn invite-act" @click.stop="confirmSendInvite(a)" :disabled="a.invited || a._inviting">
+                          <span v-if="a._inviting" class="spinner-action" style="width: 12px; height: 12px; border-width: 2px;"></span>
+                          <template v-else>
+                            <svg v-if="!a.invited" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                            <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                          </template>
                         </button>
                       </div></td>
                     </tr>
                     <tr v-if="pagedPotential.length === 0">
-                      <td colspan="7">
+                      <td colspan="8">
                         <div class="empty-state">
                           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                             <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M11 8v2"/><path d="M11 14h.01"/>
@@ -191,7 +195,7 @@
             <div class="match-bar-bg"><div class="match-bar-fill" :style="{ width: selected?.matchScore + '%', background: scoreColor(selected?.matchScore) }"></div></div>
           </div>
           <div class="drawer-tabs">
-            <button v-for="dt in (selected?._isPotential ? ['Profile'] : ['Profile', 'Resume', 'Status'])" :key="dt" :class="['dtab', { active: drawerTab === dt }]" @click="drawerTab = dt">{{ dt }}</button>
+            <button v-for="dt in (selected?._isPotential ? ['Profile'] : ['Profile', 'Resume', 'Status', 'History'])" :key="dt" :class="['dtab', { active: drawerTab === dt }]" @click="onDrawerTabChange(dt)">{{ dt }}</button>
           </div>
           <div class="drawer-body">
             <div v-if="drawerTab === 'Profile'">
@@ -256,6 +260,31 @@
                 {{ savingStatus ? 'Saving…' : 'Save Changes' }}
               </button>
             </div>
+
+            <!-- History Tab -->
+            <div v-if="drawerTab === 'History'">
+              <div v-if="historyLoading" class="history-loading">
+                <div v-for="i in 4" :key="i" class="skeleton" style="width:100%;height:56px;border-radius:10px;margin-bottom:10px;"></div>
+              </div>
+              <div v-else-if="history.length === 0" style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 16px;text-align:center;">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <p style="margin-top:12px;font-size:14px;color:#64748b;font-weight:600;">No activity yet</p>
+                <span style="font-size:12px;color:#94a3b8;">Events will appear here as this application progresses.</span>
+              </div>
+              <div v-else class="history-list">
+                <div v-for="log in history" :key="log.id" class="history-item">
+                  <div class="history-dot" :class="historyClass(log.action)"></div>
+                  <div class="history-content">
+                    <div class="history-top">
+                      <span class="history-action-chip" :class="historyClass(log.action)">{{ log.action }}</span>
+                      <span class="history-time">{{ formatDateTime(log.created_at) }}</span>
+                    </div>
+                    <div class="history-actor">by <strong>{{ log.actor_label }}</strong></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </div>
@@ -451,6 +480,7 @@ export default {
       localApplicants: [], localTotal: 0, localLastPage: 1, localCurrentPage: 1,
       drawerOpen: false, drawerTab: 'Profile', selected: null,
       openingResume: false,
+      history: [], historyLoading: false,
       hireModal: { show: false, applicant: null, startDate: '', companyName: '', salary: '', employmentType: '' },
       interviewModal: { show: false, applicant: null, date: '', time: '', format: 'In-person', location: '', interviewer: '' },
       confirmModal: { show: false, title: '', desc: '', icon: '', theme: 'blue', okHtml: '', onConfirm: null },
@@ -501,9 +531,7 @@ export default {
   },
   methods: {
     applySearch() {
-      this.filterStatus = ''
-      this.filterJob = ''
-      this.potentialJobFilter = ''
+      // Allow combined text and dropdown searching without resetting
       this.potentialSearchApplied = this.search
       this.localCurrentPage = 1
       this.potentialPage = 1
@@ -512,12 +540,16 @@ export default {
       } else {
         // simulate page loader for visual consistency on potential search
         this.pageLoading = true
-        setTimeout(() => { this.pageLoading = false }, 300)
+        setTimeout(() => { this.pageLoading = false }, 500)
       }
     },
     applyDropdownFilter() {
       this.search = ''
-      this.applySearch()
+      // Sync active tab with the selected status in dropdown
+      this.activeTab = this.filterStatus === '' ? 'all' : this.filterStatus
+      this.activeStatusTab = this.activeTab
+      this.localCurrentPage = 1
+      this.fetchLocalApplicants()
     },
     applyPotentialDropdownFilter() {
       this.search = ''
@@ -527,7 +559,7 @@ export default {
       setTimeout(() => {
         this.potentialPage = 1
         this.pageLoading = false
-      }, 300)
+      }, 400)
     },
 
     switchTab(tab) {
@@ -547,10 +579,9 @@ export default {
         this.filterJob = ''
         this.potentialJobFilter = ''
       }
-      // When switching status tabs within applied, also reset the dropdown filters
+      // When switching status tabs within applied, also reset the job dropdown filter
       if (!isSwitchingMainArea && tab !== 'potential') {
         this.search = ''
-        this.filterStatus = ''
         this.filterJob = ''
       }
 
@@ -630,7 +661,7 @@ export default {
     statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', Hired:'hired', Rejected:'rejected' }[s] || '' },
     scoreColor(v)  { return v >= 85 ? '#22c55e' : v >= 70 ? '#2872A1' : '#ef4444' },
     scoreBg(v)     { return v >= 85 ? '#f0fdf4' : v >= 70 ? '#eff8ff' : '#fef2f2' },
-    openDrawer(a)  { this.selected = { ...a }; this.drawerTab = 'Profile'; this.drawerOpen = true },
+    openDrawer(a)  { this.selected = { ...a }; this.drawerTab = 'Profile'; this.history = []; this.drawerOpen = true },
     openPotentialDrawer(a) {
       // Build a drawer-compatible object from the potential applicant
       this.selected = {
@@ -648,12 +679,51 @@ export default {
       this.drawerOpen = true
     },
 
+    historyClass(action) {
+      const a = (action || '').toLowerCase()
+      if (a.includes('invited'))   return 'invited'
+      if (a === 'reviewing')       return 'reviewing'
+      if (a === 'shortlisted')     return 'shortlisted'
+      if (a === 'interview')       return 'interview'
+      if (a === 'hired')           return 'hired'
+      if (a === 'rejected')        return 'rejected'
+      return 'default'
+    },
+
+    onDrawerTabChange(tab) {
+      this.drawerTab = tab
+      if (tab === 'History' && this.selected && !this.selected._isPotential) {
+        this.fetchHistory(this.selected.id)
+      }
+    },
+
+    async fetchHistory(applicationId) {
+      this.historyLoading = true
+      this.history = []
+      try {
+        const { data } = await employerApi.getApplicationHistory(applicationId)
+        this.history = data.data || []
+      } catch (e) {
+        console.error('fetchHistory error:', e)
+      } finally {
+        this.historyLoading = false
+      }
+    },
+
     formatDate(d) {
       if (!d) return '—'
       const datePart = d.includes('T') ? d.split('T')[0] : d
       const date = new Date(datePart + 'T00:00:00')
       if (isNaN(date.getTime())) return 'Invalid Date'
       return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+    },
+
+    formatDateTime(iso) {
+      if (!iso) return '—'
+      const d = new Date(iso)
+      if (isNaN(d.getTime())) return '—'
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+             ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     },
     formatTime(t) {
       if (!t) return '—'
@@ -837,8 +907,8 @@ export default {
     },
   },
   async mounted() {
-    // Load the store (for sidebar counts + potential applicants)
-    await this.applicantsStore.fetch()
+    // Force a fresh load of the store so potential applicants and counts are not stale
+    await this.applicantsStore.refresh()
     // Load the current page's applicants with server-side filtering
     await this.fetchLocalApplicants()
     this.isLoading = false
@@ -849,6 +919,8 @@ export default {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 * { box-sizing: border-box; margin: 0; padding: 0; }
+@keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+.skeleton { background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size: 400px 100%; animation: shimmer 1.4s infinite linear; }
 .layout-wrapper { display: flex; height: 100vh; overflow: hidden; background: #f8fafc; font-family: 'Plus Jakarta Sans', sans-serif; }
 .main-area { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .page { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px; min-height: 0; }
@@ -1116,4 +1188,31 @@ export default {
 @keyframes spin { to { transform: rotate(360deg); } }
 .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border: none !important; }
 @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* HISTORY */
+.history-list { display: flex; flex-direction: column; }
+.history-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid #f8fafc; }
+.history-item:last-child { border-bottom: none; }
+.history-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
+.history-dot.reviewing   { background: #3b82f6; }
+.history-dot.shortlisted { background: #2872A1; }
+.history-dot.interview   { background: #8b5cf6; }
+.history-dot.hired       { background: #22c55e; }
+.history-dot.rejected    { background: #ef4444; }
+.history-dot.invited     { background: #f59e0b; }
+.history-dot.default     { background: #94a3b8; }
+.history-content { flex: 1; }
+.history-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.history-action-chip { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.history-action-chip.reviewing   { background: #dbeafe; color: #1d4ed8; }
+.history-action-chip.shortlisted { background: #eff8ff; color: #2872A1; }
+.history-action-chip.interview   { background: #ede9fe; color: #8B5CF6; }
+.history-action-chip.hired       { background: #dcfce7; color: #16a34a; }
+.history-action-chip.rejected    { background: #fef2f2; color: #ef4444; }
+.history-action-chip.invited     { background: #fef3c7; color: #d97706; }
+.history-action-chip.default     { background: #f1f5f9; color: #64748b; }
+.history-time { font-size: 11px; color: #94a3b8; }
+.history-actor { font-size: 12px; color: #94a3b8; }
+.history-actor strong { color: #475569; }
+.history-loading { display: flex; flex-direction: column; gap: 10px; }
 </style>

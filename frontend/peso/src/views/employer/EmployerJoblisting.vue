@@ -54,8 +54,8 @@
           </button>
           <button :class="['listing-main-tab', 'archived-tab', { active: listingTab === 'archived' }]" @click="listingTab = 'archived'">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
-            Archived
-            <span class="ltab-pill archived-pill">{{ archivedJobs.length }}</span>
+            Closed
+            <span class="ltab-pill archived-pill" style="background: #fee2e2; color: #ef4444;">{{ archivedJobs.length }}</span>
           </button>
         </div>
 
@@ -106,7 +106,7 @@
             v-for="job in filteredJobs"
             :key="job.id"
             class="job-card"
-            :class="{ 'card-archived': listingTab === 'archived' }"
+            :class="{ 'card-archived': listingTab === 'archived' || job.status === 'Closed' }"
             @click="openDrawer(job)"
             style="cursor:pointer;"
           >
@@ -141,10 +141,10 @@
             <div class="applicant-progress">
               <div class="progress-labels">
                 <span class="prog-label">{{ job.applicants }} applicants</span>
-                <span class="prog-label">{{ job.slots }} slots</span>
+                <span class="prog-label">{{ Math.max(0, job.slots - job.hired) }} slots remaining</span>
               </div>
               <div class="prog-bar-bg">
-                <div class="prog-bar-fill" :style="{ width: Math.min(job.applicants/Math.max(job.slots,1)*100,100)+'%', background: job.color }"></div>
+                <div class="prog-bar-fill" :style="{ width: Math.min((job.hired||0)/Math.max(job.slots,1)*100,100)+'%', background: job.color }"></div>
               </div>
             </div>
 
@@ -166,7 +166,7 @@
               </span>
               <span v-else class="deadline-badge expired-badge">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/></svg>
-                Archived
+                Closed
               </span>
             </div>
 
@@ -235,7 +235,7 @@
           <!-- Empty state -->
           <div v-if="filteredJobs.length === 0" class="empty-state">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-            <p v-if="listingTab === 'archived'">No archived listings yet.</p>
+            <p v-if="listingTab === 'archived'">No closed listings yet.</p>
             <p v-else-if="listingTab === 'drafts'">No draft listings yet.</p>
             <p v-else>No active listings match your filters.</p>
           </div>
@@ -826,7 +826,7 @@ export default {
                     || `${a.jobseeker?.first_name || ''} ${a.jobseeker?.last_name || ''}`.trim()
                     || 'Unknown',
           photo:     a.jobseeker?.photo || null,
-          course:    a.jobseeker?.education_level || null,
+          course:    this.formatEducation(a.jobseeker?.education_level) || null,
           school:    a.jobseeker?.address || null,
           hiredDate: a.updated_at
             ? new Date(a.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })

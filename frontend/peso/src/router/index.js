@@ -58,6 +58,11 @@ const routes = [
     name: 'employer-reset-password',
     component: () => import('@/views/EmployerReset.vue'),
   },
+  {
+    path: '/employer/resubmit',
+    name: 'employer-resubmit',
+    component: () => import('@/views/EmployerResubmit.vue'),
+  },
 
   // Jobseeker public pages
   {
@@ -105,6 +110,15 @@ const routes = [
         },
       },
       {
+        path: 'joblisting',
+        name: 'JoblistingPage',
+        component: () => import('@/views/admin/JoblistingPage.vue'),
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF],
+          subtitle: 'Manage All job postings including DOLE special programs',
+        },
+      },
+      {
         path: 'events',
         name: 'events',
         component: () => import('@/views/admin/EventsPage.vue'),
@@ -129,6 +143,15 @@ const routes = [
         meta: {
           roles: [ROLES.ADMIN, ROLES.STAFF],
           subtitle: 'System alerts and messaging to jobseekers & employers',
+        },
+      },
+      {
+        path: 'analysis',
+        name: 'analysis',
+        component: () => import('@/views/admin/AnalysisPage.vue'),
+        meta: {
+          roles: [ROLES.ADMIN, ROLES.STAFF],
+          subtitle: 'Analyze and Export Labor Market Analysis',
         },
       },
       {
@@ -222,6 +245,12 @@ const routes = [
         meta: { title: 'Job Listings', subtitle: 'Manage your active and drafted postings' }
       },
       {
+        path: 'events',
+        name: 'employer-events',
+        component: () => import('@/views/employer/EmployerEvents.vue'),
+        meta: { title: 'Events', subtitle: 'Recent events for Employers and Jobseekers' }
+      },
+      {
         path: 'profile',
         name: 'employer-profile',
         component: () => import('@/views/employer/EmployerPorfile.vue'),
@@ -234,6 +263,13 @@ const routes = [
         meta: { title: 'Notifications', subtitle: 'Recent activities and alerts' }
       },
     ],
+  },
+
+  // Public LEGS Feedback form (no auth required)
+  {
+    path: '/LEGS_Feedback',
+    name: 'legs-feedback',
+    component: () => import('@/views/LEGSFeedback.vue'),
   },
 
   // Catch-all
