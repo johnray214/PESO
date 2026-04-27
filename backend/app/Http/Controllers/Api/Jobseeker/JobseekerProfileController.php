@@ -8,9 +8,15 @@ use App\Support\JobseekerPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class JobseekerProfileController extends Controller
 {
+    private const EMAIL_CHANGE_OTP_TTL_MINUTES = 15;
+    private const EMAIL_CHANGE_OTP_RESEND_COOLDOWN_SECONDS = 60;
+    private const EMAIL_CHANGE_OTP_DAILY_LIMIT = 7;
+
     public function show(Request $request)
     {
         $jobseeker = $request->user()->load('skills');
@@ -153,6 +159,115 @@ class JobseekerProfileController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Password changed successfully',
+        ]);
+    }
+
+    public function requestEmailChangeOtp(Request $request)
+    {
+        $jobseeker = $request->user();
+        $validated = $request->validate([
+            'new_email' => 'required|email|max:191|unique:jobseekers,email,' . $jobseeker->id,
+        ]);
+
+        $newEmail = strtolower(trim((string) $validated['new_email']));
+        if (strtolower((string) $jobseeker->email) === $newEmail) {
+            return response()->json([
+                'success' => false,
+                'message' => 'New email must be different from your current email.',
+            ], 422);
+        }
+
+        $now = Carbon::now();
+        $this->refreshOtpDailyCounterWindow($jobseeker, $now);
+
+        if ((int) $jobseeker->otp_send_count_today >= self::EMAIL_CHANGE_OTP_DAILY_LIMIT) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Daily OTP limit reached (7/day). Please try again tomorrow.',
+                'retry_after_seconds' => $this->secondsUntilNextDay($now),
+                'remaining_daily_sends' => 0,
+            ], 429);
+        }
+
+        if (
+            $jobseeker->otp_resend_cooldown_until &&
+            $now->lt($jobseeker->otp_resend_cooldown_until)
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Please wait before requesting another OTP.',
+                'retry_after_seconds' => $now->diffInSeconds($jobseeker->otp_resend_cooldown_until),
+                'remaining_daily_sends' => max(0, self::EMAIL_CHANGE_OTP_DAILY_LIMIT - (int) $jobseeker->otp_send_count_today),
+            ], 429);
+        }
+
+        $otpCode = $this->generateOtp();
+        if (!$this->sendEmailChangeOtpEmail($jobseeker, $newEmail, $otpCode)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to send OTP email. Please try again shortly.',
+                'remaining_daily_sends' => max(0, self::EMAIL_CHANGE_OTP_DAILY_LIMIT - (int) $jobseeker->otp_send_count_today),
+            ], 500);
+        }
+
+        $jobseeker->otp_code = $otpCode;
+        $jobseeker->otp_expires_at = Carbon::now()->addMinutes(self::EMAIL_CHANGE_OTP_TTL_MINUTES);
+        $jobseeker->otp_send_count_today = (int) $jobseeker->otp_send_count_today + 1;
+        $jobseeker->otp_resend_count = (int) $jobseeker->otp_resend_count + 1;
+        $jobseeker->otp_resend_cooldown_until = Carbon::now()->addSeconds(self::EMAIL_CHANGE_OTP_RESEND_COOLDOWN_SECONDS);
+        $jobseeker->setAttribute('otp_send_count_date', $now->toDateString());
+        $jobseeker->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'OTP sent to your new email address.',
+            'cooldown_seconds' => self::EMAIL_CHANGE_OTP_RESEND_COOLDOWN_SECONDS,
+            'remaining_daily_sends' => max(0, self::EMAIL_CHANGE_OTP_DAILY_LIMIT - (int) $jobseeker->otp_send_count_today),
+        ]);
+    }
+
+    public function confirmEmailChangeOtp(Request $request)
+    {
+        $jobseeker = $request->user();
+        $validated = $request->validate([
+            'new_email' => 'required|email|max:191|unique:jobseekers,email,' . $jobseeker->id,
+            'otp_code' => 'required|string|size:6',
+        ]);
+
+        $newEmail = strtolower(trim((string) $validated['new_email']));
+        if (strtolower((string) $jobseeker->email) === $newEmail) {
+            return response()->json([
+                'success' => false,
+                'message' => 'New email must be different from your current email.',
+            ], 422);
+        }
+
+        if (!$jobseeker->otp_code || $jobseeker->otp_code !== $validated['otp_code']) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid verification code',
+            ], 400);
+        }
+
+        if (!$jobseeker->otp_expires_at || now()->greaterThan($jobseeker->otp_expires_at)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Verification code has expired',
+            ], 400);
+        }
+
+        $jobseeker->email = $newEmail;
+        $jobseeker->email_verified_at = now();
+        $jobseeker->otp_code = null;
+        $jobseeker->otp_expires_at = null;
+        $jobseeker->otp_resend_count = 0;
+        $jobseeker->otp_resend_cooldown_until = null;
+        $jobseeker->save();
+
+        return response()->json([
+            'success' => true,
+            'data' => $jobseeker->fresh()->load('skills'),
+            'message' => 'Email updated successfully',
         ]);
     }
 
@@ -344,5 +459,74 @@ class JobseekerProfileController extends Controller
             'success' => true,
             'message' => 'FCM token saved successfully',
         ]);
+    }
+
+    private function sendEmailChangeOtpEmail($jobseeker, string $newEmail, string $otpCode): bool
+    {
+        try {
+            $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+            $body = [
+                'Messages' => [
+                    [
+                        'From' => [
+                            'Email' => env('MAILJET_FROM_EMAIL', 'peso@posuechague.site'),
+                            'Name'  => env('MAILJET_FROM_NAME', 'PESO Santiago'),
+                        ],
+                        'To' => [
+                            [
+                                'Email' => $newEmail,
+                                'Name'  => $jobseeker->first_name ?? 'Jobseeker',
+                            ],
+                        ],
+                        'TemplateID' => 7861324,
+                        'TemplateLanguage' => true,
+                        'Subject' => 'Confirm Your New Email — PESO Santiago Jobseeker',
+                        'Variables' => [
+                            'first_name' => $jobseeker->first_name ?? 'Jobseeker',
+                            'otp_code'   => $otpCode,
+                            'verify_url' => env('FRONTEND_URL', 'http://localhost:8080'),
+                        ],
+                    ],
+                ],
+            ];
+            $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+            if (!$response->success()) {
+                Log::error('Mailjet API Error (Email Change OTP): ' . json_encode($response->getData()));
+                return false;
+            }
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Mailjet Exception (Email Change OTP): ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function generateOtp(): string
+    {
+        return str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+    }
+
+    private function refreshOtpDailyCounterWindow($jobseeker, Carbon $now): void
+    {
+        $today = $now->toDateString();
+        $raw = $jobseeker->getAttribute('otp_send_count_date');
+        if ($raw instanceof \DateTimeInterface) {
+            $currentDate = $raw->format('Y-m-d');
+        } else {
+            $currentDate = $raw ? (string) $raw : null;
+        }
+        if ($currentDate === $today) {
+            return;
+        }
+        $jobseeker->otp_send_count_today = 0;
+        $jobseeker->otp_resend_count = 0;
+        $jobseeker->otp_resend_cooldown_until = null;
+        $jobseeker->setAttribute('otp_send_count_date', $today);
+        $jobseeker->save();
+    }
+
+    private function secondsUntilNextDay(Carbon $now): int
+    {
+        return $now->copy()->endOfDay()->diffInSeconds($now) + 1;
     }
 }

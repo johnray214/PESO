@@ -3231,16 +3231,6 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
       if (mounted) setState(() {});
     });
     _otpController.addListener(() {
-      final raw = _otpController.text;
-      final digitsOnly = raw.replaceAll(RegExp(r'[^0-9]'), '');
-      final limited =
-          digitsOnly.length > 6 ? digitsOnly.substring(0, 6) : digitsOnly;
-      if (limited != raw) {
-        _otpController.value = TextEditingValue(
-          text: limited,
-          selection: TextSelection.collapsed(offset: limited.length),
-        );
-      }
       if (_error != null) {
         setState(() => _error = null);
       } else {
@@ -3312,6 +3302,10 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                 autofocus: true,
                 keyboardType: TextInputType.number,
                 textInputAction: TextInputAction.done,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(6),
+                ],
                 enableInteractiveSelection: false,
                 cursorColor: Colors.transparent,
                 style: const TextStyle(color: Colors.transparent),
@@ -3320,7 +3314,6 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                   counterText: '',
                   contentPadding: EdgeInsets.zero,
                 ),
-                maxLength: 6,
                 onTapOutside: (_) => FocusScope.of(context).unfocus(),
               ),
             ),

@@ -26,11 +26,9 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
   bool _manualRetryLoading = false;
   int _shakeKey = 0;
 
-  /// In debug against a local API, skip the Google captive-portal probe — it
-  /// fails on LAN-only / firewalled dev machines and [onConnectivityChanged]
-  /// already fires often enough without adding false negatives.
-  bool get _skipExternalInternetProbe =>
-      kDebugMode && ApiService.isTargetingLocalDevHost;
+  /// When using a local/LAN API, probing Google can produce false offline
+  /// results even though the backend is reachable.
+  bool get _preferApiReachabilityProbe => ApiService.isTargetingLocalDevHost;
 
   @override
   void initState() {
@@ -65,9 +63,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
       return;
     }
 
-    if (_skipExternalInternetProbe) return;
-
-    final hasActualInternet = await _checkActualInternet();
+    final hasActualInternet = await _checkNetworkReachability();
     if (!hasActualInternet && !_isShowingModal) {
       _showModal();
     }
@@ -93,6 +89,33 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     }
   }
 
+  Future<bool> _checkApiReachability() async {
+    try {
+      final response = await http
+          .get(
+            Uri.parse('${ApiService.baseUrl}/public/events?page=1&per_page=1'),
+            headers: const {'Accept': 'application/json'},
+          )
+          .timeout(const Duration(seconds: 4));
+      // Any HTTP response means the API host is reachable.
+      return response.statusCode > 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _checkNetworkReachability() async {
+    if (_preferApiReachabilityProbe) {
+      return _checkApiReachability();
+    }
+
+    final hasActualInternet = await _checkActualInternet();
+    if (hasActualInternet) return true;
+
+    // Fallback: some networks block Google captive-portal probes.
+    return _checkApiReachability();
+  }
+
   Future<void> _checkConnectivity() async {
     final results = await Connectivity().checkConnectivity();
     final isOfflineResult = results.isEmpty || results.contains(ConnectivityResult.none);
@@ -102,9 +125,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
       return;
     }
 
-    if (_skipExternalInternetProbe) return;
-
-    final hasActualInternet = await _checkActualInternet();
+    final hasActualInternet = await _checkNetworkReachability();
     if (!hasActualInternet) {
       _showModal();
     }
@@ -121,9 +142,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
     // Artificial small delay for UX so it doesn't flicker too fast
     await Future.delayed(const Duration(milliseconds: 800));
 
-    final hasActualInternet = _skipExternalInternetProbe
-        ? true
-        : await _checkActualInternet();
+    final hasActualInternet = await _checkNetworkReachability();
 
     if (hasActualInternet) {
       // Clean up local state BEFORE navigating, so the modal doesn't persist.

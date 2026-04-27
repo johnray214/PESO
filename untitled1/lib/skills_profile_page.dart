@@ -7,6 +7,8 @@ import 'user_session.dart';
 import 'job_models.dart';
 import 'job_action_service.dart';
 import 'home_pages.dart'; // Added for map navigation notifiers
+import 'my_documents_page.dart';
+import 'main.dart';
 
 class SkillsProfilePage extends StatefulWidget {
   const SkillsProfilePage({super.key});
@@ -615,6 +617,41 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     });
   }
 
+  Future<void> _confirmEnableSkillEditing() async {
+    if (_canChangeSkills) return;
+    final shouldEdit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Edit skills?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'Skill editing is currently disabled. Do you want to switch to edit mode?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Edit'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldEdit == true && mounted) {
+      setState(() => _editingSelectedSkills = true);
+    }
+  }
+
   List<String> get _allCatalogSkills {
     final all = <String>{};
     for (final skills in _skillCatalog.values) {
@@ -1121,6 +1158,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           skills: entry.value,
                           selectedSkillSet: selectedSkillSet,
                           onToggle: _toggleSkill,
+                          onDisabledTap: _confirmEnableSkillEditing,
                           searchQuery: _searchQuery,
                           forceExpanded: isSearching,
                           skillsEditable: _canChangeSkills,
@@ -1586,6 +1624,7 @@ class _SkillCategoryCard extends StatefulWidget {
   final String searchQuery;
   final bool forceExpanded;
   final bool skillsEditable;
+  final VoidCallback? onDisabledTap;
 
   const _SkillCategoryCard({
     required this.category,
@@ -1595,6 +1634,7 @@ class _SkillCategoryCard extends StatefulWidget {
     this.searchQuery = '',
     this.forceExpanded = false,
     this.skillsEditable = true,
+    this.onDisabledTap,
   });
 
   @override
@@ -1691,7 +1731,10 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
       child: Column(
         children: [
           InkWell(
-            onTap: widget.forceExpanded ? null : () => setState(() => _expanded = !_expanded),
+            onTap: () {
+              if (widget.forceExpanded) return;
+              setState(() => _expanded = !_expanded);
+            },
             borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -1761,7 +1804,9 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                   final isSearchMatch = isSearching && skill.toLowerCase().contains(q);
                   final canTap = widget.skillsEditable;
                   return GestureDetector(
-                    onTap: canTap ? () => widget.onToggle(skill) : null,
+                    onTap: canTap
+                        ? () => widget.onToggle(skill)
+                        : () => widget.onDisabledTap?.call(),
                     child: Opacity(
                       opacity: canTap ? 1.0 : 0.55,
                       child: AnimatedContainer(
@@ -1869,6 +1914,91 @@ class _MatchedJobCard extends StatelessWidget {
 
   const _MatchedJobCard({required this.job, required this.userSkills});
 
+  Future<bool> _ensureResumeReadyForApply(
+      BuildContext context, JobActionService jobActionService) async {
+    final hasResume = await jobActionService.hasResumeOnFile();
+    if (hasResume) return true;
+    if (!context.mounted) return false;
+
+    final goToDocuments = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Resume Required'),
+        content: const Text(
+          'You need to upload your resume first before applying to jobs.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Go to Documents'),
+          ),
+        ],
+      ),
+    );
+
+    if (goToDocuments == true && context.mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(builder: (_) => const MyDocumentsPage()),
+      );
+    }
+    return false;
+  }
+
+  Future<void> _confirmAndApply(
+      BuildContext context, JobActionService jobActionService) async {
+    final canApply = await _ensureResumeReadyForApply(context, jobActionService);
+    if (!canApply || !context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Confirm Application'),
+        content: Text(
+          'Apply for ${job.title} at ${job.company}?',
+          style: const TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await jobActionService.applyToJob(job.id, job.title);
+    if (!context.mounted) return;
+
+    if (error == null) {
+      CustomToast.show(
+        context,
+        message: 'Applied to ${job.title}!',
+        type: ToastType.success,
+      );
+    } else {
+      CustomToast.show(
+        context,
+        message: error,
+        type: ToastType.error,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final jobActionService = JobActionService();
@@ -1908,7 +2038,7 @@ class _MatchedJobCard extends StatelessWidget {
               isApplied: isApplied,
               isSaved: isSaved,
               onApply: () async {
-                // Confirm and apply logic...
+                await _confirmAndApply(context, jobActionService);
               },
               onViewMap: () {
                 Navigator.of(context).pop(); // Pop detail sheet
@@ -2122,7 +2252,11 @@ class _MatchedJobCard extends StatelessWidget {
                     const SizedBox(width: 8),
                     // Apply Button
                     GestureDetector(
-                      onTap: isApplied ? null : () {}, // confirm flow...
+                      onTap: isApplied
+                          ? null
+                          : () async {
+                              await _confirmAndApply(context, jobActionService);
+                            },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'change_email_page.dart';
 import 'change_password_page.dart';
 
 /// Profile → Settings: account actions (e.g. change password).
@@ -33,6 +34,61 @@ class SettingsPage extends StatelessWidget {
               ),
             ),
           ),
+          Material(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            clipBehavior: Clip.antiAlias,
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                leading: const Icon(
+                  Icons.alternate_email_rounded,
+                  color: Color(0xFF64748B),
+                  size: 22,
+                ),
+                title: const Text(
+                  'Change email address',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                subtitle: const Text(
+                  'Secure this change using OTP verification',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+                trailing: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: Color(0xFF94A3B8),
+                  size: 22,
+                ),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ChangeEmailPage(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
           Material(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),

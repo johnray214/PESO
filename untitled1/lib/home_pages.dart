@@ -17,12 +17,52 @@ import 'api_service.dart';
 import 'notification_service.dart';
 import 'job_action_service.dart';
 import 'micro_interactions.dart';
+import 'my_documents_page.dart';
 import 'package:http/http.dart' as http;
 import 'main.dart';
 
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
 
 final String mapboxAccessToken = mapboxToken.isNotEmpty ? mapboxToken : '';
+
+Future<bool> _ensureResumeReadyForApply(
+    BuildContext context, JobActionService jobActionService) async {
+  final hasResume = await jobActionService.hasResumeOnFile();
+  if (hasResume) return true;
+  if (!context.mounted) return false;
+
+  final goToDocuments = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text('Resume Required'),
+      content: const Text(
+        'You need to upload your resume first before applying to jobs.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF2563EB),
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Go to Documents'),
+        ),
+      ],
+    ),
+  );
+
+  if (goToDocuments == true && context.mounted) {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const MyDocumentsPage()),
+    );
+  }
+  return false;
+}
 
 class MapFocusRequest {
   final String companyName;
@@ -328,24 +368,24 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
   }
 }
 
-/// Events bottom sheet keeps its own [Future] so register/cancel updates the list
-/// immediately (parent [_reloadEventsFuture] alone does not rebuild an open sheet).
-class _EventsBottomSheet extends StatefulWidget {
+/// Events page keeps its own [Future] so register/cancel updates the list
+/// immediately (parent [_reloadEventsFuture] alone does not rebuild an open page).
+class _EventsPage extends StatefulWidget {
   final BuildContext homeContext;
   final VoidCallback onParentReloadEvents;
   final List<PesoEvent> Function(Map<String, dynamic>) parseEventsPayload;
 
-  const _EventsBottomSheet({
+  const _EventsPage({
     required this.homeContext,
     required this.onParentReloadEvents,
     required this.parseEventsPayload,
   });
 
   @override
-  State<_EventsBottomSheet> createState() => _EventsBottomSheetState();
+  State<_EventsPage> createState() => _EventsPageState();
 }
 
-class _EventsBottomSheetState extends State<_EventsBottomSheet> {
+class _EventsPageState extends State<_EventsPage> {
   late Future<Map<String, dynamic>> _future;
 
   @override
@@ -374,110 +414,84 @@ class _EventsBottomSheetState extends State<_EventsBottomSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.7,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      snap: true,
-      expand: false,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          ),
-          child: Column(
-            children: [
-              // Header
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB).withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.event_note_rounded,
-                              color: Color(0xFF2563EB), size: 28),
-                        ),
-                        const SizedBox(width: 16),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Events',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF0F172A),
-                              ),
-                            ),
-                            Text(
-                              'Stay updated on job fairs and seminars',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF64748B),
-                                  fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0F172A),
+        titleSpacing: 20,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-              Expanded(
-                child: FutureBuilder<Map<String, dynamic>>(
-                  future: _future,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(
-                          child: CircularProgressIndicator(
-                              color: Color(0xFF2563EB)));
-                    }
-                    final data = snapshot.data;
-                    if (data == null || data['success'] != true) {
-                      return const Center(child: Text('Failed to load events'));
-                    }
-                    final events = widget.parseEventsPayload(data);
-                    if (events.isEmpty) {
-                      return const Center(
-                        child: Text('No upcoming events found',
-                            style: TextStyle(color: Colors.grey)),
-                      );
-                    }
-                    return ListView.builder(
-                      controller: scrollController,
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-                      itemCount: events.length,
-                      itemBuilder: (context, index) {
-                        final e = events[index];
-                        return _buildEventCard(e)
-                            .animate()
-                            .fadeIn(delay: (index * 50).ms, duration: 400.ms)
-                            .slideY(begin: 0.1, curve: Curves.easeOutCubic);
-                      },
-                    );
-                  },
-                ),
+              child: const Icon(
+                Icons.event_note_rounded,
+                color: Color(0xFF2563EB),
+                size: 22,
               ),
-            ],
-          ),
-        );
-      },
+            ),
+            const SizedBox(width: 12),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Events',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                Text(
+                  'Stay updated on job fairs and seminars',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator(color: Color(0xFF2563EB)));
+          }
+          final data = snapshot.data;
+          if (data == null || data['success'] != true) {
+            return const Center(child: Text('Failed to load events'));
+          }
+          final events = widget.parseEventsPayload(data);
+          if (events.isEmpty) {
+            return const Center(
+              child: Text('No upcoming events found',
+                  style: TextStyle(color: Colors.grey)),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+            itemCount: events.length,
+            itemBuilder: (context, index) {
+              final e = events[index];
+              return _buildEventCard(e)
+                  .animate()
+                  .fadeIn(delay: (index * 50).ms, duration: 400.ms)
+                  .slideY(begin: 0.1, curve: Curves.easeOutCubic);
+            },
+          );
+        },
+      ),
     );
   }
 
@@ -944,18 +958,15 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _showEventsSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return _EventsBottomSheet(
+  void _openEventsPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _EventsPage(
           homeContext: context,
           onParentReloadEvents: _reloadEventsFuture,
           parseEventsPayload: _parseEventsPayload,
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -1018,7 +1029,7 @@ class _HomePageState extends State<HomePage> {
                       child: Material(
                         color: Colors.transparent,
                         child: InkWell(
-                          onTap: _showEventsSheet,
+                          onTap: _openEventsPage,
                           borderRadius: BorderRadius.circular(16),
                           child: Stack(
                             clipBehavior: Clip.none,
@@ -1373,7 +1384,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
     _greetingTimer?.cancel();
     _greetingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      final next = '${getPhilippinesGreeting()},';
+      final next = '${getPhilippinesGreeting()}, Kabsat';
       if (!mounted) return;
       if (next != _greetingText) {
         setState(() => _greetingText = next);
@@ -1470,6 +1481,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   }
 
   Future<void> _applyToJob(Job job) async {
+    final canApply = await _ensureResumeReadyForApply(context, _jobActionService);
+    if (!canApply || !mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -4240,6 +4254,9 @@ class _BusinessDetailSheet extends StatelessWidget {
 
   Future<void> _applyFromBusinessDetail(
       BuildContext context, Job job, JobActionService jobActionService) async {
+    final canApply = await _ensureResumeReadyForApply(context, jobActionService);
+    if (!canApply || !context.mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -4511,6 +4528,9 @@ class _NotificationsTabState extends State<NotificationsTab> {
   }
 
   Future<void> _applyToJob(Job job) async {
+    final canApply = await _ensureResumeReadyForApply(context, _jobActionService);
+    if (!canApply || !mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -4674,7 +4694,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
     final toDelete = _notifications.where((n) {
       final notif = n['notification'] as Map<String, dynamic>? ?? {};
       final type = notif['type'] as String?;
-      // If it's a survey, only allow deletion if it was already read/rated (optional: strictly un-deletable)
+      // Keep satisfaction survey cards intact so users can still rate later.
       if (type == 'satisfaction_survey') return false; 
       return n['read_at'] != null;
     }).toList();
@@ -4684,9 +4704,52 @@ class _NotificationsTabState extends State<NotificationsTab> {
     final ok = await ApiService.deleteAllJobseekerNotifications(token);
     if (!mounted) return;
     if (ok) {
+      final toDeleteIds = toDelete
+          .map((n) => n['id'])
+          .whereType<int>()
+          .toSet();
       setState(() {
-        _notifications.clear();
+        _notifications.removeWhere((n) {
+          final id = n['id'];
+          return id is int && toDeleteIds.contains(id);
+        });
       });
+    }
+  }
+
+  Future<void> _confirmDeleteAllRead() async {
+    if (_notifications.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text(
+          'Delete all read notifications?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: const Text(
+          'This will delete read notifications. Unrated "Rate Experience" notifications will be kept.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEF4444),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteAllRead();
     }
   }
 
@@ -5694,7 +5757,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
                 // Strong, unique buzz for a destructive "Delete All" action
                 HapticFeedback.vibrate();
                 Future.delayed(const Duration(milliseconds: 200), () => HapticFeedback.mediumImpact());
-                _deleteAllRead();
+                _confirmDeleteAllRead();
               } : null,
               backgroundColor: _allRead ? const Color(0xFFEF4444) : const Color(0xFFCBD5E1),
               foregroundColor: Colors.white,

@@ -338,6 +338,54 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> requestJobseekerEmailChangeOtp({
+    required String token,
+    required String newEmail,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/jobseeker/profile/email/request-otp'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({'new_email': newEmail.trim()}),
+          )
+          .timeout(const Duration(seconds: 20));
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  static Future<Map<String, dynamic>> confirmJobseekerEmailChangeOtp({
+    required String token,
+    required String newEmail,
+    required String otpCode,
+  }) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/jobseeker/profile/email/confirm-otp'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode({
+              'new_email': newEmail.trim(),
+              'otp_code': otpCode.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
   static Future<Map<String, dynamic>> getUser(String token) async {
     try {
       final response = await http.get(
