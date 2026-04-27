@@ -628,7 +628,6 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   late final TextEditingController _firstNameController;
   late final TextEditingController _middleInitialController;
   late final TextEditingController _lastNameController;
-  late final TextEditingController _emailController;
   late final TextEditingController _dobController;
   String? _selectedSex;
   late final TextEditingController _phoneController;
@@ -684,7 +683,6 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     _firstNameController = TextEditingController(text: firstName);
     _middleInitialController = TextEditingController(text: session.middleInitial ?? '');
     _lastNameController = TextEditingController(text: lastName);
-    _emailController = TextEditingController(text: UserSession().email ?? '');
     _phoneController = TextEditingController(text: UserSession().phone ?? '');
     _streetController = TextEditingController(text: session.streetAddress ?? '');
     _dobController = TextEditingController(text: session.dateOfBirth ?? '');
@@ -758,7 +756,6 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     _firstNameController.dispose();
     _middleInitialController.dispose();
     _lastNameController.dispose();
-    _emailController.dispose();
     _dobController.dispose();
     _phoneController.dispose();
     _streetController.dispose();
@@ -1379,14 +1376,58 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                         const SizedBox(height: 16),
 
-                        TextFormField(
-                          controller: _emailController,
-                          decoration: _fieldDec('Email', Icons.email_outlined),
-                          keyboardType: TextInputType.emailAddress,
-                          validator: (v) {
-                            if (v == null || v.isEmpty) return 'Please enter your email';
-                            return null;
-                          },
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFBFDBFE)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Email address',
+                                style: TextStyle(
+                                  color: Color(0xFF1E40AF),
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                (UserSession().email ?? '').trim().isEmpty
+                                    ? 'No email available'
+                                    : UserSession().email!.trim(),
+                                style: const TextStyle(
+                                  color: Color(0xFF0F172A),
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: () async {
+                                  if (!mounted) return;
+                                  Navigator.of(context).pop();
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => const SettingsPage(),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.settings_rounded, size: 18),
+                                label: const Text('Change email in Settings'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF1D4ED8),
+                                  side: const BorderSide(color: Color(0xFF93C5FD)),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 14,
+                                    vertical: 10,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
 
                         const SizedBox(height: 16),
@@ -1718,7 +1759,6 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                                     final result = await ApiService.updateProfile(
                                       token: token,
-                                      email: _emailController.text.trim(),
                                       firstName: _firstNameController.text.trim(),
                                       middleInitial: _middleInitialController.text.trim(),
                                       lastName: _lastNameController.text.trim(),
@@ -2354,6 +2394,41 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
   }
 
   Future<void> _applyToJob(String jobId, String jobTitle) async {
+    final hasResume = await _jobActionService.hasResumeOnFile();
+    if (!mounted) return;
+    if (!hasResume) {
+      final goToDocuments = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Resume Required'),
+          content: const Text(
+            'You need to upload your resume first before applying to jobs.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Go to Documents'),
+            ),
+          ],
+        ),
+      );
+      if (goToDocuments == true && mounted) {
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const MyDocumentsPage()),
+        );
+      }
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(

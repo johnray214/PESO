@@ -293,6 +293,8 @@ Route::middleware(['auth:jobseeker', \App\Http\Middleware\EnsureJobseeker::class
     // Profile
     Route::get('/profile', [JobseekerProfileController::class, 'show']);
     Route::put('/profile', [JobseekerProfileController::class, 'update']);
+    Route::post('/profile/email/request-otp', [JobseekerProfileController::class, 'requestEmailChangeOtp']);
+    Route::post('/profile/email/confirm-otp', [JobseekerProfileController::class, 'confirmEmailChangeOtp']);
     Route::post('/profile/password', [JobseekerProfileController::class, 'changePassword']);
     Route::post('/profile/resume', [JobseekerProfileController::class, 'uploadResume']);
     Route::post('/profile/certificate', [JobseekerProfileController::class, 'uploadCertificate']);

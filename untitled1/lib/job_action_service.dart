@@ -18,6 +18,19 @@ class JobActionService extends ChangeNotifier {
   bool isSaved(String jobId) => _savedJobIds.contains(jobId);
   bool isApplied(String jobId) => _appliedJobIds.contains(jobId);
 
+  /// Returns true when the current user has an uploaded resume on file.
+  Future<bool> hasResumeOnFile() async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return false;
+
+    final userResult = await ApiService.getUser(token);
+    if (userResult['success'] != true) return false;
+    final data = userResult['data'];
+    if (data is! Map<String, dynamic>) return false;
+    final resumePath = (data['resume_path'] as String?)?.trim() ?? '';
+    return resumePath.isNotEmpty;
+  }
+
   /// Load saved and applied jobs from backend on app start or login.
   Future<void> loadFromBackend() async {
     final token = UserSession().token;
