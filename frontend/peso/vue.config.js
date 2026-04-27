@@ -5,6 +5,14 @@ const apiTarget = process.env.VUE_APP_API_TARGET || 'http://127.0.0.1:8000'
 
 module.exports = defineConfig({
   transpileDependencies: true,
+
+  pages: {
+    index: {
+      entry: 'src/main.js',
+      title: 'PESO Santiago City', 
+    },
+  },
+
   devServer: {
     historyApiFallback: true,
     proxy: {

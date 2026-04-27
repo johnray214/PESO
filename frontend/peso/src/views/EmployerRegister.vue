@@ -18,13 +18,13 @@
             </svg>
           </div>
           <div>
-            <span class="brand-name">PESO</span>
+            <span class="brand-name">PESO Santiago</span>
             <span class="brand-tag">Employer Portal</span>
           </div>
         </div>
 
         <div>
-          <h1 class="panel-headline">Start hiring <span class="sky">smarter</span><br/>with PESO.</h1>
+          <h1 class="panel-headline">Start hiring <span class="sky">smarter</span><br/>with PESO Santiago.</h1>
           <p class="panel-sub">Register your company and connect with thousands of job-ready applicants across the Philippines — completely free.</p>
         </div>
 

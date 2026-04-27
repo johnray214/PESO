@@ -54,16 +54,21 @@ class EmployerInvitationController extends Controller
         // Attempt to send email via Mailjet
         try {
             $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
-            
-            $applyUrl  = env('FRONTEND_URL', 'http://localhost:5173') . '/jobseeker/jobs/' . $job->id;
-            $topSkills = $jobseeker->skills ? $jobseeker->skills->pluck('skill')->take(3)->implode(', ') : 'your listed skills';
+
+            $applyUrl   = env('FRONTEND_URL', 'http://localhost:5173') . '/jobseeker/jobs/' . $job->id;
+            $topSkills  = $jobseeker->skills ? $jobseeker->skills->pluck('skill')->take(3)->implode(', ') : 'your listed skills';
+            $matchScore = \App\Models\Application::calculateMatchScore($jobseeker, $job);
+
+            // Dynamic sender variables — employer is the inviter
+            $invitedBy      = $company;
+            $invitationText = "{$company} has reviewed your profile and invited you.";
 
             $body = [
                 'Messages' => [
                     [
                         'From' => [
                             'Email' => env('MAILJET_FROM_EMAIL', 'peso@posuechague.site'),
-                            'Name'  => env('MAILJET_FROM_NAME', 'PESO')
+                            'Name'  => env('MAILJET_FROM_NAME', 'PESO Santiago')
                         ],
                         'To' => [
                             [
@@ -75,23 +80,25 @@ class EmployerInvitationController extends Controller
                         'TemplateLanguage' => true,
                         'Subject'          => "You're Invited to Apply — {$job->title} at {$company}",
                         'Variables'        => [
-                            'first_name'       => $jobseeker->first_name,
-                            'company_name'     => $company,
-                            'job_title'        => $job->title,
-                            'job_location'     => $job->location ?? 'On-site',
-                            'employment_type'  => $job->type ?? 'Full-time',
-                            'salary_range'     => $job->salary_range ?? 'Negotiable',
-                            'work_setup'       => $job->work_setup ?? 'On-site',
-                            'match_pct'        => 'High',
-                            'top_skills'       => $topSkills ?: 'your listed skills',
-                            'apply_url'        => $applyUrl,
+                            'first_name'      => $jobseeker->first_name,
+                            'invited_by'      => $invitedBy,
+                            'invitation_text' => $invitationText,
+                            'company_name'    => $company,
+                            'job_title'       => $job->title,
+                            'job_location'    => $job->location ?? 'On-site',
+                            'employment_type' => $job->job_type ?? 'Full-time',
+                            'salary_range'    => $job->salary_range ?? 'Negotiable',
+                            'work_setup'      => $job->work_setup ?? 'On-site',
+                            'match_pct'       => (string) round($matchScore),
+                            'top_skills'      => $topSkills ?: 'your listed skills',
+                            'apply_url'       => $applyUrl,
                         ],
                     ]
                 ]
             ];
-            
+
             $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
-            
+
             if (!$response->success()) {
                 \Illuminate\Support\Facades\Log::error('Mailjet API Error Invitation Email: ' . json_encode($response->getData()));
             }

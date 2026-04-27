@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('job_listings', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('employer_id')->constrained('employers')->cascadeOnDelete();
+            $table->foreignId('employer_id')->nullable()->constrained('employers')->cascadeOnDelete();
             $table->string('title', 255);
             $table->enum('type', ['full-time', 'part-time', 'contract', 'internship']);
             $table->string('location', 255);

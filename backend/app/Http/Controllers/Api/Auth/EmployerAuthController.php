@@ -64,8 +64,8 @@ class EmployerAuthController extends Controller
         // CREATE WELCOME NOTIFICATION
         try {
             $notif = Notification::create([
-                'subject' => "Welcome to PESO Connect!, {$employer->company_name}! 🏢",
-                'message' => "We're glad to have you on board! PESO Connect! is here to help you find the best talent. Your account is currently pending verification by our PESO staff. This standard process ensures a secure platform for everyone. We'll notify you as soon as your account is approved. In the meantime, feel free to explore our platform features!",
+                'subject' => "Welcome to PESO Santiago Connect!, {$employer->company_name}! 🏢",
+                'message' => "We're glad to have you on board! PESO Santiago Connect! is here to help you find the best talent. Your account is currently pending verification by our PESO Santiago staff. This standard process ensures a secure platform for everyone. We'll notify you as soon as your account is approved. In the meantime, feel free to explore our platform features!",
                 'type' => 'welcome',
                 'recipients' => 'specific',
                 'status' => 'sent',
@@ -115,15 +115,16 @@ class EmployerAuthController extends Controller
 
         if ($employer->status !== 'verified') {
             $messages = [
-                'pending'   => 'Your account is Pending Verification. Please wait for PESO staff to approve your account.',
-                'rejected'  => 'Your account registration has been Rejected. Please contact PESO for more information.',
-                'suspended' => 'Your account has been Suspended. Please contact PESO for more information.',
+                'pending'   => 'Your account is Pending Verification. Please wait for PESO Santiago staff to approve your account.',
+                'rejected'  => 'Your account registration has been Rejected. Please contact PESO Santiago for more information.',
+                'suspended' => 'Your account has been Suspended. Please contact PESO Santiago for more information.',
             ];
 
             return response()->json([
                 'success' => false,
                 'message' => $messages[$employer->status] ?? 'Your account is not verified yet.',
                 'status'  => $employer->status,
+                'remarks' => $employer->remarks ?? null,
             ], 403);
         }
 
@@ -193,5 +194,63 @@ class EmployerAuthController extends Controller
         }
 
         return response()->json(['success' => false, 'message' => 'Failed to reset password, link might be invalid or expired.'], 400);
+    }
+
+    public function resubmit(Request $request)
+    {
+        $request->validate([
+            'email'      => 'required|email',
+            'password'   => 'required|string',
+            'biz_permit' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'bir_cert'   => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+        ]);
+
+        $employer = Employer::where('email', $request->email)->first();
+
+        if (!$employer || !Hash::check($request->password, $employer->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid credentials.',
+            ], 401);
+        }
+
+        if ($employer->status !== 'rejected') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Only rejected accounts can resubmit documents.',
+            ], 403);
+        }
+
+        // Replace documents if provided
+        foreach (['biz_permit' => 'biz_permit_path', 'bir_cert' => 'bir_cert_path'] as $field => $column) {
+            if ($request->hasFile($field)) {
+                if ($employer->$column) {
+                    Storage::disk('public')->delete($employer->$column);
+                }
+                $path = $request->file($field)->store(
+                    "employer-docs/{$employer->id}", 'public'
+                );
+                $employer->update([$column => $path]);
+            }
+        }
+
+        // Reset status to pending and clear old remarks
+        $employer->update([
+            'status'  => 'pending',
+            'remarks' => null,
+        ]);
+
+        // Notify admin in real-time
+        event(new AdminActivityEvent(
+            'Registration',
+            'Employer Resubmitted Documents',
+            "{$employer->company_name} has resubmitted their documents and is awaiting re-verification.",
+            'emp_' . $employer->id
+        ));
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Documents resubmitted successfully. Your account is now pending re-verification.',
+        ]);
     }
 }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Employer;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ApplicationResource;
 use App\Models\Application;
+use App\Models\ApplicationActivityLog;
 use App\Models\Notification;
 use App\Models\NotificationRead;
 use App\Events\AdminActivityEvent;
@@ -138,7 +139,7 @@ class EmployerApplicationController extends Controller
                         $body = [
                             'Messages' => [
                                 [
-                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO') ],
+                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago') ],
                                     'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
                                     'TemplateID' => 7861619,
                                     'TemplateLanguage' => true,
@@ -170,7 +171,7 @@ class EmployerApplicationController extends Controller
                         $body = [
                             'Messages' => [
                                 [
-                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO') ],
+                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago') ],
                                     'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
                                     'TemplateID' => 7861384,
                                     'TemplateLanguage' => true,
@@ -208,7 +209,7 @@ class EmployerApplicationController extends Controller
                                 [
                                     'From' => [
                                         'Email' => env('MAILJET_FROM_EMAIL'),
-                                        'Name'  => env('MAILJET_FROM_NAME', 'PESO')
+                                        'Name'  => env('MAILJET_FROM_NAME', 'PESO Santiago')
                                     ],
                                     'To' => [
                                         [
@@ -248,7 +249,7 @@ class EmployerApplicationController extends Controller
                         $body = [
                             'Messages' => [
                                 [
-                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO') ],
+                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago') ],
                                     'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
                                     'TemplateID' => 7865387,
                                     'TemplateLanguage' => true,
@@ -298,7 +299,7 @@ class EmployerApplicationController extends Controller
             if (($newStatus === 'hired' || $newStatus === 'rejected') && !$jobseeker->has_received_satisfaction_survey) {
                 $surveyNotification = Notification::create([
                     'subject'        => 'Rate your application experience',
-                    'message'        => 'How satisfied are you with the application process on PESO Connect?',
+                    'message'        => 'How satisfied are you with the application process on PESO Santiago Connect?',
                     'type'           => 'satisfaction_survey',
                     'recipients'     => 'jobseekers',
                     'scheduled_at'   => null,
@@ -323,6 +324,22 @@ class EmployerApplicationController extends Controller
                 "{$company} updated {$jobseeker->first_name}'s application for {$job->title} to " . ucfirst($newStatus) . ".",
                 'app_' . $application->id . '_' . time()
             ));
+
+            // Log activity for History tab
+            ApplicationActivityLog::create([
+                'application_id' => $application->id,
+                'actor_type'     => 'employer',
+                'actor_label'    => $company,
+                'action'         => ucfirst($newStatus),
+            ]);
+
+            // Auto-close job if hired count reaches slots
+            if ($newStatus === 'hired') {
+                $hiredCount = $job->applications()->where('status', 'hired')->count();
+                if ($job->slots > 0 && $hiredCount >= $job->slots) {
+                    $job->update(['status' => 'closed']);
+                }
+            }
         }
 
         return response()->json([
@@ -431,7 +448,7 @@ class EmployerApplicationController extends Controller
             $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
             $body = [
                 'Messages' => [[
-                    'From' => ['Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO')],
+                    'From' => ['Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago')],
                     'To'   => [['Email' => $jobseeker->email, 'Name' => $jobseeker->full_name]],
                     'TemplateID'       => 7869914,
                     'TemplateLanguage' => true,
@@ -439,6 +456,7 @@ class EmployerApplicationController extends Controller
                     'Variables'        => [
                         'first_name'       => $jobseeker->first_name,
                         'company_name'     => $company,
+                        'invitation_text'  => "{$company} has reviewed your PESO Santiago profile and believes you are an excellent candidate for one of their open positions. They have personally invited you to apply.",
                         'job_title'        => $bestJob->title,
                         'job_location'     => $bestJob->location ?? 'On-site',
                         'employment_type'  => $bestJob->job_type ?? 'Full-time',
@@ -495,6 +513,33 @@ class EmployerApplicationController extends Controller
         return response()->json([
             'success' => true,
             'message' => "Invitation sent to {$jobseeker->full_name}",
+        ]);
+    }
+
+    public function history(Request $request, $id)
+    {
+        $employer = $request->user();
+
+        $application = Application::whereHas('jobListing', function ($q) use ($employer) {
+            $q->where('employer_id', $employer->id);
+        })->findOrFail($id);
+
+        $logs = ApplicationActivityLog::where('application_id', $application->id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id'          => $log->id,
+                    'actor_type'  => $log->actor_type,
+                    'actor_label' => $log->actor_label,
+                    'action'      => $log->action,
+                    'created_at'  => $log->created_at->toIso8601String(),
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $logs,
         ]);
     }
 }

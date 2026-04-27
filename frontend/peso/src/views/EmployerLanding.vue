@@ -9,7 +9,7 @@
             <img :src="pesoLogo" alt="PESO" class="logo-img" />
           </div>
           <div>
-            <span class="logo-name">PESO</span>
+            <span class="logo-name">PESO Santiago</span>
             <span class="logo-tag">Employer Portal</span>
           </div>
         </div>
@@ -128,7 +128,7 @@
             Platform Features
           </div>
           <h2 class="section-title">Everything you need to<br/><span class="accent">hire smarter</span></h2>
-          <p class="section-sub">PESO gives you the tools to attract, evaluate, and hire the best talent — faster than ever before.</p>
+          <p class="section-sub">PESO Santiago gives you the tools to attract, evaluate, and hire the best talent — faster than ever before.</p>
         </div>
         <div class="features-grid">
           <div
@@ -211,9 +211,9 @@
         <div class="section-header reveal-up" :class="{ visible: benefitsVisible }">
           <div class="section-badge dark-badge">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#08BDDE" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            Why PESO
+            Why PESO Santiago
           </div>
-          <h2 class="section-title light-title">Why employers choose<br/><span class="sky-accent">PESO Portal</span></h2>
+          <h2 class="section-title light-title">Why employers choose<br/><span class="sky-accent">PESO Santiago Portal</span></h2>
         </div>
         <div class="benefits-grid">
           <div
@@ -273,7 +273,7 @@
               For Your Team
             </div>
             <h2 class="section-title" style="text-align:left">A hiring platform built<br/><span class="accent">for local businesses</span></h2>
-            <p class="section-sub" style="text-align:left">Whether you're a small shop or a growing company, PESO connects you with local talent who are ready to work and live in your community.</p>
+            <p class="section-sub" style="text-align:left">Whether you're a small shop or a growing company, PESO Santiago connects you with local talent who are ready to work and live in your community.</p>
             <router-link to="/employer/register" class="cta-primary ripple-btn" style="display:inline-flex; margin-top:8px">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Create Employer Account
@@ -290,9 +290,9 @@
         <div class="cta-orb c2"></div>
         <div class="cta-content reveal-up" :class="{ visible: ctaVisible }">
           <h2 class="cta-title">Ready to find your next great hire?</h2>
-          <p class="cta-sub">Join hundreds of employers already using PESO to connect with quality talent across the Philippines.</p>
+          <p class="cta-sub">Join hundreds of employers already using PESO Santiago to connect with quality talent across the Philippines.</p>
           <div class="cta-buttons">
-            <router-link to="/employer/login" class="cta-primary white ripple-btn">
+            <router-link to="/employer/register" class="cta-primary white ripple-btn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               Get Started for Free
             </router-link>
@@ -311,7 +311,7 @@
               <img :src="pesoLogo" alt="PESO" class="logo-img" />
             </div>
             <div>
-              <span class="logo-name sm">PESO</span>
+              <span class="logo-name sm">PESO Santiago</span>
               <span class="logo-tag sm">Employer Portal</span>
             </div>
           </div>
@@ -330,7 +330,7 @@
         </div>
         <div class="footer-links-group">
           <p class="footer-group-title">Government</p>
-          <a class="footer-link" href="#">PESO Official</a>
+          <a class="footer-link" href="#">PESO Santiago Official</a>
           <a class="footer-link" href="#">DOLE Philippines</a>
           <a class="footer-link" href="#">PhilJobNet</a>
         </div>
@@ -405,8 +405,8 @@ export default {
         { title: 'Hiring Analytics',         desc: 'Track applications over time, monitor your hiring funnel, and measure performance metrics to improve your recruitment strategy.',                    bg: '#fef2f2', color: '#ef4444', icon: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
       ],
       steps: [
-        { title: 'Register Your Company',   desc: 'Create your free employer account. Fill in your company profile, verify your details, and get approved by PESO.',                                  bg: '#eff8ff', color: '#2872A1', icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
-        { title: 'Post Your Job Openings',  desc: 'Create job listings with your requirements. Our system immediately starts matching qualified applicants from the PESO database.',                    bg: '#f0f9ff', color: '#08BDDE', icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>` },
+        { title: 'Register Your Company',   desc: 'Create your free employer account. Fill in your company profile, verify your details, and get approved by PESO Santiago.',                                  bg: '#eff8ff', color: '#2872A1', icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
+        { title: 'Post Your Job Openings',  desc: 'Create job listings with your requirements. Our system immediately starts matching qualified applicants from the PESO Santiago database.',                    bg: '#f0f9ff', color: '#08BDDE', icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>` },
         { title: 'Hire the Best Fit',       desc: 'Review matched applicants, manage your pipeline, conduct interviews, and hire — all from your employer dashboard.',                                 bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>` },
       ],
       checkList: [

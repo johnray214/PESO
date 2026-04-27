@@ -134,7 +134,7 @@ async function handleSubmit() {
 
         <!-- Brand -->
         <div class="brand-block">
-          <h2 class="brand-name">PESO</h2>
+          <h2 class="brand-name">PESO Santiago City</h2>
           <p class="brand-full">Public Employment<br/>Service Office</p>
           <div class="brand-rule"/>
           <p class="brand-tagline">Connecting talent with opportunity<br/>across the region.</p>

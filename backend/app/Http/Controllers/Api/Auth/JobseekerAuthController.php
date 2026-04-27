@@ -280,8 +280,8 @@ class JobseekerAuthController extends Controller
         // CREATE WELCOME NOTIFICATION
         try {
             $notif = Notification::create([
-                'subject' => "Welcome to PESO Connect!, {$jobseeker->first_name}! 🚀",
-                'message' => "We're thrilled to have you here! PESO Connect! is dedicated to connecting you with the best career opportunities. To start your journey, please complete your profile during the onboarding process and explore jobs that match your skills. We're here to help you find your dream job!",
+                'subject' => "Welcome to PESO Santiago Connect!, {$jobseeker->first_name}! 🚀",
+                'message' => "We're thrilled to have you here! PESO Santiago Connect! is dedicated to connecting you with the best career opportunities. To start your journey, please complete your profile during the onboarding process and explore jobs that match your skills. We're here to help you find your dream job!",
                 'type' => 'welcome',
                 'recipients' => 'specific',
                 'status' => 'sent',
@@ -358,7 +358,7 @@ class JobseekerAuthController extends Controller
                     [
                         'From' => [
                             'Email' => env('MAILJET_FROM_EMAIL', 'peso@posuechague.site'),
-                            'Name'  => env('MAILJET_FROM_NAME', 'PESO')
+                            'Name'  => env('MAILJET_FROM_NAME', 'PESO Santiago')
                         ],
                         'To' => [
                             [
@@ -368,7 +368,7 @@ class JobseekerAuthController extends Controller
                         ],
                         'TemplateID' => 7861324,
                         'TemplateLanguage' => true,
-                        'Subject' => 'Verify Your Email — PESO Jobseeker',
+                        'Subject' => 'Verify Your Email — PESO Santiago Jobseeker',
                         'Variables' => [
                             'first_name' => $jobseeker->first_name,
                             'otp_code'   => $otpCode,

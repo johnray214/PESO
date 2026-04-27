@@ -26,13 +26,15 @@
     <template v-else>
       <!-- Type Tabs -->
       <div class="type-tabs">
-        <button v-for="tab in typeTabs" :key="tab.value"
-          :class="['tab-btn', { active: activeTab === tab.value }]"
-          @click="switchTab(tab.value)">
-          <span v-html="tab.icon" class="tab-icon"></span>
-          {{ tab.label }}
-          <span class="tab-count">{{ tab.count || 0 }}</span>
-        </button>
+        <template v-for="tab in typeTabs" :key="tab.value">
+          <button v-if="tab.value !== 'users' || authStore.role === 'admin'"
+            :class="['tab-btn', { active: activeTab === tab.value }]"
+            @click="switchTab(tab.value)">
+            <span v-html="tab.icon" class="tab-icon"></span>
+            {{ tab.label }}
+            <span class="tab-count">{{ tab.count || 0 }}</span>
+          </button>
+        </template>
       </div>
 
       <!-- Filters -->
@@ -177,9 +179,14 @@
 
 <script>
 import api from '@/services/api'
+import { useAuthStore } from '@/stores/auth'
 
 export default {
   name: 'ArchivePage',
+  setup() {
+    const authStore = useAuthStore()
+    return { authStore }
+  },
   async mounted() {
     await this.fetchCounts()
   },
@@ -195,6 +202,7 @@ export default {
         { label: 'All',          value: 'all',          count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>` },
         { label: 'Employers',    value: 'employers',    count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
         { label: 'Jobseekers',   value: 'jobseekers',   count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>` },
+        { label: 'Job Listings', value: 'job_listings', count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>` },
         { label: 'Events',       value: 'events',       count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
         { label: 'Users',        value: 'users',        count: 0, icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>` },
       ],
@@ -209,6 +217,7 @@ export default {
   computed: {
     filteredRecords() {
       return this.records.filter(r => {
+        if (r.type === 'users' && this.authStore.role !== 'admin') return false;
         return !this.search || r.name.toLowerCase().includes(this.search.toLowerCase())
       })
     },
@@ -284,10 +293,11 @@ export default {
 
     mapItem(item, type) {
       let name = 'Unknown', detail = ''
-      if (type === 'employers')    { name = item.company_name || 'Employer';   detail = item.email || '' }
-      else if (type === 'jobseekers')   { name = `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Jobseeker'; detail = item.email || '' }
-      else if (type === 'events')       { name = item.title || 'Event';        detail = item.location || '' }
-      else if (type === 'users')        { name = item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'User'; detail = item.email || '' }
+      if (type === 'employers')           { name = item.company_name || 'Employer';   detail = item.email || '' }
+      else if (type === 'jobseekers')     { name = `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Jobseeker'; detail = item.email || '' }
+      else if (type === 'events')         { name = item.title || 'Event';        detail = item.location || '' }
+      else if (type === 'users')          { name = item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'User'; detail = item.email || '' }
+      else if (type === 'job_listings')   { name = item.title || 'Job Listing';  detail = item.employer?.company_name || 'No Employer' }
       return {
         id:        item.id,
         type,
@@ -299,7 +309,7 @@ export default {
     },
 
     typeLabel(type) {
-      const map = { employers: 'Employers', jobseekers: 'Jobseekers', events: 'Events', users: 'Users' }
+      const map = { employers: 'Employers', jobseekers: 'Jobseekers', events: 'Events', users: 'Users', job_listings: 'Job Listings' }
       return map[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : '')
     },
 

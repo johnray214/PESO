@@ -332,6 +332,66 @@
         </div>
       </div>
     </transition>
+    
+    <!-- REJECTION / SUSPENSION REASON MODAL -->
+    <transition name="modal">
+      <div v-if="showRejectModal" class="modal-overlay" @click.self="showRejectModal = false">
+        <div class="modal reject-reason-modal">
+
+          <div class="reject-modal-icon-wrap" :style="{ background: rejectIsSuspend ? '#fff7ed' : '#fef2f2' }">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+                :stroke="rejectIsSuspend ? '#f97316' : '#ef4444'" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="15" y1="9" x2="9" y2="15"/>
+              <line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+          </div>
+
+          <div class="reject-modal-text">
+            <h3 class="confirm-title">{{ rejectIsSuspend ? 'Suspend Employer?' : 'Reject Employer?' }}</h3>
+            <p class="confirm-msg">
+              You are {{ rejectIsSuspend ? 'suspending' : 'rejecting' }}
+              <strong>{{ rejectTarget?.companyName }}</strong>.
+              Please provide a reason — this will be sent to the employer via email.
+            </p>
+          </div>
+
+          <div class="reject-modal-body">
+            <label class="reject-label">
+              {{ rejectIsSuspend ? 'Reason for Suspension' : 'Reason for Rejection' }}
+              <span style="color:#ef4444">*</span>
+            </label>
+            <textarea
+              v-model="rejectRemarks"
+              class="reject-textarea"
+              :class="{ 'reject-textarea-error': rejectRemarksError }"
+              :placeholder="rejectIsSuspend
+                ? 'e.g. Violation of PESO portal terms. Account suspended pending review.'
+                : 'e.g. Submitted documents are incomplete or unreadable.'"
+              rows="4"
+              @input="rejectRemarksError = false"
+            ></textarea>
+            <span v-if="rejectRemarksError" class="reject-error-msg">
+              A reason is required before proceeding.
+            </span>
+          </div>
+
+          <div class="confirm-actions">
+            <button class="btn-ghost" @click="showRejectModal = false" :disabled="actionLoading">Cancel</button>
+            <button
+              class="btn-confirm-danger"
+              :style="{ background: rejectIsSuspend ? '#f97316' : '#ef4444' }"
+              @click="submitRejection"
+              :disabled="actionLoading"
+            >
+              <span v-if="actionLoading" class="spinner-sm"></span>
+              <span v-else>{{ rejectIsSuspend ? 'Suspend & Notify' : 'Reject & Notify' }}</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </transition>
 
     <!-- DOCUMENT VIEWER LIGHTBOX -->
     <transition name="lightbox">
@@ -413,6 +473,12 @@ export default {
       currentPage: 1,
       lastPage: 1,
       totalEmployers: 0,
+      showRejectModal: false,
+      rejectTarget: null,
+      rejectRemarks: '',
+      rejectRemarksError: false,
+      rejectFromDetail: false,
+      rejectIsSuspend: false,
     }
   },
   computed: {
@@ -433,6 +499,7 @@ export default {
       this.currentPage = 1
       this.fetchEmployers(true)
     },
+
     applyDropdownFilter() {
       this.search = ''
       this.applySearch()
@@ -474,7 +541,7 @@ export default {
             contactPerson:      e.contact_person || '',
             phone:              e.phone          || e.contact_number || '',
             email:              e.email          || '',
-            photo:              e.photo          ? (e.photo.startsWith('http') ? e.photo : '/storage/' + e.photo) : null,
+            photo:              e.photo ? (e.photo.startsWith('http') ? e.photo : '/storage/' + e.photo) : null,
             registeredDate:     e.created_at ? new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
             verificationStatus: e.status ? (e.status.charAt(0).toUpperCase() + e.status.slice(1)) : 'Pending',
             hasBizPermit:  !!bizPermitUrl,
@@ -483,11 +550,13 @@ export default {
             birCertUrl,
             bizPermitName: bizPermitUrl ? bizPermitUrl.split('/').pop() : null,
             birCertName:   birCertUrl   ? birCertUrl.split('/').pop()   : null,
-            remarks:       e.remarks    || '',
+            remarks:       e.remarks || '',
             avatarBg:      avatarColors[i % avatarColors.length],
           }
         })
-      } catch (e) { console.error(e) } finally {
+      } catch (e) {
+        console.error(e)
+      } finally {
         this.loading     = false
         this.pageLoading = false
       }
@@ -500,19 +569,17 @@ export default {
       }
     },
 
-    /** Open a confirmation modal instead of window.confirm */
     confirmAction(type, target) {
       this.confirmTarget = target
       if (type === 'revoke') {
-        this.confirmConfig = {
-          icon: 'revoke',
-          iconBg: 'icon-bg-red',
-          iconColor: '#ef4444',
-          title: 'Revoke Verification?',
-          message: `This will suspend ${target.companyName}'s verified status. They will no longer appear as verified to jobseekers.`,
-          btnLabel: 'Revoke',
-          action: 'revoke',
-        }
+        // Use the rejection reason modal so admin must provide a reason
+        this.rejectTarget = target
+        this.rejectFromDetail = false
+        this.rejectRemarks = ''
+        this.rejectRemarksError = false
+        // Override submitRejection behavior for suspend
+        this.rejectIsSuspend = true
+        this.showRejectModal = true
       } else if (type === 'archive') {
         this.confirmConfig = {
           icon: 'archive',
@@ -523,8 +590,8 @@ export default {
           btnLabel: 'Archive',
           action: 'archive',
         }
+        this.showConfirm = true
       }
-      this.showConfirm = true
     },
 
     async executeConfirm() {
@@ -556,8 +623,15 @@ export default {
       const isImage = (url) => url && /\.(jpg|jpeg|png|gif|webp)$/i.test(url)
       const isPdf   = (url) => url && /\.pdf$/i.test(url)
       const url  = docType === 'bizPermit' ? employer.bizPermitUrl : employer.birCertUrl
-      const name = docType === 'bizPermit' ? (employer.bizPermitName || 'business_permit.pdf') : (employer.birCertName || 'bir_certificate.pdf')
-      this.activeDoc = { name, company: employer.companyName, url: url || null, type: isImage(url) ? 'image' : isPdf(url) ? 'pdf' : 'fallback' }
+      const name = docType === 'bizPermit'
+        ? (employer.bizPermitName || 'business_permit.pdf')
+        : (employer.birCertName   || 'bir_certificate.pdf')
+      this.activeDoc = {
+        name,
+        company: employer.companyName,
+        url: url || null,
+        type: isImage(url) ? 'image' : isPdf(url) ? 'pdf' : 'fallback',
+      }
       this.showDocViewer = true
     },
 
@@ -565,9 +639,15 @@ export default {
       if (!doc?.url) return
       try {
         const a = document.createElement('a')
-        a.href = doc.url; a.target = '_blank'; a.download = doc.name || 'document'
-        document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      } catch (e) { this.showToastMsg('Download failed.', 'error') }
+        a.href = doc.url
+        a.target = '_blank'
+        a.download = doc.name || 'document'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } catch (e) {
+        this.showToastMsg('Download failed.', 'error')
+      }
     },
 
     viewEmployer(employer) {
@@ -578,44 +658,90 @@ export default {
 
     showToastMsg(text, type = 'success') {
       if (this.toast._timer) clearTimeout(this.toast._timer)
-      this.toast = { show: true, text, type, icon: type === 'success' ? CHECK_SVG : X_SVG, _timer: setTimeout(() => { this.toast.show = false }, 3500) }
+      this.toast = {
+        show: true,
+        text,
+        type,
+        icon: type === 'success' ? CHECK_SVG : X_SVG,
+        _timer: setTimeout(() => { this.toast.show = false }, 3500),
+      }
     },
 
-    async quickVerify(employer, status) {
+    // ── Sync: just opens the reject modal or calls doVerify directly
+    quickVerify(employer, status) {
+      if (status === 'Rejected') {
+        this.rejectTarget = employer
+        this.rejectFromDetail = false
+        this.rejectRemarks = ''
+        this.rejectRemarksError = false
+        this.showRejectModal = true
+      } else {
+        this.doVerify(employer.id, 'verified', '')
+      }
+    },
+
+    // ── All actual API work goes here
+    async doVerify(id, status, remarks) {
       if (this.actionLoading) return
-      this.actionLoadingId = employer.id
-      this.pendingAction = status === 'Verified' ? 'verify' : 'reject'
+      this.actionLoading = true
+      this.actionLoadingId = id
+      this.pendingAction = status === 'verified' ? 'verify' : 'reject'
       try {
-        await api.patch(`/admin/employers/${employer.id}/status`, { status: status.toLowerCase() })
-        const idx = this.employers.findIndex(e => e.id === employer.id)
-        if (idx !== -1) this.employers[idx].verificationStatus = status
-        this.showToastMsg(`Employer ${status.toLowerCase()} successfully`, 'success')
+        await api.patch(`/admin/employers/${id}/status`, { status, remarks })
+        const idx = this.employers.findIndex(e => e.id === id)
+        const displayStatus = status.charAt(0).toUpperCase() + status.slice(1)
+        if (idx !== -1) {
+          this.employers[idx].verificationStatus = displayStatus
+          if (remarks) this.employers[idx].remarks = remarks
+          if (this.selectedEmployer?.id === id) {
+            this.selectedEmployer = { ...this.employers[idx] }
+          }
+        }
+        this.showToastMsg(`Employer ${status} successfully`, 'success')
+        this.showRejectModal = false
+        if (this.rejectFromDetail) this.showModal = false
       } catch (e) {
         console.error(e)
         this.showToastMsg('Failed to update status', 'error')
       } finally {
+        this.actionLoading = false
         this.actionLoadingId = null
         this.pendingAction = null
       }
     },
 
-    async verifyEmployer(status) {
-      if (this.actionLoading) return
-      this.actionLoading = true
-      try {
-        await api.patch(`/admin/employers/${this.selectedEmployer.id}/status`, { status: status.toLowerCase(), remarks: this.verifyRemarks })
-        const idx = this.employers.findIndex(e => e.id === this.selectedEmployer.id)
-        if (idx !== -1) {
-          this.employers[idx].verificationStatus = status
-          if (this.verifyRemarks) this.employers[idx].remarks = this.verifyRemarks
-          this.selectedEmployer = { ...this.employers[idx] }
-        }
-        this.showToastMsg(`Employer ${status.toLowerCase()} successfully`, 'success')
-      } catch (e) {
-        console.error(e)
-        this.showToastMsg('Failed to verify employer', 'error')
-      } finally {
-        this.verifyRemarks = ''; this.actionLoading = false; this.showModal = false
+    // ── Called by the rejection modal's "Reject & Notify" button
+    async submitRejection() {
+      if (!this.rejectRemarks.trim()) {
+        this.rejectRemarksError = true
+        return
+      }
+      if (this.rejectIsSuspend) {
+        await this.doVerify(this.rejectTarget.id, 'suspended', this.rejectRemarks)
+        this.rejectIsSuspend = false
+      } else {
+        await this.doVerify(this.rejectTarget.id, 'rejected', this.rejectRemarks)
+      }
+    },
+
+    // ── Sync: just opens the reject modal or calls doVerify directly
+    verifyEmployer(status) {
+      if (status === 'Rejected') {
+        this.rejectTarget = this.selectedEmployer
+        this.rejectFromDetail = true
+        this.rejectIsSuspend = false
+        this.rejectRemarks = ''
+        this.rejectRemarksError = false
+        this.showRejectModal = true
+      } else if (status === 'Suspended') {
+        this.rejectTarget = this.selectedEmployer
+        this.rejectFromDetail = true
+        this.rejectIsSuspend = true
+        this.rejectRemarks = ''
+        this.rejectRemarksError = false
+        this.showRejectModal = true
+      } else {
+        this.doVerify(this.selectedEmployer.id, status.toLowerCase(), '')
       }
     },
   },
@@ -863,4 +989,51 @@ export default {
 .modal-enter-from, .modal-leave-to { opacity: 0; }
 .modal-enter-from .modal, .modal-leave-to .modal { transform: scale(0.95); opacity: 0; }
 @media (max-width: 768px) { .toast { top: 16px; right: 16px; left: 16px; min-width: auto; max-width: none; } }
+
+.reject-reason-modal {
+  width: 420px !important;
+  padding: 0 !important;
+  border-radius: 18px !important;
+  display: flex !important;
+  flex-direction: column;
+}
+.reject-modal-icon-wrap {
+  display: flex; align-items: center; justify-content: center;
+  padding: 28px 0 16px;
+  background: #fef2f2;
+}
+.reject-modal-text {
+  padding: 16px 28px 8px;
+  text-align: center;
+}
+.reject-modal-body {
+  padding: 12px 24px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.reject-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.reject-textarea {
+  width: 100%;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #1e293b;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  background: #f8fafc;
+  transition: border 0.15s;
+  line-height: 1.6;
+}
+.reject-textarea:focus { border-color: #fca5a5; background: #fff; }
+.reject-textarea-error { border-color: #ef4444; background: #fff5f5; }
+.reject-error-msg { font-size: 11.5px; color: #ef4444; font-weight: 500; }
 </style>

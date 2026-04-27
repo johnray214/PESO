@@ -25,6 +25,7 @@ class JobListing extends Model
 
     protected $fillable = [
         'employer_id',
+        'employer_name',
         'title',
         'type',
         'location',
@@ -36,6 +37,11 @@ class JobListing extends Model
         'status',
         'posted_date',
         'deadline',
+        'program',
+        'program_budget',
+        'program_duration',
+        'program_target',
+        'implementing_agency',
     ];
 
     protected $casts = [

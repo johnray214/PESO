@@ -15,7 +15,7 @@ function _buildEcho(token) {
     cluster: process.env.VUE_APP_PUSHER_CLUSTER,
     forceTLS: true,
     // Auth endpoint for private channels (employer only)
-    authEndpoint: 'https://newpesobackend-production.up.railway.app/api/broadcasting/auth',
+    authEndpoint: 'https/localhost:8000/api/broadcasting/auth',
     auth: {
       headers: {
         Authorization: `Bearer ${token}`,

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\Employer\EmployerEventController;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
@@ -30,9 +31,11 @@ use App\Http\Controllers\Api\Admin\AdminReportController;
 use App\Http\Controllers\Api\Admin\AdminArchiveController;
 use App\Http\Controllers\Api\Admin\AdminActivityFeedController;
 use App\Http\Controllers\Api\Admin\AdminJobseekerDocumentController;
+use App\Http\Controllers\Api\Admin\AdminInvitationController;
 use App\Http\Controllers\Api\Public\PublicEventController;
 use App\Http\Controllers\Api\Public\PublicMapController;
 use App\Http\Controllers\Api\Public\PublicSkillsController;
+use App\Http\Controllers\Api\Public\LegsFeedbackController;
 
 // Employer Controllers
 use App\Http\Controllers\Api\Employer\EmployerDashboardController;
@@ -68,6 +71,7 @@ Route::post('/employer/login', [EmployerAuthController::class, 'login']);
 Route::post('/employer/register', [EmployerAuthController::class, 'register']);
 Route::post('/employer/forgot-password', [EmployerAuthController::class, 'forgotPassword']);
 Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPassword']);
+Route::post('/employer/resubmit', [EmployerAuthController::class, 'resubmit']);
 
 // Jobseeker Auth
 Route::post('/jobseeker/login', [JobseekerAuthController::class, 'login']);
@@ -100,12 +104,18 @@ Route::get('/public/map/employers', [PublicMapController::class, 'employers']);
 // Public Skills Catalog (used by jobseekers to pick skills)
 Route::get('/public/skills', [PublicSkillsController::class, 'index']);
 
+// LEGS Feedback (public – no auth required)
+Route::post('/legs-feedback', [LegsFeedbackController::class, 'store']);
+
 /*
 |--------------------------------------------------------------------------
 | ADMIN ROUTES
 |--------------------------------------------------------------------------
 */
 Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->prefix('admin')->group(function () {
+
+    // LEGS Feedback submissions (admin view)
+    Route::get('/legs-feedback', [LegsFeedbackController::class, 'index']);
     
     // Auth
     Route::post('/logout', [AdminAuthController::class, 'logout']);
@@ -139,17 +149,25 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     Route::delete('/jobseekers/{id}', [AdminJobseekerController::class, 'destroy']);
     
     // Job Listings
-    Route::get('/job-listings', [AdminJobListingController::class, 'index']);
-    Route::get('/job-listings/{id}', [AdminJobListingController::class, 'show']);
-    Route::patch('/job-listings/{id}/status', [AdminJobListingController::class, 'updateStatus']);
-    Route::delete('/job-listings/{id}', [AdminJobListingController::class, 'destroy']);
+    Route::get('/jobs', [AdminJobListingController::class, 'index']);
+    Route::post('/jobs', [AdminJobListingController::class, 'store']);
+    Route::get('/jobs/{id}', [AdminJobListingController::class, 'show']);
+    Route::put('/jobs/{id}', [AdminJobListingController::class, 'update']);
+    Route::patch('/jobs/{id}/close', [AdminJobListingController::class, 'close']);
+    Route::patch('/jobs/{id}/status', [AdminJobListingController::class, 'updateStatus']);
+    Route::delete('/jobs/{id}', [AdminJobListingController::class, 'destroy']);
     
     // Applications
     Route::get('/applications/reviewing-count', [AdminApplicationController::class, 'reviewingCount']);
     Route::get('/applications', [AdminApplicationController::class, 'index']);
     Route::get('/applications/{id}', [AdminApplicationController::class, 'show']);
+    Route::get('/applications/{id}/history', [AdminApplicationController::class, 'history']);
     Route::patch('/applications/{id}/status', [AdminApplicationController::class, 'updateStatus']);
     Route::delete('/applications/{id}', [AdminApplicationController::class, 'destroy']);
+
+    // Admin Invitations (PESO sends invite to jobseeker for any job listing)
+    Route::post('/invite/{jobseeker_id}', [AdminInvitationController::class, 'sendInvitation']);
+    Route::get('/potential-applicants', [AdminApplicationController::class, 'potentialApplicants']);
     
     // Events (specific routes before apiResource)
     Route::get('/events/{id}/registrations', [AdminEventController::class, 'registrations']);
@@ -210,6 +228,7 @@ Route::middleware(['auth:employer', \App\Http\Middleware\EnsureEmployer::class])
     // Applications
     Route::get('/applications', [EmployerApplicationController::class, 'index']);
     Route::get('/applications/{id}/resume', [EmployerApplicationController::class, 'downloadResume']);
+    Route::get('/applications/{id}/history', [EmployerApplicationController::class, 'history']);
     Route::get('/applications/{id}', [EmployerApplicationController::class, 'show']);
     Route::patch('/applications/{id}/status', [EmployerApplicationController::class, 'updateStatus']);
     Route::get('/potential-applicants', [EmployerApplicationController::class, 'potentialApplicants']);
@@ -229,6 +248,9 @@ Route::middleware(['auth:employer', \App\Http\Middleware\EnsureEmployer::class])
     Route::post('/notifications/{id}/mark-read', [EmployerNotificationController::class, 'markRead']);
     Route::get('/notifications/{id}', [EmployerNotificationController::class, 'show']);
 
+
+     Route::get('events',      [EmployerEventController::class, 'index']);
+     Route::get('events/{id}', [EmployerEventController::class, 'show']);
     // Invitations (send to jobseekers)
     Route::post('/invite/{jobseeker_id}', [EmployerInvitationController::class, 'sendInvitation']);
 });

@@ -97,8 +97,9 @@ class AdminEmployerController extends Controller
         ]);
 
         $employer = Employer::findOrFail($id);
-
-        $wasNotVerified = $employer->status !== 'verified';
+        $wasNotVerified  = $employer->status !== 'verified';
+        $wasNotRejected  = $employer->status !== 'rejected';
+        $wasNotSuspended = $employer->status !== 'suspended';
 
         if ($validated['status'] === 'verified' && $wasNotVerified) {
             $validated['verified_at'] = now();
@@ -106,39 +107,64 @@ class AdminEmployerController extends Controller
 
         $employer->update($validated);
 
-        if ($validated['status'] === 'verified' && $wasNotVerified) {
-            try {
-                $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
-                $body = [
-                    'Messages' => [
-                        [
-                            'From' => [
-                                'Email' => env('MAILJET_FROM_EMAIL'),
-                                'Name' => env('MAILJET_FROM_NAME', 'PESO')
-                            ],
-                            'To' => [
-                                [
-                                    'Email' => $employer->email,
-                                    'Name' => trim($employer->contact_person ?: $employer->company_name)
-                                ]
-                            ],
-                            'TemplateID' => 7861214,
-                            'TemplateLanguage' => true,
-                            'Subject' => 'PESO: Your Employer Account Has Been Verified',
-                            'Variables' => [
-                                'company_name' => $employer->company_name
-                            ]
-                        ]
-                    ]
-                ];
-                $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
-                
-                if (!$response->success()) {
-                    \Illuminate\Support\Facades\Log::error('Mailjet API Error: ' . json_encode($response->getData()));
-                }
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('Mailjet Exception: ' . $e->getMessage());
+        try {
+            $mj = new \Mailjet\Client(
+                env('MAILJET_API_KEY'),
+                env('MAILJET_SECRET_KEY'),
+                true,
+                ['version' => 'v3.1']
+            );
+
+            // ── Verified email
+            if ($validated['status'] === 'verified' && $wasNotVerified) {
+                $mj->post(\Mailjet\Resources::$Email, ['body' => [
+                    'Messages' => [[
+                        'From'             => ['Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago')],
+                        'To'               => [['Email' => $employer->email, 'Name' => trim($employer->contact_person ?: $employer->company_name)]],
+                        'TemplateID'       => 7861214,
+                        'TemplateLanguage' => true,
+                        'Subject'          => 'PESO Santiago: Your Employer Account Has Been Verified',
+                        'Variables'        => ['company_name' => $employer->company_name],
+                    ]]
+                ]]);
             }
+
+            // ── Rejected email
+            if ($validated['status'] === 'rejected' && $wasNotRejected) {
+                $mj->post(\Mailjet\Resources::$Email, ['body' => [
+                    'Messages' => [[
+                        'From'             => ['Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago')],
+                        'To'               => [['Email' => $employer->email, 'Name' => trim($employer->contact_person ?: $employer->company_name)]],
+                        'TemplateID'       => 7919656,
+                        'TemplateLanguage' => true,
+                        'Subject'          => 'PESO Santiago: Update on Your Employer Account Application',
+                        'Variables'        => [
+                            'company_name'     => $employer->company_name,
+                            'rejection_reason' => $validated['remarks'] ?? 'No specific reason provided. Please contact our office for details.',
+                        ],
+                    ]]
+                ]]);
+            }
+
+            // ── Suspended email
+            if ($validated['status'] === 'suspended' && $wasNotSuspended) {
+                $mj->post(\Mailjet\Resources::$Email, ['body' => [
+                    'Messages' => [[
+                        'From'             => ['Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago')],
+                        'To'               => [['Email' => $employer->email, 'Name' => trim($employer->contact_person ?: $employer->company_name)]],
+                        'TemplateID'       => 7919694, 
+                        'TemplateLanguage' => true,
+                        'Subject'          => 'PESO Santiago: Your Employer Account Has Been Suspended',
+                        'Variables'        => [
+                            'company_name'      => $employer->company_name,
+                            'suspension_reason' => $validated['remarks'] ?? 'No specific reason provided. Please contact our office for details.',
+                        ],
+                    ]]
+                ]]);
+            }
+
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Mailjet Exception: ' . $e->getMessage());
         }
 
         return response()->json([

@@ -18,7 +18,7 @@
             </svg>
           </div>
           <div>
-            <span class="brand-name">PESO</span>
+            <span class="brand-name">PESO Santiago</span>
             <span class="brand-tag">Employer Portal</span>
           </div>
         </div>
@@ -97,15 +97,33 @@
               <line x1="12" y1="8" x2="12" y2="12"/>
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
-            <span v-if="verificationError === 'rejected'">
-              Your account registration has been <strong>Rejected</strong>. Please contact PESO for more information.
-            </span>
-            <span v-else-if="verificationError === 'suspended'">
-              Your account has been <strong>Suspended</strong>. Please contact PESO for more information.
-            </span>
-            <span v-else>
-              Your account is <strong>Pending Verification</strong>. Please wait for PESO staff to approve your account.
-            </span>
+            <div style="flex:1">
+              <span v-if="verificationError === 'rejected'">
+                Your account registration has been <strong>Rejected</strong>.
+                <span v-if="rejectionRemarks" style="display:block;margin-top:6px;font-size:12px;opacity:0.85">
+                  <strong>Reason:</strong> {{ rejectionRemarks }}
+                </span>
+              </span>
+              <span v-else-if="verificationError === 'suspended'">
+                Your account has been <strong>Suspended</strong>. Please contact PESO for more information.
+              </span>
+              <span v-else>
+                Your account is <strong>Pending Verification</strong>. Please wait for PESO staff to approve your account.
+              </span>
+              <div v-if="verificationError === 'rejected'" style="margin-top:10px">
+                <router-link
+                  to="/employer/resubmit"
+                  class="resubmit-btn"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/>
+                    <line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Resubmit Documents
+                </router-link>
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -209,6 +227,7 @@ export default {
       loading: false,
       error: '',
       verificationError: '',
+      rejectionRemarks: '',
 
       form: {
         email: '',
@@ -248,20 +267,25 @@ export default {
         this.$router.push('/employer/dashboard')
 
       } catch (error) {
-        const msg    = error?.response?.data?.message || error.message || ''
-        const status = error?.response?.data?.status  || ''
+        const msg     = error?.response?.data?.message || error.message || ''
+        const status  = error?.response?.data?.status  || ''
+        const remarks = error?.response?.data?.remarks  || ''
 
         if (status === 'pending' || msg.toLowerCase().includes('pending')) {
           this.verificationError = 'pending'
+          this.rejectionRemarks  = ''
           this.error = ''
         } else if (status === 'rejected' || msg.toLowerCase().includes('rejected')) {
           this.verificationError = 'rejected'
+          this.rejectionRemarks  = remarks
           this.error = ''
         } else if (status === 'suspended' || msg.toLowerCase().includes('suspended')) {
           this.verificationError = 'suspended'
+          this.rejectionRemarks  = ''
           this.error = ''
         } else {
           this.verificationError = ''
+          this.rejectionRemarks  = ''
           this.error = msg || 'Login failed. Please try again.'
         }
       } finally {
@@ -450,4 +474,26 @@ export default {
 }
 .notice-rejected strong, .notice-suspended strong { color: #dc2626; }
 .notice-rejected svg, .notice-suspended svg { color: #ef4444; }
+
+.resubmit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #2872A1, #08BDDE);
+  color: #fff;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(40,114,161,0.3);
+}
+.resubmit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(40,114,161,0.45);
+  color: #fff;
+  text-decoration: none;
+}
 </style>

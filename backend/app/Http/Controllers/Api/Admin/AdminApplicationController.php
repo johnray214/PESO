@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Application;
+use App\Models\ApplicationActivityLog;
 use App\Models\Notification;
 use App\Models\NotificationRead;
 use Illuminate\Http\Request;
@@ -88,7 +89,7 @@ class AdminApplicationController extends Controller
 
         $newStatus = $application->status;
 
-        // Create jobseeker notification when status actually changes
+        // Create jobseeker notification and log when status actually changes
         if ($newStatus !== $oldStatus) {
             $jobseeker = $application->jobseeker;
             $job       = $application->jobListing;
@@ -133,12 +134,107 @@ class AdminApplicationController extends Controller
                 'recipient_id'    => $jobseeker->id,
                 'read_at'         => null,
             ]);
+
+            // Log activity
+            ApplicationActivityLog::create([
+                'application_id' => $application->id,
+                'actor_type'     => 'peso',
+                'actor_label'    => 'PESO',
+                'action'         => ucfirst($newStatus),
+            ]);
+
+            // Auto-close job if hired count reaches slots
+            if ($newStatus === 'hired') {
+                $job = $application->jobListing;
+                $hiredCount = $job->applications()->where('status', 'hired')->count();
+                if ($job->slots > 0 && $hiredCount >= $job->slots) {
+                    $job->update(['status' => 'closed']);
+                }
+            }
         }
 
         return response()->json([
             'success' => true,
             'data' => $application,
             'message' => 'Application status updated successfully',
+        ]);
+    }
+
+    public function history($id)
+    {
+        $application = Application::findOrFail($id);
+
+        $logs = ApplicationActivityLog::where('application_id', $application->id)
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function ($log) {
+                return [
+                    'id'          => $log->id,
+                    'actor_type'  => $log->actor_type,
+                    'actor_label' => $log->actor_label,
+                    'action'      => $log->action,
+                    'created_at'  => $log->created_at->toIso8601String(),
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $logs,
+        ]);
+    }
+
+    public function potentialApplicants(Request $request)
+    {
+        // Get ALL job listings (across all employers) with their required skills
+        $jobListings = \App\Models\JobListing::with(['employer', 'skills'])->get();
+
+        if ($jobListings->isEmpty()) {
+            return response()->json(['success' => true, 'data' => []]);
+        }
+
+        $allSkills = $jobListings->pluck('skills')->flatten()->pluck('skill')->unique();
+
+        $query = \App\Models\Jobseeker::with(['skills', 'applications'])
+            ->where('status', 'active')
+            ->whereHas('skills', function ($q) use ($allSkills) {
+                $q->whereIn('skill', $allSkills);
+            });
+
+        if ($request->filled('search')) {
+            $s = $request->search;
+            $query->where(function ($q) use ($s) {
+                $q->where('first_name', 'like', "%{$s}%")
+                  ->orWhere('last_name', 'like', "%{$s}%")
+                  ->orWhereRaw("CONCAT(first_name,' ',last_name) LIKE ?", ["%{$s}%"]);
+            });
+        }
+
+        $jobseekers = $query->orderByDesc('created_at')->get();
+
+        $processed = $jobseekers->map(function ($jobseeker) use ($jobListings) {
+            $maxScore = 0;
+            $bestJob  = null;
+            foreach ($jobListings as $job) {
+                // Skip jobs the jobseeker already applied to
+                if ($jobseeker->applications->contains('job_listing_id', $job->id)) continue;
+                $score = \App\Models\Application::calculateMatchScore($jobseeker, $job);
+                if ($score > $maxScore) {
+                    $maxScore = $score;
+                    $bestJob  = $job;
+                }
+            }
+            $jobseeker->match_score      = $maxScore;
+            $jobseeker->best_job_title   = $bestJob?->title;
+            $jobseeker->best_job_id      = $bestJob?->id;
+            $jobseeker->best_employer    = $bestJob?->employer?->company_name;
+            $jobseeker->best_job_skills  = $bestJob ? $bestJob->skills->pluck('skill')->values()->toArray() : [];
+            $jobseeker->education_display = ucwords(str_replace('_', ' ', $jobseeker->education_level ?? ''));
+            return $jobseeker;
+        })->filter(fn ($js) => $js->match_score > 0)->values();
+
+        return response()->json([
+            'success' => true,
+            'data'    => $processed,
         ]);
     }
 
@@ -152,7 +248,8 @@ class AdminApplicationController extends Controller
             'message' => 'Application deleted successfully',
         ]);
     }
-       public function reviewingCount()
+
+    public function reviewingCount()
     {
         $count = \App\Models\Application::where('status', 'reviewing')->count();
         return response()->json(['count' => $count]);
