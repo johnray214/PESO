@@ -1,6 +1,8 @@
 import 'dart:math' as math;
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
 import 'dart:ui';
+import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -117,8 +119,17 @@ class PESOApp extends StatelessWidget {
         ),
       ),
       home: const SplashScreen(),
+      routes: {
+        '/splash': (context) => const SplashScreen(),
+      },
       builder: (context, child) {
-        return ConnectivityWrapper(child: child!);
+        return ValueListenableBuilder<bool>(
+          valueListenable: disableConnectivityModalNotifier,
+          builder: (context, isDisabled, _) {
+            if (isDisabled) return child!;
+            return ConnectivityWrapper(child: child!);
+          },
+        );
       },
     );
   }
@@ -146,6 +157,10 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _orbMovement;
   late Animation<double> _exitScale;
   late Animation<double> _exitOpacity;
+
+  bool _isOffline = false;
+  bool _isRetrying = false;
+  int _shakeKey = 0;
 
   @override
   void initState() {
@@ -176,7 +191,7 @@ class _SplashScreenState extends State<SplashScreen>
     )..repeat(reverse: true);
     _exitCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 800),
+      duration: const Duration(milliseconds: 600),
     );
 
     _mascotScale = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -201,87 +216,278 @@ class _SplashScreenState extends State<SplashScreen>
       CurvedAnimation(parent: _exitCtrl, curve: Curves.easeIn),
     );
 
+    // 1. Start Mascot Animation
     _mascotCtrl.forward();
 
-    // Auto-navigate sequence
-    Future.delayed(const Duration(milliseconds: 4000), () async {
-      if (!mounted) return;
+    // 2. Parallel Background Initialization
+    _initializeInternalState();
+  }
+
+  Future<void> _initializeInternalState() async {
+    // Wait for 3 seconds for branding, giving the mascot + shimmer time to shine
+    await Future.delayed(const Duration(milliseconds: 3000));
+    if (!mounted) return;
+
+    // ── CONNECTIVITY GATE ────────────────────────────────────────────────────
+    await _proceedIfOnline();
+  }
+
+  Future<bool> _hasRealInternet() async {
+    try {
+      final connectivityResult = await Connectivity().checkConnectivity();
+      if (connectivityResult.isEmpty || connectivityResult.contains(ConnectivityResult.none)) {
+        return false;
+      }
       
-      // Perform exit animation
+      // Perform a gold-standard Captive Portal HTTP check.
+      // E.g., filters out fake Wi-Fis or dead cellular data by expecting a literal '204 No Content'
+      // from Google's reliable network endpoint. If a network intercepts this (e.g. no load), 
+      // it will return a 200 with an HTML login page or throw an exception.
+      final response = await http.get(Uri.parse('https://clients3.google.com/generate_204'))
+          .timeout(const Duration(seconds: 4));
+          
+      return response.statusCode == 204;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _proceedIfOnline() async {
+    final isOnline = await _hasRealInternet();
+
+    if (!mounted) return;
+
+    if (!isOnline) {
+      HapticFeedback.lightImpact();
+      setState(() {
+        _isOffline = true;
+        _shakeKey++;
+        _isRetrying = false;
+      });
+      return; // Stay on splash — user must retry
+    }
+
+    // We have true internet — hide offline UI if it was showing
+    if (_isOffline) {
+      setState(() {
+        _isOffline = false;
+        _isRetrying = false;
+      });
+    }
+
+    try {
+      // Restore session from server (now safe — we have internet)
+      final hasSession = await SessionPrefs.restoreSession();
+      if (!mounted) return;
+
+      // ── EXIT SEQUENCE ──────────────────────────────────────────────────────
       await _exitCtrl.forward();
       if (!mounted) return;
 
-      final hasSession = await SessionPrefs.restoreSession();
-      if (!mounted) return;
       if (hasSession) {
+        // Load saved/applied jobs + sync FCM token before entering home
         await JobActionService().loadFromBackend();
-        // ENSURE FCM IS SYNCED EVERY TIME APP STARTS (Fix for Railway switching)
-        await NotificationService().syncTokenNow(); 
+        await NotificationService().syncTokenNow();
         if (!mounted) return;
 
-        final needsPostAuth =
-            await OnboardingPrefs.needsPostAuth(ignoreDebug: true);
-        if (!mounted) return;
-
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
-            pageBuilder: (_, __, ___) => needsPostAuth
-                ? const PostAuthOnboardingScreen()
-                : const HomePage(),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-        );
-        return;
-      }
-
-      final currentToken = UserSession().token;
-      final localIntroDone = await OnboardingPrefs.isIntroDone(
-        token: currentToken,
-        ignoreDebug: true,
-      );
-      final serverIntroDone = UserSession().isOnboardingDone;
-
-      if (!mounted) return;
-      if (!localIntroDone && !serverIntroDone) {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
-            pageBuilder: (_, __, ___) => IntroOnboardingPage(
-              onComplete: (introContext) {
-                Navigator.of(introContext).pushReplacement(
-                  PageRouteBuilder(
-                    transitionDuration: const Duration(milliseconds: 500),
-                    pageBuilder: (_, __, ___) => const AuthEntryPage(),
-                    transitionsBuilder: (_, animation, __, child) {
-                      return FadeTransition(opacity: animation, child: child);
-                    },
-                  ),
-                );
-              },
-            ),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
+        final needsPostAuth = await OnboardingPrefs.needsPostAuth(ignoreDebug: true);
+        _navigate(
+          needsPostAuth ? const PostAuthOnboardingScreen() : const HomePage(),
         );
       } else {
-        Navigator.pushReplacement(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
-            pageBuilder: (_, __, ___) => const AuthEntryPage(),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-        );
+        final introDone = await OnboardingPrefs.isIntroDone(ignoreDebug: true);
+        if (!mounted) return;
+
+        if (!introDone) {
+          _navigate(IntroOnboardingPage(
+            onComplete: (introCtx) => _navigateFromIntro(introCtx),
+          ));
+        } else {
+          _navigate(const AuthEntryPage());
+        }
       }
-    });
+    } catch (e) {
+      debugPrint('Splash Init Error: $e');
+      if (mounted) _navigate(const AuthEntryPage());
+    }
+  }
+
+  Future<void> _retry() async {
+    if (_isRetrying) return;
+    setState(() => _isRetrying = true);
+
+    // Small delay for UX so the button doesn't flicker
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
+
+    await _proceedIfOnline();
+  }
+
+  // ── Loading Pill (default state) ───────────────────────────────────────────
+  Widget _buildLoadingPill() {
+    return Container(
+      key: const ValueKey('loading'),
+      margin: const EdgeInsets.symmetric(horizontal: 40),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.white.withOpacity(0.12),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.15),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            child: Column(
+              children: [
+                const _SplashDots()
+                    .animate()
+                    .fadeIn(delay: 1200.ms, duration: 500.ms),
+                const SizedBox(height: 12),
+                Text(
+                  'Connecting you to opportunities...',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF0F172A).withOpacity(0.6),
+                    letterSpacing: 0.3,
+                  ),
+                )
+                    .animate()
+                    .fadeIn(delay: 1400.ms, duration: 500.ms),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Offline Pill (no internet state) ───────────────────────────────────────
+  Widget _buildOfflinePill() {
+    return Container(
+      key: const ValueKey('offline'),
+      margin: const EdgeInsets.symmetric(horizontal: 40),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        color: Colors.white.withOpacity(0.25),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.wifi_off_rounded,
+                  size: 28,
+                  color: const Color(0xFF0F172A).withOpacity(0.5),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'No internet connection',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.poppins(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF0F172A).withOpacity(0.7),
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                GestureDetector(
+                  onTap: _retry,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: _isRetrying
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            'Retry',
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ).animate(key: const ValueKey('offline_main'))
+     .fadeIn(duration: 400.ms)
+     .slideY(begin: 0.1, curve: Curves.easeOut)
+     .animate(key: ValueKey('shake_$_shakeKey'))
+     .shake(hz: 8, curve: Curves.easeInOutCubic, duration: 400.ms);
+  }
+
+
+  void _navigate(Widget page) {
+    if (!mounted) return;
+    
+    // Re-enable global modal before leaving
+    disableConnectivityModalNotifier.value = false;
+    
+    Navigator.pushReplacement(
+      context,
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => page,
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
+  }
+
+  void _navigateFromIntro(BuildContext introContext) {
+    // Re-enable global modal before leaving
+    disableConnectivityModalNotifier.value = false;
+    
+    Navigator.of(introContext).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 400),
+        pageBuilder: (_, __, ___) => const AuthEntryPage(),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+      ),
+    );
   }
 
   @override
@@ -296,7 +502,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final size = MediaQuery.sizeOf(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -574,50 +780,12 @@ class _SplashScreenState extends State<SplashScreen>
 
                         const Spacer(),
 
-                        // ── Loading indicator inside a Glass Pill ────────────────────────────
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 40),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(24),
-                            color: Colors.white.withOpacity(0.12),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.15),
-                              width: 1,
-                            ),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(24),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 16, horizontal: 24),
-                                child: Column(
-                                  children: [
-                                    const _SplashDots()
-                                        .animate()
-                                        .fadeIn(delay: 1200.ms, duration: 500.ms),
-                                    const SizedBox(height: 12),
-                                      Text(
-                                        'Connecting you to opportunities...',
-                                        textAlign: TextAlign.center,
-                                        softWrap: true,
-                                        overflow: TextOverflow.visible,
-                                        style: GoogleFonts.poppins(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: const Color(0xFF0F172A)
-                                            .withOpacity(0.6),
-                                        letterSpacing: 0.3,
-                                      ),
-                                    )
-                                        .animate()
-                                        .fadeIn(delay: 1400.ms, duration: 500.ms),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+                        // ── Status Pill (Loading / Offline) ──────────────────────────────────
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 400),
+                          child: _isOffline
+                              ? _buildOfflinePill()
+                              : _buildLoadingPill(),
                         ),
                         const SizedBox(height: 32),
                       ],
@@ -729,7 +897,6 @@ class _AuthEntryPageState extends State<AuthEntryPage>
     final h = MediaQuery.sizeOf(context).height;
     // Keep Sign in / Create account pinned to the physical bottom; do not resize
     // the scaffold when the keyboard opens (avoids those buttons riding up).
-    final keyboardPad = MediaQuery.viewInsetsOf(context).bottom;
 
     final headerFade = CurvedAnimation(
       parent: _ctrl,
@@ -748,6 +915,8 @@ class _AuthEntryPageState extends State<AuthEntryPage>
     );
 
     return Scaffold(
+      // Keep auth hero/header and form shell fixed while keyboard animates.
+      // The form itself is scrollable, so fields remain usable without full-page jump.
       resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
@@ -913,7 +1082,7 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                                           4,
                                           6,
                                           4,
-                                          20 + keyboardPad,
+                                          20,
                                         ),
                                         child: LoginModal(
                                           key: ValueKey<bool>(_isSignUpMode),
@@ -976,7 +1145,7 @@ class _WelcomePageState extends State<WelcomePage>
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
+    final size = MediaQuery.sizeOf(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -2112,19 +2281,26 @@ class _LoginModalState extends State<LoginModal>
   Future<void> _showForgotPasswordDialog() async {
     final emailCtrl = TextEditingController(text: _emailController.text.trim());
     var sending = false;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) {
-            return AlertDialog(
+    void closeDialogSafely(BuildContext dialogContext) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      if (!dialogContext.mounted) return;
+      Navigator.of(dialogContext).pop();
+    }
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (ctx) {
+          return StatefulBuilder(
+            builder: (ctx, setLocal) {
+              return AlertDialog(
               title: const Text('Forgot password'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Enter your registered email. We’ll send a link to reset your password for PESO Connect (same server as the API).',
+                    'Enter your registered email. We’ll send a link to reset your password for PESO Connect.',
                     style: TextStyle(
                         fontSize: 13.5, height: 1.35, color: Color(0xFF64748B)),
                   ),
@@ -2143,7 +2319,7 @@ class _LoginModalState extends State<LoginModal>
               ),
               actions: [
                 TextButton(
-                  onPressed: sending ? null : () => Navigator.of(ctx).pop(),
+                  onPressed: sending ? null : () => closeDialogSafely(ctx),
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
@@ -2167,7 +2343,7 @@ class _LoginModalState extends State<LoginModal>
                           if (!ctx.mounted) return;
                           // Do not call setLocal before pop: rebuilding StatefulBuilder while
                           // closing the route can assert in InheritedWidget disposal.
-                          Navigator.of(ctx).pop();
+                          closeDialogSafely(ctx);
                           if (!mounted) return;
                           final ok = res['success'] == true;
                           String msg;
@@ -2206,12 +2382,18 @@ class _LoginModalState extends State<LoginModal>
                   child: Text(sending ? 'Sending…' : 'Send link'),
                 ),
               ],
-            );
-          },
-        );
-      },
-    );
-    emailCtrl.dispose();
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      // Defer disposal one frame so the dialog TextField fully detaches
+      // before controller teardown (prevents close-time crashes with keyboard up).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        emailCtrl.dispose();
+      });
+    }
   }
 
   void _startOtpReopenCooldown([int seconds = 3]) {
@@ -2374,7 +2556,7 @@ class _LoginModalState extends State<LoginModal>
     final content = SingleChildScrollView(
       child: Padding(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+          bottom: 24,
           left: 24,
           right: 24,
           top: widget.renderAsModal ? 16 : 4,
@@ -2583,9 +2765,7 @@ class _LoginModalState extends State<LoginModal>
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: _fieldDec(
-                        _isSignUpMode ? 'Email' : 'Email or Username',
-                        Icons.email_outlined),
+                    decoration: _fieldDec('Email', Icons.email_outlined),
                     onChanged: (v) {
                       if (_serverEmailError != null) {
                         setState(() => _serverEmailError = null);
@@ -2611,9 +2791,7 @@ class _LoginModalState extends State<LoginModal>
                     },
                     validator: (v) {
                       if (v == null || v.isEmpty) {
-                        return _isSignUpMode
-                            ? 'Please enter your email'
-                            : 'Please enter your email or username';
+                        return 'Please enter your email';
                       }
                       if (_isSignUpMode &&
                           (!v.contains('@') || !v.contains('.'))) {
@@ -3095,6 +3273,7 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
         _statusNote = 'Email verified successfully. Redirecting...';
         _statusIsWarning = false;
       });
+      FocusManager.instance.primaryFocus?.unfocus();
       Navigator.of(context, rootNavigator: true).pop(res);
       return;
     }
@@ -3117,59 +3296,69 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: const Color(0xFFD6DFEE)),
         ),
-        child: Column(
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            Opacity(
-              opacity: 0.0,
-              child: SizedBox(
-                height: 0,
-                child: TextField(
-                  controller: _otpController,
-                  focusNode: _otpFocusNode,
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.done,
+            Positioned.fill(
+              child: TextField(
+                controller: _otpController,
+                focusNode: _otpFocusNode,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                textInputAction: TextInputAction.done,
+                enableInteractiveSelection: false,
+                cursorColor: Colors.transparent,
+                style: const TextStyle(color: Colors.transparent),
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  counterText: '',
+                  contentPadding: EdgeInsets.zero,
                 ),
+                maxLength: 6,
+                onTapOutside: (_) => FocusScope.of(context).unfocus(),
               ),
             ),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: List.generate(6, (index) {
-                final hasChar = index < code.length;
-                final isActive = isFocused &&
-                    (index == code.length || (code.length == 6 && index == 5));
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  width: 40,
-                  height: 50,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isActive
-                          ? const Color(0xFF4F67A9)
-                          : const Color(0xFFD7E0EF),
-                      width: isActive ? 2 : 1.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF0F172A).withOpacity(0.04),
-                        blurRadius: 8,
-                        offset: const Offset(0, 3),
+            IgnorePointer(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: List.generate(6, (index) {
+                  final hasChar = index < code.length;
+                  final isActive = isFocused &&
+                      (index == code.length || (code.length == 6 && index == 5));
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 40,
+                    height: 50,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isActive
+                            ? const Color(0xFF4F67A9)
+                            : const Color(0xFFD7E0EF),
+                        width: isActive ? 2 : 1.2,
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    hasChar ? code[index] : '',
-                    style: const TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.5,
-                      color: Color(0xFF111827),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF0F172A).withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                  ),
-                );
-              }),
+                    child: Text(
+                      hasChar ? code[index] : '',
+                      style: const TextStyle(
+                        fontSize: 26,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                  );
+                }),
+              ),
             ),
           ],
         ),
@@ -3305,14 +3494,19 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return WillPopScope(
+      onWillPop: () async {
+        FocusManager.instance.primaryFocus?.unfocus();
+        return true;
+      },
+      child: Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             const Text(
               'Verify your email',
               style: TextStyle(
@@ -3385,8 +3579,10 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                     TextButton(
                       onPressed: _isVerifying
                           ? null
-                          : () =>
-                              Navigator.of(context, rootNavigator: true).pop(),
+                          : () {
+                              FocusManager.instance.primaryFocus?.unfocus();
+                              Navigator.of(context, rootNavigator: true).pop();
+                            },
                       child: const Text('Cancel'),
                     ),
                     FilledButton(
@@ -3397,7 +3593,8 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                 ),
               ],
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -3781,7 +3978,7 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
     };
 
     return Positioned(
-      top: MediaQuery.of(context).padding.top + 20,
+      top: MediaQuery.paddingOf(context).top + 20,
       right: 20,
       child: SlideTransition(
         position: _offsetAnimation,
@@ -3791,7 +3988,7 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
             color: Colors.transparent,
             child: Container(
               constraints: BoxConstraints(
-                maxWidth: math.min(MediaQuery.of(context).size.width - 40, 320.0),
+                maxWidth: math.min(MediaQuery.sizeOf(context).width - 40, 320.0),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(

@@ -77,7 +77,7 @@ class PesoEvent {
 
     String? eventTime = _formatTimeRange(json['start_time'], json['end_time']);
     if (eventTime == null && json['event_time'] != null) {
-      eventTime = json['event_time'] as String?;
+      eventTime = _formatSingleTime(json['event_time'].toString());
     }
 
     final organizer = json['organizer'] as String?;
@@ -113,12 +113,35 @@ class PesoEvent {
 
   static String? _formatTimeRange(dynamic start, dynamic end) {
     if (start == null) return null;
-    var s = start.toString();
-    if (s.length >= 8) s = s.substring(0, 5);
-    if (end == null || end.toString().isEmpty) return s;
-    var e = end.toString();
-    if (e.length >= 8) e = e.substring(0, 5);
-    return '$s – $e';
+    final s = _formatSingleTime(start.toString());
+    if (s == null) return null;
+    if (end == null || end.toString().trim().isEmpty) return s;
+    final e = _formatSingleTime(end.toString());
+    if (e == null) return s;
+    return '$s - $e';
+  }
+
+  static String? _formatSingleTime(String raw) {
+    var value = raw.trim();
+    if (value.isEmpty) return null;
+    if (value.length >= 8 && value.contains(':')) value = value.substring(0, 5);
+
+    final normalized = value.toUpperCase();
+    if (normalized.contains('AM') || normalized.contains('PM')) {
+      return normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+    }
+
+    final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(value);
+    if (match == null) return value;
+
+    var hour = int.tryParse(match.group(1)!);
+    final minute = match.group(2)!;
+    if (hour == null) return value;
+
+    final suffix = hour >= 12 ? 'PM' : 'AM';
+    hour = hour % 12;
+    if (hour == 0) hour = 12;
+    return '$hour:$minute $suffix';
   }
 
   String get typeLabel {

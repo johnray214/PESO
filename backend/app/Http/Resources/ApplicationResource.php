@@ -39,6 +39,11 @@ class ApplicationResource extends JsonResource
                 ];
             }),
             'status' => $this->status,
+            'interview_date' => $this->interview_date,
+            'interview_time' => $this->interview_time,
+            'interview_format' => $this->interview_format,
+            'interview_location' => $this->interview_location,
+            'interviewer_name' => $this->interviewer_name,
             'match_score' => $this->match_score,
             'applied_at' => $this->applied_at,
             'created_at' => $this->created_at,

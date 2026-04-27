@@ -6,6 +6,7 @@ import 'api_service.dart';
 import 'user_session.dart';
 import 'job_models.dart';
 import 'job_action_service.dart';
+import 'home_pages.dart'; // Added for map navigation notifiers
 
 class SkillsProfilePage extends StatefulWidget {
   const SkillsProfilePage({super.key});
@@ -42,8 +43,6 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   static const List<String> _sortOptions = [
     'Best Match',
-    'Highest Salary',
-    'Lowest Salary',
     'Latest',
   ];
   static const List<String> _employmentTypes = [
@@ -178,20 +177,6 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     switch (_sortOption) {
       case 'Best Match':
         jobs.sort((a, b) => b.matchPercentage.compareTo(a.matchPercentage));
-        break;
-      case 'Highest Salary':
-        jobs.sort((a, b) {
-          final aVal = int.tryParse(a.salaryMax.replaceAll(RegExp(r'[₱,]'), '')) ?? 0;
-          final bVal = int.tryParse(b.salaryMax.replaceAll(RegExp(r'[₱,]'), '')) ?? 0;
-          return bVal.compareTo(aVal);
-        });
-        break;
-      case 'Lowest Salary':
-        jobs.sort((a, b) {
-          final aVal = int.tryParse(a.salaryMin.replaceAll(RegExp(r'[₱,]'), '')) ?? 0;
-          final bVal = int.tryParse(b.salaryMin.replaceAll(RegExp(r'[₱,]'), '')) ?? 0;
-          return aVal.compareTo(bVal);
-        });
         break;
       case 'Latest':
         jobs.sort((a, b) => b.postedDate.compareTo(a.postedDate));
@@ -1915,13 +1900,21 @@ class _MatchedJobCard extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
           onTap: () {
+            final isSaved = jobActionService.isSaved(job.id);
+            final isApplied = jobActionService.isApplied(job.id);
             showJobDetailSheet(
               context,
               job,
               isApplied: isApplied,
               isSaved: isSaved,
               onApply: () async {
-                 // confirm flow...
+                // Confirm and apply logic...
+              },
+              onViewMap: () {
+                Navigator.of(context).pop(); // Pop detail sheet
+                Navigator.of(context).pop(); // Pop SkillsProfilePage to return to Home tabs
+                homeNavRequestNotifier.value = 1; // Select Map tab
+                mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
               },
             );
           },
@@ -1945,7 +1938,12 @@ class _MatchedJobCard extends StatelessWidget {
                           ),
                         ],
                       ),
-                      child: CompanyLogoBox(job: job, size: 52, boxShadow: const []),
+                      child: CompanyLogoBox(
+                        job: job,
+                        size: 52,
+                        borderRadius: 14,
+                        boxShadow: const [],
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -2039,7 +2037,7 @@ class _MatchedJobCard extends StatelessWidget {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '${job.salaryMin} - ${job.salaryMax}',
+                          job.salaryDisplay,
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

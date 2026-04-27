@@ -14,6 +14,7 @@ class Notification extends Model
         'message',
         'type',
         'job_listing_id',
+        'meta',
         'recipients',
         'scheduled_at',
         'sent_at',
@@ -23,7 +24,8 @@ class Notification extends Model
 
     protected $casts = [
         'scheduled_at' => 'datetime',
-        'sent_at' => 'datetime',
+        'sent_at'      => 'datetime',
+        'meta'         => 'array',
     ];
 
     public function creator()
