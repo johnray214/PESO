@@ -439,17 +439,19 @@
             <div class="form-row two">
               <div class="form-group">
                 <label class="form-label">Job Title <span class="req">*</span></label>
-                <input v-model="form.title" class="form-input" placeholder="e.g. Community Worker"/>
+                <input v-model="form.title" class="form-input" :class="{ 'is-invalid': errors.title }" placeholder="e.g. Community Worker"/>
+                <span v-if="errors.title" class="error-text">{{ errors.title[0] }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Employment Type <span class="req">*</span></label>
-                <select v-model="form.type" class="form-input">
+                <select v-model="form.type" class="form-input" :class="{ 'is-invalid': errors.type }">
                   <option value="">Select type</option>
                   <option>Full-time</option>
                   <option>Part-time</option>
                   <option>Contract</option>
                   <option>Internship</option>
                 </select>
+                <span v-if="errors.type" class="error-text">{{ errors.type[0] }}</span>
               </div>
             </div>
 
@@ -457,7 +459,7 @@
             <div class="form-row two">
               <div class="form-group">
                 <label class="form-label">Minimum Education Level <span class="req">*</span></label>
-                <select v-model="form.education_level" class="form-input">
+                <select v-model="form.education_level" class="form-input" :class="{ 'is-invalid': errors.education_level }">
                   <option value="">Select education</option>
                   <option value="no_requirement">No requirement</option>
                   <option value="elementary">Elementary Graduate</option>
@@ -469,10 +471,11 @@
                   <option value="related_course">College Graduate (Related Course)</option>
                   <option value="postgraduate">Post-Graduate / Master's</option>
                 </select>
+                <span v-if="errors.education_level" class="error-text">{{ errors.education_level[0] }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Years of Experience <span class="req">*</span></label>
-                <select v-model="form.experience_required" class="form-input">
+                <select v-model="form.experience_required" class="form-input" :class="{ 'is-invalid': errors.experience_required }">
                   <option value="">Select experience</option>
                   <option value="fresh_grad">Fresh Graduate / No experience needed</option>
                   <option value="less_than_1">Less than 1 year</option>
@@ -482,6 +485,7 @@
                   <option value="5_years">At least 5 years</option>
                   <option value="10_years">10 years or more</option>
                 </select>
+                <span v-if="errors.experience_required" class="error-text">{{ errors.experience_required[0] }}</span>
               </div>
             </div>
 
@@ -500,21 +504,24 @@
                   <span class="salary-opt-check" v-if="form.salary === 'Above Minimum Wage'"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg></span>
                 </button>
               </div>
+              <span v-if="errors.salary" class="error-text">{{ errors.salary[0] }}</span>
             </div>
 
             <!-- Row 3: Slots + Status -->
             <div class="form-row two">
               <div class="form-group">
                 <label class="form-label">Number of Slots <span class="req">*</span></label>
-                <input v-model="form.slots" type="number" class="form-input" placeholder="e.g. 10"/>
+                <input v-model="form.slots" type="number" class="form-input" :class="{ 'is-invalid': errors.slots }" placeholder="e.g. 10"/>
+                <span v-if="errors.slots" class="error-text">{{ errors.slots[0] }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Status <span class="req">*</span></label>
-                <select v-model="form.status" class="form-input">
+                <select v-model="form.status" class="form-input" :class="{ 'is-invalid': errors.status }">
                   <option value="Open">Open</option>
                   <option value="Draft">Draft</option>
                   <option value="Closed">Closed</option>
                 </select>
+                <span v-if="errors.status" class="error-text">{{ errors.status[0] }}</span>
               </div>
             </div>
 
@@ -522,30 +529,34 @@
             <div class="form-row two">
               <div class="form-group">
                 <label class="form-label">Location</label>
-                <input v-model="form.location" class="form-input" placeholder="e.g. Tuguegarao City / Region-wide"/>
+                <input v-model="form.location" class="form-input" :class="{ 'is-invalid': errors.location }" placeholder="e.g. Tuguegarao City / Region-wide"/>
+                <span v-if="errors.location" class="error-text">{{ errors.location[0] }}</span>
               </div>
               <div class="form-group">
                 <label class="form-label">Deadline (Days)</label>
-                <input v-model="form.daysLeft" type="number" class="form-input" placeholder="e.g. 30"/>
+                <input v-model="form.daysLeft" type="number" class="form-input" :class="{ 'is-invalid': errors.daysLeft }" placeholder="e.g. 30"/>
+                <span v-if="errors.daysLeft" class="error-text">{{ errors.daysLeft[0] }}</span>
               </div>
             </div>
 
             <!-- Employer field (admin only) -->
             <div class="form-group" v-if="!form.program">
               <label class="form-label">Employer / Company Name</label>
-              <input v-model="form.employer" class="form-input" placeholder="Leave blank if admin-posted (e.g. DOLE)"/>
+              <input v-model="form.employer" class="form-input" :class="{ 'is-invalid': errors.employer }" placeholder="Leave blank if admin-posted (e.g. DOLE)"/>
+              <span v-if="errors.employer" class="error-text">{{ errors.employer[0] }}</span>
             </div>
 
             <!-- Description -->
             <div class="form-group">
               <label class="form-label">Job Description <span class="req">*</span></label>
-              <textarea v-model="form.description" class="form-input textarea" rows="3" placeholder="Describe the role, responsibilities, and requirements…"></textarea>
+              <textarea v-model="form.description" class="form-input textarea" :class="{ 'is-invalid': errors.description }" rows="3" placeholder="Describe the role, responsibilities, and requirements…"></textarea>
+              <span v-if="errors.description" class="error-text">{{ errors.description[0] }}</span>
             </div>
 
             <!-- Skills -->
             <div class="form-group">
               <label class="form-label">Required Skills <span class="req">*</span></label>
-              <div class="skills-picker">
+              <div class="skills-picker" :class="{ 'is-invalid': errors.skills }">
                 <div class="picked-chips" v-if="selectedSkills.length">
                   <span v-for="sk in selectedSkills" :key="sk" class="picked-chip">
                     {{ sk }}
@@ -678,6 +689,7 @@ export default {
         program_target: '', implementing_agency: '',
         employer: '',
       },
+      errors: {},
       selectedSkills: [],
       skillCatalog: [], skillCatalogItems: [],
       skillQuery: '', showSkillSuggestions: false,
@@ -930,6 +942,7 @@ export default {
       }
       this.skillQuery = ''; this.showSkillSuggestions = false
       this.showCatalogBrowser = false; this.catalogSearch = ''; this.catalogCategory = ''
+      this.errors = {}
       this.showModal = true
     },
 
@@ -948,6 +961,7 @@ export default {
       this.selectedSkills = [...job.skills]
       this.skillQuery = ''; this.showSkillSuggestions = false
       this.showCatalogBrowser = false; this.catalogSearch = ''; this.catalogCategory = ''
+      this.errors = {}
       this.showModal = true
       this.showToastMsg('Listing pre-filled — review and post to reactivate.', 'success')
     },
@@ -981,6 +995,9 @@ export default {
       this.savingJob = true
       try {
         const payload = { ...this.form, skills: [...this.selectedSkills] }
+        if (payload.program_duration !== null && payload.program_duration !== '') {
+          payload.program_duration = String(payload.program_duration)
+        }
         if (this.editingJob) {
           const { data } = await api.put(`/admin/jobs/${this.editingJob.id}`, payload)
           const idx = this.jobs.findIndex(j=>j.id===this.editingJob.id)
@@ -994,7 +1011,13 @@ export default {
         this.showModal = false
         this.showToastMsg(this.editingJob ? 'Job updated successfully' : 'Job posted successfully', 'success')
       } catch (e) {
-        console.error(e, e.response?.data); this.showToastMsg('An error occurred. Please check details.', 'error')
+        console.error(e, e.response?.data);
+        if (e.response?.status === 422) {
+          this.errors = e.response.data.errors || {}
+          this.showToastMsg('Please fill in all required fields correctly.', 'error')
+        } else {
+          this.showToastMsg('An error occurred. Please check details.', 'error')
+        }
       } finally { this.savingJob = false }
     },
 
@@ -1229,6 +1252,8 @@ export default {
 .form-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
 .req { color: #ef4444; }
 .form-input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; background: #f8fafc; transition: border 0.15s; box-sizing: border-box; height: 40px; }
+.form-input.is-invalid { border-color: #ef4444; background: #fef2f2; }
+.error-text { font-size: 10.5px; color: #ef4444; font-weight: 600; margin-top: 2px; }
 select.form-input { -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; cursor: pointer; }
 .form-input:focus { border-color: #2872A1; background: #fff; }
 .form-input.textarea { resize: vertical; height: auto; }
