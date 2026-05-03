@@ -6,7 +6,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -23,6 +22,28 @@ import 'app_nav.dart';
 import 'notification_service.dart';
 import 'main.dart';
 import 'home_pages.dart'; // Added to access global map notifiers
+
+/// Matches app blues ([AppColors]); menu rows stay one hue — no rainbow accents.
+class _ProfileTheme {
+  static const Color scaffoldBg = AppColors.pageBackground;
+  static const Color primary = AppColors.blueAccent;
+  /// Icon tiles on white cards — blue glyph on soft blue surface.
+  static const Color iconInk = AppColors.blueAccent;
+  static const Color iconSurface = Color(0xFFEFF6FF);
+  static const Color destructive = Color(0xFFDC2626);
+  static const Color destructiveSurface = Color(0xFFFEE2E2);
+
+  /// Same diagonal blues as the original profile header (Tailwind-style blues).
+  static const LinearGradient coverGradient = LinearGradient(
+    colors: [
+      Color(0xFF1E3A8A),
+      AppColors.blueAccent,
+      AppColors.blueLight,
+    ],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+}
 
 class UpperCaseTextFormatter extends TextInputFormatter {
   @override
@@ -161,19 +182,17 @@ class _ProfileTabState extends State<ProfileTab> {
     }
 
     if (!mounted) return;
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: true, // Explicitly allow tap outside to close
-      enableDrag: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => EditProfileSheet(onUpdate: () {
-        _loadStats();
-        _loadAvatar();
-      }),
-    ).then((_) {
-       if (mounted) setState(() {});
-    });
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (ctx) => EditProfileSheet(
+          onUpdate: () {
+            _loadStats();
+            _loadAvatar();
+          },
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   @override
@@ -183,7 +202,7 @@ class _ProfileTabState extends State<ProfileTab> {
     const avatarTop = coverHeight - avatarSize / 2;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC), // Brighter background
+      backgroundColor: _ProfileTheme.scaffoldBg,
       body: CustomScrollView(
         physics: const ClampingScrollPhysics(),
         slivers: [
@@ -193,7 +212,7 @@ class _ProfileTabState extends State<ProfileTab> {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Cover gradient
+                  // Cover — app blue gradient (same family as rest of PESO UI)
                   Positioned(
                     top: 0,
                     left: 0,
@@ -201,48 +220,27 @@ class _ProfileTabState extends State<ProfileTab> {
                     height: coverHeight,
                     child: Container(
                       decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            Color(0xFF1E3A8A),
-                            Color(0xFF2563EB),
-                            Color(0xFF3B82F6)
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                        gradient: _ProfileTheme.coverGradient,
                       ),
                       child: SafeArea(
                         bottom: false,
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              right: -40,
-                              top: -20,
-                              child: Icon(
-                                Icons.person_rounded,
-                                size: 240,
-                                color: Colors.white.withOpacity(0.05),
-                              ),
-                            ),
-                            Align(
-                              alignment: Alignment.topRight,
-                              child: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: IconButton(
-                                  onPressed: () =>
-                                      _showEditProfileSheet(context),
-                                  icon: const Icon(Icons.edit_rounded,
-                                      color: Colors.white, size: 20),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: Colors.white24,
-                                    shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
-                                  ),
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: IconButton(
+                              onPressed: () =>
+                                  _showEditProfileSheet(context),
+                              icon: const Icon(Icons.edit_rounded,
+                                  color: Colors.white, size: 20),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.white24,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -262,7 +260,7 @@ class _ProfileTabState extends State<ProfileTab> {
                           border: Border.all(color: Colors.white, width: 4),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF2563EB).withOpacity(0.2),
+                              color: AppColors.blueAccent.withOpacity(0.22),
                               blurRadius: 24,
                               offset: const Offset(0, 8),
                             ),
@@ -278,7 +276,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                   fit: BoxFit.cover,
                                 )
                               : Container(
-                                  color: const Color(0xFF2563EB),
+                                  color: AppColors.blueAccent,
                                   alignment: Alignment.center,
                                   child: Text(
                                     UserSession().initials,
@@ -318,19 +316,32 @@ class _ProfileTabState extends State<ProfileTab> {
                     fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 24),
-                // Transparent Stats Row
+                const SizedBox(height: 20),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _buildCompactStat('$_appliedCount', 'Applied'),
-                      Container(width: 1, height: 24, color: Colors.grey[200]),
-                      _buildCompactStat('$_interviewCount', 'Processing'),
-                      Container(width: 1, height: 24, color: Colors.grey[200]),
-                      _buildCompactStat('$_savedCount', 'Saved'),
-                    ],
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildCompactStat('$_appliedCount', 'Applied'),
+                        Container(
+                            width: 1,
+                            height: 28,
+                            color: AppColors.divider),
+                        _buildCompactStat('$_interviewCount', 'Processing'),
+                        Container(
+                            width: 1,
+                            height: 28,
+                            color: AppColors.divider),
+                        _buildCompactStat('$_savedCount', 'Saved'),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -344,7 +355,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 _buildMenuItem(
                   icon: Icons.folder_rounded,
                   title: 'My Applications',
-                  color: const Color(0xFF2563EB),
                   onTap: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
@@ -355,7 +365,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 _buildMenuItem(
                   icon: Icons.bookmark_rounded,
                   title: 'Saved Jobs',
-                  color: const Color(0xFFEC4899),
                   onTap: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const SavedJobsPage()),
@@ -364,9 +373,8 @@ class _ProfileTabState extends State<ProfileTab> {
                   },
                 ),
                 _buildMenuItem(
-                  icon: Icons.psychology_alt_rounded,
+                  icon: Icons.workspace_premium_outlined,
                   title: 'Skills Profile',
-                  color: const Color(0xFF8B5CF6),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SkillsProfilePage()),
                   ),
@@ -374,7 +382,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 _buildMenuItem(
                   icon: Icons.description_rounded,
                   title: 'My Documents',
-                  color: const Color(0xFF10B981),
                   trailing: _missingDocsCount > 0
                       ? Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -432,7 +439,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 _buildMenuItem(
                   icon: Icons.settings_rounded,
                   title: 'Settings',
-                  color: const Color(0xFF64748B),
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SettingsPage()),
                   ),
@@ -440,14 +446,12 @@ class _ProfileTabState extends State<ProfileTab> {
                 _buildMenuItem(
                   icon: Icons.help_center_rounded,
                   title: 'Help & Support',
-                  color: const Color(0xFFF59E0B),
                   onTap: () {},
                 ),
                 const SizedBox(height: 12),
                 _buildMenuItem(
                   icon: Icons.logout_rounded,
                   title: 'Sign Out',
-                  color: const Color(0xFFEF4444),
                   isSignOut: true,
                   onTap: () => _confirmSignOut(context),
                 ),
@@ -487,38 +491,15 @@ class _ProfileTabState extends State<ProfileTab> {
 
 
   Future<void> _confirmSignOut(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Sign Out',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        content: const Text(
-          'Are you sure you want to sign out?',
-          style: TextStyle(color: Color(0xFF64748B)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel',
-                style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Sign Out',
-                style: TextStyle(fontWeight: FontWeight.w700)),
-          ),
-        ],
-      ),
+      type: AppDialogType.destructive,
+      icon: Icons.logout_rounded,
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      confirmLabel: 'Sign Out',
+      onConfirm: () => Navigator.pop(context, true),
+      onCancel: () => Navigator.pop(context, false),
     );
 
     if (confirmed != true || !mounted) return;
@@ -550,29 +531,28 @@ class _ProfileTabState extends State<ProfileTab> {
   Widget _buildMenuItem({
     required IconData icon,
     required String title,
-    required Color color,
     required VoidCallback onTap,
     Widget? trailing,
     bool isSignOut = false,
   }) {
+    final iconBg = isSignOut
+        ? _ProfileTheme.destructiveSurface
+        : _ProfileTheme.iconSurface;
+    final iconFg =
+        isSignOut ? _ProfileTheme.destructive : _ProfileTheme.iconInk;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 15,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.divider),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
             child: Row(
@@ -580,10 +560,10 @@ class _ProfileTabState extends State<ProfileTab> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
+                    color: iconBg,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, size: 20, color: color),
+                  child: Icon(icon, size: 20, color: iconFg),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -614,7 +594,7 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 }
 
-// ─── Edit Profile Sheet ───────────────────────────────────────────────────────
+// ─── Edit Profile (full-screen route) ─────────────────────────────────────────
 class EditProfileSheet extends StatefulWidget {
   final VoidCallback onUpdate;
   const EditProfileSheet({super.key, required this.onUpdate});
@@ -819,12 +799,14 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   }
 
   Future<void> _loadProvinces() async {
+    if (!mounted) return;
     setState(() {
       _isLoadingLocations = true;
       _locationError = null;
     });
     try {
       _provinces = await _fetchLocationList('provinces_all', _psgcProvincesUrl);
+      if (!mounted) return;
       if (_provinces.isEmpty) {
         _locationError =
             'Unable to load address data. Check connection and try again.';
@@ -850,7 +832,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     }
     if (barangayCode != null && barangayCode.isNotEmpty) {
       final hit = _barangays.where((e) => e['code'] == barangayCode).toList();
-      if (hit.isNotEmpty) {
+      if (mounted && hit.isNotEmpty) {
         _barangayCode = hit.first['code'];
         _barangayName = hit.first['name'];
       }
@@ -860,6 +842,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
   Future<void> _onProvinceChanged(String? code, {bool silent = false}) async {
     if (code == null || code.isEmpty || _updatingLocation) return;
+    if (!mounted) return;
 
     setState(() {
       _updatingLocation = true;
@@ -899,6 +882,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
   Future<void> _onCityChanged(String? code, {bool silent = false}) async {
     if (code == null || code.isEmpty || _updatingLocation) return;
+    if (!mounted) return;
 
     setState(() {
       _updatingLocation = true;
@@ -1186,32 +1170,18 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            children: [
-              // Handle
-              Container(
-                margin: const EdgeInsets.only(top: 12),
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-
-              // Header
-              Padding(
-                padding: const EdgeInsets.all(20),
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8, right: 4),
                 child: Row(
                   children: [
                     Container(
@@ -1244,18 +1214,17 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                   ],
                 ),
               ),
-
-              // Content
-              Expanded(
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  physics: const ClampingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Form(
-                    key: _formKey,  
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+            ),
+          ),
+          Expanded(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                         // Avatar edit (tap to change photo)
                         Center(
                           child: GestureDetector(
@@ -1418,7 +1387,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                 icon: const Icon(Icons.settings_rounded, size: 18),
                                 label: const Text('Change email in Settings'),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF1D4ED8),
+                                  foregroundColor: AppColors.blueAccent,
                                   side: const BorderSide(color: Color(0xFF93C5FD)),
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 14,
@@ -1479,7 +1448,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                     firstDate: DateTime(1900, 1, 1),
                                     lastDate: now,
                                   );
-                                  if (picked == null) return;
+                                  if (picked == null || !mounted) return;
                                   setState(() {
                                     final pickedLocal = DateTime(picked.year, picked.month, picked.day);
                                     _dobController.text =
@@ -1521,7 +1490,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                               options: _educationLevelOptions,
                               enableSearch: false,
                             );
-                            if (picked == null) return;
+                            if (picked == null || !mounted) return;
                             setState(() => _educationLevel = picked['name']);
                           },
                         ),
@@ -1870,10 +1839,27 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               ),
             ],
           ),
-        );
-      },
     );
   }
+}
+
+/// e.g. `May/27/2026` — full month name, no numeric month.
+String _formatApplicationDate(DateTime dt) {
+  const months = <String>[
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  return '${months[dt.month - 1]}/${dt.day}/${dt.year}';
 }
 
 // ─── Application Model ────────────────────────────────────────────────────────
@@ -1967,7 +1953,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         final createdAt =
             DateTime.tryParse(map['applied_at'] as String? ?? map['created_at'] as String? ?? '') ??
                 DateTime.now();
-        final appliedDate = 'Applied ${createdAt.month}/${createdAt.day}/${createdAt.year}';
+        final appliedDate = _formatApplicationDate(createdAt);
         final rawStatus = (map['status'] as String? ?? '').trim().toLowerCase();
         // Map backend statuses → app display labels.
         // Backend: reviewing, shortlisted, interview, hired, rejected
@@ -2043,7 +2029,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _ProfileTheme.scaffoldBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -2063,7 +2049,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+              child: CircularProgressIndicator(color: _ProfileTheme.primary),
             )
           : _errorMessage != null
               ? ErrorState(
@@ -2077,11 +2063,11 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                       subtitle: 'Apply to jobs and your applications will appear here.',
                     )
                   : RefreshIndicator(
-                      color: const Color(0xFF2563EB),
+                      color: _ProfileTheme.primary,
                       onRefresh: _fetchApplications,
                       child: ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(
-                          parent: const ClampingScrollPhysics(),
+                          parent: ClampingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                         itemCount: _applications.length,
@@ -2169,7 +2155,7 @@ class _ApplicationCard extends StatelessWidget {
                             job.company,
                             style: const TextStyle(
                               fontSize: 14,
-                              color: Color(0xFF2563EB),
+                              color: AppColors.blueAccent,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2195,37 +2181,53 @@ class _ApplicationCard extends StatelessWidget {
                 const SizedBox(height: 20),
                 Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: application.statusColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: application.statusColor.withOpacity(0.2)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(application.statusIcon, size: 14, color: application.statusColor),
-                          const SizedBox(width: 6),
-                          Text(
-                            application.status.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              color: application.statusColor,
-                              letterSpacing: 0.5,
-                            ),
+                    Expanded(
+                      flex: 3,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: application.statusColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: application.statusColor.withOpacity(0.2)),
                           ),
-                        ],
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(application.statusIcon, size: 14, color: application.statusColor),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  application.status.toUpperCase(),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: application.statusColor,
+                                    letterSpacing: 0.5,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      'Applied ${application.appliedDate}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[500],
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 2,
+                      child: Text(
+                        'Applied ${application.appliedDate}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[500],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.end,
                       ),
                     ),
                   ],
@@ -2235,10 +2237,7 @@ class _ApplicationCard extends StatelessWidget {
           ),
         ),
       ),
-    )
-        .animate()
-        .fadeIn(duration: 400.ms, curve: Curves.easeOutQuad)
-        .slideY(begin: 0.1, end: 0, duration: 400.ms, curve: Curves.easeOutQuad);
+    );
   }
 }
 
@@ -2397,29 +2396,15 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
     final hasResume = await _jobActionService.hasResumeOnFile();
     if (!mounted) return;
     if (!hasResume) {
-      final goToDocuments = await showDialog<bool>(
+      final goToDocuments = await showAppDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Resume Required'),
-          content: const Text(
-            'You need to upload your resume first before applying to jobs.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Go to Documents'),
-            ),
-          ],
-        ),
+        type: AppDialogType.info,
+        icon: Icons.description_outlined,
+        title: 'Resume Required',
+        message: 'You need to upload your resume first before applying to jobs.',
+        confirmLabel: 'Go to Documents',
+        onConfirm: () => Navigator.of(context).pop(true),
+        onCancel: () => Navigator.of(context).pop(false),
       );
       if (goToDocuments == true && mounted) {
         await Navigator.of(context).push(
@@ -2429,26 +2414,15 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
       return;
     }
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirm Application'),
-        content: Text(
-          'Apply for $jobTitle?',
-          style: const TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
+      type: AppDialogType.confirm,
+      icon: Icons.send_rounded,
+      title: 'Confirm Application',
+      message: 'Apply for $jobTitle?',
+      confirmLabel: 'Apply',
+      onConfirm: () => Navigator.pop(context, true),
+      onCancel: () => Navigator.pop(context, false),
     );
     if (confirmed != true || !mounted) return;
 
@@ -2520,7 +2494,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: _ProfileTheme.scaffoldBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -2540,7 +2514,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF2563EB)),
+              child: CircularProgressIndicator(color: _ProfileTheme.primary),
             )
           : _errorMessage != null
               ? ErrorState(
@@ -2555,11 +2529,11 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                           'Tap the bookmark on jobs you like to see them here.',
                     )
                   : RefreshIndicator(
-                      color: const Color(0xFF2563EB),
+                      color: _ProfileTheme.primary,
                       onRefresh: _fetchSavedJobs,
                       child: ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(
-                          parent: const ClampingScrollPhysics(),
+                          parent: ClampingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                         itemCount: _savedJobs.length,
@@ -2571,20 +2545,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                             isApplied: isApplied,
                             onApply: () => _applyToJob(saved.job.id, saved.job.title),
                             onUnsave: () => _unsaveJob(saved.job.id),
-                          )
-                              .animate()
-                              .fadeIn(
-                                duration: 400.ms,
-                                delay: (index * 50).ms,
-                                curve: Curves.easeOutCubic,
-                              )
-                              .slideY(
-                                begin: 0.1,
-                                end: 0,
-                                duration: 400.ms,
-                                delay: (index * 50).ms,
-                                curve: Curves.easeOutCubic,
-                              );
+                          );
                         },
                       ),
                     ),
@@ -2690,7 +2651,7 @@ class _SavedJobCard extends StatelessWidget {
                             job.company,
                             style: const TextStyle(
                               fontSize: 14,
-                              color: Color(0xFF10B981),
+                              color: AppColors.blueAccent,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2715,17 +2676,27 @@ class _SavedJobCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF10B981), Color(0xFF059669)],
-                          ),
+                          color: const Color(0xFFF1F5F9),
                           borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
                         child: Column(
                           children: [
-                            const Icon(Icons.star_rounded, size: 14, color: Colors.white),
                             Text(
                               '${job.matchPercentage}%',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w900, color: Colors.white),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            Text(
+                              'match',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[600],
+                              ),
                             ),
                           ],
                         ),
@@ -2778,8 +2749,8 @@ class _SavedJobCard extends StatelessWidget {
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: isApplied
-                              ? const Color(0xFF10B981)
-                              : const Color(0xFF2563EB),
+                              ? const Color(0xFF64748B)
+                              : AppColors.blueAccent,
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Row(
@@ -2886,6 +2857,7 @@ class _ApplicationStatusBanner extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Expanded(
+                flex: 3,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -2905,15 +2877,26 @@ class _ApplicationStatusBanner extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: application.statusColor,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              Text(
-                application.appliedDate,
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Color(0xFF94A3B8),
+              Expanded(
+                flex: 2,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    'Applied ${application.appliedDate}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Color(0xFF94A3B8),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                  ),
                 ),
               ),
             ],

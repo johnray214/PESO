@@ -31,29 +31,15 @@ Future<bool> _ensureResumeReadyForApply(
   if (hasResume) return true;
   if (!context.mounted) return false;
 
-  final goToDocuments = await showDialog<bool>(
+  final goToDocuments = await showAppDialog<bool>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      title: const Text('Resume Required'),
-      content: const Text(
-        'You need to upload your resume first before applying to jobs.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(ctx).pop(true),
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF2563EB),
-            foregroundColor: Colors.white,
-          ),
-          child: const Text('Go to Documents'),
-        ),
-      ],
-    ),
+    type: AppDialogType.info,
+    icon: Icons.description_outlined,
+    title: 'Resume Required',
+    message: 'You need to upload your resume first before applying to jobs.',
+    confirmLabel: 'Go to Documents',
+    onConfirm: () => Navigator.of(context).pop(true),
+    onCancel: () => Navigator.of(context).pop(false),
   );
 
   if (goToDocuments == true && context.mounted) {
@@ -1484,26 +1470,15 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     final canApply = await _ensureResumeReadyForApply(context, _jobActionService);
     if (!canApply || !mounted) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirm Application'),
-        content: Text(
-          'Apply for ${job.title} at ${job.company}?',
-          style: const TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
+      type: AppDialogType.confirm,
+      icon: Icons.send_rounded,
+      title: 'Confirm Application',
+      message: 'Apply for ${job.title} at ${job.company}?',
+      confirmLabel: 'Apply',
+      onConfirm: () => Navigator.pop(context, true),
+      onCancel: () => Navigator.pop(context, false),
     );
     if (confirmed != true || !mounted) return;
 
@@ -2799,7 +2774,7 @@ class _JobCardState extends State<_JobCard> {
                         child: _buildChip(
                             Icons.location_on_rounded, job.location)),
                     const SizedBox(width: 8),
-                    _buildChip(Icons.work_rounded, job.employmentType),
+                    _buildChip(Icons.work_rounded, job.employmentTypeLabel),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -4257,26 +4232,15 @@ class _BusinessDetailSheet extends StatelessWidget {
     final canApply = await _ensureResumeReadyForApply(context, jobActionService);
     if (!canApply || !context.mounted) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirm Application'),
-        content: Text(
-          'Apply for ${job.title} at ${job.company}?',
-          style: const TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
+      type: AppDialogType.confirm,
+      icon: Icons.send_rounded,
+      title: 'Confirm Application',
+      message: 'Apply for ${job.title} at ${job.company}?',
+      confirmLabel: 'Apply',
+      onConfirm: () => Navigator.pop(context, true),
+      onCancel: () => Navigator.pop(context, false),
     );
     if (confirmed != true || !context.mounted) return;
 
@@ -4368,7 +4332,7 @@ class _JobListItem extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${job.salaryDisplay} • ${job.employmentType}',
+                        '${job.salaryDisplay} • ${job.employmentTypeLabel}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Color(0xFF64748B),
@@ -4402,7 +4366,8 @@ class NotificationsTab extends StatefulWidget {
   State<NotificationsTab> createState() => _NotificationsTabState();
 }
 
-class _NotificationsTabState extends State<NotificationsTab> {
+class _NotificationsTabState extends State<NotificationsTab>
+    with TickerProviderStateMixin {
   bool _isLoading = true;
   String? _errorMessage;
   List<Map<String, dynamic>> _notifications = [];
@@ -4410,9 +4375,30 @@ class _NotificationsTabState extends State<NotificationsTab> {
   Timer? _pollTimer;
   bool _isPolling = false;
 
+  static const String _deleteFabLabel = 'Delete all';
+  static const double _deleteFabCompact = 56;
+  static const double _deleteFabExpanded = 146;
+  /// Width + color use the full controller duration; this is only when width hits expanded.
+  static const double _deleteFabExpandPhaseEnd = 0.42;
+  /// Label animates only inside [start, end] so letters are fast while widen stays slow.
+  static const double _deleteFabLetterPhaseStart = 0.42;
+  static const double _deleteFabLettersEnd = 0.56;
+  /// After delete-all slide finishes, wait this long before showing empty state.
+  static const Duration _deleteAllToEmptyDelay = Duration(milliseconds: 400);
+
+  late final AnimationController _deleteFabAnim;
+  AnimationController? _deleteAllExitAnim;
+  bool _fabAnimInitialized = false;
+  bool? _fabAnimSyncedToCompact;
+  int _fabSyncGen = 0;
+
   @override
   void initState() {
     super.initState();
+    _deleteFabAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1320),
+    );
     _loadNotifications();
     // Refresh the list if a new notification arrives while looking at it
     NotificationService.addListener(_onPushReceived);
@@ -4426,6 +4412,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
 
   @override
   void dispose() {
+    _deleteAllExitAnim?.dispose();
+    _deleteFabAnim.dispose();
     NotificationService.removeListener(_onPushReceived);
     _jobActionService.removeListener(_onJobActionsChanged);
     _pollTimer?.cancel();
@@ -4504,10 +4492,6 @@ class _NotificationsTabState extends State<NotificationsTab> {
     } catch (_) {}
   }
 
-  bool get _allRead =>
-      _notifications.isNotEmpty &&
-      _notifications.every((n) => n['read_at'] != null);
-
   List<Map<String, dynamic>> get _sortedNotifications {
     final list = List<Map<String, dynamic>>.from(_notifications);
     list.sort((a, b) {
@@ -4527,30 +4511,214 @@ class _NotificationsTabState extends State<NotificationsTab> {
     return list;
   }
 
+  /// Bulk delete is enabled only after every notification has been read.
+  bool get _allNotificationsRead =>
+      _notifications.isNotEmpty &&
+      _notifications.every((n) => n['read_at'] != null);
+
+  /// Gray icon-only state while any notification is still unread.
+  bool get _deleteFabIsCompact =>
+      _notifications.isNotEmpty && !_allNotificationsRead;
+
+  void _scheduleDeleteFabSync() {
+    final gen = ++_fabSyncGen;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || gen != _fabSyncGen) return;
+      _syncDeleteFabAnim();
+    });
+  }
+
+  void _syncDeleteFabAnim() {
+    if (!mounted) return;
+    final compact = _deleteFabIsCompact;
+
+    if (!_fabAnimInitialized) {
+      _fabAnimInitialized = true;
+      _fabAnimSyncedToCompact = compact;
+      _deleteFabAnim.value = compact ? 0.0 : 1.0;
+      return;
+    }
+    if (_fabAnimSyncedToCompact == compact) return;
+    _fabAnimSyncedToCompact = compact;
+    if (compact) {
+      _deleteFabAnim.reverse();
+    } else {
+      _deleteFabAnim.forward();
+    }
+  }
+
+  /// 0 → 1 while this item slides out; top item (index 0) goes first.
+  double _deleteAllSlideProgressForIndex(int index, int total) {
+    final c = _deleteAllExitAnim;
+    if (c == null || total <= 0) return 0.0;
+    final v = c.value;
+    final start = index / total;
+    final end = (index + 1) / total;
+    if (v <= start) return 0.0;
+    if (v >= end) return 1.0;
+    return Curves.easeInCubic.transform((v - start) / (end - start));
+  }
+
+  Widget _buildAnimatedDeleteAllFab() {
+    final disabled = !_allNotificationsRead;
+    final label = _deleteFabLabel;
+
+    return AnimatedBuilder(
+      animation: _deleteFabAnim,
+      builder: (context, child) {
+        final v = _deleteFabAnim.value;
+        final expandT = (v / _deleteFabExpandPhaseEnd).clamp(0.0, 1.0);
+        final expandCurved = Curves.easeOutCubic.transform(expandT);
+        final width = lerpDouble(
+              _deleteFabCompact,
+              _deleteFabExpanded,
+              expandCurved,
+            ) ??
+            _deleteFabCompact;
+
+        /// Tighter icon + label only when the FAB is actionable (red) and widened.
+        final activeExpanded =
+            !disabled && width > _deleteFabCompact + 0.5;
+
+        final colorProgress = Curves.easeInOut.transform(v);
+        final bg = Color.lerp(
+          const Color(0xFFE2E8F0),
+          const Color(0xFFEF4444),
+          colorProgress,
+        )!;
+        final fg = Color.lerp(
+          const Color(0xFF94A3B8),
+          Colors.white,
+          colorProgress,
+        )!;
+        final elevation = lerpDouble(0, 6, colorProgress) ?? 0;
+
+        final letterPhaseStart = _deleteFabLetterPhaseStart;
+        final letterPhaseLen =
+            (_deleteFabLettersEnd - letterPhaseStart).clamp(0.02, 1.0);
+        final n = label.length;
+        final letterStyle = GoogleFonts.poppins(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: fg,
+          height: 1,
+        );
+
+        final letterWidgets = <Widget>[];
+        for (var i = 0; i < n; i++) {
+          final start = letterPhaseStart + (i / n) * letterPhaseLen;
+          final end = letterPhaseStart + ((i + 1) / n) * letterPhaseLen;
+          double op;
+          if (v <= start) {
+            op = 0;
+          } else if (v >= end) {
+            op = 1;
+          } else {
+            op = Curves.easeOut.transform((v - start) / (end - start));
+          }
+          letterWidgets.add(
+            Opacity(
+              opacity: op,
+              child: Text(label[i], style: letterStyle),
+            ),
+          );
+        }
+
+        return Hero(
+          tag: 'notifications_delete_all',
+          child: Material(
+            elevation: elevation,
+            shadowColor: Colors.black.withOpacity(0.2),
+            color: bg,
+            borderRadius: BorderRadius.circular(_deleteFabCompact / 2),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: disabled
+                  ? null
+                  : () {
+                      HapticFeedback.mediumImpact();
+                      _confirmDeleteAllNotifications();
+                    },
+              borderRadius: BorderRadius.circular(_deleteFabCompact / 2),
+              child: SizedBox(
+                width: width,
+                height: _deleteFabCompact,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: _deleteFabCompact,
+                      height: _deleteFabCompact,
+                      child: activeExpanded
+                          ? Align(
+                              alignment: Alignment.centerRight,
+                              child: Icon(
+                                Icons.delete_forever_rounded,
+                                color: fg,
+                                size: 24,
+                              ),
+                            )
+                          : Center(
+                              child: Icon(
+                                Icons.delete_forever_rounded,
+                                color: fg,
+                                size: 24,
+                              ),
+                            ),
+                    ),
+                    SizedBox(
+                      width: math.max(0, width - _deleteFabCompact),
+                      height: _deleteFabCompact,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox(width: activeExpanded ? 0 : 4),
+                          Expanded(
+                            child: ClipRect(
+                              clipBehavior: Clip.hardEdge,
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                physics: const NeverScrollableScrollPhysics(),
+                                primary: false,
+                                clipBehavior: Clip.hardEdge,
+                                child: Padding(
+                                  padding: EdgeInsets.only(
+                                    right: activeExpanded ? 6 : 10,
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: letterWidgets,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _applyToJob(Job job) async {
     final canApply = await _ensureResumeReadyForApply(context, _jobActionService);
     if (!canApply || !mounted) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirm Application'),
-        content: Text(
-          'Apply for ${job.title} at ${job.company}?',
-          style: const TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
+      type: AppDialogType.confirm,
+      icon: Icons.send_rounded,
+      title: 'Confirm Application',
+      message: 'Apply for ${job.title} at ${job.company}?',
+      confirmLabel: 'Apply',
+      onConfirm: () => Navigator.pop(context, true),
+      onCancel: () => Navigator.pop(context, false),
     );
     if (confirmed != true || !mounted) return;
 
@@ -4686,70 +4854,79 @@ class _NotificationsTabState extends State<NotificationsTab> {
     );
   }
 
-  Future<void> _deleteAllRead() async {
+  Future<void> _animateThenDeleteAllNotifications() async {
+    final count = _sortedNotifications.length;
+    if (count == 0) return;
+
+    final controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 160 + count * 68),
+    );
+
+    void tick() {
+      if (mounted) setState(() {});
+    }
+
+    controller.addListener(tick);
+    setState(() => _deleteAllExitAnim = controller);
+
+    try {
+      await controller.forward();
+    } catch (_) {
+      // e.g. route popped / ticker disposed
+    }
+
+    controller.removeListener(tick);
+
+    if (!identical(_deleteAllExitAnim, controller)) {
+      return;
+    }
+    if (!mounted) {
+      controller.dispose();
+      _deleteAllExitAnim = null;
+      return;
+    }
+
+    // Keep last frame (items off-screen) so empty UI does not flash in early.
+    await Future.delayed(_deleteAllToEmptyDelay);
+    if (!mounted) return;
+    if (!identical(_deleteAllExitAnim, controller)) {
+      return;
+    }
+
+    controller.dispose();
+    setState(() {
+      _deleteAllExitAnim = null;
+      _notifications = [];
+    });
+
+    if (!mounted) return;
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
-
-    // Filter to show only read notifications that are NOT unrated surveys
-    final toDelete = _notifications.where((n) {
-      final notif = n['notification'] as Map<String, dynamic>? ?? {};
-      final type = notif['type'] as String?;
-      // Keep satisfaction survey cards intact so users can still rate later.
-      if (type == 'satisfaction_survey') return false; 
-      return n['read_at'] != null;
-    }).toList();
-
-    if (toDelete.isEmpty) return;
-
     final ok = await ApiService.deleteAllJobseekerNotifications(token);
     if (!mounted) return;
-    if (ok) {
-      final toDeleteIds = toDelete
-          .map((n) => n['id'])
-          .whereType<int>()
-          .toSet();
-      setState(() {
-        _notifications.removeWhere((n) {
-          final id = n['id'];
-          return id is int && toDeleteIds.contains(id);
-        });
-      });
+    if (!ok) {
+      await _loadNotifications(showLoader: false);
     }
   }
 
-  Future<void> _confirmDeleteAllRead() async {
+  Future<void> _confirmDeleteAllNotifications() async {
     if (_notifications.isEmpty) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text(
-          'Delete all read notifications?',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        content: const Text(
-          'This will delete read notifications. Unrated "Rate Experience" notifications will be kept.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+      type: AppDialogType.destructive,
+      icon: Icons.delete_sweep_rounded,
+      title: 'Delete All Notifications?',
+      message:
+          'This will remove all notifications from your account. This cannot be undone.',
+      confirmLabel: 'Delete all',
+      onConfirm: () => Navigator.of(context).pop(true),
+      onCancel: () => Navigator.of(context).pop(false),
     );
 
-    if (confirmed == true) {
-      await _deleteAllRead();
+    if (confirmed == true && mounted) {
+      await _animateThenDeleteAllNotifications();
     }
   }
 
@@ -5054,6 +5231,9 @@ class _NotificationsTabState extends State<NotificationsTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (_notifications.isNotEmpty || _fabAnimInitialized) {
+      _scheduleDeleteFabSync();
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
@@ -5173,50 +5353,64 @@ class _NotificationsTabState extends State<NotificationsTab> {
                     ),
                   ),
                 )
-              : _notifications.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 100,
-                            height: 100,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.notifications_outlined,
-                              size: 50,
-                              color: Color(0xFF2563EB),
+              : AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 420),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, anim) {
+                    return FadeTransition(opacity: anim, child: child);
+                  },
+                  child: _notifications.isEmpty
+                      ? KeyedSubtree(
+                          key: const ValueKey('notifications-empty'),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2563EB)
+                                        .withOpacity(0.1),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.notifications_outlined,
+                                    size: 50,
+                                    color: Color(0xFF2563EB),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+                                Text(
+                                  'No notifications yet',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 40),
+                                  child: Text(
+                                    'You\'ll receive updates about jobs, applications, and more',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[500],
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 24),
-                          Text(
-                            'No notifications yet',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.grey[800],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 40),
-                            child: Text(
-                              'You\'ll receive updates about jobs, applications, and more',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[500],
-                                height: 1.5,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
+                        )
+                      : KeyedSubtree(
+                          key: const ValueKey('notifications-list'),
+                          child: RefreshIndicator(
                       color: const Color(0xFF2563EB),
                       onRefresh: _loadNotifications,
                       child: ListView.builder(
@@ -5224,6 +5418,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
                           parent: BouncingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                        clipBehavior: Clip.hardEdge,
                         itemCount: _sortedNotifications.length,
                         itemBuilder: (context, index) {
                           final sortedList = _sortedNotifications;
@@ -5530,7 +5725,8 @@ class _NotificationsTabState extends State<NotificationsTab> {
                                           companyName: hiredCompany,
                                           startDate: hiredStartDate,
                                           salary: hiredSalary,
-                                          employmentType: hiredEmpType,
+                                          employmentType:
+                                              formatEmploymentTypeLabel(hiredEmpType),
                                         );
                                       },
                                       child: Padding(
@@ -5739,31 +5935,36 @@ class _NotificationsTabState extends State<NotificationsTab> {
                             );
                           }
 
-                          return Column(
+                          final totalItems = sortedList.length;
+                          final slideOut =
+                              _deleteAllSlideProgressForIndex(index, totalItems);
+                          final slideW = MediaQuery.sizeOf(context).width;
+                          // Nearly full-width cards need ~full viewport shift to clear the screen
+                          // (0.5 * width left the right portion stuck visible).
+                          final offscreenLeft = slideW + 56;
+                          final column = Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               if (header != null) header,
                               card,
                             ],
                           );
+                          if (slideOut <= 0) return column;
+                          return Opacity(
+                            opacity: (1.0 - 0.92 * slideOut).clamp(0.0, 1.0),
+                            child: Transform.translate(
+                              offset:
+                                  Offset(-offscreenLeft * slideOut, 0),
+                              child: column,
+                            ),
+                          );
                         },
                       ),
                     ),
-      floatingActionButton: _notifications.isEmpty
-          ? null
-          : FloatingActionButton.extended(
-              heroTag: 'notifications_delete_all',
-              onPressed: _allRead ? () {
-                // Strong, unique buzz for a destructive "Delete All" action
-                HapticFeedback.vibrate();
-                Future.delayed(const Duration(milliseconds: 200), () => HapticFeedback.mediumImpact());
-                _confirmDeleteAllRead();
-              } : null,
-              backgroundColor: _allRead ? const Color(0xFFEF4444) : const Color(0xFFCBD5E1),
-              foregroundColor: Colors.white,
-              icon: const Icon(Icons.delete_forever_rounded),
-              label: const Text('Delete all'),
-            ),
+                  ),
+                ),
+      floatingActionButton:
+          _notifications.isEmpty ? null : _buildAnimatedDeleteAllFab(),
     );
   }
 
@@ -5831,6 +6032,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
   }
 
   Widget _buildJobBriefBox(String companyName, String jobTitle, String jobLocation, String jobType, dynamic jobListing) {
+    final jobTypeLabel = formatEmploymentTypeLabel(jobType);
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -5848,7 +6050,7 @@ class _NotificationsTabState extends State<NotificationsTab> {
             spacing: 8, runSpacing: 6,
             children: [
               if (jobLocation.isNotEmpty) _buildChip(Icons.location_on_outlined, jobLocation),
-              if (jobType.isNotEmpty) _buildChip(Icons.work_outline_rounded, jobType),
+              if (jobTypeLabel != 'Not specified') _buildChip(Icons.work_outline_rounded, jobTypeLabel),
               if ((jobListing?['salary_range'] as String? ?? '').isNotEmpty)
                 _buildChip(Icons.payments_outlined, jobListing!['salary_range']),
             ],

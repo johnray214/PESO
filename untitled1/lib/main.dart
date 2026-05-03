@@ -2154,13 +2154,10 @@ class _LoginModalState extends State<LoginModal>
       final data = result['data'] as Map<String, dynamic>? ?? {};
       final initialRemainingDailySends =
           _initialRemainingDailySendsFromAuthResponse(result);
-      final otpResult = await showDialog<Map<String, dynamic>>(
+      final otpResult = await showJobseekerOtpDialog(
         context: context,
-        barrierDismissible: false,
-        builder: (_) => _OtpVerificationDialog(
-          email: _emailController.text.trim(),
-          initialRemainingDailySends: initialRemainingDailySends,
-        ),
+        email: _emailController.text.trim(),
+        initialRemainingDailySends: initialRemainingDailySends,
       );
       if (otpResult == null || otpResult['success'] != true) {
         _handleOtpCancelCooldown();
@@ -3060,14 +3057,11 @@ class _LoginModalState extends State<LoginModal>
                                         _initialRemainingDailySendsFromAuthResponse(
                                             result);
                                     final otpResult =
-                                        await showDialog<Map<String, dynamic>>(
+                                        await showJobseekerOtpDialog(
                                       context: context,
-                                      barrierDismissible: false,
-                                      builder: (_) => _OtpVerificationDialog(
-                                        email: _emailController.text.trim(),
-                                        initialRemainingDailySends:
-                                            initialRemainingDailySends,
-                                      ),
+                                      email: _emailController.text.trim(),
+                                      initialRemainingDailySends:
+                                          initialRemainingDailySends,
                                     );
                                     if (otpResult != null &&
                                         otpResult['success'] == true) {
@@ -3288,9 +3282,9 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFF),
+          color: const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFD6DFEE)),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Stack(
           alignment: Alignment.center,
@@ -3334,8 +3328,8 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isActive
-                            ? const Color(0xFF4F67A9)
-                            : const Color(0xFFD7E0EF),
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFFE2E8F0),
                         width: isActive ? 2 : 1.2,
                       ),
                       boxShadow: [
@@ -3453,7 +3447,7 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
       return const SizedBox.shrink();
     }
     final color =
-        _statusIsWarning ? const Color(0xFFB45309) : const Color(0xFF1D4ED8);
+        _statusIsWarning ? const Color(0xFFB45309) : const Color(0xFF2563EB);
     final bg =
         _statusIsWarning ? const Color(0xFFFFF7ED) : const Color(0xFFEFF6FF);
     return Container(
@@ -3493,106 +3487,220 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        FocusManager.instance.primaryFocus?.unfocus();
-        return true;
+    const primary = Color(0xFF2563EB);
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          FocusManager.instance.primaryFocus?.unfocus();
+        }
       },
-      child: Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-            const Text(
-              'Verify your email',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 360),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: primary.withOpacity(0.15),
+                blurRadius: 32,
+                offset: const Offset(0, 16),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Enter the 6-digit OTP sent to ${widget.email}.',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF64748B),
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 14),
-            _buildOtpBoxes(),
-            _buildStatusBanner(),
-            if (_remainingDailySends != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                '$_remainingDailySends sends left today',
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w600,
-                ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: const TextStyle(
-                  color: Color(0xFFDC2626),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Column(
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed:
-                        _isResending || _isVerifying || _resendCooldown > 0
-                            ? null
-                            : _resend,
-                    child: Text(
-                      _isResending
-                          ? 'Resending...'
-                          : _resendCooldown > 0
-                              ? 'Resend in ${_resendCooldown}s'
-                              : 'Resend OTP',
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        primary.withOpacity(0.10),
+                        primary.withOpacity(0.02),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
                     ),
                   ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: primary.withOpacity(0.22),
+                            width: 2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.mark_email_read_rounded,
+                          color: primary,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Verify your email',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0F172A),
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: _isVerifying
-                          ? null
-                          : () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(context, rootNavigator: true).pop();
-                            },
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: (_isVerifying || _isResending) ? null : _verify,
-                      child: Text(_isVerifying ? 'Verifying...' : 'Verify'),
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Enter the 6-digit OTP sent to ${widget.email}.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.5,
+                          color: const Color(0xFF64748B),
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildOtpBoxes(),
+                      _buildStatusBanner(),
+                      if (_remainingDailySends != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          '$_remainingDailySends sends left today',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if (_error != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFFDC2626),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.center,
+                        child: TextButton(
+                          onPressed: _isResending ||
+                                  _isVerifying ||
+                                  _resendCooldown > 0
+                              ? null
+                              : _resend,
+                          style: TextButton.styleFrom(
+                            foregroundColor: primary,
+                          ),
+                          child: Text(
+                            _isResending
+                                ? 'Resending...'
+                                : _resendCooldown > 0
+                                    ? 'Resend in ${_resendCooldown}s'
+                                    : 'Resend OTP',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: _isVerifying
+                                  ? null
+                                  : () {
+                                      FocusManager.instance.primaryFocus
+                                          ?.unfocus();
+                                      Navigator.of(context,
+                                              rootNavigator: true)
+                                          .pop();
+                                    },
+                              style: TextButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: const BorderSide(
+                                      color: Color(0xFFE2E8F0)),
+                                ),
+                                backgroundColor: const Color(0xFFF8FAFC),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: (_isVerifying || _isResending)
+                                  ? null
+                                  : _verify,
+                              style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                backgroundColor: primary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: Text(
+                                _isVerifying ? 'Verifying...' : 'Verify',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            ],
           ),
         ),
       ),
@@ -4045,4 +4153,324 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
       ),
     );
   }
+}
+
+// ─── Unified App Dialog ───────────────────────────────────────────────────────
+
+/// Dialog variants that determine color scheme and icon.
+enum AppDialogType {
+  confirm,      // Blue primary — general confirmations
+  destructive,  // Red — sign out, delete, etc.
+  info,         // Blue — informational
+  success,      // Green — success confirmation
+  warning,      // Amber — warnings
+}
+
+/// A professional, animated confirmation/alert dialog matching the app theme.
+///
+/// Use [showAppDialog] helper for a quick call:
+/// ```dart
+/// final confirmed = await showAppDialog<bool>(
+///   context: context,
+///   type: AppDialogType.confirm,
+///   title: 'Confirm Application',
+///   message: 'Apply for Software Engineer at TechCorp?',
+///   confirmLabel: 'Apply',
+///   onConfirm: () => Navigator.pop(context, true),
+/// );
+/// ```
+class AppDialog extends StatelessWidget {
+  final AppDialogType type;
+  final String title;
+  final String? message;
+  final Widget? content;
+  final String confirmLabel;
+  final String cancelLabel;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onCancel;
+  final IconData? icon;
+
+  const AppDialog({
+    super.key,
+    this.type = AppDialogType.confirm,
+    required this.title,
+    this.message,
+    this.content,
+    this.confirmLabel = 'Confirm',
+    this.cancelLabel = 'Cancel',
+    this.onConfirm,
+    this.onCancel,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _dialogColors(type);
+    final dialogIcon = icon ?? _defaultIcon(type);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 340),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: colors.primary.withOpacity(0.15),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with icon
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colors.primary.withOpacity(0.08),
+                    colors.primary.withOpacity(0.02),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colors.primary.withOpacity(0.2),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(dialogIcon, color: colors.primary, size: 28),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF0F172A),
+                      height: 1.3,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            if (message != null || content != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+                child: content ??
+                    Text(
+                      message!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: const Color(0xFF64748B),
+                        height: 1.6,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+              ),
+
+            // Actions
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: onCancel ?? () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        backgroundColor: const Color(0xFFF8FAFC),
+                      ),
+                      child: Text(
+                        cancelLabel,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onConfirm ?? () => Navigator.pop(context, true),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: colors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        confirmLabel,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static ({Color primary, Color surface}) _dialogColors(AppDialogType type) {
+    return switch (type) {
+      AppDialogType.confirm => (
+          primary: const Color(0xFF2563EB),
+          surface: const Color(0xFFEFF6FF)
+        ),
+      AppDialogType.destructive => (
+          primary: const Color(0xFFDC2626),
+          surface: const Color(0xFFFEF2F2)
+        ),
+      AppDialogType.info => (
+          primary: const Color(0xFF2563EB),
+          surface: const Color(0xFFEFF6FF)
+        ),
+      AppDialogType.success => (
+          primary: const Color(0xFF10B981),
+          surface: const Color(0xFFF0FDF4)
+        ),
+      AppDialogType.warning => (
+          primary: const Color(0xFFF59E0B),
+          surface: const Color(0xFFFFFBEB)
+        ),
+    };
+  }
+
+  static IconData _defaultIcon(AppDialogType type) {
+    return switch (type) {
+      AppDialogType.confirm => Icons.help_outline_rounded,
+      AppDialogType.destructive => Icons.warning_amber_rounded,
+      AppDialogType.info => Icons.info_outline_rounded,
+      AppDialogType.success => Icons.check_circle_outline_rounded,
+      AppDialogType.warning => Icons.error_outline_rounded,
+    };
+  }
+}
+
+/// Shows a unified app dialog with scale + fade animation.
+Future<T?> showAppDialog<T>({
+  required BuildContext context,
+  AppDialogType type = AppDialogType.confirm,
+  required String title,
+  String? message,
+  Widget? content,
+  String confirmLabel = 'Confirm',
+  String cancelLabel = 'Cancel',
+  VoidCallback? onConfirm,
+  VoidCallback? onCancel,
+  IconData? icon,
+  bool barrierDismissible = true,
+}) {
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    barrierLabel: 'Dismiss',
+    barrierColor: const Color(0xFF0F172A).withOpacity(0.5),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+    transitionBuilder: (ctx, animation, secondaryAnimation, child) {
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return Center(
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.85, end: 1.0).animate(curvedAnimation),
+          child: FadeTransition(
+            opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            ),
+            child: AppDialog(
+              type: type,
+              title: title,
+              message: message,
+              content: content,
+              confirmLabel: confirmLabel,
+              cancelLabel: cancelLabel,
+              onConfirm: onConfirm,
+              onCancel: onCancel,
+              icon: icon,
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Email OTP entry — same barrier + scale/fade animation as [showAppDialog].
+Future<Map<String, dynamic>?> showJobseekerOtpDialog({
+  required BuildContext context,
+  required String email,
+  int? initialRemainingDailySends,
+}) {
+  return showGeneralDialog<Map<String, dynamic>>(
+    context: context,
+    barrierDismissible: false,
+    barrierLabel: 'Dismiss',
+    barrierColor: const Color(0xFF0F172A).withOpacity(0.5),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+    transitionBuilder: (ctx, animation, _, __) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return Center(
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.88, end: 1.0).animate(curved),
+          child: FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: _OtpVerificationDialog(
+              email: email,
+              initialRemainingDailySends: initialRemainingDailySends,
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }
