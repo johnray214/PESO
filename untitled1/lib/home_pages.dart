@@ -4511,6 +4511,12 @@ class _NotificationsTabState extends State<NotificationsTab>
     return list;
   }
 
+  /// Pending experience-rating requests must not be dismissible or bulk-deleted.
+  bool _isProtectedSatisfactionSurvey(Map<String, dynamic> item) {
+    final notif = item['notification'] as Map<String, dynamic>? ?? {};
+    return notif['type'] == 'satisfaction_survey';
+  }
+
   /// Bulk delete is enabled only after every notification has been read.
   bool get _allNotificationsRead =>
       _notifications.isNotEmpty &&
@@ -4830,14 +4836,17 @@ class _NotificationsTabState extends State<NotificationsTab>
     );
   }
 
-  Future<void> _deleteNotification(int idxInSortedList) async {
+  Future<void> _deleteNotification(int idxInSortedList,
+      {bool allowSatisfactionSurvey = false}) async {
     HapticFeedback.mediumImpact();
     // Use the sorted list to find the actual notification object
     final n = _sortedNotifications[idxInSortedList];
     final notifId = n['id'];
     
     final notifData = n['notification'] as Map<String, dynamic>? ?? {};
-    if (notifData['type'] == 'satisfaction_survey') return;
+    if (notifData['type'] == 'satisfaction_survey' && !allowSatisfactionSurvey) {
+      return;
+    }
 
     // Immediately remove from the underlying source list by finding the matching ID
     // This fixed the "Dismissible widget still part of tree" and index-mismatch error.
@@ -4855,7 +4864,10 @@ class _NotificationsTabState extends State<NotificationsTab>
   }
 
   Future<void> _animateThenDeleteAllNotifications() async {
-    final count = _sortedNotifications.length;
+    final sorted = _sortedNotifications;
+    final deletable =
+        sorted.where((n) => !_isProtectedSatisfactionSurvey(n)).toList();
+    final count = deletable.length;
     if (count == 0) return;
 
     final controller = AnimationController(
@@ -4897,15 +4909,27 @@ class _NotificationsTabState extends State<NotificationsTab>
     controller.dispose();
     setState(() {
       _deleteAllExitAnim = null;
-      _notifications = [];
+      _notifications.removeWhere(
+          (item) => !_isProtectedSatisfactionSurvey(item));
     });
 
     if (!mounted) return;
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
-    final ok = await ApiService.deleteAllJobseekerNotifications(token);
+
+    var allOk = true;
+    for (final item in deletable) {
+      final rawId = item['id'];
+      final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
+      if (id == 0) continue;
+      final ok = await ApiService.deleteJobseekerNotification(
+        token: token,
+        id: id,
+      );
+      if (!ok) allOk = false;
+    }
     if (!mounted) return;
-    if (!ok) {
+    if (!allOk) {
       await _loadNotifications(showLoader: false);
     }
   }
@@ -4913,13 +4937,35 @@ class _NotificationsTabState extends State<NotificationsTab>
   Future<void> _confirmDeleteAllNotifications() async {
     if (_notifications.isEmpty) return;
 
+    final hasProtected =
+        _notifications.any(_isProtectedSatisfactionSurvey);
+    final deletableCount = _notifications
+        .where((n) => !_isProtectedSatisfactionSurvey(n))
+        .length;
+
+    if (deletableCount == 0) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Your experience rating is still pending. Submit your rating to clear it.',
+          ),
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.destructive,
       icon: Icons.delete_sweep_rounded,
       title: 'Delete All Notifications?',
-      message:
-          'This will remove all notifications from your account. This cannot be undone.',
+      message: hasProtected
+          ? 'This removes all notifications except your pending experience rating. That stays until you submit your feedback. This cannot be undone for the items removed.'
+          : 'This will remove all notifications from your account. This cannot be undone.',
       confirmLabel: 'Delete all',
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
@@ -4982,6 +5028,18 @@ class _NotificationsTabState extends State<NotificationsTab>
             opacity: anim1.value,
             child: StatefulBuilder(
               builder: (ctx, setDialogState) {
+                const double starBarWidth = 240;
+                void applyStarFromDx(double dx) {
+                  final x = dx.clamp(0.0, starBarWidth);
+                  var next = ((x / starBarWidth) * 5).ceil();
+                  if (next < 1) next = 1;
+                  if (next > 5) next = 5;
+                  if (next != selectedRating) {
+                    HapticFeedback.selectionClick();
+                    setDialogState(() => selectedRating = next);
+                  }
+                }
+
                 return AlertDialog(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(28)),
@@ -5046,42 +5104,52 @@ class _NotificationsTabState extends State<NotificationsTab>
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(5, (i) {
-                          final starIndex = i + 1;
-                          final isSelected = starIndex <= selectedRating;
-                          return GestureDetector(
-                            onTap: () => setDialogState(
-                                () => selectedRating = starIndex),
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(horizontal: 4),
-                              child: Icon(
-                                isSelected
-                                    ? Icons.star_rounded
-                                    : Icons.star_outline_rounded,
-                                color: isSelected
-                                    ? const Color(0xFFF59E0B)
-                                    : const Color(0xFFCBD5E1),
-                                size: 40,
-                              )
-                                  .animate(
-                                    target: isSelected ? 1 : 0,
+                      Center(
+                        child: SizedBox(
+                          width: starBarWidth,
+                          height: 52,
+                          child: Listener(
+                            behavior: HitTestBehavior.opaque,
+                            onPointerDown: (e) =>
+                                applyStarFromDx(e.localPosition.dx),
+                            onPointerMove: (e) =>
+                                applyStarFromDx(e.localPosition.dx),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(5, (i) {
+                                final starIndex = i + 1;
+                                final isSelected =
+                                    starIndex <= selectedRating;
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4),
+                                  child: Icon(
+                                    isSelected
+                                        ? Icons.star_rounded
+                                        : Icons.star_outline_rounded,
+                                    color: isSelected
+                                        ? const Color(0xFFF59E0B)
+                                        : const Color(0xFFCBD5E1),
+                                    size: 40,
                                   )
-                                  .scale(
-                                      begin: const Offset(1, 1),
-                                      end: const Offset(1.2, 1.2),
-                                      duration: 200.ms,
-                                      curve: Curves.easeOutBack)
-                                  .then()
-                                  .scale(
-                                      begin: const Offset(1.2, 1.2),
-                                      end: const Offset(1, 1),
-                                      duration: 150.ms),
+                                      .animate(
+                                        target: isSelected ? 1 : 0,
+                                      )
+                                      .scale(
+                                          begin: const Offset(1, 1),
+                                          end: const Offset(1.2, 1.2),
+                                          duration: 200.ms,
+                                          curve: Curves.easeOutBack)
+                                      .then()
+                                      .scale(
+                                          begin: const Offset(1.2, 1.2),
+                                          end: const Offset(1, 1),
+                                          duration: 150.ms),
+                                );
+                              }),
                             ),
-                          );
-                        }),
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -5095,7 +5163,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                         ? 'Satisfied'
                                         : selectedRating == 5
                                             ? 'Excellent!'
-                                            : 'Tap to rate',
+                                            : 'Tap or slide to rate',
                         style: TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -5155,7 +5223,8 @@ class _NotificationsTabState extends State<NotificationsTab>
                                                   BorderRadius.circular(12)),
                                         ),
                                       );
-                                      _deleteNotification(index);
+                                      _deleteNotification(index,
+                                          allowSatisfactionSurvey: true);
                                     } else {
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
@@ -5935,9 +6004,19 @@ class _NotificationsTabState extends State<NotificationsTab>
                             );
                           }
 
-                          final totalItems = sortedList.length;
-                          final slideOut =
-                              _deleteAllSlideProgressForIndex(index, totalItems);
+                          final deletableCount = sortedList
+                              .where((x) => !_isProtectedSatisfactionSurvey(x))
+                              .length;
+                          final deletableIndexBefore = sortedList
+                              .take(index)
+                              .where((x) => !_isProtectedSatisfactionSurvey(x))
+                              .length;
+                          final slideOut = _isProtectedSatisfactionSurvey(n)
+                              ? 0.0
+                              : _deleteAllSlideProgressForIndex(
+                                  deletableIndexBefore,
+                                  deletableCount,
+                                );
                           final slideW = MediaQuery.sizeOf(context).width;
                           // Nearly full-width cards need ~full viewport shift to clear the screen
                           // (0.5 * width left the right portion stuck visible).

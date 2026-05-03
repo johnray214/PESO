@@ -24,6 +24,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'notification_service.dart';
 
+/// Launcher / task-switcher name and in-app branding (auth, dialogs, etc.).
+const String kAppDisplayName = 'Kabsat Empoy';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -104,7 +107,7 @@ class PESOApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
-      title: 'PESO Connect',
+      title: kAppDisplayName,
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
       theme: ThemeData(
@@ -224,7 +227,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initializeInternalState() async {
-    // Wait for 3 seconds for branding, giving the mascot + shimmer time to shine
+    // Wait for 3 seconds for branding / mascot + title shimmer
     await Future.delayed(const Duration(milliseconds: 3000));
     if (!mounted) return;
 
@@ -601,28 +604,18 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
                 ),
-
-              // ── Horizontal accent line ────────────────────────────────────
-              Positioned(
-                bottom: size.height * 0.32,
-                left: 0,
-                right: 0,
-                child: Center(
+                Positioned(
+                  bottom: size.height * 0.12,
+                  right: size.width * 0.02,
                   child: Container(
-                    width: size.width * 0.55,
-                    height: 1,
+                    width: 100,
+                    height: 100,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          const Color(0xFF1565C0).withOpacity(0.15),
-                          Colors.transparent,
-                        ],
-                      ),
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF93C5FD).withOpacity(0.35),
                     ),
                   ),
                 ),
-              ),
 
               // ── Main content ─────────────────────────────────────────────
               Positioned.fill(
@@ -632,10 +625,11 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Top spacer (positions mascot + text block toward vertical center)
-                        SizedBox(height: size.height * 0.25),
-
-                        // ── Mascot + shadow ──────────────────────────────────────
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                        // ── Mascot + shadow (original asset) ─────────────────────
                         AnimatedBuilder(
                           animation:
                               Listenable.merge([_mascotCtrl, _floatCtrl]),
@@ -651,7 +645,6 @@ class _SplashScreenState extends State<SplashScreen>
                           child: Stack(
                             alignment: Alignment.bottomCenter,
                             children: [
-                              // Shadow ellipse under mascot
                               Container(
                                 width: size.width * 0.28,
                                 height: 14,
@@ -684,107 +677,148 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                         ),
 
-                        SizedBox(height: size.height * 0.035),
+                        SizedBox(height: size.height * 0.028),
 
-                        // ── PESO + city text ─────────────────────────────────────
-                        Column(
-                          children: [
-                            // PESO text with shimmer
-                            AnimatedBuilder(
-                              animation: _shimmerCtrl,
-                              builder: (context, child) {
-                                return ShaderMask(
-                                  blendMode: BlendMode.srcIn,
-                                  shaderCallback: (bounds) {
-                                    final shimmerX =
-                                        _shimmer.value * bounds.width;
-                                    return LinearGradient(
-                                      begin: Alignment.centerLeft,
-                                      end: Alignment.centerRight,
-                                      colors: const [
-                                        Color(0xFF0F172A), // Deep Navy
-                                        Color(0xFF0F172A),
-                                        Color(0xFF2563EB), // Vibrant Brand Blue
-                                        Color(0xFF60A5FA), // Sky Highlight
-                                        Color(0xFF0F172A),
-                                        Color(0xFF0F172A),
-                                      ],
-                                      stops: [
-                                        0.0,
-                                        math.max(0.0,
-                                            (shimmerX / bounds.width) - 0.25),
-                                        (shimmerX / bounds.width)
-                                            .clamp(0.0, 1.0),
-                                        math.min(1.0,
-                                            (shimmerX / bounds.width) + 0.15),
-                                        math.min(1.0,
-                                            (shimmerX / bounds.width) + 0.35),
-                                        1.0,
-                                      ],
-                                    ).createShader(bounds);
-                                  },
-                                  child: child!,
-                                );
-                              },
-                              child: Text(
-                                'PESO',
+                        // ── Kabsat Empoy (PESO-style shimmer) + tagline ────────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          child: Column(
+                            children: [
+                              AnimatedBuilder(
+                                animation: _shimmerCtrl,
+                                builder: (context, child) {
+                                  return ShaderMask(
+                                    blendMode: BlendMode.srcIn,
+                                    shaderCallback: (bounds) {
+                                      final shimmerX =
+                                          _shimmer.value * bounds.width;
+                                      return LinearGradient(
+                                        begin: Alignment.centerLeft,
+                                        end: Alignment.centerRight,
+                                        colors: const [
+                                          Color(0xFF0F172A),
+                                          Color(0xFF0F172A),
+                                          Color(0xFF2563EB),
+                                          Color(0xFF60A5FA),
+                                          Color(0xFF0F172A),
+                                          Color(0xFF0F172A),
+                                        ],
+                                        stops: [
+                                          0.0,
+                                          math.max(
+                                            0.0,
+                                            (shimmerX / bounds.width) - 0.25,
+                                          ),
+                                          (shimmerX / bounds.width)
+                                              .clamp(0.0, 1.0),
+                                          math.min(
+                                            1.0,
+                                            (shimmerX / bounds.width) + 0.15,
+                                          ),
+                                          math.min(
+                                            1.0,
+                                            (shimmerX / bounds.width) + 0.35,
+                                          ),
+                                          1.0,
+                                        ],
+                                      ).createShader(bounds);
+                                    },
+                                    child: child!,
+                                  );
+                                },
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'KABSAT',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 38,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0F2250),
+                                        letterSpacing: 4,
+                                        height: 1.05,
+                                      ),
+                                    ),
+                                    Text(
+                                      'EMPOY',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 38,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0F2250),
+                                        letterSpacing: 4,
+                                        height: 1.05,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Your virtual employment companion',
+                                textAlign: TextAlign.center,
                                 style: GoogleFonts.poppins(
-                                  fontSize: 60,
-                                  fontWeight: FontWeight.w900,
-                                  color: const Color(0xFF0F2250),
-                                  letterSpacing: 12,
-                                  height: 1.0,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w400,
+                                  color: const Color(0xFF1D4ED8),
+                                  height: 1.35,
                                 ),
                               ),
-                            )
-                                .animate()
-                                .fadeIn(delay: 500.ms, duration: 600.ms)
-                                .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+                            ],
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 450.ms, duration: 550.ms)
+                            .slideY(begin: 0.12, curve: Curves.easeOutCubic),
 
-                            const SizedBox(height: 4),
+                        const SizedBox(height: 14),
 
-                            Text(
-                              'Santiago City',
-                              style: GoogleFonts.poppins(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF1565C0),
-                                letterSpacing: 5,
-                              ),
-                            )
-                                .animate()
-                                .fadeIn(delay: 700.ms, duration: 600.ms)
-                                .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+                        // ── PESO pill ───────────────────────────────────────────
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 28),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFF3B82F6).withOpacity(0.55),
+                              width: 1.2,
+                            ),
+                            color: const Color(0xFFDBEAFE).withOpacity(0.65),
+                          ),
+                          child: Text(
+                            'PUBLIC EMPLOYMENT SERVICE OFFICE',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1D4ED8),
+                              letterSpacing: 1.6,
+                              height: 1.25,
+                            ),
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 650.ms, duration: 550.ms)
+                            .slideY(begin: 0.1, curve: Curves.easeOutCubic),
 
-                            const SizedBox(height: 10),
+                        const SizedBox(height: 10),
 
-                            // Gold accent label
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 5),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                  color:
-                                      const Color(0xFF1565C0).withOpacity(0.4),
-                                ),
-                                color:
-                                    const Color(0xFF1565C0).withOpacity(0.08),
-                              ),
-                              child: Text(
-                                'PUBLIC EMPLOYMENT SERVICE OFFICE',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 8.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF1565C0),
-                                  letterSpacing: 2.2,
-                                ),
-                              ),
-                            ).animate().fadeIn(delay: 900.ms, duration: 600.ms),
-                          ],
+                        Text(
+                          'Santiago City',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF2563EB),
+                            letterSpacing: 4,
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 800.ms, duration: 550.ms)
+                            .slideY(begin: 0.08, curve: Curves.easeOutCubic),
+                            ],
+                          ),
                         ),
-
-                        const Spacer(),
 
                         // ── Status Pill (Loading / Offline) ──────────────────────────────────
                         AnimatedSwitcher(
@@ -1010,7 +1044,7 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                               ),
                               SizedBox(height: compact ? 10 : 14),
                               Text(
-                                'Welcome to PESO Connect',
+                                'Welcome to $kAppDisplayName',
                                 style: GoogleFonts.poppins(
                                   fontSize: titleSz,
                                   fontWeight: FontWeight.w800,
@@ -2303,7 +2337,7 @@ class _LoginModalState extends State<LoginModal>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Enter your registered email. We’ll send a link to reset your password for PESO Connect.',
+                    'Enter your registered email. We’ll send a link to reset your password for $kAppDisplayName.',
                     style: TextStyle(
                         fontSize: 13.5, height: 1.35, color: Color(0xFF64748B)),
                   ),
@@ -2953,41 +2987,48 @@ class _LoginModalState extends State<LoginModal>
                         ),
                       ),
                     const SizedBox(height: 20),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _dobController,
-                            readOnly: true,
-                            decoration: _fieldDec(
-                                'Birthdate (YYYY-MM-DD)', Icons.cake_outlined),
-                            onTap: _pickDob,
-                          ),
+                    TextFormField(
+                      controller: _dobController,
+                      readOnly: true,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: _fieldDec(
+                        'Birthdate (YYYY-MM-DD)',
+                        Icons.cake_outlined,
+                      ).copyWith(
+                        labelStyle: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12.5,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedSex,
-                            decoration: _fieldDec('Sex', Icons.person_outline),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'male', child: Text('Male')),
-                              DropdownMenuItem(
-                                  value: 'female', child: Text('Female')),
-                            ],
-                            onChanged: (value) =>
-                                setState(() => _selectedSex = value),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Required';
-                              }
-                              return null;
-                            },
-                          ),
+                        floatingLabelStyle: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11,
                         ),
+                        isDense: true,
+                      ),
+                      onTap: _pickDob,
+                    ),
+                    const SizedBox(height: 20),
+                    DropdownButtonFormField<String>(
+                      value: _selectedSex,
+                      decoration: _fieldDec('Sex', Icons.person_outline),
+                      items: const [
+                        DropdownMenuItem(value: 'male', child: Text('Male')),
+                        DropdownMenuItem(value: 'female', child: Text('Female')),
                       ],
+                      onChanged: (value) =>
+                          setState(() => _selectedSex = value),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Required';
+                        }
+                        return null;
+                      },
                     ),
                   ],
                   const SizedBox(height: 24),
