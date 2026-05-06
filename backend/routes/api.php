@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Employer\EmployerEventController;
+use App\Http\Controllers\LmaController;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 
@@ -111,6 +112,7 @@ Route::get('/public/skills', [PublicSkillsController::class, 'index']);
 // LEGS Feedback (public – no auth required)
 Route::post('/legs-feedback', [LegsFeedbackController::class, 'store']);
 
+Route::post('/lma/generate-excel', [LmaController::class, 'generateExcel']);
 /*
 |--------------------------------------------------------------------------
 | ADMIN ROUTES
