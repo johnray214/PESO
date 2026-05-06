@@ -184,7 +184,12 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
     async updateStatus(applicantId, newStatus, extraData = {}) {
       const item = this.applicants.find((a) => a.id === applicantId)
       const prevStatus = item?.status
-      if (item) item.status = newStatus
+      if (item) {
+        item.status = newStatus
+        if (newStatus === 'for_job_offer' && extraData.send_offer) {
+          item.offerSentAt = new Date().toISOString()
+        }
+      }
       try {
         await employerApi.updateApplicationStatus(applicantId, newStatus.toLowerCase(), extraData)
       } catch (e) {

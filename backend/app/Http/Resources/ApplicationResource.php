@@ -39,6 +39,9 @@ class ApplicationResource extends JsonResource
                 ];
             }),
             'status' => $this->status,
+            'offer_response' => $this->offer_response,
+            'offer_sent_at' => $this->offer_sent_at,
+            'offer_response_at' => $this->offer_response_at,
             'interview_date' => $this->interview_date,
             'interview_time' => $this->interview_time,
             'interview_format' => $this->interview_format,

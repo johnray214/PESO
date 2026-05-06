@@ -78,7 +78,7 @@
                     <td @click.stop>
                       <div class="action-btns">
                         <button class="act-btn view" @click="openDrawer(a)" title="View"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-                        <button v-if="a.status !== 'Hired' && a.status !== 'Rejected' && !(a.status === 'For Job Offer' && a.offerResponse === 'declined')" class="act-btn advance" :class="advanceBtnClass(a)" @click.stop="confirmAdvance(a)" :disabled="updatingStatusId === a.id || (a.status === 'For Job Offer' && a.offerResponse !== 'accepted')" :title="advanceTitle(a)">
+                        <button v-if="a.status !== 'Hired' && a.status !== 'Rejected' && !(a.status === 'For Job Offer' && a.offerResponse === 'declined')" class="act-btn advance" :class="advanceBtnClass(a)" @click.stop="handleAdvance(a)" :disabled="updatingStatusId === a.id || (a.status === 'For Job Offer' && a.offerSentAt && a.offerResponse !== 'accepted')" :title="advanceTitle(a)">
                           <span v-if="updatingStatusId === a.id" class="spinner-action"></span>
                           <template v-else>
                             <svg v-if="a.status === 'Reviewing'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -415,7 +415,7 @@
           <div class="fm-header-left">
             <div class="fm-hicon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg></div>
             <div>
-              <h3 class="fm-title">Extend Job Offer</h3>
+              <h3 class="fm-title">Send Job Offer</h3>
               <p class="fm-subtitle">Sending offer to <strong>{{ hireModal.applicant?.name }}</strong></p>
             </div>
           </div>
@@ -656,6 +656,9 @@ export default {
               const map = { for_job_offer: 'For Job Offer' }
               return map[raw] || (raw.charAt(0).toUpperCase() + raw.slice(1))
             })(),
+            offerResponse:   a.offer_response || null,
+            offerSentAt:     a.offer_sent_at || null,
+            offerResponseAt: a.offer_response_at || null,
             avatarBg:        AVATAR_COLORS[i % AVATAR_COLORS.length],
             notes:           a.notes || '',
             hasResume:       !!js.has_resume,
@@ -670,6 +673,7 @@ export default {
 
     statusDisplay(a) {
       if (a.status === 'For Job Offer') {
+        if (!a.offerSentAt) return 'Preparing Offer'
         if (a.offerResponse === 'accepted') return 'Offer Accepted'
         if (a.offerResponse === 'declined') return 'Offer Declined'
         return 'Awaiting Response'
@@ -679,6 +683,7 @@ export default {
     statusClass(a) {
       const s = typeof a === 'string' ? a : a.status
       if (s === 'For Job Offer' && typeof a === 'object') {
+        if (!a.offerSentAt) return 'preparing-offer'
         if (a.offerResponse === 'accepted') return 'offer-accepted'
         if (a.offerResponse === 'declined') return 'offer-declined'
         return 'awaiting-response'
@@ -777,17 +782,38 @@ export default {
       const s = typeof a === 'string' ? a : a.status
       return s === 'Reviewing'     ? 'Shortlist Applicant'
            : s === 'Shortlisted'   ? 'Schedule Interview'
-           : s === 'Interview'     ? 'Pass / Extend Offer'
+           : s === 'Interview'     ? 'Pass / Prepare Offer'
+           : s === 'For Job Offer' && !a.offerSentAt ? 'Send Job Offer'
            : s === 'For Job Offer' && a.offerResponse === 'accepted' ? 'Mark as Hired'
            : s === 'For Job Offer' ? 'Waiting for applicant'
            : 'Advance'
     },
 
-    confirmAdvance(applicant) {
+    handleAdvance(applicant) {
       if (applicant.status === 'Shortlisted')   { this.openInterviewModal(applicant);   return }
-      if (applicant.status === 'Interview')     { this.openHireModal(applicant);        return }
-      if (applicant.status === 'For Job Offer') { this.confirmDirectHire(applicant);    return }
-      this.confirmShortlist(applicant)
+      if (applicant.status === 'Interview')     { this.confirmPass(applicant);          return }
+      if (applicant.status === 'For Job Offer') {
+         if (!applicant.offerSentAt) {
+            this.openHireModal(applicant);
+            return
+         }
+         if (applicant.offerResponse === 'accepted') {
+            this.confirmDirectHire(applicant);
+            return
+         }
+      }
+      if (applicant.status === 'Reviewing') { this.confirmShortlist(applicant); return }
+    },
+
+    confirmPass(applicant) {
+      this.confirmModal = {
+        show: true, theme: 'green',
+        title: 'Pass this applicant?',
+        desc: `${applicant.name} will be marked as Passed. An email will be sent informing them that a job offer is being prepared.`,
+        icon: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>`,
+        okHtml: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Yes, Pass Applicant`,
+        onConfirm: () => { this.confirmModal.show = false; this.updateStatus(applicant, 'for_job_offer') },
+      }
     },
 
     confirmShortlist(applicant) {
@@ -903,27 +929,30 @@ export default {
       this.savingStatus = true
       this.updatingStatusId = this.hireModal.applicant.id
       try {
-        await this.applicantsStore.updateStatus(this.hireModal.applicant.id, 'for_job_offer', { start_date: this.hireModal.startDate })
-        if (this.selected?.id === this.hireModal.applicant.id) this.selected.status = 'For Job Offer'
-        this.showToastMsg('Offer email sent! Status updated to For Job Offer.', 'success')
+        await this.applicantsStore.updateStatus(this.hireModal.applicant.id, 'for_job_offer', { send_offer: true, start_date: this.hireModal.startDate })
+        
+        // Optimistically update the UI to prevent it from reverting briefly while reloading
+        if (this.selected?.id === this.hireModal.applicant.id) {
+            this.selected.status = 'For Job Offer'
+            this.selected.offerSentAt = new Date().toISOString()
+        }
+        
+        const localApplicant = this.applicants.find(a => a.id === this.hireModal.applicant.id)
+        if (localApplicant) {
+            localApplicant.status = 'For Job Offer'
+            localApplicant.offerSentAt = new Date().toISOString()
+        }
+
+        this.showToastMsg('Job Offer email sent successfully!', 'success')
         await this.applicantsStore.refresh()
         await this.fetchLocalApplicants(true)
         this.hireModal.show = false; this.drawerOpen = false
-      } catch (e) { this.showToastMsg('Failed to extend offer', 'error') }
+      } catch (e) { this.showToastMsg('Failed to send offer', 'error') }
       finally { this.savingStatus = false; this.updatingStatusId = null }
     },
 
     async resendOffer(applicant) {
-      this.savingStatus = true
-      this.updatingStatusId = applicant.id
-      try {
-        await this.applicantsStore.updateStatus(applicant.id, 'for_job_offer', { resend_offer: true })
-        this.showToastMsg('Job offer resent successfully!', 'success')
-        await this.applicantsStore.refresh()
-        await this.fetchLocalApplicants(true)
-        this.drawerOpen = false
-      } catch (e) { this.showToastMsg('Failed to resend offer', 'error') }
-      finally { this.savingStatus = false; this.updatingStatusId = null }
+      this.openHireModal(applicant)
     },
 
     confirmDirectHire(applicant) {
@@ -954,7 +983,7 @@ export default {
     handleDrawerSave() {
       const oldStatus = this.applicants.find(a => a.id === this.selected.id)?.status
       const newStatus = this.selected.status
-      if (newStatus === 'For Job Offer' && oldStatus !== 'For Job Offer') { this.openHireModal(this.selected);      return }
+      if (newStatus === 'For Job Offer' && oldStatus !== 'For Job Offer') { this.confirmPass(this.selected);      return }
       if (newStatus === 'Hired'         && oldStatus !== 'Hired')         { this.confirmDirectHire(this.selected);  return }
       if (newStatus === 'Interview'     && oldStatus !== 'Interview')     { this.openInterviewModal(this.selected); return }
       if (newStatus === 'Rejected'      && oldStatus !== 'Rejected')      { this.confirmReject(this.selected);      return }
@@ -968,7 +997,10 @@ export default {
       try {
         await this.applicantsStore.updateStatus(applicant.id, status)
         if (this.selected?.id === applicant.id) this.selected.status = status
-        this.showToastMsg(`Status updated to ${status}`, 'success')
+        
+        const displayStatus = status === 'for_job_offer' ? 'For Job Offer' : 
+                             (status.charAt(0).toUpperCase() + status.slice(1))
+        this.showToastMsg(`Status updated to ${displayStatus}`, 'success')
         
         await this.applicantsStore.refresh()
         await this.fetchLocalApplicants(true)
@@ -1077,6 +1109,7 @@ export default {
 .shortlisted { background: #eff8ff; color: #1a5f8a; }
 .interview   { background: #faf5ff; color: #8b5cf6; }
 .for-job-offer { background: #fef3c7; color: #92400e; }
+.preparing-offer { background: #e0f2fe; color: #0369a1; }
 .awaiting-response { background: #fef3c7; color: #92400e; }
 .offer-accepted { background: #f0fdf4; color: #16a34a; }
 .offer-declined { background: #fef2f2; color: #dc2626; }
@@ -1156,6 +1189,7 @@ export default {
 .status-option.active.shortlisted { background: #eff8ff; color: #1a5f8a; border-color: #2872A1; }
 .status-option.active.interview   { background: #faf5ff; color: #8b5cf6; border-color: #8b5cf6; }
 .status-option.active.for-job-offer { background: #fef3c7; color: #92400e; border-color: #d97706; }
+.status-option.active.preparing-offer { background: #e0f2fe; color: #0369a1; border-color: #0284c7; }
 .status-option.active.hired       { background: #f0fdf4; color: #22c55e; border-color: #22c55e; }
 .status-option.active.rejected    { background: #fef2f2; color: #ef4444; border-color: #ef4444; }
 .notes-area { width: 100%; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #1e293b; font-family: inherit; resize: vertical; outline: none; background: #f8fafc; }
@@ -1184,22 +1218,26 @@ export default {
 ══════════════════════════════ */
 .cmodal { background: #fff; border-radius: 20px; width: 100%; max-width: 360px; overflow: hidden; box-shadow: 0 24px 64px rgba(0,0,0,0.22); }
 .cmodal-strip { height: 4px; }
-.cmodal-strip.blue { background: linear-gradient(90deg, #2872A1, #08BDDE); }
-.cmodal-strip.red  { background: linear-gradient(90deg, #ef4444, #f97316); }
+.cmodal-strip.blue  { background: linear-gradient(90deg, #2872A1, #08BDDE); }
+.cmodal-strip.red   { background: linear-gradient(90deg, #ef4444, #f97316); }
+.cmodal-strip.green { background: linear-gradient(90deg, #10b981, #34d399); }
 .cmodal-body { padding: 28px 26px 16px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; }
 .cmodal-icon { width: 58px; height: 58px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.cmodal-icon.blue { background: #eff8ff; color: #2872A1; border: 2px solid #bae6fd; }
-.cmodal-icon.red  { background: #fef2f2; color: #ef4444; border: 2px solid #fecaca; }
+.cmodal-icon.blue  { background: #eff8ff; color: #2872A1; border: 2px solid #bae6fd; }
+.cmodal-icon.red   { background: #fef2f2; color: #ef4444; border: 2px solid #fecaca; }
+.cmodal-icon.green { background: #ecfdf5; color: #10b981; border: 2px solid #a7f3d0; }
 .cmodal-title { font-size: 16px; font-weight: 800; color: #1e293b; margin-top: 4px; }
 .cmodal-desc  { font-size: 13px; color: #64748b; line-height: 1.65; max-width: 280px; }
 .cmodal-footer { display: flex; gap: 8px; padding: 16px 20px 22px; }
 .cmodal-cancel { flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #fff; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s; }
 .cmodal-cancel:hover { background: #f8fafc; }
 .cmodal-ok { flex: 1.5; padding: 10px 14px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
-.cmodal-ok.blue { background: #2872A1; }
+.cmodal-ok.blue  { background: #2872A1; }
 .cmodal-ok.blue:hover { filter: brightness(1.08); }
-.cmodal-ok.red  { background: #ef4444; }
+.cmodal-ok.red   { background: #ef4444; }
 .cmodal-ok.red:hover  { filter: brightness(1.08); }
+.cmodal-ok.green { background: #10b981; }
+.cmodal-ok.green:hover { filter: brightness(1.08); }
 
 /* ══════════════════════════════
    FANCY MODALS (Interview + Hire)
