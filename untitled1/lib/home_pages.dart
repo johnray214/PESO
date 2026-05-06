@@ -20,6 +20,8 @@ import 'micro_interactions.dart';
 import 'my_documents_page.dart';
 import 'package:http/http.dart' as http;
 import 'main.dart';
+import 'location_controller.dart';
+import 'package:geolocator/geolocator.dart' show LocationPermission;
 
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
 
@@ -628,9 +630,22 @@ class _EventsPageState extends State<_EventsPage> {
   }
 }
 
-// ─── User Location (Demo) ─────────────────────────────────────────────────────
+// ─── User Location ────────────────────────────────────────────────────────────
+//
+// These constants are only used as a *fallback* (e.g. before the user has
+// granted GPS permission). The real, live user position is provided by
+// [LocationController.instance.effectiveLocation].
 const double userLatitude = 16.689315116453432;
 const double userLongitude = 121.55584211537534;
+
+/// Returns the current user point that all distance/ranking logic should
+/// be based on: prefers the user's manual override, falls back to live GPS,
+/// and finally to the demo Santiago City coordinates.
+({double lat, double lng}) currentUserPoint() {
+  final p = LocationController.instance.effectiveLocation;
+  if (p != null) return (lat: p.latitude, lng: p.longitude);
+  return (lat: userLatitude, lng: userLongitude);
+}
 
 // ─── Business Model ───────────────────────────────────────────────────────────
 class Business {
@@ -652,13 +667,14 @@ class Business {
     required this.availableJobs,
   });
 
-  double getDistanceFromUser() {
-    return _calculateDistance(
-      userLatitude,
-      userLongitude,
-      latitude,
-      longitude,
-    );
+  /// Distance in meters from the current effective user location.
+  ///
+  /// Optionally pass [fromLat]/[fromLng] (e.g. the live GPS reading captured
+  /// in a State) to avoid reading the global controller while building lists.
+  double getDistanceFromUser({double? fromLat, double? fromLng}) {
+    final lat = fromLat ?? currentUserPoint().lat;
+    final lng = fromLng ?? currentUserPoint().lng;
+    return _calculateDistance(lat, lng, latitude, longitude);
   }
 
   static double _calculateDistance(
@@ -2950,7 +2966,7 @@ class MapTab extends StatefulWidget {
   State<MapTab> createState() => _MapTabState();
 }
 
-class _MapTabState extends State<MapTab> {
+class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
   Business? _selectedBusiness;
@@ -2960,12 +2976,79 @@ class _MapTabState extends State<MapTab> {
   String? _errorMessage;
   MapFocusRequest? _pendingMapFocusRequest;
 
+  // ─── GPS state ─────────────────────────────────────────────────────────────
+  /// The location the user is currently picking with the "Set exact location"
+  /// flow. While non-null, tapping the map updates this point instead of
+  /// closing the popup, and a Confirm/Cancel banner is shown.
+  LatLng? _exactPickPreview;
+  bool _isPickingExactLocation = false;
+  bool _hasAutoCenteredOnUser = false;
+  bool _isRequestingPermission = false;
+
+  // ─── Map animation ─────────────────────────────────────────────────────────
+  AnimationController? _moveAnimController;
+
   @override
   void initState() {
     super.initState();
+    // Start location controller only when Map tab is opened, so permission
+    // prompts are scoped to this screen.
+    unawaited(LocationController.instance.start());
     _loadBusinessesFromApi();
     mapFocusRequestNotifier.addListener(_onMapFocusRequested);
     _onMapFocusRequested();
+
+    final lc = LocationController.instance;
+    lc.liveLocation.addListener(_onLocationChanged);
+    lc.manualLocation.addListener(_onLocationChanged);
+    lc.permission.addListener(_onPermissionChanged);
+
+    // Kick off a permission request the first time the user opens the Map
+    // tab. If it's already granted this is essentially a no-op and just
+    // makes sure the position stream is running.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _ensureLocationReady();
+    });
+  }
+
+  Future<void> _ensureLocationReady() async {
+    if (_isRequestingPermission) return;
+    _isRequestingPermission = true;
+    try {
+      final lc = LocationController.instance;
+      final perm = await lc.requestPermission();
+      if (!mounted) return;
+      if (perm == LocationPermission.always ||
+          perm == LocationPermission.whileInUse) {
+        // One-shot fast read so cards/sort have a real point quickly.
+        await lc.getCurrentOnce();
+      }
+      if (mounted) setState(() {});
+    } finally {
+      _isRequestingPermission = false;
+    }
+  }
+
+  void _onLocationChanged() {
+    if (!mounted) return;
+    setState(() {});
+    if (!_hasAutoCenteredOnUser) {
+      final p = LocationController.instance.effectiveLocation;
+      if (p != null) {
+        _hasAutoCenteredOnUser = true;
+        // Use a short post-frame callback to ensure map is ready.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _animatedMove(LatLng(p.latitude, p.longitude), 15, durationMs: 500);
+          }
+        });
+      }
+    }
+  }
+
+  void _onPermissionChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _loadBusinessesFromApi() async {
@@ -3068,9 +3151,36 @@ class _MapTabState extends State<MapTab> {
   @override
   void dispose() {
     mapFocusRequestNotifier.removeListener(_onMapFocusRequested);
+    final lc = LocationController.instance;
+    lc.liveLocation.removeListener(_onLocationChanged);
+    lc.manualLocation.removeListener(_onLocationChanged);
+    lc.permission.removeListener(_onPermissionChanged);
+    _moveAnimController?.dispose();
     _searchController.dispose();
     _mapController.dispose();
     super.dispose();
+  }
+
+  /// The user point currently being used for distance / ranking.
+  LatLng _userLatLng() {
+    final p = currentUserPoint();
+    return LatLng(p.lat, p.lng);
+  }
+
+  /// Top 5 businesses sorted ascending by distance from [_userLatLng].
+  /// If [source] is empty the result is also empty.
+  List<Business> _nearestTop5(List<Business> source) {
+    if (source.isEmpty) return const [];
+    final user = _userLatLng();
+    final list = [...source];
+    list.sort((a, b) {
+      final da = a.getDistanceFromUser(
+          fromLat: user.latitude, fromLng: user.longitude);
+      final db = b.getDistanceFromUser(
+          fromLat: user.latitude, fromLng: user.longitude);
+      return da.compareTo(db);
+    });
+    return list.take(5).toList(growable: false);
   }
 
   void _onMapFocusRequested() {
@@ -3145,8 +3255,107 @@ class _MapTabState extends State<MapTab> {
     });
   }
 
+  /// Smoothly animate the map camera from current position to [target] at
+  /// [zoom]. Cancels any in-progress animation if a new one starts.
+  void _animatedMove(LatLng target, double zoom, {int durationMs = 1100}) {
+    _moveAnimController?.dispose();
+    final controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: durationMs),
+    );
+    _moveAnimController = controller;
+
+    final startCenter = _mapController.camera.center;
+    final startZoom = _mapController.camera.zoom;
+
+    // Fly-to effect:
+    // 1) zoom out a bit from the current view (0.0–0.25)
+    // 2) move the camera while staying zoomed out (0.25–0.75)
+    // 3) zoom in to the target (0.75–1.0)
+    final zoomOut = math.max(
+      3.0,
+      math.min(startZoom, zoom) - 1.6,
+    );
+
+    final latAnim = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: ConstantTween<double>(startCenter.latitude),
+        weight: 25,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: startCenter.latitude,
+          end: target.latitude,
+        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(target.latitude),
+        weight: 25,
+      ),
+    ]).animate(controller);
+
+    final lngAnim = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: ConstantTween<double>(startCenter.longitude),
+        weight: 25,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: startCenter.longitude,
+          end: target.longitude,
+        ).chain(CurveTween(curve: Curves.easeInOutCubic)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(target.longitude),
+        weight: 25,
+      ),
+    ]).animate(controller);
+
+    final zoomAnim = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: startZoom,
+          end: zoomOut,
+        ).chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 25,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(zoomOut),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: zoomOut,
+          end: zoom,
+        ).chain(CurveTween(curve: Curves.easeInCubic)),
+        weight: 25,
+      ),
+    ]).animate(controller);
+
+    controller.addListener(() {
+      _mapController.move(
+        LatLng(latAnim.value, lngAnim.value),
+        zoomAnim.value,
+      );
+    });
+
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed ||
+          status == AnimationStatus.dismissed) {
+        controller.dispose();
+        if (_moveAnimController == controller) {
+          _moveAnimController = null;
+        }
+      }
+    });
+
+    controller.forward();
+  }
+
   void _centerOnBusiness(Business business) {
-    _mapController.move(
+    _animatedMove(
       LatLng(business.latitude, business.longitude),
       16,
     );
@@ -3156,10 +3365,54 @@ class _MapTabState extends State<MapTab> {
   }
 
   void _centerOnUser() {
-    _mapController.move(
-      const LatLng(userLatitude, userLongitude),
-      15,
+    final user = _userLatLng();
+    _animatedMove(user, 15);
+  }
+
+  // ─── Exact-location override flow ─────────────────────────────────────────
+  void _startPickingExactLocation() {
+    setState(() {
+      _isPickingExactLocation = true;
+      _exactPickPreview = _userLatLng();
+      _selectedBusiness = null;
+    });
+  }
+
+  void _cancelPickingExactLocation() {
+    setState(() {
+      _isPickingExactLocation = false;
+      _exactPickPreview = null;
+    });
+  }
+
+  void _confirmPickingExactLocation() {
+    final preview = _exactPickPreview;
+    if (preview == null) return;
+    LocationController.instance.setManualLocation(
+      LocationPoint(preview.latitude, preview.longitude),
     );
+    setState(() {
+      _isPickingExactLocation = false;
+      _exactPickPreview = null;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        behavior: SnackBarBehavior.floating,
+        content: Text('Exact location set. Showing closest jobs from here.'),
+      ),
+    );
+  }
+
+  void _useLiveGps() {
+    LocationController.instance.clearManualLocation();
+    final live = LocationController.instance.liveLocation.value;
+    if (live != null) {
+      _animatedMove(LatLng(live.latitude, live.longitude), 15);
+    } else {
+      // Try to fetch a fresh position on demand.
+      unawaited(_ensureLocationReady());
+    }
+    setState(() {});
   }
 
   String _formatDistance(double meters) {
@@ -3170,18 +3423,88 @@ class _MapTabState extends State<MapTab> {
     }
   }
 
+  /// Whether to show the "enable location" banner at the top of the map.
+  bool _shouldShowPermissionBanner() {
+    final lc = LocationController.instance;
+    final perm = lc.permission.value;
+    final isDenied = perm == LocationPermission.denied ||
+        perm == LocationPermission.deniedForever;
+    final serviceOff = !lc.serviceEnabled.value;
+    final hasNoFix = lc.liveLocation.value == null;
+    return (isDenied || serviceOff) && hasNoFix;
+  }
+
+  /// Helper to render a small "person/pin" badge marker at [point].
+  Marker _buildUserMarker(
+    LatLng point, {
+    required String label,
+    required Color ringColor,
+    IconData icon = Icons.person,
+  }) {
+    return Marker(
+      point: point,
+      width: 60,
+      height: 50,
+      child: Column(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: ringColor,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: ringColor.withOpacity(0.4),
+                  blurRadius: 10,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white, size: 14),
+          ),
+          const SizedBox(height: 2),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: ringColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 8,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           // Flutter Map with OpenStreetMap tiles (or Mapbox tiles)
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
-              initialCenter: const LatLng(userLatitude, userLongitude),
+              initialCenter: _userLatLng(),
               initialZoom: 15,
-              onTap: (_, __) {
+              onTap: (_, point) {
+                if (_isPickingExactLocation) {
+                  setState(() {
+                    _exactPickPreview = point;
+                  });
+                  return;
+                }
                 setState(() {
                   _selectedBusiness = null;
                 });
@@ -3202,50 +3525,39 @@ class _MapTabState extends State<MapTab> {
               // Markers Layer
               MarkerLayer(
                 markers: [
-                  // User location marker
-                  Marker(
-                    point: const LatLng(userLatitude, userLongitude),
-                    width: 50,
-                    height: 50,
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB),
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF2563EB).withOpacity(0.4),
-                                blurRadius: 10,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: const Icon(Icons.person,
-                              color: Colors.white, size: 14),
-                        ),
-                        const SizedBox(height: 2),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF2563EB),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'You',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 8,
-                                fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ],
+                  // Jobseeker marker: show only when we have a real live GPS fix.
+                  if (LocationController.instance.liveLocation.value != null)
+                    _buildUserMarker(
+                      LatLng(
+                        LocationController
+                            .instance.liveLocation.value!.latitude,
+                        LocationController
+                            .instance.liveLocation.value!.longitude,
+                      ),
+                      label: 'You',
+                      ringColor: const Color(0xFF2563EB),
                     ),
-                  ),
+                  // Manual exact-location override marker.
+                  if (LocationController.instance.manualLocation.value != null)
+                    _buildUserMarker(
+                      LatLng(
+                        LocationController
+                            .instance.manualLocation.value!.latitude,
+                        LocationController
+                            .instance.manualLocation.value!.longitude,
+                      ),
+                      label: 'Exact',
+                      ringColor: const Color(0xFFF59E0B),
+                      icon: Icons.push_pin_rounded,
+                    ),
+                  // Live preview while the user is picking an exact location.
+                  if (_isPickingExactLocation && _exactPickPreview != null)
+                    _buildUserMarker(
+                      _exactPickPreview!,
+                      label: 'Pick',
+                      ringColor: const Color(0xFF10B981),
+                      icon: Icons.add_location_alt_rounded,
+                    ),
                   // Business markers
                   ..._allBusinesses.map((business) {
                     final isSelected = _selectedBusiness?.id == business.id;
@@ -3522,21 +3834,81 @@ class _MapTabState extends State<MapTab> {
                 Padding(
                   padding: EdgeInsets.only(
                       bottom: MediaQuery.paddingOf(context).bottom + 80),
-                  child: SizedBox(
-                    height: 160,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _filteredBusinesses.isNotEmpty
-                          ? _filteredBusinesses.length
-                          : _allBusinesses.length,
-                      itemBuilder: (context, index) {
-                        final source = _filteredBusinesses.isNotEmpty
-                            ? _filteredBusinesses
-                            : _allBusinesses;
-                        final business = source[index];
-                        final distance = business.getDistanceFromUser();
-                        final isSelected = _selectedBusiness?.id == business.id;
+                  child: Builder(
+                    builder: (context) {
+                      // When the user is searching by name, keep their search
+                      // results. Otherwise, surface the 5 closest businesses
+                      // to the current effective user location.
+                      final isSearching = _searchController.text.isNotEmpty;
+                      final hasTrackedLocation =
+                          LocationController.instance.liveLocation.value !=
+                                  null ||
+                              LocationController.instance.manualLocation.value !=
+                                  null;
+                      final List<Business> cardSource = isSearching
+                          ? _filteredBusinesses
+                          : (hasTrackedLocation
+                              ? _nearestTop5(_allBusinesses)
+                              : const <Business>[]);
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (!isSearching && cardSource.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.08),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.near_me_rounded,
+                                      size: 16,
+                                      color: Color(0xFF2563EB),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      'Closest company near you',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.grey[800],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          SizedBox(
+                            height: 160,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              itemCount: cardSource.length,
+                              itemBuilder: (context, index) {
+                                final business = cardSource[index];
+                                final user = _userLatLng();
+                                final distance = business.getDistanceFromUser(
+                                  fromLat: user.latitude,
+                                  fromLng: user.longitude,
+                                );
+                                final isSelected =
+                                    _selectedBusiness?.id == business.id;
 
                         return GestureDetector(
                           onTap: () => _centerOnBusiness(business),
@@ -3724,8 +4096,73 @@ class _MapTabState extends State<MapTab> {
                               ],
                             ),
                           ),
-                        );
-                      },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+          // GPS controls (center on user + set exact location)
+          Positioned(
+            right: 16,
+            bottom: MediaQuery.paddingOf(context).bottom + 260,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton(
+                  // Unique tag — default FAB Hero tags collide with other
+                  // routes' FABs (e.g. Notifications "Delete all") during pop
+                  // transitions, causing morphs.
+                  heroTag: 'map_tab_center_on_user',
+                  mini: true,
+                  backgroundColor: Colors.white,
+                  onPressed: _centerOnUser,
+                  child: const Icon(Icons.my_location_rounded,
+                      color: Color(0xFF2563EB)),
+                ),
+                const SizedBox(height: 8),
+                // Set / clear exact location
+                FloatingActionButton.extended(
+                  heroTag: 'map_tab_set_exact_location',
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF2563EB),
+                  elevation: 4,
+                  onPressed: _isPickingExactLocation
+                      ? _cancelPickingExactLocation
+                      : (LocationController
+                                  .instance.manualLocation.value !=
+                              null
+                          ? _useLiveGps
+                          : _startPickingExactLocation),
+                  icon: Icon(
+                    _isPickingExactLocation
+                        ? Icons.close_rounded
+                        : (LocationController
+                                    .instance.manualLocation.value !=
+                                null
+                            ? Icons.gps_fixed_rounded
+                            : Icons.edit_location_alt_rounded),
+                    size: 18,
+                  ),
+                  label: Text(
+                    _isPickingExactLocation
+                        ? 'Cancel'
+                        : (LocationController
+                                    .instance.manualLocation.value !=
+                                null
+                            ? 'Use Live GPS'
+                            : 'Set Exact Location'),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -3733,21 +4170,38 @@ class _MapTabState extends State<MapTab> {
             ),
           ),
 
-          // Center on user button
-          Positioned(
-            right: 16,
-            bottom: MediaQuery.paddingOf(context).bottom + 260,
-            child: FloatingActionButton(
-              // Unique tag — default FAB Hero tags collide with other routes' FABs
-              // (e.g. Notifications "Delete all") during pop transitions, causing morphs.
-              heroTag: 'map_tab_center_on_user',
-              mini: true,
-              backgroundColor: Colors.white,
-              onPressed: _centerOnUser,
-              child: const Icon(Icons.my_location_rounded,
-                  color: Color(0xFF2563EB)),
+          // Banner shown while the user is picking their exact location.
+          if (_isPickingExactLocation)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: MediaQuery.paddingOf(context).bottom + 250,
+              child: _ExactLocationPickBanner(
+                hasPreview: _exactPickPreview != null,
+                onCancel: _cancelPickingExactLocation,
+                onConfirm: _confirmPickingExactLocation,
+              ),
             ),
-          ),
+
+          // Permission denied / location-off banner.
+          if (!_isPickingExactLocation && _shouldShowPermissionBanner())
+            Positioned(
+              left: 16,
+              right: 16,
+              top: MediaQuery.paddingOf(context).top + 96,
+              child: _LocationPermissionBanner(
+                isServiceDisabled:
+                    !LocationController.instance.serviceEnabled.value,
+                permission: LocationController.instance.permission.value,
+                onEnable: () async {
+                  await _ensureLocationReady();
+                },
+                onOpenSettings: () =>
+                    LocationController.instance.openAppSettings(),
+                onOpenLocationSettings: () => LocationController.instance
+                    .openLocationServiceSettings(),
+              ),
+            ),
 
           // Selected business popup
           if (_selectedBusiness != null)
@@ -3974,6 +4428,228 @@ class _BusinessPopupCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Exact-location pick banner ───────────────────────────────────────────────
+class _ExactLocationPickBanner extends StatelessWidget {
+  final bool hasPreview;
+  final VoidCallback onCancel;
+  final VoidCallback onConfirm;
+
+  const _ExactLocationPickBanner({
+    required this.hasPreview,
+    required this.onCancel,
+    required this.onConfirm,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.add_location_alt_rounded,
+                color: Color(0xFF10B981), size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Set your exact location',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  Text(
+                    hasPreview
+                        ? 'Tap elsewhere to adjust, then Confirm.'
+                        : 'Tap anywhere on the map to drop a pin.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: onCancel,
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            ElevatedButton(
+              onPressed: hasPreview ? onConfirm : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF10B981),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Confirm',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Location permission banner ───────────────────────────────────────────────
+class _LocationPermissionBanner extends StatelessWidget {
+  final bool isServiceDisabled;
+  final LocationPermission permission;
+  final VoidCallback onEnable;
+  final Future<bool> Function() onOpenSettings;
+  final Future<bool> Function() onOpenLocationSettings;
+
+  const _LocationPermissionBanner({
+    required this.isServiceDisabled,
+    required this.permission,
+    required this.onEnable,
+    required this.onOpenSettings,
+    required this.onOpenLocationSettings,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final permanentlyDenied = permission == LocationPermission.deniedForever;
+    final title = isServiceDisabled
+        ? 'Location services are off'
+        : (permanentlyDenied
+            ? 'Location permission blocked'
+            : 'Enable location to see nearby jobs');
+    final body = isServiceDisabled
+        ? 'Turn on GPS in your device settings so we can find jobs closest to you.'
+        : (permanentlyDenied
+            ? 'Allow location for Kabsat Empoy in your phone settings.'
+            : 'We use your location to rank the closest companies first.');
+
+    final primaryLabel = isServiceDisabled
+        ? 'Open Location Settings'
+        : (permanentlyDenied ? 'Open App Settings' : 'Enable Location');
+
+    Future<void> primaryAction() async {
+      if (isServiceDisabled) {
+        await onOpenLocationSettings();
+        return;
+      }
+      if (permanentlyDenied) {
+        await onOpenSettings();
+        return;
+      }
+      onEnable();
+    }
+
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB).withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.location_searching_rounded,
+                  color: Color(0xFF2563EB), size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    body,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[700],
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: primaryAction,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                primaryLabel,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
