@@ -17,6 +17,7 @@
         "laravel/tinker": "^2.10.1",
         "league/flysystem-aws-s3-v3": "^3.32",
         "mailjet/mailjet-apiv3-php": "^1.6",
+        "phpoffice/phpspreadsheet": "*",
         "pusher/pusher-php-server": "^7.2",
         "sendpulse/rest-api": "^2.0",
         "spatie/simple-excel": "^3.7"

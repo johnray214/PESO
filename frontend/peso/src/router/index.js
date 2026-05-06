@@ -32,6 +32,11 @@ const routes = [
     meta: { guest: true },
   },
 
+  {
+    path: '/lma-converter',
+    component: () => import('@/components/LmaConverter.vue'),
+  },
+
   // Employer public pages
   {
     path: '/employer/login',
