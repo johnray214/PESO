@@ -122,11 +122,20 @@ class EmployerApplicationController extends Controller
         
         $application->update($validated);
 
-        if ($validated['status'] === 'for_job_offer' && $sendOffer) {
-            $application->offer_sent_at = now();
-            $application->offer_response = null;
-            $application->offer_response_at = null;
-            $application->save();
+        if ($validated['status'] === 'for_job_offer') {
+            if ($sendOffer) {
+                $application->offer_sent_at = now();
+                $application->offer_response = null;
+                $application->offer_response_at = null;
+                $application->save();
+            } else if ($oldStatus !== 'for_job_offer') {
+                // If transitioning to for_job_offer (e.g. from interview) without sending an offer,
+                // we must clear any previous offer history so it starts fresh at 'Preparing Offer'
+                $application->offer_sent_at = null;
+                $application->offer_response = null;
+                $application->offer_response_at = null;
+                $application->save();
+            }
         }
 
         $newStatus = $application->status;
