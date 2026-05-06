@@ -273,7 +273,7 @@ class EmployerApplicationController extends Controller
                 case 'for_job_offer':
                     if ($sendOffer) {
                         $subject = 'You have received a Job Offer!';
-                        $message = "Great news! **{$company}** has officially extended a job offer to you for the **{$job->title}** position. Please log in to your PESO account to review and accept the offer.";
+                        $message = "Great news! **{$company}** has officially extended a job offer to you for the **{$job->title}** position. Please review the offer details and choose to accept or reject the offer.";
                         $type = 'status_for_job_offer_sent';
                         $templateId = 7861483;
                         $variables = [
@@ -286,6 +286,7 @@ class EmployerApplicationController extends Controller
                         ];
                         
                         $hiredMeta = [ // Storing the meta for notification payload
+                            'application_id'  => $application->id,
                             'job_title'       => $job->title,
                             'company_name'    => $company,
                             'start_date'      => $variables['start_date'],

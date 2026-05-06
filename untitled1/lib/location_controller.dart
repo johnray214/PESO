@@ -5,6 +5,20 @@ import 'package:flutter/widgets.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Notifies listeners even when the new [LocationPoint] equals the old one
+/// (default [ValueNotifier] skips notification), so map markers stay in sync.
+class _ManualLocationNotifier extends ValueNotifier<LocationPoint?> {
+  _ManualLocationNotifier() : super(null);
+
+  void apply(LocationPoint point) {
+    if (value == point) {
+      notifyListeners();
+    } else {
+      value = point;
+    }
+  }
+}
+
 /// Shared, app-wide GPS source.
 ///
 /// - Listens to `geolocator` position stream while the app is in the
@@ -22,6 +36,8 @@ class LocationController with WidgetsBindingObserver {
 
   static const String _prefLatKey = 'last_known_user_latitude';
   static const String _prefLngKey = 'last_known_user_longitude';
+  static const String _prefManualLatKey = 'manual_exact_user_latitude';
+  static const String _prefManualLngKey = 'manual_exact_user_longitude';
 
   /// Live GPS coordinate (most recent stream value).
   final ValueNotifier<LocationPoint?> liveLocation =
@@ -29,8 +45,9 @@ class LocationController with WidgetsBindingObserver {
 
   /// Optional manual override that the user picked on the map.
   /// When non-null, [effectiveLocation] returns this instead of [liveLocation].
-  final ValueNotifier<LocationPoint?> manualLocation =
-      ValueNotifier<LocationPoint?>(null);
+  final _ManualLocationNotifier _manualLocation = _ManualLocationNotifier();
+
+  ValueNotifier<LocationPoint?> get manualLocation => _manualLocation;
 
   /// Latest permission status as observed by the controller.
   final ValueNotifier<LocationPermission> permission =
@@ -45,7 +62,7 @@ class LocationController with WidgetsBindingObserver {
 
   /// The point that should be used for distance / ranking.
   LocationPoint? get effectiveLocation =>
-      manualLocation.value ?? liveLocation.value;
+      _manualLocation.value ?? liveLocation.value;
 
   /// Start the controller. Safe to call multiple times.
   ///
@@ -115,12 +132,14 @@ class LocationController with WidgetsBindingObserver {
 
   /// Set a manual exact location chosen by the user (e.g. by tapping the map).
   void setManualLocation(LocationPoint point) {
-    manualLocation.value = point;
+    _manualLocation.apply(point);
+    unawaited(_persistManualLocation(point));
   }
 
   /// Clear the manual override and revert to live GPS.
   void clearManualLocation() {
-    manualLocation.value = null;
+    _manualLocation.value = null;
+    unawaited(_clearPersistedManualLocation());
   }
 
   /// Open the OS app settings page (when permission is permanently denied).
@@ -215,6 +234,27 @@ class LocationController with WidgetsBindingObserver {
       if (lat != null && lng != null) {
         liveLocation.value = LocationPoint(lat, lng);
       }
+      final mLat = prefs.getDouble(_prefManualLatKey);
+      final mLng = prefs.getDouble(_prefManualLngKey);
+      if (mLat != null && mLng != null) {
+        _manualLocation.value = LocationPoint(mLat, mLng);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistManualLocation(LocationPoint point) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble(_prefManualLatKey, point.latitude);
+      await prefs.setDouble(_prefManualLngKey, point.longitude);
+    } catch (_) {}
+  }
+
+  Future<void> _clearPersistedManualLocation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_prefManualLatKey);
+      await prefs.remove(_prefManualLngKey);
     } catch (_) {}
   }
 

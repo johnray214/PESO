@@ -66,6 +66,32 @@ class JobseekerNotificationController extends Controller
                     : now()->format('F d, Y'),
             ];
         }
+
+        // ── Job-offer sent backfill (for older notifications missing meta) ──
+        if ($type === 'status_for_job_offer_sent') {
+            $meta = is_array($notification->meta) ? $notification->meta : [];
+            $hasApplicationId = !empty($meta['application_id']);
+            if ($hasApplicationId) return;
+
+            $jobListingId = $notification->job_listing_id;
+            if (! $jobListingId) return;
+
+            $app = Application::where('job_listing_id', $jobListingId)
+                ->where('jobseeker_id', $notificationRead->recipient_id)
+                ->where('status', 'for_job_offer')
+                ->latest('id')
+                ->first();
+            if (! $app) return;
+
+            $jobListing = $notification->jobListing;
+            $meta['application_id'] = $app->id;
+            $meta['job_title'] = $meta['job_title'] ?? ($jobListing->title ?? 'N/A');
+            $meta['company_name'] = $meta['company_name'] ?? ($jobListing->employer->company_name ?? 'N/A');
+            $meta['start_date'] = $meta['start_date'] ?? 'To be discussed';
+            $meta['salary'] = $meta['salary'] ?? ($jobListing->salary_range ?? 'Negotiable');
+            $meta['employment_type'] = $meta['employment_type'] ?? ($jobListing->job_type ?? 'Full-time');
+            $notification->meta = $meta;
+        }
     }
 
     public function index(Request $request)

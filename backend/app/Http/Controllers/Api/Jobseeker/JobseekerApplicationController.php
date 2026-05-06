@@ -183,6 +183,13 @@ class JobseekerApplicationController extends Controller
             ->with(['jobListing', 'jobListing.employer'])
             ->findOrFail($id);
 
+        if (!empty($application->offer_response)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You have already responded to this offer.',
+            ], 422);
+        }
+
         $application->update([
             'offer_response' => $validated['response'],
             'offer_response_at' => now(),

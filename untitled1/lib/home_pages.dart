@@ -3415,6 +3415,39 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     setState(() {});
   }
 
+  Widget _buildSetExactLocationFab() {
+    return FloatingActionButton.extended(
+      heroTag: 'map_tab_set_exact_location',
+      backgroundColor: Colors.white,
+      foregroundColor: const Color(0xFF2563EB),
+      elevation: 4,
+      onPressed: _isPickingExactLocation
+          ? _cancelPickingExactLocation
+          : (LocationController.instance.manualLocation.value != null
+              ? _useLiveGps
+              : _startPickingExactLocation),
+      icon: Icon(
+        _isPickingExactLocation
+            ? Icons.close_rounded
+            : (LocationController.instance.manualLocation.value != null
+                ? Icons.gps_fixed_rounded
+                : Icons.edit_location_alt_rounded),
+        size: 18,
+      ),
+      label: Text(
+        _isPickingExactLocation
+            ? 'Cancel'
+            : (LocationController.instance.manualLocation.value != null
+                ? 'Use Live GPS'
+                : 'Set Exact Location'),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+
   String _formatDistance(double meters) {
     if (meters < 1000) {
       return '${meters.round()} m';
@@ -3522,148 +3555,153 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               //   urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=$mapboxAccessToken',
               // ),
 
-              // Markers Layer
-              MarkerLayer(
-                markers: [
-                  // Jobseeker marker: show only when we have a real live GPS fix.
-                  if (LocationController.instance.liveLocation.value != null)
-                    _buildUserMarker(
-                      LatLng(
-                        LocationController
-                            .instance.liveLocation.value!.latitude,
-                        LocationController
-                            .instance.liveLocation.value!.longitude,
-                      ),
-                      label: 'You',
-                      ringColor: const Color(0xFF2563EB),
-                    ),
-                  // Manual exact-location override marker.
-                  if (LocationController.instance.manualLocation.value != null)
-                    _buildUserMarker(
-                      LatLng(
-                        LocationController
-                            .instance.manualLocation.value!.latitude,
-                        LocationController
-                            .instance.manualLocation.value!.longitude,
-                      ),
-                      label: 'Exact',
-                      ringColor: const Color(0xFFF59E0B),
-                      icon: Icons.push_pin_rounded,
-                    ),
-                  // Live preview while the user is picking an exact location.
-                  if (_isPickingExactLocation && _exactPickPreview != null)
-                    _buildUserMarker(
-                      _exactPickPreview!,
-                      label: 'Pick',
-                      ringColor: const Color(0xFF10B981),
-                      icon: Icons.add_location_alt_rounded,
-                    ),
-                  // Business markers
-                  ..._allBusinesses.map((business) {
-                    final isSelected = _selectedBusiness?.id == business.id;
-                    final color = business.id == 'sm_savemore'
-                        ? const Color(0xFFE11D48)
-                        : const Color(0xFF7C3AED);
-                    final pinSize = isSelected ? 44.0 : 36.0;
-                    return Marker(
-                      point: LatLng(business.latitude, business.longitude),
-                      width: 120,
-                      height: 70,
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _selectedBusiness = business;
-                          });
-                        },
-                        child: Column(
-                          children: [
-                            AnimatedScale(
-                              scale: isSelected ? 1.1 : 1.0,
-                              duration: const Duration(milliseconds: 220),
-                              curve: Curves.easeOutBack,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                width: pinSize,
-                                height: pinSize,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Colors.white,
-                                    width: isSelected ? 4 : 3,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: color.withOpacity(0.4),
-                                      blurRadius: isSelected ? 15 : 8,
-                                      spreadRadius: isSelected ? 3 : 1,
-                                    ),
-                                  ],
-                                ),
-                                clipBehavior: Clip.antiAlias,
-                                child: ClipOval(
-                                  child: business.imageUrl.isNotEmpty
-                                      ? Image.network(
-                                          business.imageUrl,
-                                          width: pinSize,
-                                          height: pinSize,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              Container(
-                                            width: pinSize,
-                                            height: pinSize,
-                                            color: color,
-                                            alignment: Alignment.center,
-                                            child: Icon(
-                                              Icons.store_rounded,
-                                              color: Colors.white,
-                                              size: isSelected ? 22 : 18,
-                                            ),
-                                          ),
-                                        )
-                                      : Container(
-                                          width: pinSize,
-                                          height: pinSize,
-                                          color: color,
-                                          alignment: Alignment.center,
-                                          child: Icon(
-                                            Icons.store_rounded,
-                                            color: Colors.white,
-                                            size: isSelected ? 22 : 18,
-                                          ),
-                                        ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(6),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.15),
-                                    blurRadius: 8,
-                                  ),
-                                ],
-                              ),
-                              child: Text(
-                                business.name.split(' ').take(2).join(' '),
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w600,
-                                  color: color,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ],
+              // Markers Layer — bind to location notifiers so pins update even if
+              // a parent misses a rebuild (e.g. IndexedStack / notifier edge cases).
+              ListenableBuilder(
+                listenable: Listenable.merge([
+                  LocationController.instance.liveLocation,
+                  LocationController.instance.manualLocation,
+                ]),
+                builder: (context, _) {
+                  final lc = LocationController.instance;
+                  final live = lc.liveLocation.value;
+                  final manual = lc.manualLocation.value;
+                  return MarkerLayer(
+                    markers: [
+                      // Live GPS "You" — only when not using a manual exact pin and
+                      // not in the pick flow (otherwise "Pick" is the sole user pin).
+                      if (live != null && manual == null && !_isPickingExactLocation)
+                        _buildUserMarker(
+                          LatLng(live.latitude, live.longitude),
+                          label: 'You',
+                          ringColor: const Color(0xFF2563EB),
                         ),
-                      ),
-                    );
-                  }),
-                ],
+                      if (manual != null)
+                        _buildUserMarker(
+                          LatLng(manual.latitude, manual.longitude),
+                          label: 'Exact',
+                          ringColor: const Color(0xFFF59E0B),
+                          icon: Icons.push_pin_rounded,
+                        ),
+                      if (_isPickingExactLocation && _exactPickPreview != null)
+                        _buildUserMarker(
+                          _exactPickPreview!,
+                          label: 'Pick',
+                          ringColor: const Color(0xFF10B981),
+                          icon: Icons.add_location_alt_rounded,
+                        ),
+                      // Business markers
+                      ..._allBusinesses.map((business) {
+                        final isSelected =
+                            _selectedBusiness?.id == business.id;
+                        final color = business.id == 'sm_savemore'
+                            ? const Color(0xFFE11D48)
+                            : const Color(0xFF7C3AED);
+                        final pinSize = isSelected ? 44.0 : 36.0;
+                        return Marker(
+                          point: LatLng(business.latitude, business.longitude),
+                          width: 120,
+                          height: 78,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedBusiness = business;
+                              });
+                            },
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                AnimatedScale(
+                                  scale: isSelected ? 1.1 : 1.0,
+                                  duration: const Duration(milliseconds: 220),
+                                  curve: Curves.easeOutBack,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    width: pinSize,
+                                    height: pinSize,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: isSelected ? 4 : 3,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: color.withOpacity(0.4),
+                                          blurRadius: isSelected ? 15 : 8,
+                                          spreadRadius: isSelected ? 3 : 1,
+                                        ),
+                                      ],
+                                    ),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: ClipOval(
+                                      child: business.imageUrl.isNotEmpty
+                                          ? Image.network(
+                                              business.imageUrl,
+                                              width: pinSize,
+                                              height: pinSize,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) =>
+                                                  Container(
+                                                width: pinSize,
+                                                height: pinSize,
+                                                color: color,
+                                                alignment: Alignment.center,
+                                                child: Icon(
+                                                  Icons.store_rounded,
+                                                  color: Colors.white,
+                                                  size: isSelected ? 22 : 18,
+                                                ),
+                                              ),
+                                            )
+                                          : Container(
+                                              width: pinSize,
+                                              height: pinSize,
+                                              color: color,
+                                              alignment: Alignment.center,
+                                              child: Icon(
+                                                Icons.store_rounded,
+                                                color: Colors.white,
+                                                size: isSelected ? 22 : 18,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(6),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.15),
+                                        blurRadius: 8,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Text(
+                                    business.name.split(' ').take(2).join(' '),
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                      color: color,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -3855,6 +3893,15 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          if (!isSearching)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: _buildSetExactLocationFab(),
+                              ),
+                            ),
                           if (!isSearching && cardSource.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
@@ -3910,32 +3957,32 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                 final isSelected =
                                     _selectedBusiness?.id == business.id;
 
-                        return GestureDetector(
-                          onTap: () => _centerOnBusiness(business),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            width: 280,
-                            margin:
-                                const EdgeInsets.only(right: 12, bottom: 16),
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF2563EB)
-                                    : Colors.transparent,
-                                width: 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 5),
-                                ),
-                              ],
-                            ),
-                            child: Column(
+                                return GestureDetector(
+                                  onTap: () => _centerOnBusiness(business),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    width: 280,
+                                    margin: const EdgeInsets.only(
+                                        right: 12, bottom: 16),
+                                    padding: const EdgeInsets.all(16),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? const Color(0xFF2563EB)
+                                            : Colors.transparent,
+                                        width: 2,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.1),
+                                          blurRadius: 15,
+                                          offset: const Offset(0, 5),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
@@ -4096,18 +4143,18 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                               ],
                             ),
                           ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
+                        );
+                      },
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      );
+                    },
                   ),
+                ),
+              ],
+            ),
+          ),
 
           // GPS controls (center on user + set exact location)
           Positioned(
@@ -4128,44 +4175,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                   child: const Icon(Icons.my_location_rounded,
                       color: Color(0xFF2563EB)),
                 ),
-                const SizedBox(height: 8),
-                // Set / clear exact location
-                FloatingActionButton.extended(
-                  heroTag: 'map_tab_set_exact_location',
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF2563EB),
-                  elevation: 4,
-                  onPressed: _isPickingExactLocation
-                      ? _cancelPickingExactLocation
-                      : (LocationController
-                                  .instance.manualLocation.value !=
-                              null
-                          ? _useLiveGps
-                          : _startPickingExactLocation),
-                  icon: Icon(
-                    _isPickingExactLocation
-                        ? Icons.close_rounded
-                        : (LocationController
-                                    .instance.manualLocation.value !=
-                                null
-                            ? Icons.gps_fixed_rounded
-                            : Icons.edit_location_alt_rounded),
-                    size: 18,
-                  ),
-                  label: Text(
-                    _isPickingExactLocation
-                        ? 'Cancel'
-                        : (LocationController
-                                    .instance.manualLocation.value !=
-                                null
-                            ? 'Use Live GPS'
-                            : 'Set Exact Location'),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
+                // Exact-location control lives above "Closest company" when not
+                // searching; keep it here while searching so it stays reachable.
+                if (_searchController.text.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  _buildSetExactLocationFab(),
+                ],
               ],
             ),
           ),
@@ -5512,6 +5527,359 @@ class _NotificationsTabState extends State<NotificationsTab>
     );
   }
 
+  Future<int?> _resolveOfferApplicationId(Map<String, dynamic> notificationItem) async {
+    final notif = notificationItem['notification'] as Map<String, dynamic>? ?? {};
+    final meta = notif['meta'] as Map<String, dynamic>? ?? {};
+    final direct = meta['application_id'];
+    final parsedDirect =
+        direct is int ? direct : int.tryParse(direct?.toString() ?? '');
+    if (parsedDirect != null && parsedDirect > 0) return parsedDirect;
+
+    final rawJobListingId = notif['job_listing_id'];
+    final jobListingId = rawJobListingId is int
+        ? rawJobListingId
+        : int.tryParse(rawJobListingId?.toString() ?? '');
+    if (jobListingId == null) return null;
+
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return null;
+    final appsRes = await ApiService.getApplications(token);
+    if (appsRes['success'] != true) return null;
+    final apps = (appsRes['data'] as List<dynamic>? ?? []).cast<dynamic>();
+
+    int? candidateId;
+    for (final item in apps) {
+      final app = item as Map<String, dynamic>;
+      final appJob = app['job_listing'] as Map<String, dynamic>?;
+      final appJobIdRaw = app['job_listing_id'] ?? appJob?['id'];
+      final appJobId = appJobIdRaw is int
+          ? appJobIdRaw
+          : int.tryParse(appJobIdRaw?.toString() ?? '');
+      if (appJobId != jobListingId) continue;
+
+      final status = (app['status']?.toString() ?? '').toLowerCase();
+      final appIdRaw = app['id'];
+      final appId = appIdRaw is int ? appIdRaw : int.tryParse(appIdRaw?.toString() ?? '');
+      if (appId == null) continue;
+      if (status == 'for_job_offer') {
+        candidateId = appId;
+        break;
+      }
+      candidateId ??= appId;
+    }
+    return candidateId;
+  }
+
+  Future<({int? applicationId, String? offerResponse})> _resolveOfferState(
+      Map<String, dynamic> notificationItem) async {
+    final notif = notificationItem['notification'] as Map<String, dynamic>? ?? {};
+    final meta = notif['meta'] as Map<String, dynamic>? ?? {};
+    final directResponseRaw = meta['offer_response']?.toString().toLowerCase();
+    final normalizedDirect = switch (directResponseRaw) {
+      'accepted' => 'accepted',
+      'declined' => 'declined',
+      _ => null,
+    };
+
+    final appId = await _resolveOfferApplicationId(notificationItem);
+    if (appId == null) {
+      return (applicationId: null, offerResponse: normalizedDirect);
+    }
+
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) {
+      return (applicationId: appId, offerResponse: normalizedDirect);
+    }
+
+    final appsRes = await ApiService.getApplications(token);
+    if (appsRes['success'] != true) {
+      return (applicationId: appId, offerResponse: normalizedDirect);
+    }
+
+    final apps = (appsRes['data'] as List<dynamic>? ?? []).cast<dynamic>();
+    for (final item in apps) {
+      final app = item as Map<String, dynamic>;
+      final rawId = app['id'];
+      final currentId =
+          rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+      if (currentId != appId) continue;
+      final responseRaw = app['offer_response']?.toString().toLowerCase();
+      final normalized = switch (responseRaw) {
+        'accepted' => 'accepted',
+        'declined' => 'declined',
+        _ => null,
+      };
+      return (applicationId: appId, offerResponse: normalized ?? normalizedDirect);
+    }
+
+    return (applicationId: appId, offerResponse: normalizedDirect);
+  }
+
+  Future<bool> _submitOfferResponse({
+    required int applicationId,
+    required String response, // accepted | declined
+  }) async {
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return false;
+    final result = await ApiService.respondToJobOffer(
+      token: token,
+      applicationId: applicationId,
+      response: response,
+    );
+    return result['success'] == true;
+  }
+
+  Future<void> _showOfferDecisionModal({
+    required Map<String, dynamic> notificationItem,
+    required String jobTitle,
+    required String companyName,
+    required String startDate,
+    required String salary,
+    required String employmentType,
+    required bool hasKnownApplicationId,
+  }) async {
+    final initialState = await _resolveOfferState(notificationItem);
+    int? resolvedAppId = initialState.applicationId;
+    String? selectedResponse = initialState.offerResponse;
+    bool isSubmitting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          Future<void> handleResponse(String response) async {
+            if (isSubmitting || selectedResponse != null) return;
+            setModalState(() => isSubmitting = true);
+
+            resolvedAppId ??= await _resolveOfferApplicationId(notificationItem);
+            if (resolvedAppId == null) {
+              if (!mounted) return;
+              Navigator.of(ctx).pop();
+              CustomToast.show(
+                context,
+                message:
+                    'Unable to locate your application record for this offer. Please refresh notifications and try again.',
+                type: ToastType.error,
+              );
+              return;
+            }
+
+            final ok = await _submitOfferResponse(
+              applicationId: resolvedAppId!,
+              response: response,
+            );
+            if (!mounted) return;
+            if (ok) {
+              setModalState(() {
+                selectedResponse = response;
+                isSubmitting = false;
+              });
+              CustomToast.show(
+                context,
+                message: response == 'accepted'
+                    ? 'Offer accepted successfully.'
+                    : 'Offer rejected successfully.',
+                type: response == 'accepted' ? ToastType.success : ToastType.info,
+              );
+              await _loadNotifications(showLoader: false);
+            } else {
+              setModalState(() => isSubmitting = false);
+              Navigator.of(ctx).pop();
+              CustomToast.show(
+                context,
+                message:
+                    'Failed to submit your offer response. Please try again.',
+                type: ToastType.error,
+              );
+            }
+          }
+
+          return SafeArea(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: 16,
+                right: 16,
+                top: 16,
+                bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
+              ),
+              child: Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Respond to Job Offer',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      RichText(
+                        text: TextSpan(
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF475569),
+                            height: 1.5,
+                          ),
+                          children: _parseMessageWithBold(
+                            '**$companyName** offered you the **$jobTitle** role. Please review and choose one response below.',
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Start Date: $startDate',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+                            const SizedBox(height: 4),
+                            Text('Salary: $salary',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+                            const SizedBox(height: 4),
+                            Text('Employment Type: $employmentType',
+                                style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+                          ],
+                        ),
+                      ),
+                      if (!hasKnownApplicationId)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 8),
+                          child: Text(
+                            'Preparing offer reference...',
+                            style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                          ),
+                        ),
+                      if (selectedResponse != null)
+                        Container(
+                          margin: const EdgeInsets.only(top: 10),
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: selectedResponse == 'accepted'
+                                ? const Color(0xFFECFDF5)
+                                : const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: selectedResponse == 'accepted'
+                                  ? const Color(0xFFA7F3D0)
+                                  : const Color(0xFFFECACA),
+                            ),
+                          ),
+                          child: Text(
+                            selectedResponse == 'accepted'
+                                ? 'You already accepted this offer.'
+                                : 'You already rejected this offer.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: selectedResponse == 'accepted'
+                                  ? const Color(0xFF047857)
+                                  : const Color(0xFFB91C1C),
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: (isSubmitting || selectedResponse != null)
+                                  ? null
+                                  : () => handleResponse('declined'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: selectedResponse == null
+                                    ? const Color(0xFFB91C1C)
+                                    : const Color(0xFF94A3B8),
+                                side: BorderSide(
+                                  color: selectedResponse == null
+                                      ? const Color(0xFFFCA5A5)
+                                      : const Color(0xFFE2E8F0),
+                                ),
+                                backgroundColor: selectedResponse == 'declined'
+                                    ? const Color(0xFFFEF2F2)
+                                    : Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: Text(
+                                selectedResponse == 'declined'
+                                    ? 'Rejected'
+                                    : 'Reject Offer',
+                                style: const TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: (isSubmitting || selectedResponse != null)
+                                  ? null
+                                  : () => handleResponse('accepted'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: selectedResponse == 'accepted'
+                                    ? const Color(0xFF047857)
+                                    : (selectedResponse == null
+                                        ? const Color(0xFF059669)
+                                        : const Color(0xFFCBD5E1)),
+                                foregroundColor: selectedResponse == null
+                                    ? Colors.white
+                                    : const Color(0xFF475569),
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: isSubmitting
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      selectedResponse == 'accepted'
+                                          ? 'Accepted'
+                                          : 'Accept Offer',
+                                      style:
+                                          const TextStyle(fontWeight: FontWeight.w700),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _deleteNotification(int idxInSortedList,
       {bool allowSatisfactionSurvey = false}) async {
     HapticFeedback.mediumImpact();
@@ -6422,6 +6790,142 @@ class _NotificationsTabState extends State<NotificationsTab>
                                                             fontSize: 11,
                                                             fontWeight: FontWeight.w600,
                                                             color: Color(0xFF6D28D9),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else if (type == 'status_for_job_offer_sent') {
+                            // ── Job Offer notification (requires accept/reject) ──
+                            final meta = notif['meta'] as Map<String, dynamic>?;
+                            final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+                            final offerJobTitle = meta?['job_title'] as String? ??
+                                jobListing?['title'] as String? ??
+                                subject;
+                            final offerCompany = meta?['company_name'] as String? ??
+                                (jobListing?['employer'] as Map<String, dynamic>?)?['company_name'] as String? ??
+                                'The employer';
+                            final startDate = meta?['start_date'] as String? ?? 'To be discussed';
+                            final salary = meta?['salary'] as String? ??
+                                jobListing?['salary_range'] as String? ??
+                                'Negotiable';
+                            final empTypeRaw = meta?['employment_type'] as String? ??
+                                jobListing?['type'] as String? ??
+                                'Full-time';
+                            final applicationIdRaw = meta?['application_id'];
+                            final hasKnownAppId = applicationIdRaw is int ||
+                                int.tryParse(applicationIdRaw?.toString() ?? '') != null;
+                            const Color offerColor = Color(0xFF0EA5E9);
+
+                            card = Dismissible(
+                              key: ValueKey('notif_$id'),
+                              direction: DismissDirection.endToStart,
+                              background: _buildDismissBackground(),
+                              onDismissed: (_) => _deleteNotification(index),
+                              child: Container(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                decoration: _buildCardDecoration(isRead, offerColor),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Material(
+                                    color: Colors.white,
+                                    child: InkWell(
+                                      onTap: () {
+                                        _openNotification(index);
+                                        _showOfferDecisionModal(
+                                          notificationItem: n,
+                                          jobTitle: offerJobTitle,
+                                          companyName: offerCompany,
+                                          startDate: startDate,
+                                          salary: salary,
+                                          employmentType:
+                                              formatEmploymentTypeLabel(empTypeRaw),
+                                          hasKnownApplicationId: hasKnownAppId,
+                                        );
+                                      },
+                                      child: Padding(
+                                        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _buildStatusLeading(
+                                                offerColor, 'assets/empoy_notif_hired.png'),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Text(
+                                                          subject,
+                                                          style: TextStyle(
+                                                            fontSize: 15,
+                                                            fontWeight: isRead
+                                                                ? FontWeight.w500
+                                                                : FontWeight.w700,
+                                                            color: const Color(0xFF0F172A),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (!isRead) _buildUnreadDot(offerColor),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  RichText(
+                                                    text: TextSpan(
+                                                      style: const TextStyle(
+                                                        fontSize: 13,
+                                                        color: Color(0xFF64748B),
+                                                        height: 1.4,
+                                                      ),
+                                                      children: _parseMessageWithBold(
+                                                        '**$offerCompany** has offered you the **$offerJobTitle** role. Please choose to accept or reject this offer.',
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    '$timeAgo • $dateFormatted',
+                                                    style: const TextStyle(
+                                                        fontSize: 11,
+                                                        color: Color(0xFF94A3B8)),
+                                                  ),
+                                                  const SizedBox(height: 10),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(
+                                                        horizontal: 10, vertical: 5),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(0xFFE0F2FE),
+                                                      borderRadius:
+                                                          BorderRadius.circular(999),
+                                                    ),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: const [
+                                                        Icon(Icons.gavel_rounded,
+                                                            size: 14,
+                                                            color: Color(0xFF0369A1)),
+                                                        SizedBox(width: 5),
+                                                        Text(
+                                                          'Respond to Offer',
+                                                          style: TextStyle(
+                                                            fontSize: 11,
+                                                            fontWeight: FontWeight.w600,
+                                                            color: Color(0xFF075985),
                                                           ),
                                                         ),
                                                       ],

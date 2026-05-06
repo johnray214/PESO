@@ -642,6 +642,28 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> respondToJobOffer({
+    required String token,
+    required int applicationId,
+    required String response, // accepted | declined
+  }) async {
+    try {
+      final httpResponse = await http.post(
+        Uri.parse('$baseUrl/jobseeker/applications/$applicationId/respond-offer'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'response': response}),
+      );
+      final decoded = jsonDecode(httpResponse.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return {'success': false, 'message': 'Invalid response'};
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
   static Future<Map<String, dynamic>> getSavedJobs(String token) async {
     try {
       final uri = Uri.parse('$baseUrl/jobseeker/saved-jobs').replace(
