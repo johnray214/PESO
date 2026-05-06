@@ -63,6 +63,9 @@ class Job {
     return '$min - $max';
   }
 
+  /// Display form of [employmentType] for modals, chips, and lists.
+  String get employmentTypeLabel => formatEmploymentTypeLabel(employmentType);
+
   factory Job.fromJson(Map<String, dynamic> json) {
     // Supports both old app JSON and current Laravel JobListing shape.
     // Laravel returns `employer: { company_name }`, `skills: [{skill}]`,
@@ -186,6 +189,56 @@ String formatJobDeadlineDate(DateTime? d) {
   if (d == null) return 'Not specified';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   return '${months[d.month - 1]} ${d.day}, ${d.year}';
+}
+
+/// Maps API slugs (`full-time`, `contract`, …) to UI labels (`Full-time`, `Contract`).
+String formatEmploymentTypeLabel(String? raw) {
+  if (raw == null) return 'Not specified';
+  final t = raw.trim();
+  if (t.isEmpty) return 'Not specified';
+
+  final key = t.toLowerCase().replaceAll('_', '-').replaceAll(RegExp(r'\s+'), '');
+  switch (key) {
+    case 'full-time':
+    case 'fulltime':
+      return 'Full-time';
+    case 'part-time':
+    case 'parttime':
+      return 'Part-time';
+    case 'contract':
+      return 'Contract';
+    case 'internship':
+      return 'Internship';
+    case 'temporary':
+      return 'Temporary';
+    case 'freelance':
+      return 'Freelance';
+    case 'seasonal':
+      return 'Seasonal';
+  }
+
+  return _humanizeEmploymentTypeSegments(t);
+}
+
+String _humanizeEmploymentTypeSegments(String raw) {
+  final normalized = raw.replaceAll('_', '-');
+  final buffer = StringBuffer();
+  var capitalizeNext = true;
+  for (var i = 0; i < normalized.length; i++) {
+    final c = normalized[i];
+    if (c == '-' || c == ' ') {
+      buffer.write(c == ' ' ? ' ' : '-');
+      capitalizeNext = true;
+      continue;
+    }
+    if (capitalizeNext) {
+      buffer.write(c.toUpperCase());
+      capitalizeNext = false;
+    } else {
+      buffer.write(c.toLowerCase());
+    }
+  }
+  return buffer.toString();
 }
 
 /// Company avatar: employer photo from API or initial on brand color.
@@ -948,7 +1001,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
               child: _buildDetailCell(
                 icon: Icons.work_outline_rounded,
                 label: 'Type',
-                value: job.employmentType,
+                value: job.employmentTypeLabel,
                 color: const Color(0xFF2563EB),
               ),
             ),

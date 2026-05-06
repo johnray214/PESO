@@ -24,6 +24,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'notification_service.dart';
 
+/// Launcher / task-switcher name and in-app branding (auth, dialogs, etc.).
+const String kAppDisplayName = 'Kabsat Empoy';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -104,7 +107,7 @@ class PESOApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: rootNavigatorKey,
-      title: 'PESO Connect',
+      title: kAppDisplayName,
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
       theme: ThemeData(
@@ -224,7 +227,7 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initializeInternalState() async {
-    // Wait for 3 seconds for branding, giving the mascot + shimmer time to shine
+    // Wait for 3 seconds for branding / mascot + title shimmer
     await Future.delayed(const Duration(milliseconds: 3000));
     if (!mounted) return;
 
@@ -601,28 +604,18 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
                 ),
-
-              // ── Horizontal accent line ────────────────────────────────────
-              Positioned(
-                bottom: size.height * 0.32,
-                left: 0,
-                right: 0,
-                child: Center(
+                Positioned(
+                  bottom: size.height * 0.12,
+                  right: size.width * 0.02,
                   child: Container(
-                    width: size.width * 0.55,
-                    height: 1,
+                    width: 100,
+                    height: 100,
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Colors.transparent,
-                          const Color(0xFF1565C0).withOpacity(0.15),
-                          Colors.transparent,
-                        ],
-                      ),
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF93C5FD).withOpacity(0.35),
                     ),
                   ),
                 ),
-              ),
 
               // ── Main content ─────────────────────────────────────────────
               Positioned.fill(
@@ -632,10 +625,11 @@ class _SplashScreenState extends State<SplashScreen>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Top spacer (positions mascot + text block toward vertical center)
-                        SizedBox(height: size.height * 0.25),
-
-                        // ── Mascot + shadow ──────────────────────────────────────
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                        // ── Mascot + shadow (original asset) ─────────────────────
                         AnimatedBuilder(
                           animation:
                               Listenable.merge([_mascotCtrl, _floatCtrl]),
@@ -651,7 +645,6 @@ class _SplashScreenState extends State<SplashScreen>
                           child: Stack(
                             alignment: Alignment.bottomCenter,
                             children: [
-                              // Shadow ellipse under mascot
                               Container(
                                 width: size.width * 0.28,
                                 height: 14,
@@ -684,107 +677,148 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                         ),
 
-                        SizedBox(height: size.height * 0.035),
+                        SizedBox(height: size.height * 0.028),
 
-                        // ── PESO + city text ─────────────────────────────────────
-                        Column(
-                          children: [
-                            // PESO text with shimmer
-                            AnimatedBuilder(
-                              animation: _shimmerCtrl,
-                              builder: (context, child) {
-                                return ShaderMask(
-                                  blendMode: BlendMode.srcIn,
-                                  shaderCallback: (bounds) {
-                                    final shimmerX =
-                                        _shimmer.value * bounds.width;
-                                    return LinearGradient(
-                                      begin: Alignment.centerLeft,
-                                      end: Alignment.centerRight,
-                                      colors: const [
-                                        Color(0xFF0F172A), // Deep Navy
-                                        Color(0xFF0F172A),
-                                        Color(0xFF2563EB), // Vibrant Brand Blue
-                                        Color(0xFF60A5FA), // Sky Highlight
-                                        Color(0xFF0F172A),
-                                        Color(0xFF0F172A),
-                                      ],
-                                      stops: [
-                                        0.0,
-                                        math.max(0.0,
-                                            (shimmerX / bounds.width) - 0.25),
-                                        (shimmerX / bounds.width)
-                                            .clamp(0.0, 1.0),
-                                        math.min(1.0,
-                                            (shimmerX / bounds.width) + 0.15),
-                                        math.min(1.0,
-                                            (shimmerX / bounds.width) + 0.35),
-                                        1.0,
-                                      ],
-                                    ).createShader(bounds);
-                                  },
-                                  child: child!,
-                                );
-                              },
-                              child: Text(
-                                'PESO',
+                        // ── Kabsat Empoy (PESO-style shimmer) + tagline ────────────
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 22),
+                          child: Column(
+                            children: [
+                              AnimatedBuilder(
+                                animation: _shimmerCtrl,
+                                builder: (context, child) {
+                                  return ShaderMask(
+                                    blendMode: BlendMode.srcIn,
+                                    shaderCallback: (bounds) {
+                                      final shimmerX =
+                                          _shimmer.value * bounds.width;
+                                      return LinearGradient(
+                                        begin: Alignment.centerLeft,
+                                        end: Alignment.centerRight,
+                                        colors: const [
+                                          Color(0xFF0F172A),
+                                          Color(0xFF0F172A),
+                                          Color(0xFF2563EB),
+                                          Color(0xFF60A5FA),
+                                          Color(0xFF0F172A),
+                                          Color(0xFF0F172A),
+                                        ],
+                                        stops: [
+                                          0.0,
+                                          math.max(
+                                            0.0,
+                                            (shimmerX / bounds.width) - 0.25,
+                                          ),
+                                          (shimmerX / bounds.width)
+                                              .clamp(0.0, 1.0),
+                                          math.min(
+                                            1.0,
+                                            (shimmerX / bounds.width) + 0.15,
+                                          ),
+                                          math.min(
+                                            1.0,
+                                            (shimmerX / bounds.width) + 0.35,
+                                          ),
+                                          1.0,
+                                        ],
+                                      ).createShader(bounds);
+                                    },
+                                    child: child!,
+                                  );
+                                },
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'KABSAT',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 38,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0F2250),
+                                        letterSpacing: 4,
+                                        height: 1.05,
+                                      ),
+                                    ),
+                                    Text(
+                                      'EMPOY',
+                                      style: GoogleFonts.poppins(
+                                        fontSize: 38,
+                                        fontWeight: FontWeight.w800,
+                                        color: const Color(0xFF0F2250),
+                                        letterSpacing: 4,
+                                        height: 1.05,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              Text(
+                                'Your virtual employment companion',
+                                textAlign: TextAlign.center,
                                 style: GoogleFonts.poppins(
-                                  fontSize: 60,
-                                  fontWeight: FontWeight.w900,
-                                  color: const Color(0xFF0F2250),
-                                  letterSpacing: 12,
-                                  height: 1.0,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w400,
+                                  color: const Color(0xFF1D4ED8),
+                                  height: 1.35,
                                 ),
                               ),
-                            )
-                                .animate()
-                                .fadeIn(delay: 500.ms, duration: 600.ms)
-                                .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+                            ],
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 450.ms, duration: 550.ms)
+                            .slideY(begin: 0.12, curve: Curves.easeOutCubic),
 
-                            const SizedBox(height: 4),
+                        const SizedBox(height: 14),
 
-                            Text(
-                              'Santiago City',
-                              style: GoogleFonts.poppins(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF1565C0),
-                                letterSpacing: 5,
-                              ),
-                            )
-                                .animate()
-                                .fadeIn(delay: 700.ms, duration: 600.ms)
-                                .slideY(begin: 0.2, curve: Curves.easeOutCubic),
+                        // ── PESO pill ───────────────────────────────────────────
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 28),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: const Color(0xFF3B82F6).withOpacity(0.55),
+                              width: 1.2,
+                            ),
+                            color: const Color(0xFFDBEAFE).withOpacity(0.65),
+                          ),
+                          child: Text(
+                            'PUBLIC EMPLOYMENT SERVICE OFFICE',
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.poppins(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                              color: const Color(0xFF1D4ED8),
+                              letterSpacing: 1.6,
+                              height: 1.25,
+                            ),
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 650.ms, duration: 550.ms)
+                            .slideY(begin: 0.1, curve: Curves.easeOutCubic),
 
-                            const SizedBox(height: 10),
+                        const SizedBox(height: 10),
 
-                            // Gold accent label
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 5),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(999),
-                                border: Border.all(
-                                  color:
-                                      const Color(0xFF1565C0).withOpacity(0.4),
-                                ),
-                                color:
-                                    const Color(0xFF1565C0).withOpacity(0.08),
-                              ),
-                              child: Text(
-                                'PUBLIC EMPLOYMENT SERVICE OFFICE',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 8.5,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF1565C0),
-                                  letterSpacing: 2.2,
-                                ),
-                              ),
-                            ).animate().fadeIn(delay: 900.ms, duration: 600.ms),
-                          ],
+                        Text(
+                          'Santiago City',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: const Color(0xFF2563EB),
+                            letterSpacing: 4,
+                          ),
+                        )
+                            .animate()
+                            .fadeIn(delay: 800.ms, duration: 550.ms)
+                            .slideY(begin: 0.08, curve: Curves.easeOutCubic),
+                            ],
+                          ),
                         ),
-
-                        const Spacer(),
 
                         // ── Status Pill (Loading / Offline) ──────────────────────────────────
                         AnimatedSwitcher(
@@ -1010,7 +1044,7 @@ class _AuthEntryPageState extends State<AuthEntryPage>
                               ),
                               SizedBox(height: compact ? 10 : 14),
                               Text(
-                                'Welcome to PESO Connect',
+                                'Welcome to $kAppDisplayName',
                                 style: GoogleFonts.poppins(
                                   fontSize: titleSz,
                                   fontWeight: FontWeight.w800,
@@ -2154,13 +2188,10 @@ class _LoginModalState extends State<LoginModal>
       final data = result['data'] as Map<String, dynamic>? ?? {};
       final initialRemainingDailySends =
           _initialRemainingDailySendsFromAuthResponse(result);
-      final otpResult = await showDialog<Map<String, dynamic>>(
+      final otpResult = await showJobseekerOtpDialog(
         context: context,
-        barrierDismissible: false,
-        builder: (_) => _OtpVerificationDialog(
-          email: _emailController.text.trim(),
-          initialRemainingDailySends: initialRemainingDailySends,
-        ),
+        email: _emailController.text.trim(),
+        initialRemainingDailySends: initialRemainingDailySends,
       );
       if (otpResult == null || otpResult['success'] != true) {
         _handleOtpCancelCooldown();
@@ -2306,7 +2337,7 @@ class _LoginModalState extends State<LoginModal>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const Text(
-                    'Enter your registered email. We’ll send a link to reset your password for PESO Connect.',
+                    'Enter your registered email. We’ll send a link to reset your password for $kAppDisplayName.',
                     style: TextStyle(
                         fontSize: 13.5, height: 1.35, color: Color(0xFF64748B)),
                   ),
@@ -2956,41 +2987,48 @@ class _LoginModalState extends State<LoginModal>
                         ),
                       ),
                     const SizedBox(height: 20),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: _dobController,
-                            readOnly: true,
-                            decoration: _fieldDec(
-                                'Birthdate (YYYY-MM-DD)', Icons.cake_outlined),
-                            onTap: _pickDob,
-                          ),
+                    TextFormField(
+                      controller: _dobController,
+                      readOnly: true,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: Color(0xFF0F172A),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      decoration: _fieldDec(
+                        'Birthdate (YYYY-MM-DD)',
+                        Icons.cake_outlined,
+                      ).copyWith(
+                        labelStyle: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 12.5,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: DropdownButtonFormField<String>(
-                            value: _selectedSex,
-                            decoration: _fieldDec('Sex', Icons.person_outline),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'male', child: Text('Male')),
-                              DropdownMenuItem(
-                                  value: 'female', child: Text('Female')),
-                            ],
-                            onChanged: (value) =>
-                                setState(() => _selectedSex = value),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Required';
-                              }
-                              return null;
-                            },
-                          ),
+                        floatingLabelStyle: const TextStyle(
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
+                          fontSize: 11,
                         ),
+                        isDense: true,
+                      ),
+                      onTap: _pickDob,
+                    ),
+                    const SizedBox(height: 20),
+                    DropdownButtonFormField<String>(
+                      value: _selectedSex,
+                      decoration: _fieldDec('Sex', Icons.person_outline),
+                      items: const [
+                        DropdownMenuItem(value: 'male', child: Text('Male')),
+                        DropdownMenuItem(value: 'female', child: Text('Female')),
                       ],
+                      onChanged: (value) =>
+                          setState(() => _selectedSex = value),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Required';
+                        }
+                        return null;
+                      },
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -3060,14 +3098,11 @@ class _LoginModalState extends State<LoginModal>
                                         _initialRemainingDailySendsFromAuthResponse(
                                             result);
                                     final otpResult =
-                                        await showDialog<Map<String, dynamic>>(
+                                        await showJobseekerOtpDialog(
                                       context: context,
-                                      barrierDismissible: false,
-                                      builder: (_) => _OtpVerificationDialog(
-                                        email: _emailController.text.trim(),
-                                        initialRemainingDailySends:
-                                            initialRemainingDailySends,
-                                      ),
+                                      email: _emailController.text.trim(),
+                                      initialRemainingDailySends:
+                                          initialRemainingDailySends,
                                     );
                                     if (otpResult != null &&
                                         otpResult['success'] == true) {
@@ -3288,9 +3323,9 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
         decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFF),
+          color: const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFD6DFEE)),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
         ),
         child: Stack(
           alignment: Alignment.center,
@@ -3334,8 +3369,8 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isActive
-                            ? const Color(0xFF4F67A9)
-                            : const Color(0xFFD7E0EF),
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFFE2E8F0),
                         width: isActive ? 2 : 1.2,
                       ),
                       boxShadow: [
@@ -3453,7 +3488,7 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
       return const SizedBox.shrink();
     }
     final color =
-        _statusIsWarning ? const Color(0xFFB45309) : const Color(0xFF1D4ED8);
+        _statusIsWarning ? const Color(0xFFB45309) : const Color(0xFF2563EB);
     final bg =
         _statusIsWarning ? const Color(0xFFFFF7ED) : const Color(0xFFEFF6FF);
     return Container(
@@ -3493,106 +3528,220 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return WillPopScope(
-      onWillPop: () async {
-        FocusManager.instance.primaryFocus?.unfocus();
-        return true;
+    const primary = Color(0xFF2563EB);
+    return PopScope(
+      canPop: true,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          FocusManager.instance.primaryFocus?.unfocus();
+        }
       },
-      child: Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-            const Text(
-              'Verify your email',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF0F172A),
+      child: Material(
+        color: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 360),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: primary.withOpacity(0.15),
+                blurRadius: 32,
+                offset: const Offset(0, 16),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Enter the 6-digit OTP sent to ${widget.email}.',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF64748B),
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 14),
-            _buildOtpBoxes(),
-            _buildStatusBanner(),
-            if (_remainingDailySends != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                '$_remainingDailySends sends left today',
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w600,
-                ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.08),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: const TextStyle(
-                  color: Color(0xFFDC2626),
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Column(
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed:
-                        _isResending || _isVerifying || _resendCooldown > 0
-                            ? null
-                            : _resend,
-                    child: Text(
-                      _isResending
-                          ? 'Resending...'
-                          : _resendCooldown > 0
-                              ? 'Resend in ${_resendCooldown}s'
-                              : 'Resend OTP',
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        primary.withOpacity(0.10),
+                        primary.withOpacity(0.02),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(24),
                     ),
                   ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: primary.withOpacity(0.12),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: primary.withOpacity(0.22),
+                            width: 2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.mark_email_read_rounded,
+                          color: primary,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Verify your email',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0F172A),
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 2),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    TextButton(
-                      onPressed: _isVerifying
-                          ? null
-                          : () {
-                              FocusManager.instance.primaryFocus?.unfocus();
-                              Navigator.of(context, rootNavigator: true).pop();
-                            },
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: (_isVerifying || _isResending) ? null : _verify,
-                      child: Text(_isVerifying ? 'Verifying...' : 'Verify'),
-                    ),
-                  ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 8, 22, 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Enter the 6-digit OTP sent to ${widget.email}.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.5,
+                          color: const Color(0xFF64748B),
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildOtpBoxes(),
+                      _buildStatusBanner(),
+                      if (_remainingDailySends != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          '$_remainingDailySends sends left today',
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 12.5,
+                            color: const Color(0xFF64748B),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if (_error != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _error!,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            color: const Color(0xFFDC2626),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.center,
+                        child: TextButton(
+                          onPressed: _isResending ||
+                                  _isVerifying ||
+                                  _resendCooldown > 0
+                              ? null
+                              : _resend,
+                          style: TextButton.styleFrom(
+                            foregroundColor: primary,
+                          ),
+                          child: Text(
+                            _isResending
+                                ? 'Resending...'
+                                : _resendCooldown > 0
+                                    ? 'Resend in ${_resendCooldown}s'
+                                    : 'Resend OTP',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextButton(
+                              onPressed: _isVerifying
+                                  ? null
+                                  : () {
+                                      FocusManager.instance.primaryFocus
+                                          ?.unfocus();
+                                      Navigator.of(context,
+                                              rootNavigator: true)
+                                          .pop();
+                                    },
+                              style: TextButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: const BorderSide(
+                                      color: Color(0xFFE2E8F0)),
+                                ),
+                                backgroundColor: const Color(0xFFF8FAFC),
+                              ),
+                              child: Text(
+                                'Cancel',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: const Color(0xFF64748B),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: (_isVerifying || _isResending)
+                                  ? null
+                                  : _verify,
+                              style: FilledButton.styleFrom(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                backgroundColor: primary,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: Text(
+                                _isVerifying ? 'Verifying...' : 'Verify',
+                                style: GoogleFonts.poppins(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            ],
           ),
         ),
       ),
@@ -4045,4 +4194,324 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
       ),
     );
   }
+}
+
+// ─── Unified App Dialog ───────────────────────────────────────────────────────
+
+/// Dialog variants that determine color scheme and icon.
+enum AppDialogType {
+  confirm,      // Blue primary — general confirmations
+  destructive,  // Red — sign out, delete, etc.
+  info,         // Blue — informational
+  success,      // Green — success confirmation
+  warning,      // Amber — warnings
+}
+
+/// A professional, animated confirmation/alert dialog matching the app theme.
+///
+/// Use [showAppDialog] helper for a quick call:
+/// ```dart
+/// final confirmed = await showAppDialog<bool>(
+///   context: context,
+///   type: AppDialogType.confirm,
+///   title: 'Confirm Application',
+///   message: 'Apply for Software Engineer at TechCorp?',
+///   confirmLabel: 'Apply',
+///   onConfirm: () => Navigator.pop(context, true),
+/// );
+/// ```
+class AppDialog extends StatelessWidget {
+  final AppDialogType type;
+  final String title;
+  final String? message;
+  final Widget? content;
+  final String confirmLabel;
+  final String cancelLabel;
+  final VoidCallback? onConfirm;
+  final VoidCallback? onCancel;
+  final IconData? icon;
+
+  const AppDialog({
+    super.key,
+    this.type = AppDialogType.confirm,
+    required this.title,
+    this.message,
+    this.content,
+    this.confirmLabel = 'Confirm',
+    this.cancelLabel = 'Cancel',
+    this.onConfirm,
+    this.onCancel,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = _dialogColors(type);
+    final dialogIcon = icon ?? _defaultIcon(type);
+
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      elevation: 0,
+      backgroundColor: Colors.transparent,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 340),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: colors.primary.withOpacity(0.15),
+              blurRadius: 32,
+              offset: const Offset(0, 16),
+            ),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Header with icon
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    colors.primary.withOpacity(0.08),
+                    colors.primary.withOpacity(0.02),
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: colors.primary.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: colors.primary.withOpacity(0.2),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(dialogIcon, color: colors.primary, size: 28),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    title,
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: const Color(0xFF0F172A),
+                      height: 1.3,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+
+            // Content
+            if (message != null || content != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 20),
+                child: content ??
+                    Text(
+                      message!,
+                      style: GoogleFonts.poppins(
+                        fontSize: 14,
+                        color: const Color(0xFF64748B),
+                        height: 1.6,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+              ),
+
+            // Actions
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: onCancel ?? () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: const BorderSide(color: Color(0xFFE2E8F0)),
+                        ),
+                        backgroundColor: const Color(0xFFF8FAFC),
+                      ),
+                      child: Text(
+                        cancelLabel,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: onConfirm ?? () => Navigator.pop(context, true),
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: colors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        confirmLabel,
+                        style: GoogleFonts.poppins(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static ({Color primary, Color surface}) _dialogColors(AppDialogType type) {
+    return switch (type) {
+      AppDialogType.confirm => (
+          primary: const Color(0xFF2563EB),
+          surface: const Color(0xFFEFF6FF)
+        ),
+      AppDialogType.destructive => (
+          primary: const Color(0xFFDC2626),
+          surface: const Color(0xFFFEF2F2)
+        ),
+      AppDialogType.info => (
+          primary: const Color(0xFF2563EB),
+          surface: const Color(0xFFEFF6FF)
+        ),
+      AppDialogType.success => (
+          primary: const Color(0xFF10B981),
+          surface: const Color(0xFFF0FDF4)
+        ),
+      AppDialogType.warning => (
+          primary: const Color(0xFFF59E0B),
+          surface: const Color(0xFFFFFBEB)
+        ),
+    };
+  }
+
+  static IconData _defaultIcon(AppDialogType type) {
+    return switch (type) {
+      AppDialogType.confirm => Icons.help_outline_rounded,
+      AppDialogType.destructive => Icons.warning_amber_rounded,
+      AppDialogType.info => Icons.info_outline_rounded,
+      AppDialogType.success => Icons.check_circle_outline_rounded,
+      AppDialogType.warning => Icons.error_outline_rounded,
+    };
+  }
+}
+
+/// Shows a unified app dialog with scale + fade animation.
+Future<T?> showAppDialog<T>({
+  required BuildContext context,
+  AppDialogType type = AppDialogType.confirm,
+  required String title,
+  String? message,
+  Widget? content,
+  String confirmLabel = 'Confirm',
+  String cancelLabel = 'Cancel',
+  VoidCallback? onConfirm,
+  VoidCallback? onCancel,
+  IconData? icon,
+  bool barrierDismissible = true,
+}) {
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: barrierDismissible,
+    barrierLabel: 'Dismiss',
+    barrierColor: const Color(0xFF0F172A).withOpacity(0.5),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+    transitionBuilder: (ctx, animation, secondaryAnimation, child) {
+      final curvedAnimation = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return Center(
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.85, end: 1.0).animate(curvedAnimation),
+          child: FadeTransition(
+            opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            ),
+            child: AppDialog(
+              type: type,
+              title: title,
+              message: message,
+              content: content,
+              confirmLabel: confirmLabel,
+              cancelLabel: cancelLabel,
+              onConfirm: onConfirm,
+              onCancel: onCancel,
+              icon: icon,
+            ),
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Email OTP entry — same barrier + scale/fade animation as [showAppDialog].
+Future<Map<String, dynamic>?> showJobseekerOtpDialog({
+  required BuildContext context,
+  required String email,
+  int? initialRemainingDailySends,
+}) {
+  return showGeneralDialog<Map<String, dynamic>>(
+    context: context,
+    barrierDismissible: false,
+    barrierLabel: 'Dismiss',
+    barrierColor: const Color(0xFF0F172A).withOpacity(0.5),
+    transitionDuration: const Duration(milliseconds: 280),
+    pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+    transitionBuilder: (ctx, animation, _, __) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return Center(
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.88, end: 1.0).animate(curved),
+          child: FadeTransition(
+            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
+            child: _OtpVerificationDialog(
+              email: email,
+              initialRemainingDailySends: initialRemainingDailySends,
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }

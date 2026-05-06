@@ -619,32 +619,15 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   Future<void> _confirmEnableSkillEditing() async {
     if (_canChangeSkills) return;
-    final shouldEdit = await showDialog<bool>(
+    final shouldEdit = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Edit skills?',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        content: const Text(
-          'Skill editing is currently disabled. Do you want to switch to edit mode?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Edit'),
-          ),
-        ],
-      ),
+      type: AppDialogType.confirm,
+      icon: Icons.edit_rounded,
+      title: 'Edit Skills?',
+      message: 'Skill editing is currently disabled. Do you want to switch to edit mode?',
+      confirmLabel: 'Edit',
+      onConfirm: () => Navigator.of(context).pop(true),
+      onCancel: () => Navigator.of(context).pop(false),
     );
 
     if (shouldEdit == true && mounted) {
@@ -1920,29 +1903,15 @@ class _MatchedJobCard extends StatelessWidget {
     if (hasResume) return true;
     if (!context.mounted) return false;
 
-    final goToDocuments = await showDialog<bool>(
+    final goToDocuments = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Resume Required'),
-        content: const Text(
-          'You need to upload your resume first before applying to jobs.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Go to Documents'),
-          ),
-        ],
-      ),
+      type: AppDialogType.info,
+      icon: Icons.description_outlined,
+      title: 'Resume Required',
+      message: 'You need to upload your resume first before applying to jobs.',
+      confirmLabel: 'Go to Documents',
+      onConfirm: () => Navigator.of(context).pop(true),
+      onCancel: () => Navigator.of(context).pop(false),
     );
 
     if (goToDocuments == true && context.mounted) {
@@ -1958,26 +1927,15 @@ class _MatchedJobCard extends StatelessWidget {
     final canApply = await _ensureResumeReadyForApply(context, jobActionService);
     if (!canApply || !context.mounted) return;
 
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showAppDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Confirm Application'),
-        content: Text(
-          'Apply for ${job.title} at ${job.company}?',
-          style: const TextStyle(height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
+      type: AppDialogType.confirm,
+      icon: Icons.send_rounded,
+      title: 'Confirm Application',
+      message: 'Apply for ${job.title} at ${job.company}?',
+      confirmLabel: 'Apply',
+      onConfirm: () => Navigator.pop(context, true),
+      onCancel: () => Navigator.pop(context, false),
     );
     if (confirmed != true || !context.mounted) return;
 
@@ -2146,7 +2104,7 @@ class _MatchedJobCard extends StatelessWidget {
                   children: [
                     Flexible(child: _buildBadgeCell(Icons.location_on_rounded, job.location)),
                     const SizedBox(width: 8),
-                    _buildBadgeCell(Icons.work_rounded, job.employmentType),
+                    _buildBadgeCell(Icons.work_rounded, job.employmentTypeLabel),
                   ],
                 ),
 

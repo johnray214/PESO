@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import 'api_service.dart';
+import 'main.dart';
 import 'document_open_io.dart' if (dart.library.html) 'document_open_web.dart' as doc_open;
 import 'pdf_picker_result.dart';
 import 'pick_pdf_io.dart' if (dart.library.html) 'pick_pdf_web.dart' as pdf_picker;
@@ -119,31 +120,16 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
 
     final existing = _pathForKind(kind);
     if (existing != null && existing.isNotEmpty && _pendingForKind(kind) == null) {
-      final replace = await showDialog<bool>(
+      final replace = await showAppDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Text('Replace this file?'),
-          content: Text(
+        type: AppDialogType.warning,
+        icon: Icons.swap_horiz_rounded,
+        title: 'Replace This File?',
+        message:
             'A file is already on file for ${_labelForKind(kind)}. Uploading a new file will replace it.',
-            style: const TextStyle(color: _kSlate600, height: 1.45),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel', style: TextStyle(color: _kSlate500)),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: _kBlue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Choose file'),
-            ),
-          ],
-        ),
+        confirmLabel: 'Choose File',
+        onConfirm: () => Navigator.pop(context, true),
+        onCancel: () => Navigator.pop(context, false),
       );
       if (replace != true || !mounted) return;
     }
