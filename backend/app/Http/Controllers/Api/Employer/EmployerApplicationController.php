@@ -118,11 +118,11 @@ class EmployerApplicationController extends Controller
         })->with(['jobseeker' => fn($q) => $q->withTrashed(), 'jobListing', 'jobListing.employer'])->findOrFail($id);
 
         $oldStatus = $application->status;
-        $resendOffer = $request->boolean('resend_offer');
+        $sendOffer = $request->boolean('send_offer');
         
         $application->update($validated);
 
-        if ($validated['status'] === 'for_job_offer' && ($oldStatus !== 'for_job_offer' || $resendOffer)) {
+        if ($validated['status'] === 'for_job_offer' && $sendOffer) {
             $application->offer_sent_at = now();
             $application->offer_response = null;
             $application->offer_response_at = null;
@@ -174,8 +174,8 @@ class EmployerApplicationController extends Controller
             $application->save();
         }
 
-        // Only notify when status actually changes OR if we are resending a job offer
-        if ($newStatus !== $oldStatus || ($newStatus === 'for_job_offer' && $resendOffer)) {
+        // Only notify when status actually changes OR if we are sending/resending a job offer
+        if ($newStatus !== $oldStatus || ($newStatus === 'for_job_offer' && $sendOffer)) {
             $jobseeker = $application->jobseeker;
             $job       = $application->jobListing;
             $company   = $job->employer->company_name ?? 'Employer';
@@ -262,9 +262,38 @@ class EmployerApplicationController extends Controller
                     }
                     break;
                 case 'for_job_offer':
-                    $subject = 'Great news — You passed your interview!';
-                    $message = "Congratulations! You have successfully passed the interview for **{$job->title}** at **{$company}**. A formal job offer is currently being prepared for you.";
-                    $type = 'status_for_job_offer';
+                    if ($sendOffer) {
+                        $subject = 'You have received a Job Offer!';
+                        $message = "Great news! **{$company}** has officially extended a job offer to you for the **{$job->title}** position. Please log in to your PESO account to review and accept the offer.";
+                        $type = 'status_for_job_offer_sent';
+                        $templateId = 7861483;
+                        $variables = [
+                            'first_name'      => $jobseeker->first_name,
+                            'company_name'    => $company,
+                            'job_title'       => $job->title,
+                            'start_date'      => !empty($request->input('start_date')) ? \Carbon\Carbon::parse($request->input('start_date'))->format('F d, Y') : 'To be discussed',
+                            'salary'          => $job->salary_range ?? 'Negotiable',
+                            'employment_type' => $job->job_type ?? 'Full-time'
+                        ];
+                        
+                        $hiredMeta = [ // Storing the meta for notification payload
+                            'job_title'       => $job->title,
+                            'company_name'    => $company,
+                            'start_date'      => $variables['start_date'],
+                            'salary'          => $variables['salary'],
+                            'employment_type' => $variables['employment_type'],
+                        ];
+                    } else {
+                        $subject = 'Great news — You passed your interview!';
+                        $message = "Congratulations! You have successfully passed the interview for **{$job->title}** at **{$company}**. A formal job offer is currently being prepared for you.";
+                        $type = 'status_for_job_offer';
+                        $templateId = 7972296;
+                        $variables = [
+                            'first_name'   => $jobseeker->first_name,
+                            'company_name' => $company,
+                            'job_title'    => $job->title,
+                        ];
+                    }
 
                     try {
                         $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
@@ -273,14 +302,10 @@ class EmployerApplicationController extends Controller
                                 [
                                     'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago') ],
                                     'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
-                                    'TemplateID' => 7972296,
+                                    'TemplateID' => $templateId,
                                     'TemplateLanguage' => true,
-                                    'Subject' => 'You passed your interview — Job offer incoming!',
-                                    'Variables' => [
-                                        'first_name'   => $jobseeker->first_name,
-                                        'company_name' => $company,
-                                        'job_title'    => $job->title,
-                                    ]
+                                    'Subject' => $subject,
+                                    'Variables' => $variables
                                 ]
                             ]
                         ];
@@ -300,47 +325,9 @@ class EmployerApplicationController extends Controller
                     $hiredMeta = [
                         'job_title'       => $job->title,
                         'company_name'    => $company,
-                        'start_date'      => !empty($request->input('start_date')) ? \Carbon\Carbon::parse($request->input('start_date'))->format('F d, Y') : 'To be discussed',
-                        'salary'          => $job->salary_range ?? 'Negotiable',
-                        'employment_type' => $job->job_type ?? 'Full-time',
+                        'update_date'  => now()->format('F d, Y'),
                     ];
-
-                    try {
-                        $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
-                        $body = [
-                            'Messages' => [
-                                [
-                                    'From' => [
-                                        'Email' => env('MAILJET_FROM_EMAIL'),
-                                        'Name'  => env('MAILJET_FROM_NAME', 'PESO Santiago')
-                                    ],
-                                    'To' => [
-                                        [
-                                            'Email' => $jobseeker->email,
-                                            'Name'  => trim($jobseeker->first_name . ' ' . $jobseeker->last_name)
-                                        ]
-                                    ],
-                                    'TemplateID'       => 7861483,
-                                    'TemplateLanguage' => true,
-                                    'Subject'          => 'Congratulations — You have been hired!',
-                                    'Variables'        => [
-                                        'first_name'      => $jobseeker->first_name,
-                                        'company_name'    => $company,
-                                        'job_title'       => $job->title,
-                                        'start_date'      => !empty($request->input('start_date')) ? \Carbon\Carbon::parse($request->input('start_date'))->format('F d, Y') : 'To be discussed',
-                                        'salary'          => $job->salary_range ?? 'Negotiable',
-                                        'employment_type' => $job->job_type ?? 'Full-time'
-                                    ]
-                                ]
-                            ]
-                        ];
-                        $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
-                        if (!$response->success()) {
-                            \Illuminate\Support\Facades\Log::error('Mailjet API Error Hired Email: ' . json_encode($response->getData()));
-                        }
-                    } catch (\Throwable $e) {
-                        \Illuminate\Support\Facades\Log::error('Mailjet Exception Hired Email: ' . $e->getMessage());
-                    }
+                    // Removed Mailjet logic here because the jobseeker already accepted the job offer.
                     break;
                 case 'rejected':
                     $subject = 'Application Update';
