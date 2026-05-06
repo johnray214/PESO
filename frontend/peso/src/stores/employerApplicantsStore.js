@@ -186,8 +186,14 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
       const prevStatus = item?.status
       if (item) {
         item.status = newStatus
-        if (newStatus === 'for_job_offer' && extraData.send_offer) {
-          item.offerSentAt = new Date().toISOString()
+        if (newStatus === 'for_job_offer') {
+          if (extraData.send_offer) {
+            item.offerSentAt = new Date().toISOString()
+          } else if (prevStatus !== 'for_job_offer' && prevStatus !== 'For Job Offer') {
+            item.offerSentAt = null
+            item.offerResponse = null
+            item.offerResponseAt = null
+          }
         }
       }
       try {
