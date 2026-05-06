@@ -104,7 +104,7 @@ class EmployerApplicationController extends Controller
         \Illuminate\Support\Facades\Log::info("UpdateStatus Payload:", $request->all());
         
         $validated = $request->validate([
-            'status'     => ['required', Rule::in(['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'])],
+            'status'     => ['required', Rule::in(['reviewing', 'shortlisted', 'interview', 'for_job_offer', 'hired', 'rejected'])],
             'start_date' => ['nullable', 'date'],
             'interview_date' => ['nullable', 'date'],
             'interview_time' => ['nullable'],
@@ -118,7 +118,16 @@ class EmployerApplicationController extends Controller
         })->with(['jobseeker' => fn($q) => $q->withTrashed(), 'jobListing', 'jobListing.employer'])->findOrFail($id);
 
         $oldStatus = $application->status;
+        $resendOffer = $request->boolean('resend_offer');
+        
         $application->update($validated);
+
+        if ($validated['status'] === 'for_job_offer' && ($oldStatus !== 'for_job_offer' || $resendOffer)) {
+            $application->offer_sent_at = now();
+            $application->offer_response = null;
+            $application->offer_response_at = null;
+            $application->save();
+        }
 
         $newStatus = $application->status;
 
@@ -165,8 +174,8 @@ class EmployerApplicationController extends Controller
             $application->save();
         }
 
-        // Only notify when status actually changes
-        if ($newStatus !== $oldStatus) {
+        // Only notify when status actually changes OR if we are resending a job offer
+        if ($newStatus !== $oldStatus || ($newStatus === 'for_job_offer' && $resendOffer)) {
             $jobseeker = $application->jobseeker;
             $job       = $application->jobListing;
             $company   = $job->employer->company_name ?? 'Employer';
@@ -252,6 +261,37 @@ class EmployerApplicationController extends Controller
                         \Illuminate\Support\Facades\Log::error('Mailjet Exception Interview Email: ' . $e->getMessage());
                     }
                     break;
+                case 'for_job_offer':
+                    $subject = 'Great news — You passed your interview!';
+                    $message = "Congratulations! You have successfully passed the interview for **{$job->title}** at **{$company}**. A formal job offer is currently being prepared for you.";
+                    $type = 'status_for_job_offer';
+
+                    try {
+                        $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+                        $body = [
+                            'Messages' => [
+                                [
+                                    'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago') ],
+                                    'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
+                                    'TemplateID' => 7972296,
+                                    'TemplateLanguage' => true,
+                                    'Subject' => 'You passed your interview — Job offer incoming!',
+                                    'Variables' => [
+                                        'first_name'   => $jobseeker->first_name,
+                                        'company_name' => $company,
+                                        'job_title'    => $job->title,
+                                    ]
+                                ]
+                            ]
+                        ];
+                        $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+                        if (!$response->success()) {
+                            \Illuminate\Support\Facades\Log::error('Mailjet API Error For Job Offer Email: ' . json_encode($response->getData()));
+                        }
+                    } catch (\Throwable $e) {
+                        \Illuminate\Support\Facades\Log::error('Mailjet Exception For Job Offer Email: ' . $e->getMessage());
+                    }
+                    break;
                 case 'hired':
                     $subject = 'Congratulations — You are Hired!';
                     $message = "Outstanding! You have been officially hired for **{$job->title}** at **{$company}**. Welcome to the team!";
@@ -320,7 +360,7 @@ class EmployerApplicationController extends Controller
                                 [
                                     'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago') ],
                                     'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
-                                    'TemplateID' => 7865387,
+                                    'TemplateID' => 7972299,
                                     'TemplateLanguage' => true,
                                     'Subject' => 'Application Update: Not Selected',
                                     'Variables' => [
@@ -526,6 +566,7 @@ class EmployerApplicationController extends Controller
                     'Variables'        => [
                         'first_name'       => $jobseeker->first_name,
                         'company_name'     => $company,
+                        'hero_subtext'     => "{$company} has reviewed your profile and personally invited you to apply.",
                         'invitation_text'  => "{$company} has reviewed your PESO Santiago profile and believes you are an excellent candidate for one of their open positions. They have personally invited you to apply.",
                         'job_title'        => $bestJob->title,
                         'job_location'     => $bestJob->location ?? 'On-site',

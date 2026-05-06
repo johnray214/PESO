@@ -202,4 +202,14 @@ class AdminEmployerController extends Controller
             'message' => 'Employer deleted successfully',
         ]);
     }
+
+    public function counts()
+    {
+        $statuses = ['verified', 'pending', 'suspended', 'rejected'];
+        $counts = ['all' => Employer::count()];
+        foreach ($statuses as $s) {
+            $counts[$s] = Employer::where('status', $s)->count();
+        }
+        return response()->json(['success' => true, 'data' => $counts]);
+    }
 }

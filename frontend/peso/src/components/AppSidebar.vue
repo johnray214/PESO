@@ -185,6 +185,8 @@ export default {
           p.startsWith('/dashboard/verified-employer') ||
           p.startsWith('/dashboard/jobseekers')) {
         this.usersOpen = true
+      } else {
+        this.usersOpen = false
       }
     }
   },

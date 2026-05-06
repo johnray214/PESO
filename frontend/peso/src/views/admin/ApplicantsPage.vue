@@ -47,6 +47,7 @@
             <option value="reviewing">Reviewing</option>
             <option value="shortlisted">Shortlisted</option>
             <option value="interview">Interview</option>
+            <option value="for_job_offer">For Job Offer</option>
             <option value="hired">Hired</option>
             <option value="rejected">Rejected</option>
           </select>
@@ -432,12 +433,14 @@ const COLORS = ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b
 export default {
   name: 'ApplicantsPage',
   async mounted() {
-    // Fetch both in parallel so counts are ready immediately
+    // Fetch applied data + tab counts in parallel (awaited — blocks until ready)
     await Promise.all([
       this.fetchApplicants(),
       this.fetchTabCounts(),
-      this.fetchPotentialApplicants(),
     ])
+    // Pre-fetch potential applicants in the background so the tab badge count
+    // is correct immediately without blocking the applied tab from loading.
+    this.fetchPotentialApplicants()
   },
   data() {
     return {
@@ -448,10 +451,11 @@ export default {
       activeTab: 'all',
       applicants: [], currentPage: 1, lastPage: 1, totalApplicants: 0,
       loading: false, tabsLoading: true, pageLoading: false, searching: false,
-      tabCounts: { all:0, reviewing:0, shortlisted:0, interview:0, hired:0, rejected:0 },
+      tabCounts: { all:0, reviewing:0, shortlisted:0, interview:0, for_job_offer:0, hired:0, rejected:0 },
       statusTabs: [
         { label:'All', value:'all', count:0 }, { label:'Reviewing', value:'reviewing', count:0 },
         { label:'Shortlisted', value:'shortlisted', count:0 }, { label:'Interview', value:'interview', count:0 },
+        { label:'For Job Offer', value:'for_job_offer', count:0 },
         { label:'Hired', value:'hired', count:0 }, { label:'Rejected', value:'rejected', count:0 },
       ],
       skillOptions: ['Accounting','IT / Dev','Nursing','Electrical','Teaching','BPO','Welding','Driving'],
@@ -559,15 +563,12 @@ export default {
     async fetchTabCounts() {
       this.tabsLoading = true
       try {
-        const statuses = ['','reviewing','shortlisted','interview','hired','rejected']
-        const keys     = ['all','reviewing','shortlisted','interview','hired','rejected']
-        const results  = await Promise.all(statuses.map(s => api.get('/admin/applications', { params: s ? { status:s, page:1 } : { page:1 } })))
-        results.forEach((res, i) => {
-          const payload = res.data.data || res.data
-          const total   = Array.isArray(payload) ? payload.length : (payload.meta?.total || payload.total || 0)
-          this.tabCounts[keys[i]] = total
+        const { data } = await api.get('/admin/applications/counts')
+        const counts = data.data
+        this.statusTabs.forEach(t => { 
+          t.count = counts[t.value] ?? 0
+          this.tabCounts[t.value] = counts[t.value] ?? 0
         })
-        this.statusTabs.forEach((t) => { t.count = this.tabCounts[t.value] })
       } catch (e) { console.error('fetchTabCounts error:', e) }
       finally { this.tabsLoading = false }
     },
@@ -604,7 +605,7 @@ export default {
             jobApplied:  jl.title || 'Unknown',
             employer:    jl.employer?.company_name || 'Unknown',
             date:        new Date(a.created_at || a.applied_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }),
-            status:      a.status || 'reviewing',
+            status:      (() => { const r = a.status || 'reviewing'; return {for_job_offer:'For Job Offer'}[r] || r.charAt(0).toUpperCase() + r.slice(1) })(),
             matchScore:  a.match_score || 0,
             avatarBg:    COLORS[i % COLORS.length],
             invited:     false,
@@ -659,7 +660,7 @@ export default {
     },
 
     initials(name) { return (name||'').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase() },
-    statusClass(status) { return (status||'').toLowerCase() },
+    statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', 'For Job Offer':'for-job-offer', Hired:'hired', Rejected:'rejected' }[s] || 'reviewing' },
     scoreColor(v) { return v >= 85 ? '#22c55e' : v >= 70 ? '#2872A1' : '#ef4444' },
     scoreBg(v)    { return v >= 85 ? '#f0fdf4' : v >= 70 ? '#eff8ff' : '#fef2f2' },
 
@@ -669,8 +670,9 @@ export default {
       if (a === 'reviewing')       return 'reviewing'
       if (a === 'shortlisted')     return 'shortlisted'
       if (a === 'interview')       return 'interview'
-      if (a === 'hired')           return 'hired'
-      if (a === 'rejected')        return 'rejected'
+      if (a === 'hired')               return 'hired'
+      if (a.includes('for_job_offer')) return 'for_job_offer'
+      if (a === 'rejected')            return 'rejected'
       return 'default'
     },
 
@@ -852,6 +854,7 @@ export default {
 .reviewing   { background: #dbeafe; color: #1d4ed8; }
 .shortlisted { background: #eff8ff; color: #1a5f8a; }
 .interview   { background: #ede9fe; color: #8B5CF6; }
+.for-job-offer { background: #fef3c7; color: #92400e; }
 .hired       { background: #dcfce7; color: #16a34a; }
 .rejected    { background: #fef2f2; color: #ef4444; }
 
@@ -931,6 +934,7 @@ export default {
 .history-dot.reviewing   { background: #3b82f6; }
 .history-dot.shortlisted { background: #2872A1; }
 .history-dot.interview   { background: #8b5cf6; }
+.history-dot.for_job_offer { background: #d97706; }
 .history-dot.hired       { background: #22c55e; }
 .history-dot.rejected    { background: #ef4444; }
 .history-dot.invited     { background: #f59e0b; }
@@ -941,6 +945,7 @@ export default {
 .history-action-chip.reviewing   { background: #dbeafe; color: #1d4ed8; }
 .history-action-chip.shortlisted { background: #eff8ff; color: #2872A1; }
 .history-action-chip.interview   { background: #ede9fe; color: #8B5CF6; }
+.history-action-chip.for_job_offer { background: #fef3c7; color: #92400e; }
 .history-action-chip.hired       { background: #dcfce7; color: #16a34a; }
 .history-action-chip.rejected    { background: #fef2f2; color: #ef4444; }
 .history-action-chip.invited     { background: #fef3c7; color: #d97706; }

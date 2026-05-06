@@ -169,4 +169,87 @@ class JobseekerApplicationController extends Controller
             'message' => 'Application withdrawn successfully',
         ]);
     }
+
+    public function respondOffer(Request $request, $id)
+    {
+        $jobseeker = $request->user();
+
+        $validated = $request->validate([
+            'response' => ['required', Rule::in(['accepted', 'declined'])],
+        ]);
+
+        $application = Application::where('jobseeker_id', $jobseeker->id)
+            ->where('status', 'for_job_offer')
+            ->with(['jobListing', 'jobListing.employer'])
+            ->findOrFail($id);
+
+        $application->update([
+            'offer_response' => $validated['response'],
+            'offer_response_at' => now(),
+        ]);
+
+        $jobListing = $application->jobListing;
+
+        // Notification for Employer
+        $employerNotification = Notification::create([
+            'subject'        => 'Offer Response Received',
+            'message'        => "{$jobseeker->fullName()} has {$validated['response']} your job offer for {$jobListing->title}.",
+            'type'           => 'applicant',
+            'job_listing_id' => $jobListing->id,
+            'recipients'     => 'specific',
+            'scheduled_at'   => null,
+            'sent_at'        => now(),
+            'status'         => 'sent',
+            'created_by'     => null,
+        ]);
+
+        $employerNotifRead = NotificationRead::create([
+            'notification_id' => $employerNotification->id,
+            'recipient_type'  => 'employer',
+            'recipient_id'    => $jobListing->employer_id,
+            'read_at'         => null,
+        ]);
+
+        event(new EmployerNotificationEvent(
+            $jobListing->employer_id,
+            $employerNotifRead->id,
+            'applicant',
+            'Offer Response Received',
+            "{$jobseeker->fullName()} has {$validated['response']} your job offer for {$jobListing->title}."
+        ));
+
+        // If declined, send acknowledgment email using Rejected template (7972299)
+        if ($validated['response'] === 'declined') {
+            try {
+                $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
+                $body = [
+                    'Messages' => [
+                        [
+                            'From' => [ 'Email' => env('MAILJET_FROM_EMAIL'), 'Name' => env('MAILJET_FROM_NAME', 'PESO Santiago') ],
+                            'To' => [ [ 'Email' => $jobseeker->email, 'Name' => trim($jobseeker->first_name . ' ' . $jobseeker->last_name) ] ],
+                            'TemplateID' => 7972299,
+                            'TemplateLanguage' => true,
+                            'Subject' => 'Acknowledgment: Job Offer Declined',
+                            'Variables' => [
+                                'first_name'   => $jobseeker->first_name,
+                                'company_name' => $jobListing->employer->company_name ?? 'Employer',
+                                'job_title'    => $jobListing->title,
+                            ]
+                        ]
+                    ]
+                ];
+                $response = $mj->post(\Mailjet\Resources::$Email, ['body' => $body]);
+                if (!$response->success()) {
+                    \Illuminate\Support\Facades\Log::error('Mailjet API Error Decline Ack Email: ' . json_encode($response->getData()));
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::error('Mailjet Exception Decline Ack Email: ' . $e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Your response has been recorded successfully.',
+        ]);
+    }
 }

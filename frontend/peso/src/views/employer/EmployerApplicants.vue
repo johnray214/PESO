@@ -30,7 +30,7 @@
             <div class="filter-group">
               <template v-if="activeTab !== 'potential'">
                 <select v-model="filterJob" class="filter-select" @change="applyDropdownFilter"><option value="">All Positions</option><option v-for="j in jobOptions" :key="j" :value="j">{{ j }}</option></select>
-                <select v-model="filterStatus" class="filter-select" @change="applyDropdownFilter"><option value="">All Status</option><option value="Reviewing">Reviewing</option><option value="Shortlisted">Shortlisted</option><option value="Interview">Interview</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option></select>
+                <select v-model="filterStatus" class="filter-select" @change="applyDropdownFilter"><option value="">All Status</option><option value="Reviewing">Reviewing</option><option value="Shortlisted">Shortlisted</option><option value="Interview">Interview</option><option value="For Job Offer">For Job Offer</option><option value="Hired">Hired</option><option value="Rejected">Rejected</option></select>
               </template>
               <template v-else>
                 <select v-model="potentialJobFilter" @change="applyPotentialDropdownFilter" class="filter-select"><option value="">All Job Listings</option><option v-for="j in jobOptions" :key="j" :value="j">{{ j }}</option></select>
@@ -74,17 +74,22 @@
                     <td class="job-cell">{{ a.jobApplied }}</td>
                     <td class="date-cell">{{ a.date }}</td>
                     <td @click.stop><div class="score-cell"><div class="score-bar-bg"><div class="score-bar-fill" :style="{ width: a.matchScore + '%', background: scoreColor(a.matchScore) }"></div></div><span class="score-val" :style="{ color: scoreColor(a.matchScore) }">{{ a.matchScore }}%</span></div></td>
-                    <td @click.stop><span class="status-badge" :class="statusClass(a.status)">{{ a.status }}</span></td>
+                    <td @click.stop><span class="status-badge" :class="statusClass(a)">{{ statusDisplay(a) }}</span></td>
                     <td @click.stop>
                       <div class="action-btns">
                         <button class="act-btn view" @click="openDrawer(a)" title="View"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
-                        <button v-if="a.status !== 'Hired' && a.status !== 'Rejected'" class="act-btn advance" :class="advanceBtnClass(a.status)" @click.stop="confirmAdvance(a)" :disabled="updatingStatusId === a.id" :title="advanceTitle(a.status)">
+                        <button v-if="a.status !== 'Hired' && a.status !== 'Rejected' && !(a.status === 'For Job Offer' && a.offerResponse === 'declined')" class="act-btn advance" :class="advanceBtnClass(a)" @click.stop="confirmAdvance(a)" :disabled="updatingStatusId === a.id || (a.status === 'For Job Offer' && a.offerResponse !== 'accepted')" :title="advanceTitle(a)">
                           <span v-if="updatingStatusId === a.id" class="spinner-action"></span>
                           <template v-else>
                             <svg v-if="a.status === 'Reviewing'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
                             <svg v-else-if="a.status === 'Shortlisted'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                             <svg v-else-if="a.status === 'Interview'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+                            <svg v-else-if="a.status === 'For Job Offer' && a.offerResponse === 'accepted'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
+                            <svg v-else-if="a.status === 'For Job Offer'" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                           </template>
+                        </button>
+                        <button v-if="a.status === 'For Job Offer' && a.offerResponse === 'declined'" class="act-btn advance advance-amber" @click.stop="resendOffer(a)" :disabled="updatingStatusId === a.id" title="Resend Offer">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
                         </button>
                         <button v-if="a.status !== 'Hired' && a.status !== 'Rejected'" class="act-btn reject" @click.stop="confirmReject(a)" :disabled="updatingStatusId === a.id" title="Reject">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -187,7 +192,7 @@
           <div class="drawer-header">
             <div class="drawer-avatar" :style="{ background: selected?.avatarBg }">{{ selected?.name[0] }}</div>
             <div class="drawer-title-wrap"><h2 class="drawer-name">{{ selected?.name }}</h2><p class="drawer-loc">{{ selected?.location }} · {{ selected?.jobApplied }}</p></div>
-            <span v-if="!selected?._isPotential" class="status-badge" :class="statusClass(selected?.status)">{{ selected?.status }}</span>
+            <span v-if="selected && !selected._isPotential" class="status-badge lg" :class="statusClass(selected)">{{ statusDisplay(selected) }}</span>
             <button class="drawer-close" @click="drawerOpen = false">✕</button>
           </div>
           <div class="match-banner" :style="{ background: scoreBg(selected?.matchScore) }">
@@ -251,7 +256,7 @@
             <div v-if="drawerTab === 'Status'">
               <div class="section-label">Update Status</div>
               <div class="status-options">
-                <button v-for="st in ['Reviewing','Shortlisted','Interview','Hired','Rejected']" :key="st" :class="['status-option', statusClass(st), { active: selected?.status === st }]" @click="selected.status = st">{{ st }}</button>
+                <button v-for="st in statusOptionsFor(selected)" :key="st" :class="['status-option', statusClass(st), { active: selected?.status === st }]" @click="selected.status = st">{{ st }}</button>
               </div>
               <div class="section-label mt16">Internal Notes</div>
               <textarea class="notes-area" placeholder="Add notes about this applicant…" rows="4" v-model="selected.notes"></textarea>
@@ -410,8 +415,8 @@
           <div class="fm-header-left">
             <div class="fm-hicon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg></div>
             <div>
-              <h3 class="fm-title">Confirm Hire</h3>
-              <p class="fm-subtitle">Extending offer to <strong>{{ hireModal.applicant?.name }}</strong></p>
+              <h3 class="fm-title">Extend Job Offer</h3>
+              <p class="fm-subtitle">Sending offer to <strong>{{ hireModal.applicant?.name }}</strong></p>
             </div>
           </div>
           <button class="fm-close" @click="hireModal.show = false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -426,7 +431,7 @@
           <div class="email-preview green-preview">
             <div class="ep-head">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-              Offer email — what the applicant will receive
+              Job offer email — what the applicant will receive
             </div>
             <div class="ep-rows">
               <div class="ep-row"><span class="ep-k">To</span><span class="ep-v">{{ hireModal.applicant?.name }}</span></div>
@@ -448,7 +453,7 @@
           <button class="fm-submit green-btn" @click="submitHire" :disabled="savingStatus || !hireModal.startDate">
             <span v-if="savingStatus" class="spinner-action" style="border-color:#fff;border-right-color:transparent;margin-right:7px;width:12px;height:12px;"></span>
             <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:7px"><polyline points="20 6 9 17 4 12"/></svg>
-            {{ savingStatus ? 'Sending offer…' : 'Confirm & Send Offer Email' }}
+            {{ savingStatus ? 'Sending offer…' : 'Send Job Offer Email' }}
           </button>
         </div>
     </div>
@@ -503,12 +508,13 @@ export default {
     },
     statusTabs() {
       return [
-        { label: 'All',         value: 'all',         count: this.applicantsStore.totalApplicants,  cls: '' },
-        { label: 'Reviewing',   value: 'Reviewing',   count: this.applicantsStore.reviewingCount,   cls: 'reviewing' },
-        { label: 'Shortlisted', value: 'Shortlisted', count: this.applicantsStore.shortlistedCount, cls: 'shortlisted' },
-        { label: 'Interview',   value: 'Interview',   count: this.applicantsStore.interviewCount,   cls: 'interview' },
-        { label: 'Hired',       value: 'Hired',       count: this.applicantsStore.hiredCount,       cls: 'hired' },
-        { label: 'Rejected',    value: 'Rejected',    count: this.applicantsStore.rejectedCount,    cls: 'rejected' },
+        { label: 'All',           value: 'all',           count: this.applicantsStore.totalApplicants,    cls: '' },
+        { label: 'Reviewing',     value: 'Reviewing',     count: this.applicantsStore.reviewingCount,     cls: 'reviewing' },
+        { label: 'Shortlisted',   value: 'Shortlisted',   count: this.applicantsStore.shortlistedCount,   cls: 'shortlisted' },
+        { label: 'Interview',     value: 'Interview',     count: this.applicantsStore.interviewCount,     cls: 'interview' },
+        { label: 'For Job Offer', value: 'For Job Offer', count: this.applicantsStore.forJobOfferCount,   cls: 'for-job-offer' },
+        { label: 'Hired',         value: 'Hired',         count: this.applicantsStore.hiredCount,         cls: 'hired' },
+        { label: 'Rejected',      value: 'Rejected',      count: this.applicantsStore.rejectedCount,      cls: 'rejected' },
       ]
     },
     filteredApplicants() {
@@ -645,7 +651,11 @@ export default {
             employmentType:  (a.job_listing && a.job_listing.type) ? a.job_listing.type.charAt(0).toUpperCase() + a.job_listing.type.slice(1) : 'Full-time',
             date:            new Date(a.applied_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
             matchScore:      a.match_score || 0,
-            status:          a.status ? (a.status.charAt(0).toUpperCase() + a.status.slice(1)) : 'Reviewing',
+            status:          (() => {
+              const raw = a.status || 'reviewing'
+              const map = { for_job_offer: 'For Job Offer' }
+              return map[raw] || (raw.charAt(0).toUpperCase() + raw.slice(1))
+            })(),
             avatarBg:        AVATAR_COLORS[i % AVATAR_COLORS.length],
             notes:           a.notes || '',
             hasResume:       !!js.has_resume,
@@ -658,7 +668,29 @@ export default {
       }
     },
 
-    statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', Hired:'hired', Rejected:'rejected' }[s] || '' },
+    statusDisplay(a) {
+      if (a.status === 'For Job Offer') {
+        if (a.offerResponse === 'accepted') return 'Offer Accepted'
+        if (a.offerResponse === 'declined') return 'Offer Declined'
+        return 'Awaiting Response'
+      }
+      return a.status
+    },
+    statusClass(a) {
+      const s = typeof a === 'string' ? a : a.status
+      if (s === 'For Job Offer' && typeof a === 'object') {
+        if (a.offerResponse === 'accepted') return 'offer-accepted'
+        if (a.offerResponse === 'declined') return 'offer-declined'
+        return 'awaiting-response'
+      }
+      return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', 'For Job Offer':'for-job-offer', Hired:'hired', Rejected:'rejected' }[s] || ''
+    },
+    statusOptionsFor(applicant) {
+      const base = ['Reviewing', 'Shortlisted', 'Interview', 'For Job Offer']
+      if (applicant?.status === 'For Job Offer' || applicant?.status === 'Hired') base.push('Hired')
+      base.push('Rejected')
+      return base
+    },
     scoreColor(v)  { return v >= 85 ? '#22c55e' : v >= 70 ? '#2872A1' : '#ef4444' },
     scoreBg(v)     { return v >= 85 ? '#f0fdf4' : v >= 70 ? '#eff8ff' : '#fef2f2' },
     openDrawer(a)  { this.selected = { ...a }; this.drawerTab = 'Profile'; this.history = []; this.drawerOpen = true },
@@ -680,13 +712,14 @@ export default {
     },
 
     historyClass(action) {
-      const a = (action || '').toLowerCase()
-      if (a.includes('invited'))   return 'invited'
-      if (a === 'reviewing')       return 'reviewing'
-      if (a === 'shortlisted')     return 'shortlisted'
-      if (a === 'interview')       return 'interview'
-      if (a === 'hired')           return 'hired'
-      if (a === 'rejected')        return 'rejected'
+      const a = (action || '').toLowerCase().replace(/ /g, '_')
+      if (a.includes('invited'))       return 'invited'
+      if (a === 'reviewing')           return 'reviewing'
+      if (a === 'shortlisted')         return 'shortlisted'
+      if (a === 'interview')           return 'interview'
+      if (a.includes('for_job_offer')) return 'for_job_offer'
+      if (a === 'hired')               return 'hired'
+      if (a === 'rejected')            return 'rejected'
       return 'default'
     },
 
@@ -732,16 +765,28 @@ export default {
       return `${hour % 12 || 12}:${m} ${hour >= 12 ? 'PM' : 'AM'}`
     },
 
-    advanceBtnClass(s) {
-      return s === 'Reviewing' ? 'advance-blue' : s === 'Shortlisted' ? 'advance-purple' : s === 'Interview' ? 'advance-green' : 'advance-blue'
+    advanceBtnClass(a) {
+      const s = typeof a === 'string' ? a : a.status
+      return s === 'Reviewing'     ? 'advance-blue'
+           : s === 'Shortlisted'   ? 'advance-purple'
+           : s === 'Interview'     ? 'advance-green'
+           : s === 'For Job Offer' ? 'advance-green'
+           : 'advance-blue'
     },
-    advanceTitle(s) {
-      return s === 'Reviewing' ? 'Shortlist Applicant' : s === 'Shortlisted' ? 'Schedule Interview' : s === 'Interview' ? 'Hire Applicant' : 'Advance'
+    advanceTitle(a) {
+      const s = typeof a === 'string' ? a : a.status
+      return s === 'Reviewing'     ? 'Shortlist Applicant'
+           : s === 'Shortlisted'   ? 'Schedule Interview'
+           : s === 'Interview'     ? 'Pass / Extend Offer'
+           : s === 'For Job Offer' && a.offerResponse === 'accepted' ? 'Mark as Hired'
+           : s === 'For Job Offer' ? 'Waiting for applicant'
+           : 'Advance'
     },
 
     confirmAdvance(applicant) {
-      if (applicant.status === 'Shortlisted') { this.openInterviewModal(applicant); return }
-      if (applicant.status === 'Interview')   { this.openHireModal(applicant);      return }
+      if (applicant.status === 'Shortlisted')   { this.openInterviewModal(applicant);   return }
+      if (applicant.status === 'Interview')     { this.openHireModal(applicant);        return }
+      if (applicant.status === 'For Job Offer') { this.confirmDirectHire(applicant);    return }
       this.confirmShortlist(applicant)
     },
 
@@ -858,25 +903,62 @@ export default {
       this.savingStatus = true
       this.updatingStatusId = this.hireModal.applicant.id
       try {
-        await this.applicantsStore.updateStatus(this.hireModal.applicant.id, 'Hired', { start_date: this.hireModal.startDate })
-        if (this.selected?.id === this.hireModal.applicant.id) this.selected.status = 'Hired'
-        this.showToastMsg('Offer sent and status updated to Hired!', 'success')
-        
+        await this.applicantsStore.updateStatus(this.hireModal.applicant.id, 'for_job_offer', { start_date: this.hireModal.startDate })
+        if (this.selected?.id === this.hireModal.applicant.id) this.selected.status = 'For Job Offer'
+        this.showToastMsg('Offer email sent! Status updated to For Job Offer.', 'success')
         await this.applicantsStore.refresh()
         await this.fetchLocalApplicants(true)
-
         this.hireModal.show = false; this.drawerOpen = false
-      } catch (e) { this.showToastMsg('Failed to process hiring', 'error') }
+      } catch (e) { this.showToastMsg('Failed to extend offer', 'error') }
+      finally { this.savingStatus = false; this.updatingStatusId = null }
+    },
+
+    async resendOffer(applicant) {
+      this.savingStatus = true
+      this.updatingStatusId = applicant.id
+      try {
+        await this.applicantsStore.updateStatus(applicant.id, 'for_job_offer', { resend_offer: true })
+        this.showToastMsg('Job offer resent successfully!', 'success')
+        await this.applicantsStore.refresh()
+        await this.fetchLocalApplicants(true)
+        this.drawerOpen = false
+      } catch (e) { this.showToastMsg('Failed to resend offer', 'error') }
+      finally { this.savingStatus = false; this.updatingStatusId = null }
+    },
+
+    confirmDirectHire(applicant) {
+      this.confirmModal = {
+        show: true, theme: 'blue',
+        title: 'Mark as Hired?',
+        desc: `${applicant.name} will be officially marked as Hired and notified by email. This confirms they have accepted the job offer.`,
+        icon: `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>`,
+        okHtml: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><polyline points="20 6 9 17 4 12"/></svg>Yes, Mark as Hired`,
+        onConfirm: () => { this.confirmModal.show = false; this.submitDirectHire(applicant) },
+      }
+    },
+
+    async submitDirectHire(applicant) {
+      this.savingStatus = true
+      this.updatingStatusId = applicant.id
+      try {
+        await this.applicantsStore.updateStatus(applicant.id, 'hired')
+        if (this.selected?.id === applicant.id) this.selected.status = 'Hired'
+        this.showToastMsg('Applicant officially marked as Hired!', 'success')
+        await this.applicantsStore.refresh()
+        await this.fetchLocalApplicants(true)
+        this.drawerOpen = false
+      } catch (e) { this.showToastMsg('Failed to mark as hired', 'error') }
       finally { this.savingStatus = false; this.updatingStatusId = null }
     },
 
     handleDrawerSave() {
       const oldStatus = this.applicants.find(a => a.id === this.selected.id)?.status
       const newStatus = this.selected.status
-      if (newStatus === 'Hired'       && oldStatus !== 'Hired')       { this.openHireModal(this.selected);      return }
-      if (newStatus === 'Interview'   && oldStatus !== 'Interview')   { this.openInterviewModal(this.selected); return }
-      if (newStatus === 'Rejected'    && oldStatus !== 'Rejected')    { this.confirmReject(this.selected);      return }
-      if (newStatus === 'Shortlisted' && oldStatus !== 'Shortlisted') { this.confirmShortlist(this.selected);   return }
+      if (newStatus === 'For Job Offer' && oldStatus !== 'For Job Offer') { this.openHireModal(this.selected);      return }
+      if (newStatus === 'Hired'         && oldStatus !== 'Hired')         { this.confirmDirectHire(this.selected);  return }
+      if (newStatus === 'Interview'     && oldStatus !== 'Interview')     { this.openInterviewModal(this.selected); return }
+      if (newStatus === 'Rejected'      && oldStatus !== 'Rejected')      { this.confirmReject(this.selected);      return }
+      if (newStatus === 'Shortlisted'   && oldStatus !== 'Shortlisted')   { this.confirmShortlist(this.selected);   return }
       this.updateStatus(this.selected, newStatus)
     },
 
@@ -950,6 +1032,7 @@ export default {
 .tab-count.reviewing   { background: #eff6ff; color: #3b82f6; }
 .tab-count.shortlisted { background: #eff8ff; color: #1a5f8a; }
 .tab-count.interview   { background: #faf5ff; color: #8b5cf6; }
+.tab-count.for-job-offer { background: #fef3c7; color: #92400e; }
 .tab-count.hired       { background: #f0fdf4; color: #22c55e; }
 .tab-count.rejected    { background: #fef2f2; color: #ef4444; }
 .potential-notice { background: #eff8ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 11px 14px; font-size: 12.5px; color: #1a5f8a; display: flex; align-items: flex-start; gap: 8px; }
@@ -993,6 +1076,10 @@ export default {
 .reviewing   { background: #eff6ff; color: #3b82f6; }
 .shortlisted { background: #eff8ff; color: #1a5f8a; }
 .interview   { background: #faf5ff; color: #8b5cf6; }
+.for-job-offer { background: #fef3c7; color: #92400e; }
+.awaiting-response { background: #fef3c7; color: #92400e; }
+.offer-accepted { background: #f0fdf4; color: #16a34a; }
+.offer-declined { background: #fef2f2; color: #dc2626; }
 .hired       { background: #f0fdf4; color: #22c55e; }
 .rejected    { background: #fef2f2; color: #ef4444; }
 .not-applied-badge { display: inline-flex; align-items: center; gap: 6px; background: #fef9ec; color: #92400e; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 99px; border: 1px solid #fde68a; white-space: nowrap; }
@@ -1009,6 +1096,8 @@ export default {
 .advance-blue:hover:not(:disabled)   { background: #2872A1; color: #fff; }
 .advance-purple { background: #faf5ff; color: #8b5cf6; }
 .advance-purple:hover:not(:disabled) { background: #8b5cf6; color: #fff; }
+.advance-amber  { background: #fef3c7; color: #92400e; }
+.advance-amber:hover:not(:disabled)  { background: #d97706; color: #fff; }
 .advance-green  { background: #f0fdf4; color: #22c55e; }
 .advance-green:hover:not(:disabled)  { background: #22c55e; color: #fff; }
 .act-btn.reject { background: #fef2f2; color: #ef4444; }
@@ -1066,6 +1155,7 @@ export default {
 .status-option.active.reviewing   { background: #eff6ff; color: #3b82f6; border-color: #3b82f6; }
 .status-option.active.shortlisted { background: #eff8ff; color: #1a5f8a; border-color: #2872A1; }
 .status-option.active.interview   { background: #faf5ff; color: #8b5cf6; border-color: #8b5cf6; }
+.status-option.active.for-job-offer { background: #fef3c7; color: #92400e; border-color: #d97706; }
 .status-option.active.hired       { background: #f0fdf4; color: #22c55e; border-color: #22c55e; }
 .status-option.active.rejected    { background: #fef2f2; color: #ef4444; border-color: #ef4444; }
 .notes-area { width: 100%; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #1e293b; font-family: inherit; resize: vertical; outline: none; background: #f8fafc; }
@@ -1197,6 +1287,7 @@ export default {
 .history-dot.reviewing   { background: #3b82f6; }
 .history-dot.shortlisted { background: #2872A1; }
 .history-dot.interview   { background: #8b5cf6; }
+.history-dot.for_job_offer { background: #d97706; }
 .history-dot.hired       { background: #22c55e; }
 .history-dot.rejected    { background: #ef4444; }
 .history-dot.invited     { background: #f59e0b; }
@@ -1207,6 +1298,7 @@ export default {
 .history-action-chip.reviewing   { background: #dbeafe; color: #1d4ed8; }
 .history-action-chip.shortlisted { background: #eff8ff; color: #2872A1; }
 .history-action-chip.interview   { background: #ede9fe; color: #8B5CF6; }
+.history-action-chip.for_job_offer { background: #fef3c7; color: #92400e; }
 .history-action-chip.hired       { background: #dcfce7; color: #16a34a; }
 .history-action-chip.rejected    { background: #fef2f2; color: #ef4444; }
 .history-action-chip.invited     { background: #fef3c7; color: #d97706; }

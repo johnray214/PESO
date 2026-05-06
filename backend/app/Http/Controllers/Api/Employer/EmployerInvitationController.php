@@ -82,6 +82,7 @@ class EmployerInvitationController extends Controller
                         'Variables'        => [
                             'first_name'      => $jobseeker->first_name,
                             'invited_by'      => $invitedBy,
+                            'hero_subtext'    => "{$company} has reviewed your profile and personally invited you to apply.",
                             'invitation_text' => $invitationText,
                             'company_name'    => $company,
                             'job_title'       => $job->title,

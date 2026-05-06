@@ -249,6 +249,11 @@ class AdminJobListingController extends Controller
                 'applications as hired_count' => fn ($q) => $q->where('status', 'hired'),
             ]);
 
+            if ($jobListing->slots > 0 && $jobListing->hired_count >= $jobListing->slots && strtolower($jobListing->status) !== 'closed') {
+                $jobListing->update(['status' => 'closed']);
+                $jobListing->status = 'Closed';
+            }
+
             return response()->json([
                 'success' => true,
                 'data'    => $jobListing,

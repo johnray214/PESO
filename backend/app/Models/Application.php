@@ -13,6 +13,9 @@ class Application extends Model
         'job_listing_id',
         'jobseeker_id',
         'status',
+        'offer_response',
+        'offer_sent_at',
+        'offer_response_at',
         'interview_date',
         'interview_time',
         'interview_format',
@@ -26,6 +29,8 @@ class Application extends Model
         'match_score' => 'integer',
         'applied_at' => 'datetime',
         'interview_date' => 'date',
+        'offer_sent_at' => 'datetime',
+        'offer_response_at' => 'datetime',
     ];
 
     public function jobListing()

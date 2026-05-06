@@ -138,6 +138,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     Route::apiResource('users', AdminUserController::class);
     
     // Employers
+    Route::get('/employers/counts', [AdminEmployerController::class, 'counts']);
     Route::get('/employers', [AdminEmployerController::class, 'index']);
     Route::get('/employers/{id}', [AdminEmployerController::class, 'show']);
     Route::put('/employers/{id}', [AdminEmployerController::class, 'update']);
@@ -162,6 +163,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     Route::delete('/jobs/{id}', [AdminJobListingController::class, 'destroy']);
     
     // Applications
+    Route::get('/applications/counts', [AdminApplicationController::class, 'counts']);
     Route::get('/applications/reviewing-count', [AdminApplicationController::class, 'reviewingCount']);
     Route::get('/applications', [AdminApplicationController::class, 'index']);
     Route::get('/applications/{id}', [AdminApplicationController::class, 'show']);
@@ -283,6 +285,7 @@ Route::middleware(['auth:jobseeker', \App\Http\Middleware\EnsureJobseeker::class
     Route::get('/applications', [JobseekerApplicationController::class, 'index']);
     Route::get('/applications/{id}', [JobseekerApplicationController::class, 'show']);
     Route::post('/applications', [JobseekerApplicationController::class, 'store']);
+    Route::post('/applications/{id}/respond-offer', [JobseekerApplicationController::class, 'respondOffer']);
     Route::delete('/applications/{id}', [JobseekerApplicationController::class, 'withdraw']);
 
     // Saved Jobs

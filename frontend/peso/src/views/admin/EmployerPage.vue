@@ -317,16 +317,15 @@ export default {
     async fetchTabCounts() {
       this.tabsLoading = true
       try {
-        const statuses = ['', 'verified', 'pending', 'suspended', 'rejected']
-        const keys     = ['all', 'verified', 'pending', 'suspended', 'rejected']
-        const results  = await Promise.all(
-          statuses.map(s => api.get('/admin/employers', { params: s ? { status: s, page: 1 } : { page: 1 } }))
-        )
-        results.forEach((res, i) => {
-          const payload = res.data.data || res.data
-          const total   = Array.isArray(payload) ? payload.length : (payload.meta?.total || payload.total || 0)
-          this.tabCounts[keys[i]] = total
-        })
+        const { data } = await api.get('/admin/employers/counts')
+        const counts = data.data
+        
+        this.tabCounts.all = counts.all ?? 0
+        this.tabCounts.verified = counts.verified ?? 0
+        this.tabCounts.pending = counts.pending ?? 0
+        this.tabCounts.suspended = counts.suspended ?? 0
+        this.tabCounts.rejected = counts.rejected ?? 0
+
         this.statusTabs[0].count = this.tabCounts.all
         this.statusTabs[1].count = this.tabCounts.verified
         this.statusTabs[2].count = this.tabCounts.pending

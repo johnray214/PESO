@@ -37,11 +37,16 @@ class AdminJobseekerController extends Controller
 
     public function show($id)
     {
-        $jobseeker = Jobseeker::with(['skills', 'applications.jobListing'])->findOrFail($id);
-        
+        $jobseeker = Jobseeker::with([
+            'skills',
+            'applications' => fn ($q) => $q->orderByDesc('applied_at'),
+            'applications.jobListing',
+            'applications.jobListing.employer',
+        ])->findOrFail($id);
+
         return response()->json([
             'success' => true,
-            'data' => $jobseeker,
+            'data'    => $jobseeker,
         ]);
     }
 

@@ -77,7 +77,7 @@
                     <div class="person-avatar" :style="{ background: js.avatarBg }">{{ js.firstName[0] }}{{ js.lastName[0] }}</div>
                     <div>
                       <p class="person-name">{{ js.firstName }} {{ js.lastName }}</p>
-                      <p class="person-meta">{{ js.city || '—' }}</p>
+                      <p class="person-meta">{{ js.city || js.address || '—' }}</p>
                     </div>
                   </div>
                 </td>
@@ -144,112 +144,116 @@
 
       </div>
 
-      <!-- JOBSEEKER DETAIL MODAL -->
-      <transition name="modal">
-        <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
-          <div class="modal modal-wide">
-            <div class="modal-header">
-              <div class="modal-title-wrap">
-                <div class="modal-avatar" :style="{ background: selectedJobseeker?.avatarBg }">
-                  {{ selectedJobseeker?.firstName[0] }}{{ selectedJobseeker?.lastName[0] }}
-                </div>
-                <div>
-                  <h3 class="modal-title">{{ selectedJobseeker?.firstName }} {{ selectedJobseeker?.lastName }}</h3>
-                  <p class="modal-sub">Jobseeker Profile</p>
-                </div>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px">
-                <span class="jsstatus-badge" :class="`jsstatus-${selectedJobseeker?.status}`">
-                  <span class="jsstatus-dot"></span>
-                  {{ selectedJobseeker?.status ? selectedJobseeker.status.charAt(0).toUpperCase() + selectedJobseeker.status.slice(1) : '' }}
-                </span>
-                <button class="modal-close" @click="showModal = false">✕</button>
-              </div>
+    <!-- ── DRAWER ── -->
+    <transition name="drawer">
+      <div v-if="drawerOpen" class="drawer-overlay" @click.self="drawerOpen = false">
+        <div class="drawer">
+          <!-- Header -->
+          <div class="drawer-header">
+            <div class="drawer-avatar" :style="{ background: selectedJobseeker?.avatarBg }">
+              {{ selectedJobseeker?.firstName?.[0] }}{{ selectedJobseeker?.lastName?.[0] }}
+            </div>
+            <div class="drawer-title-wrap">
+              <h2 class="drawer-name">{{ selectedJobseeker?.firstName }} {{ selectedJobseeker?.lastName }}</h2>
+              <p class="drawer-sub">{{ selectedJobseeker?.email }}</p>
+            </div>
+            <span class="jsstatus-badge" :class="`jsstatus-${selectedJobseeker?.status}`">
+              <span class="jsstatus-dot"></span>
+              {{ selectedJobseeker?.status ? selectedJobseeker.status.charAt(0).toUpperCase() + selectedJobseeker.status.slice(1) : '' }}
+            </span>
+            <button class="drawer-close" @click="drawerOpen = false">✕</button>
+          </div>
+
+          <!-- Tabs -->
+          <div class="drawer-tabs">
+            <button v-for="t in ['Profile','Files','Applications']" :key="t"
+              :class="['dtab', { active: drawerTab === t }]" @click="drawerTab = t">{{ t }}
+              <span v-if="t === 'Applications' && selectedJobseeker?.applications?.length" class="dtab-badge">{{ selectedJobseeker.applications.length }}</span>
+            </button>
+          </div>
+
+          <!-- Body -->
+          <div class="drawer-body">
+            <!-- Loading -->
+            <div v-if="drawerLoading" class="drawer-loading">
+              <div v-for="i in 4" :key="i" class="skel" style="width:100%;height:52px;border-radius:10px;margin-bottom:10px;"></div>
             </div>
 
-            <div class="modal-body" v-if="selectedJobseeker">
-              <div class="detail-grid">
-                <div class="detail-section">
-                  <p class="detail-section-title">Personal Information</p>
-                  <div class="detail-rows">
-                    <div class="detail-row"><span class="detail-key">Full Name</span><span class="detail-val">{{ selectedJobseeker.firstName }} {{ selectedJobseeker.lastName }}</span></div>
-                    <div class="detail-row"><span class="detail-key">Email</span><span class="detail-val">{{ selectedJobseeker.email }}</span></div>
-                    <div class="detail-row"><span class="detail-key">Contact</span><span class="detail-val">{{ selectedJobseeker.phone || '—' }}</span></div>
-                    <div class="detail-row"><span class="detail-key">City</span><span class="detail-val">{{ selectedJobseeker.city || '—' }}</span></div>
-                    <div class="detail-row"><span class="detail-key">Address</span><span class="detail-val">{{ selectedJobseeker.address || '—' }}</span></div>
-                    <div class="detail-row"><span class="detail-key">Registered</span><span class="detail-val">{{ selectedJobseeker.registeredDate }}</span></div>
-                  </div>
-                </div>
-                <div class="detail-section">
-                  <p class="detail-section-title">Professional Background</p>
-                  <div class="detail-rows">
-                    <div class="detail-row"><span class="detail-key">Education Level</span><span class="detail-val">{{ selectedJobseeker.educationLevel || '—' }}</span></div>
-                    <div class="detail-row"><span class="detail-key">Experience</span><span class="detail-val" style="white-space: normal;">{{ selectedJobseeker.jobExperience || '—' }}</span></div>
-                    <div class="detail-row"><span class="detail-key">Applications</span><span class="detail-val">{{ selectedJobseeker.applicationsCount }} total</span></div>
-                    <div class="detail-row">
-                      <span class="detail-key">Resume</span>
-                      <span class="detail-val">
-                        <button v-if="selectedJobseeker?.hasResume" type="button" class="resume-view-btn" :disabled="openingResume" @click.stop="viewJobseekerResume(selectedJobseeker)">
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                          {{ openingResume ? 'Opening…' : 'View Resume' }}
-                        </button>
-                        <span v-else style="color:#94a3b8">Not uploaded</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
+            <!-- PROFILE TAB -->
+            <div v-else-if="drawerTab === 'Profile'">
+              <div class="info-grid">
+                <div class="info-item"><span class="info-label">Full Name</span><span class="info-val">{{ selectedJobseeker?.firstName }} {{ selectedJobseeker?.lastName }}</span></div>
+                <div class="info-item"><span class="info-label">Email</span><span class="info-val">{{ selectedJobseeker?.email }}</span></div>
+                <div class="info-item"><span class="info-label">Contact</span><span class="info-val">{{ selectedJobseeker?.phone || '—' }}</span></div>
+                <div class="info-item"><span class="info-label">Birth Date</span><span class="info-val">{{ selectedJobseeker?.dateOfBirth || '—' }}</span></div>
+                <div class="info-item"><span class="info-label">Sex</span><span class="info-val">{{ selectedJobseeker?.sex || '—' }}</span></div>
+                <div class="info-item"><span class="info-label">Education</span><span class="info-val">{{ selectedJobseeker?.educationLevel || '—' }}</span></div>
+                <div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Address</span><span class="info-val" style="white-space:normal">{{ selectedJobseeker?.address || '—' }}</span></div>
+                <div class="info-item"><span class="info-label">Registered</span><span class="info-val">{{ selectedJobseeker?.registeredDate }}</span></div>
+                <div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Experience</span><span class="info-val" style="white-space:normal; line-height:1.4;">{{ selectedJobseeker?.jobExperience || '—' }}</span></div>
               </div>
-
-              <div class="detail-section" style="margin-top:4px">
-                <p class="detail-section-title">Skills</p>
-                <div v-if="selectedJobseeker.skills.length" class="skill-tags mt8">
-                  <span v-for="sk in selectedJobseeker.skills" :key="sk" class="skill-tag-lg">{{ sk }}</span>
-                </div>
-                <p v-else class="no-data-msg">No skills listed yet.</p>
+              <div class="section-label" style="margin-top:18px">Skills</div>
+              <div v-if="selectedJobseeker?.skills?.length" class="skill-tags mt4">
+                <span v-for="sk in selectedJobseeker.skills" :key="sk" class="skill-tag">{{ sk }}</span>
               </div>
+              <p v-else style="font-size:12.5px;color:#cbd5e1;margin-top:8px">No skills listed yet.</p>
+            </div>
 
-              <div class="detail-section" style="margin-top:4px" v-if="selectedJobseeker.applications?.length">
-                <p class="detail-section-title">Recent Applications</p>
-                <div class="apps-list">
-                  <div v-for="app in selectedJobseeker.applications.slice(0, 5)" :key="app.id" class="app-row">
-                    <div class="app-info">
-                      <p class="app-title">{{ app.jobTitle || 'Unknown Position' }}</p>
-                      <p class="app-company">{{ app.company || '—' }}</p>
-                    </div>
-                    <span class="app-status-badge" :class="appStatusClass(app.status)">{{ app.status }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="status-control-row" v-if="selectedJobseeker.status === 'inactive'">
-                <div class="status-control-info">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  This account is currently inactive.
+            <!-- FILES TAB -->
+            <div v-else-if="drawerTab === 'Files'">
+              <div class="resume-panel">
+                <p class="section-label" style="margin-bottom:12px">Resume / CV</p>
+                <div class="resume-box" :class="{ 'resume-box--has': selectedJobseeker?.hasResume }">
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" :stroke="selectedJobseeker?.hasResume ? '#2563eb' : '#e2e8f0'" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                  <p style="font-size:13px;font-weight:600;color:#1e293b;margin-top:10px">{{ selectedJobseeker?.hasResume ? 'Resume uploaded' : 'No resume uploaded' }}</p>
+                  <button v-if="selectedJobseeker?.hasResume" type="button" class="resume-view-btn" style="margin-top:12px" :disabled="openingResume" @click="viewJobseekerResume(selectedJobseeker)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    {{ openingResume ? 'Opening…' : 'View Document' }}
+                  </button>
+                  <p v-else style="font-size:12px;color:#94a3b8;margin-top:6px">Not uploaded</p>
                 </div>
               </div>
             </div>
 
-            <div class="modal-footer">
-              <button class="btn-ghost" @click="showModal = false" :disabled="actionLoading">Close</button>
-              <template v-if="selectedJobseeker?.status === 'active'">
-                <button class="btn-deact" @click="updateStatus('inactive')" :disabled="actionLoading">
-                  <span v-if="actionLoading" class="spinner-sm spinner-orange"></span>
-                  <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                  Deactivate
-                </button>
-              </template>
-              <template v-else-if="selectedJobseeker?.status === 'inactive'">
-                <button class="btn-activate" @click="updateStatus('active')" :disabled="actionLoading">
-                  <span v-if="actionLoading" class="spinner-sm"></span>
-                  <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                  Activate Account
-                </button>
-              </template>
+            <!-- APPLICATIONS TAB -->
+            <div v-else-if="drawerTab === 'Applications'">
+              <div v-if="!selectedJobseeker?.applications?.length" style="display:flex;flex-direction:column;align-items:center;padding:40px 16px;text-align:center">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+                <p style="margin-top:12px;font-size:14px;font-weight:600;color:#64748b">No applications yet</p>
+                <span style="font-size:12px;color:#94a3b8">This jobseeker hasn't applied to any jobs.</span>
+              </div>
+              <div v-else class="apps-list">
+                <div v-for="app in selectedJobseeker.applications" :key="app.id" class="app-row">
+                  <div class="app-left" style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
+                    <p class="app-title">{{ app.jobTitle || 'Unknown Position' }}</p>
+                    <span class="app-company-pill">{{ app.company || '—' }}</span>
+                    <p class="app-date">Applied {{ app.appliedDate }}</p>
+                  </div>
+                  <span class="app-status-badge" :class="appStatusClass(app.status)">{{ app.status }}</span>
+                </div>
+              </div>
             </div>
           </div>
+
+          <!-- Footer actions -->
+          <div class="drawer-footer">
+            <button class="btn-ghost" @click="drawerOpen = false">Close</button>
+            <button v-if="selectedJobseeker?.status === 'active'" class="btn-deact" @click="updateStatus('inactive')" :disabled="actionLoading">
+              <span v-if="actionLoading" class="spinner-sm spinner-orange"></span>
+              <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              Deactivate
+            </button>
+            <button v-else-if="selectedJobseeker?.status === 'inactive'" class="btn-activate" @click="updateStatus('active')" :disabled="actionLoading">
+              <span v-if="actionLoading" class="spinner-sm"></span>
+              <svg v-else width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Activate
+            </button>
+          </div>
         </div>
-      </transition>
-    </template>
+      </div>
+    </transition>
+
+    </template><!-- end v-else -->
 
     <!-- ── CONFIRM MODAL ── -->
     <transition name="modal">
@@ -294,6 +298,9 @@ export default {
       filterStatus: '',
       showModal: false,
       showConfirm: false,
+      drawerOpen: false,
+      drawerTab: 'Profile',
+      drawerLoading: false,
       selectedJobseeker: null,
       loading: false,
       pageLoading: false,
@@ -379,9 +386,33 @@ export default {
       }
     },
 
-    viewJobseeker(js) {
+    async viewJobseeker(js) {
       this.selectedJobseeker = { ...js }
-      this.showModal = true
+      this.drawerTab = 'Profile'
+      this.drawerOpen = true
+      this.drawerLoading = true
+      try {
+        const { data } = await api.get(`/admin/jobseekers/${js.id}`)
+        const d = data.data
+        const EDU = { no_requirement:'No Requirement',elementary:'Elementary Graduate',highschool:'High School Graduate',senior_highschool:'Senior High / K-12',vocational:'Vocational / TESDA',college_level:'At Least College Level',college_graduate:'College Graduate',related_course:'College Graduate (Related Course)',postgraduate:"Post-Graduate" }
+        this.selectedJobseeker = {
+          ...js,
+          skills: d.skills?.map(s => s.skill || s) || [],
+          hasResume: !!d.resume_path,
+          educationLevel: EDU[d.education_level] || d.education_level || '—',
+          jobExperience: d.job_experience || null,
+          sex: d.sex ? d.sex.charAt(0).toUpperCase() + d.sex.slice(1) : '—',
+          dateOfBirth: d.date_of_birth ? new Date(d.date_of_birth + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—',
+          applications: (d.applications || []).map(a => ({
+            id: a.id,
+            jobTitle: a.job_listing?.title || 'Unknown Position',
+            company: a.job_listing?.employer?.company_name || '—',
+            status: a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Reviewing',
+            appliedDate: a.applied_at ? new Date(a.applied_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+          })),
+        }
+      } catch(e) { console.error(e) }
+      finally { this.drawerLoading = false }
     },
 
     /** Open confirmation modal instead of window.confirm */
@@ -481,7 +512,7 @@ export default {
         if (idx !== -1) this.jobseekers[idx].status = status
         this.selectedJobseeker = { ...this.selectedJobseeker, status }
         this.showToastMsg(`Jobseeker ${status === 'active' ? 'activated' : 'deactivated'}`, 'success')
-        this.showModal = false
+        this.drawerOpen = false
       } catch (e) {
         console.error(e)
         this.showToastMsg('Failed to update status', 'error')
@@ -560,6 +591,8 @@ export default {
 .jsstatus-active   .jsstatus-dot { background: #22c55e; }
 .jsstatus-inactive { background: #fef2f2; color: #dc2626; }
 .jsstatus-inactive .jsstatus-dot { background: #ef4444; }
+.jsstatus-for_job_offer { background: #fef3c7; color: #92400e; }
+.jsstatus-for_job_offer .jsstatus-dot { background: #d97706; }
 
 /* ── ACTION BUTTONS ── */
 .action-btns { display: flex; gap: 4px; }
@@ -639,6 +672,43 @@ export default {
 .page-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 .page-btn:hover:not(.active):not(:disabled) { background: #f8fafc; }
 
+/* ── DRAWER ── */
+.drawer-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.35); z-index: 200; display: flex; justify-content: flex-end; backdrop-filter: blur(2px); }
+.drawer { width: 480px; max-width: 96vw; background: #fff; height: 100%; display: flex; flex-direction: column; box-shadow: -8px 0 40px rgba(0,0,0,0.12); }
+.drawer-header { display: flex; align-items: center; gap: 12px; padding: 20px 22px; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; }
+.drawer-avatar { width: 44px; height: 44px; border-radius: 50%; color: #fff; font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.drawer-title-wrap { flex: 1; min-width: 0; }
+.drawer-name { font-size: 15px; font-weight: 800; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drawer-sub { font-size: 11.5px; color: #94a3b8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.drawer-close { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 18px; padding: 4px 6px; border-radius: 6px; line-height: 1; flex-shrink: 0; }
+.drawer-close:hover { background: #f1f5f9; color: #1e293b; }
+.drawer-tabs { display: flex; gap: 2px; padding: 10px 16px 0; border-bottom: 1px solid #f1f5f9; flex-shrink: 0; background: #fff; }
+.dtab { position: relative; display: flex; align-items: center; gap: 5px; padding: 8px 14px; border: none; background: none; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; border-bottom: 2.5px solid transparent; margin-bottom: -1px; font-family: inherit; transition: all 0.15s; border-radius: 6px 6px 0 0; }
+.dtab:hover { color: #1e293b; background: #f8fafc; }
+.dtab.active { color: #2563eb; border-bottom-color: #2563eb; background: #eff6ff; }
+.dtab-badge { font-size: 10px; font-weight: 700; background: #dbeafe; color: #1d4ed8; padding: 1px 6px; border-radius: 99px; }
+.drawer-body { flex: 1; overflow-y: auto; padding: 20px 22px; }
+.drawer-loading { padding: 8px 0; }
+.drawer-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px; border-top: 1px solid #f1f5f9; flex-shrink: 0; }
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px; }
+.info-item { display: flex; flex-direction: column; gap: 3px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+.info-label { font-size: 10.5px; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+.info-val { font-size: 13px; color: #1e293b; font-weight: 500; }
+.section-label { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; }
+.skill-tags.mt4 { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+.skill-tag { background: #eff6ff; color: #2563eb; font-size: 11.5px; font-weight: 600; padding: 3px 10px; border-radius: 6px; }
+.resume-box { display: flex; flex-direction: column; align-items: center; padding: 32px; border: 2px dashed #e2e8f0; border-radius: 14px; text-align: center; }
+.resume-box--has { border-color: #bfdbfe; background: #f0f7ff; }
+.apps-list { display: flex; flex-direction: column; gap: 8px; }
+.app-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #f1f5f9; gap: 10px; }
+.app-left { flex: 1; min-width: 0; }
+.app-title { font-size: 13px; font-weight: 700; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app-date { font-size: 11px; color: #94a3b8; margin-top: 3px; }
+.app-company-pill { font-size: 11px; font-weight: 700; padding: 4px 11px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.drawer-enter-active, .drawer-leave-active { transition: opacity 0.25s; }
+.drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform 0.28s cubic-bezier(0.4,0,0.2,1); }
+.drawer-enter-from, .drawer-leave-to { opacity: 0; }
+.drawer-enter-from .drawer, .drawer-leave-to .drawer { transform: translateX(100%); }
 .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
 .modal { background: #fff; border-radius: 16px; width: 580px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15); max-height: 90vh; display: flex; flex-direction: column; }
 .modal-wide { width: 680px; }
@@ -675,8 +745,9 @@ export default {
 .app-company { font-size: 11px; color: #94a3b8; margin-top: 1px; }
 .app-status-badge { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; margin-left: 8px; }
 .app-reviewing   { background: #dbeafe; color: #1d4ed8; }
-.app-shortlisted { background: #1A5F18; color: #a7f3a0; }
+.app-shortlisted { background: #dbeafe; color: #1d4ed8; }
 .app-interview   { background: #ede9fe; color: #8B5CF6; }
+.app-for_job_offer { background: #fef3c7; color: #92400e; }
 .app-hired       { background: #dcfce7; color: #16a34a; }
 .app-rejected    { background: #fef2f2; color: #ef4444; }
 

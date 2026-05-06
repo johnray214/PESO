@@ -56,7 +56,12 @@ class AdminApplicationController extends Controller
             }
         }
 
-        $applications = $query->with(['jobseeker.skills', 'jobListing.employer'])
+        $applications = $query->with([
+            'jobseeker:id,first_name,last_name,address,contact,email,sex,date_of_birth,education_level,job_experience,resume_path,certificate_path,barangay_clearance_path',
+            'jobseeker.skills:id,jobseeker_id,skill',
+            'jobListing:id,title,employer_id',
+            'jobListing.employer:id,company_name'
+        ])
             ->orderByDesc('applied_at')
             ->paginate(15);
 
@@ -79,7 +84,7 @@ class AdminApplicationController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $validated = $request->validate([
-            'status' => ['required', Rule::in(['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'])],
+            'status' => ['required', Rule::in(['reviewing', 'shortlisted', 'interview', 'for_job_offer', 'hired', 'rejected'])],
         ]);
 
         $application = Application::with(['jobseeker', 'jobListing.employer'])->findOrFail($id);
@@ -104,6 +109,10 @@ class AdminApplicationController extends Controller
                 case 'interview':
                     $subject = 'Application in process';
                     $message = "Your application for {$job->title} at {$company} is now being processed.";
+                    break;
+                case 'for_job_offer':
+                    $subject = 'You passed your interview!';
+                    $message = "Congratulations! You have successfully passed the interview for {$job->title} at {$company}. A formal job offer is currently being prepared for you.";
                     break;
                 case 'hired':
                     $subject = 'Application successful';
@@ -185,8 +194,10 @@ class AdminApplicationController extends Controller
 
     public function potentialApplicants(Request $request)
     {
-        // Get ALL job listings (across all employers) with their required skills
-        $jobListings = \App\Models\JobListing::with(['employer', 'skills'])->get();
+        // Get ALL active job listings (across all employers) with their required skills
+        $jobListings = \Illuminate\Support\Facades\Cache::remember('open_job_listings_with_skills', 60, function() {
+            return \App\Models\JobListing::with(['employer', 'skills'])->whereRaw('LOWER(status) = ?', ['open'])->get();
+        });
 
         if ($jobListings->isEmpty()) {
             return response()->json(['success' => true, 'data' => []]);
@@ -253,5 +264,15 @@ class AdminApplicationController extends Controller
     {
         $count = \App\Models\Application::where('status', 'reviewing')->count();
         return response()->json(['count' => $count]);
+    }
+
+    public function counts()
+    {
+        $statuses = ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'];
+        $counts = ['all' => Application::count()];
+        foreach ($statuses as $s) {
+            $counts[$s] = Application::where('status', $s)->count();
+        }
+        return response()->json(['success' => true, 'data' => $counts]);
     }
 }

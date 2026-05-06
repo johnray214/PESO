@@ -82,6 +82,7 @@ class AdminInvitationController extends Controller
                     'Variables'        => [
                         'first_name'      => $jobseeker->first_name,
                         'invited_by'      => 'PESO Santiago',
+                        'hero_subtext'    => 'PESO Santiago has reviewed your profile and is recommending you for this opportunity.',
                         'invitation_text' => $invitationText,
                         'company_name'    => $company,
                         'job_title'       => $job->title,

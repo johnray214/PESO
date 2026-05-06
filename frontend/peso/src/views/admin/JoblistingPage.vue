@@ -369,7 +369,7 @@
 
             <!-- PROGRAM SELECTOR (Admin-only) -->
             <div class="form-group">
-              <label class="form-label">DOLE Program <span style="color:#94a3b8;font-weight:500;text-transform:none;letter-spacing:0;font-size:11px;">(optional — leave blank for regular job posting)</span></label>
+              <label class="form-label">DOLE Program <span style="color:#94a3b8;font-weight:500;text-transform:none;letter-spacing:0;font-size:11px;">(optional — Company or agency name (leave blank if posted directly by PESO)</span></label>
               <div class="program-selector">
                 <button
                   type="button"
@@ -701,35 +701,35 @@ export default {
 
       // DOLE program definitions
       programOptions: [
-        {
-          value: 'GIP',
-          label: 'Government Internship Program',
-          description: 'Internship for fresh graduates in government',
-          color: '#2563eb',
-          lightBg: '#eff6ff',
-        },
-        {
-          value: 'SPED',
-          label: 'Special Program for Employment of Students',
-          description: 'Jobs for persons with disability',
-          color: '#8b5cf6',
-          lightBg: '#f5f3ff',
-        },
-        {
-          value: 'TUPAD',
-          label: 'Tulong Panghanapbuhay sa Ating Disadvantaged/Displaced Workers',
-          description: 'Emergency employment for displaced workers',
-          color: '#f97316',
-          lightBg: '#fff7ed',
-        },
-        {
-          value: 'STEP',
-          label: 'Skills Training for Employment Program',
-          description: 'Skills training linked to employment',
-          color: '#22c55e',
-          lightBg: '#f0fdf4',
-        },
-      ],
+      {
+        value: 'GIP',
+        label: 'Government Internship Program',
+        description: 'Part-time internship for enrolled students in government agencies',
+        color: '#2563eb',
+        lightBg: '#eff6ff',
+      },
+      {
+        value: 'SPES',
+        label: 'Special Program for Employment of Students',
+        description: 'Part-time employment for students from low-income families',
+        color: '#8b5cf6',
+        lightBg: '#f5f3ff',
+      },
+      {
+        value: 'TUPAD',
+        label: 'Tulong Panghanapbuhay (TUPAD)',
+        description: 'Emergency employment for displaced or disadvantaged workers',
+        color: '#f97316',
+        lightBg: '#fff7ed',
+      },
+      {
+        value: 'JobStart',
+        label: 'JobStart Philippines',
+        description: 'Employment bridging program for young job seekers aged 18–25',
+        color: '#22c55e',
+        lightBg: '#f0fdf4',
+      },
+    ],
     }
   },
   computed: {
