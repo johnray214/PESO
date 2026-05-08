@@ -229,15 +229,17 @@ class LocationController with WidgetsBindingObserver {
   Future<void> _loadCachedLocation() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final lat = prefs.getDouble(_prefLatKey);
-      final lng = prefs.getDouble(_prefLngKey);
-      if (lat != null && lng != null) {
-        liveLocation.value = LocationPoint(lat, lng);
-      }
+      // Apply persisted manual pin *before* cached GPS so listeners see
+      // [effectiveLocation] as the profile/exact point immediately when both exist.
       final mLat = prefs.getDouble(_prefManualLatKey);
       final mLng = prefs.getDouble(_prefManualLngKey);
       if (mLat != null && mLng != null) {
         _manualLocation.value = LocationPoint(mLat, mLng);
+      }
+      final lat = prefs.getDouble(_prefLatKey);
+      final lng = prefs.getDouble(_prefLngKey);
+      if (lat != null && lng != null) {
+        liveLocation.value = LocationPoint(lat, lng);
       }
     } catch (_) {}
   }

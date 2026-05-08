@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
 import 'main.dart';
@@ -32,6 +34,14 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
   _DocKind? _uploadingKind;
   _DocKind? _openingKind;
 
+  DateTime? _resumeUploadedAt;
+  DateTime? _certificateUploadedAt;
+  DateTime? _clearanceUploadedAt;
+
+  int? _resumeSizeBytes;
+  int? _certificateSizeBytes;
+  int? _clearanceSizeBytes;
+
   static const _kBlue = Color(0xFF2563EB);
   static const _kIndigo = Color(0xFF4F46E5);
   static const _kEmerald = Color(0xFF059669);
@@ -44,6 +54,141 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
   void initState() {
     super.initState();
     _loadPaths();
+    unawaited(_loadLocalDocumentMeta());
+  }
+
+  static String _prefKeyUploadedAt(_DocKind k) => switch (k) {
+        _DocKind.resume => 'doc_meta_resume_uploaded_at',
+        _DocKind.certificate => 'doc_meta_certificate_uploaded_at',
+        _DocKind.clearance => 'doc_meta_clearance_uploaded_at',
+      };
+
+  static String _prefKeySize(_DocKind k) => switch (k) {
+        _DocKind.resume => 'doc_meta_resume_size_bytes',
+        _DocKind.certificate => 'doc_meta_certificate_size_bytes',
+        _DocKind.clearance => 'doc_meta_clearance_size_bytes',
+      };
+
+  DateTime? _uploadedAtForKind(_DocKind k) {
+    switch (k) {
+      case _DocKind.resume:
+        return _resumeUploadedAt;
+      case _DocKind.certificate:
+        return _certificateUploadedAt;
+      case _DocKind.clearance:
+        return _clearanceUploadedAt;
+    }
+  }
+
+  int? _sizeBytesForKind(_DocKind k) {
+    switch (k) {
+      case _DocKind.resume:
+        return _resumeSizeBytes;
+      case _DocKind.certificate:
+        return _certificateSizeBytes;
+      case _DocKind.clearance:
+        return _clearanceSizeBytes;
+    }
+  }
+
+  void _setUploadedAtForKind(_DocKind k, DateTime? v) {
+    setState(() {
+      switch (k) {
+        case _DocKind.resume:
+          _resumeUploadedAt = v;
+        case _DocKind.certificate:
+          _certificateUploadedAt = v;
+        case _DocKind.clearance:
+          _clearanceUploadedAt = v;
+      }
+    });
+  }
+
+  void _setSizeBytesForKind(_DocKind k, int? v) {
+    setState(() {
+      switch (k) {
+        case _DocKind.resume:
+          _resumeSizeBytes = v;
+        case _DocKind.certificate:
+          _certificateSizeBytes = v;
+        case _DocKind.clearance:
+          _clearanceSizeBytes = v;
+      }
+    });
+  }
+
+  Future<void> _loadLocalDocumentMeta() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      for (final k in _DocKind.values) {
+        final iso = prefs.getString(_prefKeyUploadedAt(k));
+        final size = prefs.getInt(_prefKeySize(k));
+        final dt = iso != null ? DateTime.tryParse(iso) : null;
+        if (!mounted) return;
+        _setUploadedAtForKind(k, dt);
+        _setSizeBytesForKind(k, size);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _persistLocalMeta({
+    required _DocKind kind,
+    DateTime? uploadedAt,
+    int? sizeBytes,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (uploadedAt != null) {
+        await prefs.setString(_prefKeyUploadedAt(kind), uploadedAt.toIso8601String());
+      }
+      if (sizeBytes != null) {
+        await prefs.setInt(_prefKeySize(kind), sizeBytes);
+      }
+    } catch (_) {}
+  }
+
+  static String _formatBytes(int bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    double v = bytes.toDouble();
+    var u = 0;
+    while (v >= 1024 && u < units.length - 1) {
+      v /= 1024;
+      u++;
+    }
+    final shown = (u == 0) ? v.toStringAsFixed(0) : v.toStringAsFixed(v >= 10 ? 0 : 1);
+    return '$shown ${units[u]}';
+  }
+
+  static String _formatDate(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+  }
+
+  String _docMetaLine(_DocKind kind) {
+    final parts = <String>['PDF'];
+    final dt = _uploadedAtForKind(kind);
+    if (dt != null) parts.add('Updated ${_formatDate(dt)}');
+    final size = _sizeBytesForKind(kind);
+    if (size != null) parts.add(_formatBytes(size));
+    return parts.join(' • ');
+  }
+
+  void _showToast(String message, {ToastType type = ToastType.info}) {
+    if (!mounted) return;
+    CustomToast.show(context, message: message, type: type);
   }
 
   String? _pathForKind(_DocKind k) {
@@ -110,11 +255,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
   Future<void> _pickForKind(_DocKind kind) async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please sign in to upload documents')),
-        );
-      }
+      _showToast('Please sign in to upload documents', type: ToastType.error);
       return;
     }
 
@@ -144,18 +285,12 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
 
       if (!mounted) return;
       if (picked == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No PDF selected')),
-        );
+        _showToast('No PDF selected');
         return;
       }
       _setPending(kind, picked);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+      _showToast('Error: $e', type: ToastType.error);
     }
   }
 
@@ -165,6 +300,13 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
     if (token == null || pending == null) return;
 
     setState(() => _uploadingKind = kind);
+
+    Future<int?> pendingSizeBytes() async {
+      try {
+        if (pending.bytes != null) return pending.bytes!.length;
+      } catch (_) {}
+      return null;
+    }
 
     Future<Map<String, dynamic>> doUpload() async {
       if (pending.bytes != null) {
@@ -216,6 +358,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
       final uploadResult = await doUpload();
       if (!mounted) return;
       final ok = uploadResult['success'] == true;
+      final sizeBytes = ok ? await pendingSizeBytes() : null;
       setState(() {
         _uploadingKind = null;
         if (ok) {
@@ -229,29 +372,23 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
         }
       });
       if (ok) {
+        final now = DateTime.now();
+        _setUploadedAtForKind(kind, now);
+        if (sizeBytes != null) _setSizeBytesForKind(kind, sizeBytes);
+        unawaited(_persistLocalMeta(kind: kind, uploadedAt: now, sizeBytes: sizeBytes));
         await _loadPaths();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('${_labelForKind(kind)} uploaded successfully'),
-              backgroundColor: const Color(0xFF16A34A),
-            ),
-          );
-        }
+        _showToast(
+          '${_labelForKind(kind)} uploaded successfully',
+          type: ToastType.success,
+        );
       } else {
         final msg = uploadResult['message'] as String? ?? 'Upload failed';
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg), backgroundColor: const Color(0xFFDC2626)),
-          );
-        }
+        _showToast(msg, type: ToastType.error);
       }
     } catch (e) {
       if (mounted) {
         setState(() => _uploadingKind = null);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        _showToast('Error: $e', type: ToastType.error);
       }
     }
   }
@@ -259,20 +396,12 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
   Future<void> _viewDocument(_DocKind kind) async {
     final path = _pathForKind(kind);
     if (path == null || path.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No file on record')),
-        );
-      }
+      _showToast('No file on record');
       return;
     }
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please sign in to view documents')),
-        );
-      }
+      _showToast('Please sign in to view documents', type: ToastType.error);
       return;
     }
     final type = switch (kind) {
@@ -285,24 +414,23 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
       final res = await ApiService.fetchJobseekerDocument(token: token, type: type);
       if (!mounted) return;
       if (res.statusCode != 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              res.statusCode == 404
-                  ? 'File not found on server'
-                  : 'Could not open document (${res.statusCode})',
-            ),
-          ),
+        _showToast(
+          res.statusCode == 404
+              ? 'File not found on server'
+              : 'Could not open document (${res.statusCode})',
+          type: ToastType.error,
         );
         return;
       }
+      // If size meta is missing (e.g. uploaded on another device), fill it on view.
+      if (_sizeBytesForKind(kind) == null) {
+        final size = res.bodyBytes.length;
+        _setSizeBytesForKind(kind, size);
+        unawaited(_persistLocalMeta(kind: kind, sizeBytes: size));
+      }
       await doc_open.openPdfBytes(res.bodyBytes, _basename(path));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
+      _showToast('Error: $e', type: ToastType.error);
     } finally {
       if (mounted) setState(() => _openingKind = null);
     }
@@ -571,13 +699,13 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        _basename(path),
+                        _docMetaLine(kind),
                         style: const TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: _kSlate900,
                         ),
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),

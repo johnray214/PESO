@@ -6,7 +6,7 @@ import 'user_session.dart';
 
 class ApiService {
   static const String baseUrl =
-      'http://10.169.75.42:8000/api';
+      'http://192.168.0.100:8000/api';
 
   /// True when [baseUrl] points at a machine-local / emulator-typical host.
   ///
@@ -553,10 +553,13 @@ class ApiService {
 
   // ─── Job Listings ────────────────────────────────────────────────────────────
 
-  static Future<Map<String, dynamic>> getJobListings() async {
+  static Future<Map<String, dynamic>> getJobListings({int page = 1}) async {
     try {
+      final uri = Uri.parse('$baseUrl/public/jobs').replace(
+        queryParameters: {'page': page.toString()},
+      );
       final response = await http.get(
-        Uri.parse('$baseUrl/public/jobs'),
+        uri,
         headers: {'Content-Type': 'application/json'},
       );
       final decoded = jsonDecode(response.body);
@@ -664,13 +667,21 @@ class ApiService {
     }
   }
 
-  static Future<Map<String, dynamic>> getSavedJobs(String token) async {
+  static Future<Map<String, dynamic>> getSavedJobs(
+    String token, {
+    String? cursor,
+    int limit = 15,
+  }) async {
     try {
-      final uri = Uri.parse('$baseUrl/jobseeker/saved-jobs').replace(
-        queryParameters: {
-          '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
-        },
-      );
+      final params = <String, String>{
+        '_ts': DateTime.now().millisecondsSinceEpoch.toString(),
+        'limit': limit.toString(),
+      };
+      if (cursor != null && cursor.isNotEmpty) {
+        params['cursor'] = cursor;
+      }
+      final uri = Uri.parse('$baseUrl/jobseeker/saved-jobs')
+          .replace(queryParameters: params);
       final response = await http.get(
         uri,
         headers: {
@@ -688,9 +699,17 @@ class ApiService {
       if (decoded['success'] == true &&
           data is Map<String, dynamic> &&
           data['data'] is List) {
+        final backendMeta = decoded['meta'] as Map<String, dynamic>?;
         return {
           'success': true,
           'data': data['data'],
+          'meta': backendMeta ??
+              {
+                'next_cursor': data['next_cursor'],
+                'prev_cursor': data['prev_cursor'],
+                'per_page': data['per_page'],
+                'has_more': (data['next_cursor'] != null),
+              },
         };
       }
       return decoded;
@@ -1148,13 +1167,15 @@ class ApiService {
   static Future<Map<String, dynamic>> getMatchedJobs(
     String token, {
     List<String>? skills,
+    int page = 1,
   }) async {
     try {
       final hasSkills = skills != null && skills.isNotEmpty;
-      final uri = Uri.parse(
-        hasSkills
-            ? '$baseUrl/jobseeker/jobs?skills=${Uri.encodeQueryComponent(skills.join(','))}'
-            : '$baseUrl/jobseeker/jobs',
+      final uri = Uri.parse('$baseUrl/jobseeker/jobs').replace(
+        queryParameters: {
+          if (hasSkills) 'skills': skills.join(','),
+          'page': page.toString(),
+        },
       );
 
       final response = await http.get(
@@ -1382,13 +1403,52 @@ class ApiService {
 
   // ─── Map ─────────────────────────────────────────────────────────────────────
 
-  static Future<Map<String, dynamic>> getMapEmployers() async {
+  static Future<Map<String, dynamic>> getMapEmployers({
+    double? minLat,
+    double? maxLat,
+    double? minLng,
+    double? maxLng,
+    int jobsPerEmployer = 8,
+    int limit = 400,
+    String? cursor,
+  }) async {
     try {
+      final params = <String, String>{
+        'jobs_per_employer': jobsPerEmployer.toString(),
+        'limit': limit.toString(),
+      };
+      if (cursor != null && cursor.isNotEmpty) {
+        params['cursor'] = cursor;
+      }
+      if (minLat != null && maxLat != null && minLng != null && maxLng != null) {
+        params.addAll({
+          'min_lat': minLat.toString(),
+          'max_lat': maxLat.toString(),
+          'min_lng': minLng.toString(),
+          'max_lng': maxLng.toString(),
+        });
+      }
+      final uri = Uri.parse('$baseUrl/public/map/employers')
+          .replace(queryParameters: params);
       final response = await http.get(
-        Uri.parse('$baseUrl/public/map/employers'),
+        uri,
         headers: {'Content-Type': 'application/json'},
-      );
-      return jsonDecode(response.body) as Map<String, dynamic>;
+      ).timeout(const Duration(seconds: 20));
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      if (decoded['success'] == true && decoded['data'] is List) {
+        final meta = decoded['meta'] as Map<String, dynamic>? ?? {};
+        return {
+          'success': true,
+          'data': decoded['data'],
+          'meta': {
+            'next_cursor': meta['next_cursor'],
+            'prev_cursor': meta['prev_cursor'],
+            'per_page': meta['per_page'],
+            'has_more': meta['has_more'] == true,
+          },
+        };
+      }
+      return decoded;
     } catch (e) {
       return _handleError(e);
     }

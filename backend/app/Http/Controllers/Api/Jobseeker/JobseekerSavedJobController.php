@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Jobseeker;
 
 use App\Http\Controllers\Controller;
+use App\Models\Application;
 use App\Models\JobListing;
 use App\Models\JobseekerSavedJob;
 use Illuminate\Http\Request;
@@ -11,7 +12,9 @@ class JobseekerSavedJobController extends Controller
 {
     public function index(Request $request)
     {
-        $jobseeker = $request->user();
+        $jobseeker = $request->user()->loadMissing('skills');
+
+        $perPage = max(1, min((int) $request->integer('limit', 15), 50));
 
         $saved = JobseekerSavedJob::where('jobseeker_id', $jobseeker->id)
             ->with([
@@ -20,11 +23,34 @@ class JobseekerSavedJobController extends Controller
                 'jobListing.skills:id,job_listing_id,skill',
             ])
             ->orderByDesc('created_at')
-            ->paginate(15);
+            ->orderByDesc('id')
+            ->cursorPaginate(
+                $perPage,
+                ['*'],
+                'cursor',
+                $request->query('cursor')
+            );
+
+        $saved->getCollection()->transform(function ($item) use ($jobseeker) {
+            $listing = $item->jobListing;
+            $score = 0;
+            if ($listing) {
+                $score = Application::calculateMatchScore($jobseeker, $listing);
+            }
+            $item->setAttribute('match_score', $score);
+            $item->setAttribute('match_percentage', $score);
+            return $item;
+        });
 
         return response()->json([
             'success' => true,
             'data' => $saved,
+            'meta' => [
+                'per_page' => $perPage,
+                'next_cursor' => optional($saved->nextCursor())->encode(),
+                'prev_cursor' => optional($saved->previousCursor())->encode(),
+                'has_more' => $saved->nextCursor() !== null,
+            ],
         ]);
     }
 

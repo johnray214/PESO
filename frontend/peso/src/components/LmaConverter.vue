@@ -23,7 +23,7 @@
         </div>
         <div>
           <h1 class="page-title">LMA Report Generator</h1>
-          <p class="page-sub">Upload the Job Vacancies Solicited Excel file to auto-generate the LMA summary</p>
+          <p class="page-sub">Upload both Excel files to auto-generate the complete LMA summary</p>
         </div>
       </div>
       <button
@@ -38,38 +38,90 @@
       </button>
     </header>
 
-    <!-- Upload zone -->
-    <div
-      v-if="!summary"
-      class="upload-zone"
-      :class="{ dragging, 'has-file': selectedFile }"
-      @dragover.prevent="dragging = true"
-      @dragleave.prevent="dragging = false"
-      @drop.prevent="onDrop"
-      @click="$refs.fileInput.click()"
-    >
-      <input ref="fileInput" type="file" accept=".xlsx,.xls" hidden @change="onFileChange" />
-      <div class="upload-inner">
-        <div class="upload-icon-wrap" :class="{ 'upload-icon-ready': !!selectedFile }">
-          <svg v-if="!selectedFile" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-          <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+    <!-- Dual upload zones -->
+    <template v-if="!summary">
+      <div class="dual-upload-grid">
+        <!-- JV File -->
+        <div
+          class="upload-zone upload-half"
+          :class="{ dragging: dragging.jv, 'has-file': files.jv }"
+          @dragover.prevent="dragging.jv = true"
+          @dragleave.prevent="dragging.jv = false"
+          @drop.prevent="onDrop($event, 'jv')"
+          @click="$refs.jvInput.click()"
+        >
+          <input ref="jvInput" type="file" accept=".xlsx,.xls" hidden @change="onFileChange($event, 'jv')" />
+          <div class="upload-step">Step 1</div>
+          <div class="upload-inner">
+            <div class="upload-icon-wrap" :class="{ 'upload-icon-ready': !!files.jv }">
+              <svg v-if="!files.jv" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/></svg>
+              <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <template v-if="!files.jv">
+              <p class="upload-title">Job Vacancies Solicited</p>
+              <p class="upload-sub">Drop or click — provides Tables 1, 4 &amp; 5</p>
+              <p class="upload-hint">Required sheets: <strong>JV</strong> · <strong>Form 2</strong></p>
+            </template>
+            <template v-else>
+              <p class="upload-title" style="color:#7c3aed">{{ files.jv.name }}</p>
+              <p class="upload-sub">{{ formatBytes(files.jv.size) }} · Ready</p>
+              <button class="btn-link" @click.stop="resetSlot('jv')" :disabled="processing">Choose different file</button>
+            </template>
+          </div>
         </div>
-        <template v-if="!selectedFile">
-          <p class="upload-title">Drop your Excel file here</p>
-          <p class="upload-sub">or click to browse — accepts .xlsx / .xls</p>
-          <p class="upload-hint">Expected file: <strong>JOB_VACANCIES_SOLICITED</strong> format</p>
-        </template>
-        <template v-else>
-          <p class="upload-title" style="color:#7c3aed">{{ selectedFile.name }}</p>
-          <p class="upload-sub">{{ formatBytes(selectedFile.size) }} · Ready to process</p>
-          <button class="btn btn-secondary btn-sm" style="margin-top:8px" @click.stop="processFile" :disabled="processing">
-            <span v-if="processing" class="btn-spinner"></span>
-            {{ processing ? 'Processing...' : 'Process File' }}
-          </button>
-          <button class="btn-link" @click.stop="resetFile" :disabled="processing">Choose different file</button>
-        </template>
+
+        <!-- F1 File -->
+        <div
+          class="upload-zone upload-half"
+          :class="{ dragging: dragging.f1, 'has-file': files.f1 }"
+          @dragover.prevent="dragging.f1 = true"
+          @dragleave.prevent="dragging.f1 = false"
+          @drop.prevent="onDrop($event, 'f1')"
+          @click="$refs.f1Input.click()"
+        >
+          <input ref="f1Input" type="file" accept=".xlsx,.xls" hidden @change="onFileChange($event, 'f1')" />
+          <div class="upload-step">Step 2</div>
+          <div class="upload-inner">
+            <div class="upload-icon-wrap" :class="{ 'upload-icon-ready': !!files.f1 }">
+              <svg v-if="!files.f1" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+              <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <template v-if="!files.f1">
+              <p class="upload-title">F1 SANTIAGO Form</p>
+              <p class="upload-sub">Drop or click — provides Tables 2 &amp; 3</p>
+              <p class="upload-hint">Required sheets: <strong>reg.*</strong> · <strong>ref.*</strong> · <strong>placed*</strong></p>
+            </template>
+            <template v-else>
+              <p class="upload-title" style="color:#7c3aed">{{ files.f1.name }}</p>
+              <p class="upload-sub">{{ formatBytes(files.f1.size) }} · Ready</p>
+              <button class="btn-link" @click.stop="resetSlot('f1')" :disabled="processing">Choose different file</button>
+            </template>
+          </div>
+        </div>
       </div>
-    </div>
+
+      <!-- Action bar -->
+      <div class="action-bar" v-if="files.jv || files.f1">
+        <div class="action-bar-left">
+          <div class="action-status" :class="{ ready: bothReady, partial: !bothReady && (files.jv || files.f1) }">
+            <svg v-if="bothReady" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+            <span>{{ bothReady ? 'Both files ready' : 'Upload both files for the complete report (Tables 1-5)' }}</span>
+          </div>
+        </div>
+        <div class="action-bar-right">
+          <button
+            class="btn btn-primary"
+            :disabled="!files.jv || processing"
+            @click="processFile"
+          >
+            <span v-if="processing" class="btn-spinner"></span>
+            <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+            {{ processing ? 'Processing...' : (bothReady ? 'Process Both Files' : 'Process JV Only') }}
+          </button>
+        </div>
+      </div>
+    </template>
 
     <!-- Processing skeleton -->
     <template v-if="processing">
@@ -90,11 +142,18 @@
       <!-- Re-upload bar -->
       <div class="reupload-bar">
         <div class="reupload-left">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <span class="reupload-filename">{{ selectedFile.name }}</span>
-          <span class="reupload-size">{{ formatBytes(selectedFile.size) }}</span>
+          <span v-if="files.jv" class="reupload-chip">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/></svg>
+            <span class="reupload-filename">{{ files.jv.name }}</span>
+            <span class="reupload-size">{{ formatBytes(files.jv.size) }}</span>
+          </span>
+          <span v-if="files.f1" class="reupload-chip">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/></svg>
+            <span class="reupload-filename">{{ files.f1.name }}</span>
+            <span class="reupload-size">{{ formatBytes(files.f1.size) }}</span>
+          </span>
         </div>
-        <button class="btn-link" @click="resetFile">Upload different file</button>
+        <button class="btn-link" @click="resetFile">Upload different files</button>
       </div>
 
       <!-- KPI Cards -->
@@ -158,6 +217,127 @@
                 <td><strong>Total</strong></td>
                 <td class="num"><strong>{{ formatNumber(summary.grandTotal) }}</strong></td>
                 <td class="num"><strong>100%</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Table 2: Registered Applicants -->
+      <section v-if="summary.table2 && summary.table2.total > 0" class="card">
+        <header class="card-header">
+          <div>
+            <h3>Table 2. Registered Applicants</h3>
+            <p class="card-sub">Through PESO Employment Information System (PEIS) · {{ summary.period }}</p>
+          </div>
+          <span class="table-badge">{{ formatNumber(summary.table2.total) }} Registered</span>
+        </header>
+        <div class="table-wrap">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th>Gender</th>
+                <th class="num">Number of Registered Applicants</th>
+                <th class="num">Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Male</td>
+                <td class="num">{{ formatNumber(summary.table2.male) }}</td>
+                <td class="num">{{ summary.table2.total ? ((summary.table2.male / summary.table2.total) * 100).toFixed(2) : 0 }}%</td>
+              </tr>
+              <tr>
+                <td>Female</td>
+                <td class="num">{{ formatNumber(summary.table2.female) }}</td>
+                <td class="num">{{ summary.table2.total ? ((summary.table2.female / summary.table2.total) * 100).toFixed(2) : 0 }}%</td>
+              </tr>
+              <tr class="total-row">
+                <td><strong>Total</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table2.total) }}</strong></td>
+                <td class="num"><strong>100%</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Age breakdown (Youth / Non-Youth) -->
+        <div v-if="(summary.table2.youth + summary.table2.nonYouth) > 0" class="table-wrap" style="margin-top:12px">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th>Age Bracket</th>
+                <th class="num">Count</th>
+                <th class="num">Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Youth (24 and below)</td>
+                <td class="num">{{ formatNumber(summary.table2.youth) }}</td>
+                <td class="num">{{ ((summary.table2.youth / (summary.table2.youth + summary.table2.nonYouth)) * 100).toFixed(2) }}%</td>
+              </tr>
+              <tr>
+                <td>Non-Youth (25 and above)</td>
+                <td class="num">{{ formatNumber(summary.table2.nonYouth) }}</td>
+                <td class="num">{{ ((summary.table2.nonYouth / (summary.table2.youth + summary.table2.nonYouth)) * 100).toFixed(2) }}%</td>
+              </tr>
+              <tr class="total-row">
+                <td><strong>Total</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table2.youth + summary.table2.nonYouth) }}</strong></td>
+                <td class="num"><strong>100%</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Table 3: Referred & Placed -->
+      <section v-if="summary.table3 && summary.table3.ref.total > 0" class="card">
+        <header class="card-header">
+          <div>
+            <h3>Table 3. Referred and Placed Applicants by Gender and Work Location</h3>
+            <p class="card-sub">Placement rate · {{ summary.table3.placementRate }}%</p>
+          </div>
+          <span class="table-badge">{{ formatNumber(summary.table3.placed.total) }} Placed</span>
+        </header>
+        <div class="table-wrap">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th rowspan="2">Gender</th>
+                <th class="num" rowspan="2">Referred</th>
+                <th class="num" rowspan="2">Placed</th>
+                <th class="num" rowspan="2">Placement Rate</th>
+                <th class="num" colspan="4" style="text-align:center">Placed Distribution by Work Location</th>
+              </tr>
+              <tr>
+                <th class="num">Local</th>
+                <th class="num">Rate</th>
+                <th class="num">Overseas</th>
+                <th class="num">Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="g in ['male','female']" :key="g">
+                <td style="text-transform:capitalize">{{ g }}</td>
+                <td class="num">{{ formatNumber(summary.table3.ref[g]) }}</td>
+                <td class="num">{{ formatNumber(summary.table3.placed[g]) }}</td>
+                <td class="num">{{ summary.table3.ref.total ? ((summary.table3.placed[g] / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</td>
+                <td class="num">{{ formatNumber(summary.table3.placedLocal[g]) }}</td>
+                <td class="num">{{ summary.table3.ref.total ? ((summary.table3.placedLocal[g] / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</td>
+                <td class="num">{{ formatNumber(summary.table3.placedOverseas[g]) }}</td>
+                <td class="num">{{ summary.table3.ref.total ? ((summary.table3.placedOverseas[g] / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</td>
+              </tr>
+              <tr class="total-row">
+                <td><strong>Total</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table3.ref.total) }}</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table3.placed.total) }}</strong></td>
+                <td class="num"><strong>{{ summary.table3.placementRate }}%</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table3.placedLocal.total) }}</strong></td>
+                <td class="num"><strong>{{ summary.table3.ref.total ? ((summary.table3.placedLocal.total / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table3.placedOverseas.total) }}</strong></td>
+                <td class="num"><strong>{{ summary.table3.ref.total ? ((summary.table3.placedOverseas.total / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</strong></td>
               </tr>
             </tbody>
           </table>
@@ -344,8 +524,8 @@ export default {
 
   data() {
     return {
-      selectedFile: null,
-      dragging: false,
+      files: { jv: null, f1: null },
+      dragging: { jv: false, f1: false },
       processing: false,
       downloading: false,
       summary: null,
@@ -354,48 +534,81 @@ export default {
     }
   },
 
+  computed: {
+    bothReady() {
+      return !!this.files.jv && !!this.files.f1
+    },
+  },
+
   methods: {
 
     /* ─── File handling ─── */
 
-    onDrop(e) {
-      this.dragging = false
+    onDrop(e, slot) {
+      this.dragging[slot] = false
       const file = e.dataTransfer.files[0]
-      if (file) this.setFile(file)
+      if (file) this.setFile(file, slot)
     },
 
-    onFileChange(e) {
+    onFileChange(e, slot) {
       const file = e.target.files[0]
-      if (file) this.setFile(file)
+      if (file) this.setFile(file, slot)
     },
 
-    setFile(file) {
+    setFile(file, slot) {
       if (!file.name.match(/\.(xlsx|xls)$/i)) {
         this.notify('error', 'Please upload an Excel file (.xlsx or .xls)')
         return
       }
-      this.selectedFile = file
+      this.files[slot] = file
       this.summary = null
     },
 
-    resetFile() {
-      this.selectedFile = null
+    resetSlot(slot) {
+      this.files[slot] = null
       this.summary = null
-      this.$refs.fileInput.value = ''
+      const ref = slot === 'jv' ? 'jvInput' : 'f1Input'
+      if (this.$refs[ref]) this.$refs[ref].value = ''
+    },
+
+    resetFile() {
+      this.files = { jv: null, f1: null }
+      this.summary = null
+      if (this.$refs.jvInput) this.$refs.jvInput.value = ''
+      if (this.$refs.f1Input) this.$refs.f1Input.value = ''
     },
 
     /* ─── Process ─── */
 
     async processFile() {
-      if (!this.selectedFile || this.processing) return
+      if (!this.files.jv || this.processing) return
       this.processing = true
       try {
-        const data = await this.readExcel(this.selectedFile)
-        this.summary = this.buildSummary(data)
-        this.notify('success', 'File processed successfully!')
+        const jvData = await this.readExcel(this.files.jv)
+        let f1Data = { regRows: [], refRows: [], placedRows: [] }
+        if (this.files.f1) {
+          f1Data = await this.readExcel(this.files.f1)
+        }
+
+        // Merge: JV file provides jvRows + form2Rows; F1 file provides reg/ref/placed
+        const merged = {
+          jvRows:    jvData.jvRows,
+          form2Rows: jvData.form2Rows.length ? jvData.form2Rows : f1Data.form2Rows,
+          regRows:   f1Data.regRows.length    ? f1Data.regRows    : jvData.regRows,
+          refRows:   f1Data.refRows.length    ? f1Data.refRows    : jvData.refRows,
+          placedRows: f1Data.placedRows.length ? f1Data.placedRows : jvData.placedRows,
+        }
+
+        this.summary = this.buildSummary(merged)
+        this.notify(
+          'success',
+          this.files.f1
+            ? 'Both files processed — full report ready!'
+            : 'JV file processed — upload F1 file for Tables 2 & 3.'
+        )
       } catch (e) {
         console.error(e)
-        this.notify('error', 'Could not read file. Make sure it\'s the correct JV format.')
+        this.notify('error', 'Could not read file. Make sure both files are the correct format.')
       } finally {
         this.processing = false
       }
@@ -407,17 +620,52 @@ export default {
         reader.onload = (e) => {
           try {
             const wb = XLSX.read(e.target.result, { type: 'array' })
-            // Get JV sheet
-            const jvSheet = wb.Sheets['JV'] || wb.Sheets[wb.SheetNames[0]]
-            const jvRows = XLSX.utils.sheet_to_json(jvSheet, { header: 1, defval: null })
 
-            // Get Form 2 sheet for LMI data
-            const form2Sheet = wb.Sheets['Form 2'] || wb.Sheets['Sheet2'] || null
-            const form2Rows = form2Sheet
-              ? XLSX.utils.sheet_to_json(form2Sheet, { header: 1, defval: null })
-              : []
+            const findSheet = (patterns) => {
+              for (const name of wb.SheetNames) {
+                const upper = name.toUpperCase().trim()
+                for (const p of patterns) {
+                  if (typeof p === 'string') {
+                    if (upper === p.toUpperCase()) return wb.Sheets[name]
+                  } else if (p.test(upper)) {
+                    return wb.Sheets[name]
+                  }
+                }
+              }
+              return null
+            }
 
-            resolve({ jvRows, form2Rows, sheetNames: wb.SheetNames })
+            const sheetToRows = (s) =>
+              s ? XLSX.utils.sheet_to_json(s, { header: 1, defval: null }) : []
+
+            // JV sheet ('JV' or 'Job Vac.' or any "JOB VAC..." sheet)
+            const jvSheet = findSheet(['JV', 'Job Vac.', /^JOB\s*VAC/, /VACANC/]) || wb.Sheets[wb.SheetNames[0]]
+            const jvRows = sheetToRows(jvSheet)
+
+            // Form 2 / LMI sheet
+            const form2Sheet = findSheet(['Form 2', 'Sheet2', /^F2[\W_]*LMI/, /LMI.*FORM\s*2/, /^F[12].?LMI/])
+            const form2Rows = sheetToRows(form2Sheet)
+
+            // Registered applicants
+            const regSheet = findSheet([/^REG\.?/, /REGISTRATION/, /REGISTERED/])
+            const regRows = sheetToRows(regSheet)
+
+            // Referred applicants
+            const refSheet = findSheet([/^REF\.?/, /REFERRAL/, /REFERRED/])
+            const refRows = sheetToRows(refSheet)
+
+            // Placed applicants
+            const placedSheet = findSheet([/^PLACED/, /PLACEMENT/])
+            const placedRows = sheetToRows(placedSheet)
+
+            resolve({
+              jvRows,
+              form2Rows,
+              regRows,
+              refRows,
+              placedRows,
+              sheetNames: wb.SheetNames,
+            })
           } catch (err) {
             reject(err)
           }
@@ -427,7 +675,7 @@ export default {
       })
     },
 
-    buildSummary({ jvRows, form2Rows }) {
+    buildSummary({ jvRows, form2Rows, regRows, refRows, placedRows }) {
       // ── Detect LOCAL section ──
       // Find header row with "NO.", "COMPANY NAME", "POSITION", "VACANCY COUNT"
       let localHeaderRow = -1
@@ -505,8 +753,15 @@ export default {
       // ── LMI from Form 2 ──
       const lmiData  = this.parseLmi(form2Rows)
 
+      // ── Table 2: Registered Applicants by gender ──
+      const table2 = this.parseRegistered(regRows || [])
+
+      // ── Table 3: Referred & Placed by gender + work location ──
+      const table3 = this.parsePlacement(refRows || [], placedRows || [])
+
       // ── Period from filename or sheet ──
-      const period = this.detectPeriod(this.selectedFile.name, jvRows)
+      const refName = (this.files.jv && this.files.jv.name) || (this.files.f1 && this.files.f1.name) || ''
+      const period = this.detectPeriod(refName, jvRows)
 
       return {
         period,
@@ -517,8 +772,123 @@ export default {
         overseasPct: grandTotal ? +((overseasTotal / grandTotal) * 100).toFixed(1) : 0,
         topPositions,
         others,
+        table2,
+        table3,
         lmiInstitutions: lmiData.total,
         lmiBreakdown:    lmiData.breakdown,
+      }
+    },
+
+    /* ── Table 2: Registered Applicants ── */
+    parseRegistered(rows) {
+      // Detect sub-header row that contains "Male" and "Female"
+      let subHeaderRow = -1
+      for (let i = 0; i < Math.min(rows.length, 30); i++) {
+        const r = rows[i].map(c => String(c ?? '').trim().toUpperCase())
+        if (r.includes('MALE') && r.includes('FEMALE')) {
+          subHeaderRow = i
+          break
+        }
+      }
+      if (subHeaderRow === -1) return { male: 0, female: 0, total: 0, youth: 0, nonYouth: 0 }
+
+      const header = rows[subHeaderRow].map(c => String(c ?? '').trim().toUpperCase())
+      const maleCol     = header.findIndex(h => h === 'MALE')
+      const femaleCol   = header.findIndex(h => h === 'FEMALE')
+      // "Youth (age 24 and below)" / "Non-Youth (age 25 and above)" — match
+      // non-youth first (more specific) so it doesn't get stolen by /YOUTH/.
+      const nonYouthCol = header.findIndex(h => h.includes('NON-YOUTH') || h.includes('NON YOUTH'))
+      const youthCol    = header.findIndex((h, i) => i !== nonYouthCol && h.includes('YOUTH'))
+
+      let male = 0, female = 0, youth = 0, nonYouth = 0
+      for (let i = subHeaderRow + 1; i < rows.length; i++) {
+        const row = rows[i] || []
+        const m = parseFloat(row[maleCol])
+        const f = parseFloat(row[femaleCol])
+        if (!isNaN(m) && m > 0) male += m
+        if (!isNaN(f) && f > 0) female += f
+        if (youthCol >= 0) {
+          const y = parseFloat(row[youthCol])
+          if (!isNaN(y) && y > 0) youth += y
+        }
+        if (nonYouthCol >= 0) {
+          const n = parseFloat(row[nonYouthCol])
+          if (!isNaN(n) && n > 0) nonYouth += n
+        }
+      }
+      return { male, female, total: male + female, youth, nonYouth }
+    },
+
+    /* ── Table 3: Referred & Placed ── */
+    parsePlacement(refRows, placedRows) {
+      // Locate sub-header (row containing both MALE and FEMALE)
+      const findSubHeader = (rows) => {
+        for (let i = 0; i < Math.min(rows.length, 30); i++) {
+          const r = (rows[i] || []).map(c => String(c ?? '').trim().toUpperCase())
+          if (r.includes('MALE') && r.includes('FEMALE')) return i
+        }
+        return -1
+      }
+
+      // Look up a column index across the sub-header AND the row above it.
+      // Some F-forms put gender on row N+1 and Local/Overseas on row N.
+      const findCol = (rows, subRow, predicate) => {
+        for (const r of [subRow, subRow - 1]) {
+          if (r < 0 || !rows[r]) continue
+          const cells = rows[r].map(c => String(c ?? '').trim().toUpperCase())
+          const idx = cells.findIndex(predicate)
+          if (idx >= 0) return idx
+        }
+        return -1
+      }
+
+      // Referred: only need male/female
+      let ref = { male: 0, female: 0 }
+      const refSub = findSubHeader(refRows)
+      if (refSub >= 0) {
+        const mC = findCol(refRows, refSub, h => h === 'MALE')
+        const fC = findCol(refRows, refSub, h => h === 'FEMALE')
+        for (let i = refSub + 1; i < refRows.length; i++) {
+          const row = refRows[i] || []
+          if (mC >= 0 && parseFloat(row[mC]) > 0) ref.male++
+          if (fC >= 0 && parseFloat(row[fC]) > 0) ref.female++
+        }
+      }
+
+      // Placed: need male/female AND local/overseas (cross-tabulated per row)
+      let pml = 0, pfl = 0, pmo = 0, pfo = 0
+      const plcSub = findSubHeader(placedRows)
+      if (plcSub >= 0) {
+        const mC = findCol(placedRows, plcSub, h => h === 'MALE')
+        const fC = findCol(placedRows, plcSub, h => h === 'FEMALE')
+        const lC = findCol(placedRows, plcSub, h => h.includes('LOCAL'))
+        const oC = findCol(placedRows, plcSub, h => h.includes('OVERSEAS'))
+        for (let i = plcSub + 1; i < placedRows.length; i++) {
+          const row = placedRows[i] || []
+          const isM = mC >= 0 && parseFloat(row[mC]) > 0
+          const isF = fC >= 0 && parseFloat(row[fC]) > 0
+          const isL = lC >= 0 && parseFloat(row[lC]) > 0
+          const isO = oC >= 0 && parseFloat(row[oC]) > 0
+          if (isM && isL) pml++
+          if (isF && isL) pfl++
+          if (isM && isO) pmo++
+          if (isF && isO) pfo++
+        }
+      }
+
+      const placedMale     = pml + pmo
+      const placedFemale   = pfl + pfo
+      const refTotal       = ref.male + ref.female
+      const placedTotal    = placedMale + placedFemale
+      const placedLocal    = pml + pfl
+      const placedOverseas = pmo + pfo
+
+      return {
+        ref:            { male: ref.male,    female: ref.female,   total: refTotal },
+        placed:         { male: placedMale,  female: placedFemale, total: placedTotal },
+        placedLocal:    { male: pml,         female: pfl,          total: placedLocal },
+        placedOverseas: { male: pmo,         female: pfo,          total: placedOverseas },
+        placementRate:  refTotal ? +((placedTotal / refTotal) * 100).toFixed(2) : 0,
       }
     },
 
@@ -714,21 +1084,34 @@ export default {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Upload ── */
-.upload-zone { background: #fff; border: 2px dashed #e2e8f0; border-radius: 14px; cursor: pointer; transition: all .2s; }
+.upload-zone { background: #fff; border: 2px dashed #e2e8f0; border-radius: 14px; cursor: pointer; transition: all .2s; position: relative; }
 .upload-zone:hover, .upload-zone.dragging { border-color: #7c3aed; background: #faf5ff; }
 .upload-zone.has-file { border-color: #a78bfa; background: #faf5ff; }
-.upload-inner { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 24px; text-align: center; }
-.upload-icon-wrap { width: 64px; height: 64px; background: #f8fafc; border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #94a3b8; margin-bottom: 4px; transition: all .2s; }
+.upload-inner { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 20px; text-align: center; }
+.upload-icon-wrap { width: 56px; height: 56px; background: #f8fafc; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #94a3b8; margin-bottom: 4px; transition: all .2s; }
 .upload-icon-ready { background: #faf5ff; color: #7c3aed; }
-.upload-title { font-size: 15px; font-weight: 700; color: #1e293b; }
-.upload-sub   { font-size: 12.5px; color: #94a3b8; }
-.upload-hint  { font-size: 11.5px; color: #94a3b8; background: #f8fafc; padding: 5px 12px; border-radius: 6px; border: 1px solid #f1f5f9; }
+.upload-title { font-size: 14px; font-weight: 700; color: #1e293b; }
+.upload-sub   { font-size: 12px; color: #94a3b8; }
+.upload-hint  { font-size: 11px; color: #94a3b8; background: #f8fafc; padding: 5px 10px; border-radius: 6px; border: 1px solid #f1f5f9; }
+
+/* ── Dual upload grid ── */
+.dual-upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.upload-half { min-height: 200px; }
+.upload-step { position: absolute; top: 12px; left: 14px; font-size: 10.5px; font-weight: 800; color: #7c3aed; background: #faf5ff; border: 1px solid #e9d5ff; padding: 3px 9px; border-radius: 99px; letter-spacing: .4px; text-transform: uppercase; }
+
+/* ── Action bar ── */
+.action-bar { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 12px 16px; gap: 12px; flex-wrap: wrap; }
+.action-bar-left { flex: 1; min-width: 220px; }
+.action-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 99px; }
+.action-status.ready   { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.action-status.partial { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
 
 /* ── Reupload bar ── */
 .reupload-bar { display: flex; align-items: center; justify-content: space-between; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 8px 14px; flex-wrap: wrap; gap: 8px; }
-.reupload-left { display: flex; align-items: center; gap: 8px; }
-.reupload-filename { font-size: 12px; font-weight: 700; color: #5b21b6; }
-.reupload-size { font-size: 11px; color: #a78bfa; }
+.reupload-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.reupload-chip { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e9d5ff; padding: 4px 10px; border-radius: 99px; }
+.reupload-filename { font-size: 11.5px; font-weight: 700; color: #5b21b6; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reupload-size { font-size: 10.5px; color: #a78bfa; }
 
 /* ── KPI ── */
 .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
@@ -789,6 +1172,7 @@ export default {
   .lma-page { padding: 14px; }
   .kpi-grid { grid-template-columns: 1fr 1fr; }
   .lma-header { flex-direction: column; align-items: stretch; }
+  .dual-upload-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .kpi-grid { grid-template-columns: 1fr; }

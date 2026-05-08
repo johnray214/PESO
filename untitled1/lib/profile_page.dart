@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -18,10 +18,12 @@ import 'skills_profile_page.dart';
 import 'my_documents_page.dart';
 import 'session_prefs.dart';
 import 'settings_page.dart';
+import 'help_support_page.dart';
 import 'app_nav.dart';
 import 'notification_service.dart';
 import 'main.dart';
 import 'home_pages.dart'; // Added to access global map notifiers
+import 'skill_match_utils.dart';
 
 /// Matches app blues ([AppColors]); menu rows stay one hue — no rainbow accents.
 class _ProfileTheme {
@@ -132,8 +134,11 @@ class _ProfileTabState extends State<ProfileTab> {
               .replaceAll('_', ' ')
               .replaceAll('-', ' ')
               .replaceAll(RegExp(r'\s+'), ' ');
-          // Processing should count ONLY shortlisted + interview.
-          return rawStatus == 'shortlisted' || rawStatus == 'interview';
+          // Processing bucket includes shortlist, interview, and job-offer review stage.
+          return rawStatus == 'shortlisted' ||
+              rawStatus == 'interview' ||
+              rawStatus == 'for job offer' ||
+              rawStatus == 'for_job_offer';
         }).length;
       }
 
@@ -446,7 +451,9 @@ class _ProfileTabState extends State<ProfileTab> {
                 _buildMenuItem(
                   icon: Icons.help_center_rounded,
                   title: 'Help & Support',
-                  onTap: () {},
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const HelpSupportPage()),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 _buildMenuItem(
@@ -520,6 +527,8 @@ class _ProfileTabState extends State<ProfileTab> {
     }
 
     UserSession().clear();
+    SkillMatchUtils.invalidateUserSkillsCache();
+    mapUserSkillsRevisionNotifier.value++;
     await SessionPrefs.clear();
 
     if (!mounted) return;
@@ -645,6 +654,19 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   String? _barangayCode;
   String? _barangayName;
 
+  late String _initialFirstName;
+  late String _initialMiddleInitial;
+  late String _initialLastName;
+  late String _initialDob;
+  late String _initialPhone;
+  late String _initialStreet;
+  String? _initialSex;
+  String? _initialEducationLevel;
+  List<String> _initialJobExperiences = [];
+  String? _initialProvinceCode;
+  String? _initialCityCode;
+  String? _initialBarangayCode;
+
   @override
   void initState() {
     super.initState();
@@ -677,6 +699,19 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toList();
+
+    _initialFirstName = _firstNameController.text.trim();
+    _initialMiddleInitial = _middleInitialController.text.trim();
+    _initialLastName = _lastNameController.text.trim();
+    _initialDob = _dobController.text.trim();
+    _initialPhone = _phoneController.text.trim();
+    _initialStreet = _streetController.text.trim();
+    _initialSex = _selectedSex;
+    _initialEducationLevel = _educationLevel;
+    _initialJobExperiences = List<String>.from(_jobExperiences);
+    _initialProvinceCode = session.provinceCode;
+    _initialCityCode = session.cityCode;
+    _initialBarangayCode = session.barangayCode;
 
     _loadAvatar();
     _loadProvinces();
@@ -1168,10 +1203,44 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     );
   }
 
+  bool _hasUnsavedChanges() {
+    if (_pickedImageBytes != null) return true;
+    if (_firstNameController.text.trim() != _initialFirstName) return true;
+    if (_middleInitialController.text.trim() != _initialMiddleInitial) return true;
+    if (_lastNameController.text.trim() != _initialLastName) return true;
+    if (_dobController.text.trim() != _initialDob) return true;
+    if (_phoneController.text.trim() != _initialPhone) return true;
+    if (_streetController.text.trim() != _initialStreet) return true;
+    if ((_selectedSex ?? '') != (_initialSex ?? '')) return true;
+    if ((_educationLevel ?? '') != (_initialEducationLevel ?? '')) return true;
+    if (!listEquals(_jobExperiences, _initialJobExperiences)) return true;
+    if ((_provinceCode ?? '') != (_initialProvinceCode ?? '')) return true;
+    if ((_cityCode ?? '') != (_initialCityCode ?? '')) return true;
+    if ((_barangayCode ?? '') != (_initialBarangayCode ?? '')) return true;
+    return false;
+  }
+
+  Future<bool> _confirmDiscardUnsavedChanges() async {
+    if (!_hasUnsavedChanges()) return true;
+    final shouldLeave = await showAppDialog<bool>(
+      context: context,
+      type: AppDialogType.warning,
+      icon: Icons.warning_amber_rounded,
+      title: 'Unsaved Changes',
+      message: 'You have unsaved profile changes. Leave without saving?',
+      confirmLabel: 'Leave',
+      onConfirm: () => Navigator.of(context).pop(true),
+      onCancel: () => Navigator.of(context).pop(false),
+    );
+    return shouldLeave == true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    return Scaffold(
+    return WillPopScope(
+      onWillPop: _confirmDiscardUnsavedChanges,
+      child: Scaffold(
       backgroundColor: Colors.white,
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1208,7 +1277,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                       ),
                     ),
                     IconButton(
-                      onPressed: () => Navigator.pop(context),
+                      onPressed: () async {
+                        final shouldLeave = await _confirmDiscardUnsavedChanges();
+                        if (!mounted || !shouldLeave) return;
+                        Navigator.pop(context);
+                      },
                       icon: Icon(Icons.close_rounded, color: Colors.grey[600]),
                     ),
                   ],
@@ -1691,7 +1764,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           width: double.infinity,
                           height: 54,
                           child: ElevatedButton(
-                            onPressed: _isSaving
+                            onPressed: (_isSaving || !_hasUnsavedChanges())
                                 ? null
                                 : () async {
                                     if (!_formKey.currentState!.validate()) return;
@@ -1813,7 +1886,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           width: double.infinity,
                           height: 54,
                           child: OutlinedButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () async {
+                              final shouldLeave = await _confirmDiscardUnsavedChanges();
+                              if (!mounted || !shouldLeave) return;
+                              Navigator.pop(context);
+                            },
                             style: OutlinedButton.styleFrom(
                               foregroundColor: const Color(0xFF64748B),
                               side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -1839,6 +1916,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               ),
             ],
           ),
+    ),
     );
   }
 }
@@ -1868,13 +1946,29 @@ class _Application {
   final Job job;
   final String appliedDate;
   final String status;
+  final String? processingStage;
   final Color statusColor;
   final IconData statusIcon;
+
+  String get statusWithStage =>
+      status == 'Processing' && (processingStage?.isNotEmpty ?? false)
+          ? '$status · $processingStage'
+          : status;
+
+  String get compactBadgeLabel {
+    if (status == 'Processing' && (processingStage?.isNotEmpty ?? false)) {
+      final stage = processingStage!;
+      if (stage == 'For Job Offer') return 'JOB OFFER';
+      return stage.toUpperCase();
+    }
+    return status.toUpperCase();
+  }
 
   const _Application({
     required this.job,
     required this.appliedDate,
     required this.status,
+    this.processingStage,
     required this.statusColor,
     this.statusIcon = Icons.info_outline_rounded,
   });
@@ -1955,6 +2049,12 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                 DateTime.now();
         final appliedDate = _formatApplicationDate(createdAt);
         final rawStatus = (map['status'] as String? ?? '').trim().toLowerCase();
+        final processingStage = switch (rawStatus) {
+          'shortlisted' => 'Shortlisted',
+          'interview' => 'Interview',
+          'for_job_offer' => 'For Job Offer',
+          _ => null,
+        };
         // Map backend statuses → app display labels.
         // Backend: reviewing, shortlisted, interview, hired, rejected
         final normalizedStatus = switch (rawStatus) {
@@ -1964,6 +2064,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
           // PROCESSING = interview, shortlisted
           'shortlisted' => 'Processing',
           'interview' => 'Processing',
+          'for_job_offer' => 'Processing',
 
           // PLACEMENT/HIRED = hired / rejected
           'hired' => 'Placement/Hired',
@@ -2007,6 +2108,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
           job: job,
           appliedDate: appliedDate,
           status: normalizedStatus,
+          processingStage: processingStage,
           statusColor: statusColor,
           statusIcon: statusIcon,
         ));
@@ -2199,12 +2301,12 @@ class _ApplicationCard extends StatelessWidget {
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                  application.status.toUpperCase(),
+                                  application.compactBadgeLabel,
                                   style: TextStyle(
                                     fontSize: 11,
                                     fontWeight: FontWeight.w800,
                                     color: application.statusColor,
-                                    letterSpacing: 0.5,
+                                    letterSpacing: 0.35,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -2304,8 +2406,12 @@ class SavedJobsPage extends StatefulWidget {
 class _SavedJobsPageState extends State<SavedJobsPage> {
   final List<_SavedJob> _savedJobs = [];
   bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  String? _nextCursor;
   String? _errorMessage;
   final _jobActionService = JobActionService();
+  final ScrollController _scrollController = ScrollController();
 
   String _savedDateLabel(DateTime date) {
     const months = [
@@ -2331,6 +2437,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
     super.initState();
     _fetchSavedJobs();
     _jobActionService.addListener(_onJobActionsChanged);
+    _scrollController.addListener(_onScroll);
   }
 
   void _onJobActionsChanged() {
@@ -2340,25 +2447,51 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
   @override
   void dispose() {
     _jobActionService.removeListener(_onJobActionsChanged);
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _fetchSavedJobs() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  void _onScroll() {
+    if (_isLoading || _isLoadingMore || !_hasMore) return;
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 280) {
+      _fetchSavedJobs(loadMore: true);
+    }
+  }
+
+  Future<void> _fetchSavedJobs({bool loadMore = false}) async {
+    if (loadMore && (_isLoading || _isLoadingMore || !_hasMore)) return;
+    if (!loadMore) {
+      setState(() {
+        _isLoading = true;
+        _isLoadingMore = false;
+        _hasMore = true;
+        _nextCursor = null;
+        _errorMessage = null;
+      });
+    } else {
+      setState(() {
+        _isLoadingMore = true;
+      });
+    }
 
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
       setState(() {
         _savedJobs.clear();
         _isLoading = false;
+        _isLoadingMore = false;
+        _hasMore = false;
       });
       return;
     }
 
-    final result = await ApiService.getSavedJobs(token);
+    final result = await ApiService.getSavedJobs(
+      token,
+      cursor: loadMore ? _nextCursor : null,
+      limit: 15,
+    );
     if (!mounted) return;
 
     if (result['success'] == true) {
@@ -2367,9 +2500,17 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
 
       for (final item in list) {
         final map = item as Map<String, dynamic>;
-        final jobData =
+        final rawJobData =
             (map['job_listing'] ?? map['job']) as Map<String, dynamic>? ?? {};
-        final job = Job.fromJson(jobData);
+        final job = Job.fromJson({
+          ...rawJobData,
+          'match_percentage':
+              (map['match_score'] as num?)?.toInt() ??
+                  (map['match_percentage'] as num?)?.toInt() ??
+                  (rawJobData['match_score'] as num?)?.toInt() ??
+                  (rawJobData['match_percentage'] as num?)?.toInt() ??
+                  0,
+        });
         final createdAt =
             DateTime.tryParse(map['created_at'] as String? ?? '') ??
                 DateTime.now();
@@ -2378,16 +2519,27 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
         items.add(_SavedJob(job: job, savedDate: savedDate));
       }
 
+      final meta = result['meta'] as Map<String, dynamic>? ?? {};
+      final nextCursor = meta['next_cursor'] as String?;
+      final hasMore = meta['has_more'] == true || (nextCursor != null && nextCursor.isNotEmpty);
       setState(() {
-        _savedJobs
-          ..clear()
-          ..addAll(items);
+        if (!loadMore) {
+          _savedJobs
+            ..clear()
+            ..addAll(items);
+        } else {
+          _savedJobs.addAll(items);
+        }
+        _nextCursor = nextCursor;
+        _hasMore = hasMore;
         _isLoading = false;
+        _isLoadingMore = false;
       });
     } else {
       setState(() {
         _errorMessage = result['message'] as String? ?? 'Failed to load saved jobs.';
         _isLoading = false;
+        _isLoadingMore = false;
       });
     }
   }
@@ -2532,12 +2684,25 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                       color: _ProfileTheme.primary,
                       onRefresh: _fetchSavedJobs,
                       child: ListView.builder(
+                        controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(
                           parent: ClampingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-                        itemCount: _savedJobs.length,
+                        itemCount: _savedJobs.length + (_isLoadingMore ? 1 : 0),
                         itemBuilder: (context, index) {
+                          if (index >= _savedJobs.length) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2.2),
+                                ),
+                              ),
+                            );
+                          }
                           final saved = _savedJobs[index];
                           final isApplied = _jobActionService.isApplied(saved.job.id);
                           return _SavedJobCard(
@@ -2571,6 +2736,53 @@ class _SavedJobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final job = savedJob.job;
+    Future<void> openDetails() async {
+      final jobActionService = JobActionService();
+      Job detailJob = job;
+      final token = UserSession().token;
+      if (token != null && token.isNotEmpty) {
+        final jobId = int.tryParse(job.id);
+        final result = jobId == null
+            ? const {'success': false}
+            : await ApiService.getJobById(token, jobId);
+        if (result['success'] == true) {
+          final data = result['data'] as Map<String, dynamic>? ?? {};
+          final listing = data['job_listing'] as Map<String, dynamic>? ?? {};
+          if (listing.isNotEmpty) {
+            detailJob = Job.fromJson({
+              ...listing,
+              if ((listing['employer'] == null || listing['employer'] is! Map) &&
+                  job.company.isNotEmpty)
+                'employer': {'company_name': job.company},
+              if ((listing['location'] == null ||
+                      listing['location'].toString().trim().isEmpty) &&
+                  job.location.isNotEmpty)
+                'location': job.location,
+              'match_percentage':
+                  (data['match_score'] as num?)?.toInt() ??
+                      (data['match_percentage'] as num?)?.toInt() ??
+                      (listing['match_percentage'] as num?)?.toInt() ??
+                      job.matchPercentage,
+            });
+          }
+        }
+      }
+      if (!context.mounted) return;
+      showJobDetailSheet(
+        context,
+        detailJob,
+        isSaved: true,
+        isApplied: jobActionService.isApplied(detailJob.id),
+        onApply: onApply,
+        onSave: onUnsave,
+        onViewMap: () {
+          Navigator.of(context).pop(); // Pop modal
+          Navigator.of(context).pop(); // Pop SavedJobsPage to return home
+          homeNavRequestNotifier.value = 1; // Switch to Map Tab
+          mapFocusRequestNotifier.value = MapFocusRequest.fromJob(detailJob);
+        },
+      );
+    }
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -2589,23 +2801,7 @@ class _SavedJobCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
-          onTap: () {
-            final jobActionService = JobActionService();
-            showJobDetailSheet(
-              context,
-              job,
-              isSaved: true,
-              isApplied: jobActionService.isApplied(job.id),
-              onApply: onApply,
-              onSave: onUnsave,
-              onViewMap: () {
-                Navigator.of(context).pop(); // Pop modal
-                Navigator.of(context).pop(); // Pop SavedJobsPage to return home
-                homeNavRequestNotifier.value = 1; // Switch to Map Tab
-                mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
-              },
-            );
-          },
+          onTap: openDetails,
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -2672,35 +2868,51 @@ class _SavedJobCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    if (job.matchPercentage > 0)
+                    if (job.matchPercentage > 0) ...[
+                      const SizedBox(width: 12),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF1F5F9),
+                          color: const Color(0xFFF0FDF4),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          border: Border.all(
+                            color: const Color(0xFF10B981).withOpacity(0.2),
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF10B981).withOpacity(0.05),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
+                            const Icon(Icons.star_rounded, size: 12, color: Color(0xFF059669)),
+                            const SizedBox(height: 1),
                             Text(
                               '${job.matchPercentage}%',
                               style: const TextStyle(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF0F172A),
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF059669),
+                                letterSpacing: -0.5,
                               ),
                             ),
-                            Text(
-                              'match',
+                            const Text(
+                              'Match',
                               style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey[600],
+                                fontSize: 8,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF059669),
+                                letterSpacing: 0.2,
                               ),
                             ),
                           ],
                         ),
                       ),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -2742,14 +2954,14 @@ class _SavedJobCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     GestureDetector(
-                      onTap: isApplied ? null : onApply,
+                      onTap: openDetails,
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
                             horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
                           color: isApplied
-                              ? const Color(0xFF64748B)
+                              ? const Color(0xFF10B981)
                               : AppColors.blueAccent,
                           borderRadius: BorderRadius.circular(999),
                         ),
@@ -2877,9 +3089,24 @@ class _ApplicationStatusBanner extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         color: application.statusColor,
                       ),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (application.status == 'Processing' &&
+                        (application.processingStage?.isNotEmpty ?? false))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          '• ${application.processingStage!}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: application.statusColor,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -2942,7 +3169,7 @@ class _ApplicationStatusBanner extends StatelessWidget {
                           Text(
                             steps[index],
                             style: TextStyle(
-                              fontSize: 9,
+                              fontSize: 8,
                               fontWeight: isDone
                                   ? FontWeight.w700
                                   : FontWeight.w500,
@@ -2951,6 +3178,9 @@ class _ApplicationStatusBanner extends StatelessWidget {
                                   : const Color(0xFF94A3B8),
                             ),
                             textAlign: TextAlign.center,
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),

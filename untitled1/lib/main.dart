@@ -23,6 +23,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'notification_service.dart';
+import 'legal_documents.dart';
 
 /// Launcher / task-switcher name and in-app branding (auth, dialogs, etc.).
 const String kAppDisplayName = 'Kabsat Empoy';
@@ -2110,6 +2111,7 @@ class _LoginModalState extends State<LoginModal>
   int _otpReopenCooldownSeconds = 0;
   String? _serverEmailError;
   Timer? _emailDebounce;
+  bool _acceptedTermsAndPrivacy = false;
 
   @override
   void initState() {
@@ -2150,7 +2152,98 @@ class _LoginModalState extends State<LoginModal>
       _formKey.currentState?.reset();
       _authError = null;
       _serverEmailError = null;
+      _acceptedTermsAndPrivacy = false;
     });
+  }
+
+  Widget _buildLegalConsentRow() {
+    final baseStyle = TextStyle(
+      fontSize: 13,
+      height: 1.35,
+      color: Colors.grey[800],
+      fontWeight: FontWeight.w500,
+    );
+    const linkStyle = TextStyle(
+      color: Color(0xFF2563EB),
+      fontSize: 13,
+      fontWeight: FontWeight.w700,
+      height: 1.35,
+    );
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Transform.translate(
+          offset: const Offset(-4, -2),
+          child: SizedBox(
+            width: 28,
+            height: 28,
+            child: Checkbox(
+              value: _acceptedTermsAndPrivacy,
+              onChanged: (v) =>
+                  setState(() => _acceptedTermsAndPrivacy = v ?? false),
+              activeColor: const Color(0xFF2563EB),
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: RichText(
+              text: TextSpan(
+                style: baseStyle,
+                children: [
+                  const TextSpan(
+                    text:
+                        'I have read and agree to the ',
+                  ),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => const TermsOfServicePage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Terms & Conditions',
+                        style: linkStyle,
+                      ),
+                    ),
+                  ),
+                  const TextSpan(text: ' and the '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => const PrivacyPolicyPage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Privacy Policy',
+                        style: linkStyle,
+                      ),
+                    ),
+                  ),
+                  TextSpan(text: ' of $kAppDisplayName.'),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _pickDob() async {
@@ -3030,13 +3123,16 @@ class _LoginModalState extends State<LoginModal>
                         return null;
                       },
                     ),
+                    const SizedBox(height: 16),
+                    _buildLegalConsentRow(),
                   ],
                   const SizedBox(height: 24),
                   SizedBox(
                     height: 56,
                     child: ElevatedButton(
                       onPressed: _isSubmitting ||
-                              (_isSignUpMode && _serverEmailError != null)
+                              (_isSignUpMode && _serverEmailError != null) ||
+                              (_isSignUpMode && !_acceptedTermsAndPrivacy)
                           ? null
                           : () async {
                               if (_formKey.currentState!.validate()) {

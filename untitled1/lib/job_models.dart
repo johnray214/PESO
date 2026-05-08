@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'job_action_service.dart';
-import 'user_session.dart';
+import 'skill_match_utils.dart';
 
 // ─── Job Model ────────────────────────────────────────────────────────────────
 class Job {
@@ -602,8 +602,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
     final deadlineText = formatJobDeadlineDate(job.deadline);
     final slotsText = (job.slots ?? 0) > 0 ? '${job.slots}' : '—';
-    final userSkillsLower =
-        UserSession().skills.map((s) => s.toLowerCase()).toSet();
+    final userSkillsNormalized = SkillMatchUtils.normalizedUserSkillsFromSession();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -657,7 +656,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                               job: job,
                               slotsText: slotsText,
                               deadlineText: deadlineText,
-                              userSkillsLower: userSkillsLower,
+                              userSkillsNormalized: userSkillsNormalized,
                             ),
                             SizedBox(height: bottomPad + 100),
                           ],
@@ -924,7 +923,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     required Job job,
     required String slotsText,
     required String deadlineText,
-    required Set<String> userSkillsLower,
+    required Set<String> userSkillsNormalized,
   }) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -973,7 +972,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
               const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
               Padding(
                 padding: const EdgeInsets.all(22),
-                child: _buildSkillsContent(job, userSkillsLower),
+                child: _buildSkillsContent(job, userSkillsNormalized),
               ),
             ],
 
@@ -1122,9 +1121,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   }
 
   // ── Skills Content ─────────────────────────────────────────────────────────
-  Widget _buildSkillsContent(Job job, Set<String> userSkillsLower) {
+  Widget _buildSkillsContent(Job job, Set<String> userSkillsNormalized) {
     final matchedCount = job.skills
-        .where((s) => userSkillsLower.contains(s.toLowerCase()))
+        .where((s) => SkillMatchUtils.matchesSingleSkillLabel(
+              normalizedUserSkills: userSkillsNormalized,
+              jobSkill: s,
+            ))
         .length;
 
     return Column(
@@ -1137,7 +1139,10 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           spacing: 10,
           runSpacing: 10,
           children: job.skills.map((skill) {
-            final isMatch = userSkillsLower.contains(skill.toLowerCase());
+            final isMatch = SkillMatchUtils.matchesSingleSkillLabel(
+              normalizedUserSkills: userSkillsNormalized,
+              jobSkill: skill,
+            );
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
@@ -1174,7 +1179,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             );
           }).toList(),
         ),
-        if (userSkillsLower.isNotEmpty && matchedCount > 0) ...[
+        if (userSkillsNormalized.isNotEmpty && matchedCount > 0) ...[
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

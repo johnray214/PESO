@@ -15,17 +15,58 @@ class PublicMapController extends Controller
      */
     public function employers(Request $request)
     {
-        $employers = Employer::query()
+        $jobsPerEmployer = max(1, min((int) $request->integer('jobs_per_employer', 8), 20));
+        $employerLimit = max(1, min((int) $request->integer('limit', 400), 1000));
+
+        $query = Employer::query()
+            ->select([
+                'id',
+                'company_name',
+                'photo',
+                'address_full',
+                'city',
+                'province',
+                'latitude',
+                'longitude',
+                'map_visible',
+                'status',
+            ])
             ->where('map_visible', true)
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->where('status', 'verified')
-            ->with(['jobListings' => function ($q) {
+            ->with(['jobListings' => function ($q) use ($jobsPerEmployer) {
                 $q->where('status', 'open')
-                    ->select('id', 'employer_id', 'title', 'type', 'location', 'salary_range', 'description', 'posted_date', 'created_at');
-            }])
+                    ->select('id', 'employer_id', 'title', 'type', 'location', 'salary_range', 'description', 'posted_date', 'created_at')
+                    ->orderByDesc('posted_date')
+                    ->limit($jobsPerEmployer);
+            }]);
+
+        $minLat = $request->query('min_lat');
+        $maxLat = $request->query('max_lat');
+        $minLng = $request->query('min_lng');
+        $maxLng = $request->query('max_lng');
+        if (
+            is_numeric($minLat) &&
+            is_numeric($maxLat) &&
+            is_numeric($minLng) &&
+            is_numeric($maxLng)
+        ) {
+            $query->whereBetween('latitude', [(float) $minLat, (float) $maxLat])
+                ->whereBetween('longitude', [(float) $minLng, (float) $maxLng]);
+        }
+
+        $page = $query
             ->orderBy('company_name')
-            ->get()
+            ->orderBy('id')
+            ->cursorPaginate(
+                $employerLimit,
+                ['*'],
+                'cursor',
+                $request->query('cursor')
+            );
+
+        $employers = $page->getCollection()
             ->map(function ($e) use ($request) {
                 return [
                     'id' => $e->id,
@@ -45,6 +86,12 @@ class PublicMapController extends Controller
         return response()->json([
             'success' => true,
             'data' => $employers,
+            'meta' => [
+                'per_page' => $employerLimit,
+                'next_cursor' => optional($page->nextCursor())->encode(),
+                'prev_cursor' => optional($page->previousCursor())->encode(),
+                'has_more' => $page->nextCursor() !== null,
+            ],
         ]);
     }
 }

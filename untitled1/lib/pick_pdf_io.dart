@@ -19,7 +19,7 @@ Future<PdfPickResult?> pickPdf() async {
 
   if (file.path != null && file.path!.isNotEmpty) {
     if (await File(file.path!).exists()) {
-      return PdfPickResult(path: file.path, name: name);
+      return PdfPickResult(path: file.path, bytes: file.bytes, name: name);
     }
   }
   if (file.bytes != null && file.bytes!.isNotEmpty) {

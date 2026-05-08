@@ -218,7 +218,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: const Color(0xFFF1F5F9),
-        foregroundColor: const Color(0xFF1E3A8A),
+        foregroundColor: const Color(0xFF0F172A),
         title: const Text(
           'Change Email',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
@@ -256,7 +256,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
-              color: Color(0xFF1D4ED8),
+              color: Color(0xFF0F172A),
             ),
           ),
           const SizedBox(height: 6),
@@ -292,7 +292,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1E3A8A),
+                color: Color(0xFF0F172A),
               ),
             ),
             const SizedBox(height: 8),
@@ -300,7 +300,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               'We will send an OTP to your new email address.',
               style: TextStyle(
                 fontSize: 13,
-                color: Color(0xFF1D4ED8),
+                color: Color(0xFF475569),
               ),
             ),
             const SizedBox(height: 14),
@@ -365,7 +365,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF1E3A8A),
+                color: Color(0xFF0F172A),
               ),
             ),
             const SizedBox(height: 8),
@@ -373,7 +373,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               'Enter the 6-digit code sent to $_pendingEmail',
               style: const TextStyle(
                 fontSize: 13,
-                color: Color(0xFF1D4ED8),
+                color: Color(0xFF475569),
               ),
             ),
             const SizedBox(height: 14),
@@ -450,7 +450,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               },
               child: const Text(
                 'Use a different email',
-                style: TextStyle(color: Color(0xFF1D4ED8)),
+                style: TextStyle(color: Color(0xFF0F172A)),
               ),
             ),
           ],

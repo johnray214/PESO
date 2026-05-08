@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -19,8 +20,10 @@ import 'job_action_service.dart';
 import 'micro_interactions.dart';
 import 'my_documents_page.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'main.dart';
 import 'location_controller.dart';
+import 'skill_match_utils.dart';
 import 'package:geolocator/geolocator.dart' show LocationPermission;
 
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
@@ -78,6 +81,9 @@ class MapFocusRequest {
 final ValueNotifier<int?> homeNavRequestNotifier = ValueNotifier<int?>(null);
 final ValueNotifier<MapFocusRequest?> mapFocusRequestNotifier =
     ValueNotifier<MapFocusRequest?>(null);
+
+/// Increment when jobseeker skills in session change so [MapTab] repaints matches.
+final ValueNotifier<int> mapUserSkillsRevisionNotifier = ValueNotifier<int>(0);
 
 /// Reliable live updates after register/unregister (StatefulBuilder can miss rebuilds on web).
 class _EventDetailDialog extends StatefulWidget {
@@ -1196,29 +1202,11 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (index == 2)
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isSelected
-                        ? const Color(0xFF2563EB).withOpacity(0.14)
-                        : Colors.white.withOpacity(0.22),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(
-                    isSelected ? activeIcon : inactiveIcon,
-                    color: iconColor,
-                    size: 18,
-                  ),
-                )
-              else
-                Icon(
-                  isSelected ? activeIcon : inactiveIcon,
-                  color: iconColor,
-                  size: 22,
-                ),
+              Icon(
+                isSelected ? activeIcon : inactiveIcon,
+                color: iconColor,
+                size: 22,
+              ),
               if (isSelected) ...[
                 const SizedBox(width: 6),
                 Text(
@@ -1250,6 +1238,7 @@ class HomeTab extends StatefulWidget {
 
 class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _jobListScrollController = ScrollController();
   final FocusNode _searchFocus = FocusNode();
   final ValueNotifier<bool> _searchFocusNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<String> _searchTextNotifier = ValueNotifier<String>('');
@@ -1258,6 +1247,21 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   final Set<String> _selectedEmploymentTypes = <String>{};
   final Set<String> _selectedSkillFilters = <String>{};
   String _skillFilterQuery = '';
+
+  /// Robot mascot on greeting banner — swaps art while tapped / long‑pressed.
+  bool _homeMascotPoked = false;
+
+  /// Idle mascot (`empoyhomepagev2.png`) — [Positioned] + image box.
+  static const double _mascotIdleLeft = -21;
+  static const double _mascotIdleBottom = -65.5;
+  static const double _mascotIdleWidth = 156;
+  static const double _mascotIdleHeight = 166;
+
+  /// Poked mascot (`empoy_poked.png`) — tweak independently of idle.
+  static const double _mascotPokedLeft = -21;
+  static const double _mascotPokedBottom = -60;
+  static const double _mascotPokedWidth = 150;
+  static const double _mascotPokedHeight = 160;
 
   List<Job> _jobs = [];
   bool _isLoading = true;
@@ -1275,7 +1279,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   String _greetingText = '';
   Timer? _notificationPollTimer;
   Timer? _greetingTimer;
+  Timer? _searchDebounce;
   bool _isUnreadLoading = false;
+  bool _isLoadingMoreJobs = false;
+  int _jobsCurrentPage = 0;
+  int _jobsLastPage = 1;
 
   static const List<String> _sortOptions = [
     'Latest',
@@ -1331,6 +1339,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     }
     _greetingText = '${getPhilippinesGreeting()}, Kabsat';
     _fetchJobs();
+    _jobListScrollController.addListener(_onJobListScroll);
     _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
     _loadUnreadNotifications();
@@ -1374,6 +1383,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     NotificationService.removeListener(_onPushReceived);
     _notificationPollTimer?.cancel();
     _greetingTimer?.cancel();
+    _searchDebounce?.cancel();
+    _jobListScrollController.dispose();
     _jobActionService.removeListener(_onJobActionsChanged);
     _bellRingController.dispose();
     _searchFocus.dispose();
@@ -1444,25 +1455,71 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     }
   }
 
-  Future<void> _fetchJobs({bool showPageLoader = true}) async {
+  void _onJobListScroll() {
+    if (_isLoading || _isLoadingMoreJobs) return;
+    if (_jobsCurrentPage >= _jobsLastPage) return;
+    if (_searchText.trim().isNotEmpty) return;
+    if (!_jobListScrollController.hasClients) return;
+    final pos = _jobListScrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 360) {
+      unawaited(_fetchJobs(showPageLoader: false, loadMore: true));
+    }
+  }
+
+  void _scheduleSearchApply(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      setState(() {
+        _searchText = value;
+      });
+      if (_filteredJobs.isEmpty && _jobsCurrentPage < _jobsLastPage) {
+        unawaited(_fetchJobs(showPageLoader: false, loadMore: true));
+      }
+    });
+  }
+
+  Future<void> _fetchJobs({
+    bool showPageLoader = true,
+    bool loadMore = false,
+  }) async {
+    if (loadMore && (_isLoading || _isLoadingMoreJobs)) return;
+    final targetPage = loadMore ? (_jobsCurrentPage + 1) : 1;
     if (showPageLoader) {
       setState(() {
         _isLoading = true;
         _errorMessage = null;
+        if (!loadMore) {
+          _isLoadingMoreJobs = false;
+        }
       });
+    } else if (loadMore) {
+      setState(() => _isLoadingMoreJobs = true);
     }
     final token = UserSession().token;
     final result = (token != null && token.isNotEmpty)
-        ? await ApiService.getMatchedJobs(token)
-        : await ApiService.getJobListings();
+        ? await ApiService.getMatchedJobs(token, page: targetPage)
+        : await ApiService.getJobListings(page: targetPage);
     if (!mounted) return;
     if (result['success'] == true) {
       final rawList = result['data'] as List<dynamic>? ?? [];
+      final meta = result['meta'] as Map<String, dynamic>? ?? {};
+      final currentPage = (meta['current_page'] as num?)?.toInt() ?? targetPage;
+      final lastPage = (meta['last_page'] as num?)?.toInt() ?? currentPage;
+      final nextJobs = rawList
+          .map((e) => Job.fromJson(e as Map<String, dynamic>))
+          .toList();
       setState(() {
-        _jobs = rawList
-            .map((e) => Job.fromJson(e as Map<String, dynamic>))
-            .toList();
+        if (!loadMore) {
+          _jobs = nextJobs;
+        } else {
+          final known = _jobs.map((e) => e.id).toSet();
+          _jobs = [..._jobs, ...nextJobs.where((j) => !known.contains(j.id))];
+        }
+        _jobsCurrentPage = currentPage;
+        _jobsLastPage = lastPage;
         if (showPageLoader) _isLoading = false;
+        _isLoadingMoreJobs = false;
         _jobListSerial++;
       });
     } else {
@@ -1471,8 +1528,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
           _errorMessage =
               result['message'] as String? ?? 'Failed to load jobs.';
           _isLoading = false;
+          _isLoadingMoreJobs = false;
         });
       } else {
+        setState(() => _isLoadingMoreJobs = false);
         CustomToast.show(
           context,
           message: result['message'] as String? ?? 'Failed to refresh jobs.',
@@ -2098,23 +2157,47 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Robot mascot – adjust position via left, bottom, width, height
+                  // Robot mascot — idle vs poked use separate position/size (see _mascotIdle* / _mascotPoked*).
                   Positioned(
-                    left: -60,
-                    bottom: -99.4,
-                    child: Image.asset(
-                      'assets/empoy_homescreen.png',
-                      width: 220,
-                      height: 230,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        debugPrint('Image load error: $error');
-                        return Icon(
-                          Icons.smart_toy_rounded,
-                          size: 72,
-                          color: Colors.white.withOpacity(0.9),
-                        );
+                    left: _homeMascotPoked ? _mascotPokedLeft : _mascotIdleLeft,
+                    bottom:
+                        _homeMascotPoked ? _mascotPokedBottom : _mascotIdleBottom,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapDown: (_) {
+                        HapticFeedback.lightImpact();
+                        setState(() => _homeMascotPoked = true);
                       },
+                      onTapUp: (_) =>
+                          setState(() => _homeMascotPoked = false),
+                      onTapCancel: () =>
+                          setState(() => _homeMascotPoked = false),
+                      onLongPressStart: (_) {
+                        HapticFeedback.selectionClick();
+                        setState(() => _homeMascotPoked = true);
+                      },
+                      onLongPressEnd: (_) =>
+                          setState(() => _homeMascotPoked = false),
+                      child: Image.asset(
+                        _homeMascotPoked
+                            ? 'assets/empoy_poked.png'
+                            : 'assets/empoyhomepagev2.png',
+                        width: _homeMascotPoked
+                            ? _mascotPokedWidth
+                            : _mascotIdleWidth,
+                        height: _homeMascotPoked
+                            ? _mascotPokedHeight
+                            : _mascotIdleHeight,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          debugPrint('Image load error: $error');
+                          return Icon(
+                            Icons.smart_toy_rounded,
+                            size: 72,
+                            color: Colors.white.withOpacity(0.9),
+                          );
+                        },
+                      ),
                     ),
                   ),
                   // Greeting text + notifications
@@ -2270,8 +2353,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                               focusNode: _searchFocus,
                               controller: _searchController,
                               onChanged: (v) {
-                                _searchText = v;
                                 _searchTextNotifier.value = v;
+                                _scheduleSearchApply(v);
                               },
                               style: const TextStyle(
                                 fontSize: 15,
@@ -2305,6 +2388,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                               _searchController.clear();
                                               _searchText = '';
                                               _searchTextNotifier.value = '';
+                                              _searchDebounce?.cancel();
+                                              setState(() {});
                                             },
                                           )
                                         : Row(
@@ -2511,6 +2596,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                 ],
                               )
                             : ListView.builder(
+                                controller: _jobListScrollController,
                                 physics: const AlwaysScrollableScrollPhysics(
                                   parent: BouncingScrollPhysics(),
                                 ),
@@ -2521,8 +2607,20 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                       MediaQuery.paddingOf(context).bottom +
                                           96,
                                 ),
-                                itemCount: jobs.length,
+                                itemCount: jobs.length + (_isLoadingMoreJobs ? 1 : 0),
                                 itemBuilder: (context, index) {
+                                  if (index >= jobs.length) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 12),
+                                      child: Center(
+                                        child: SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(strokeWidth: 2.2),
+                                        ),
+                                      ),
+                                    );
+                                  }
                                   final job = jobs[index];
                                   final isSaved =
                                       _jobActionService.isSaved(job.id);
@@ -2967,6 +3065,8 @@ class MapTab extends StatefulWidget {
 }
 
 class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
+  static const String _locationProfilesPrefKey = 'map_location_profiles_v1';
+
   final MapController _mapController = MapController();
   final TextEditingController _searchController = TextEditingController();
   Business? _selectedBusiness;
@@ -2981,9 +3081,33 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   /// flow. While non-null, tapping the map updates this point instead of
   /// closing the popup, and a Confirm/Cancel banner is shown.
   LatLng? _exactPickPreview;
+  bool _saveExactAsProfile = false;
+  final TextEditingController _exactProfileNameController =
+      TextEditingController();
   bool _isPickingExactLocation = false;
-  bool _hasAutoCenteredOnUser = false;
+  /// After we've auto-centered on live GPS (only used when there is no manual pin).
+  bool _hasAutoCenteredOnLiveGps = false;
+  /// Manual point we last ran the opening auto-center for (null = none yet).
+  LocationPoint? _autoCenteredManualPoint;
   bool _isRequestingPermission = false;
+  LatLng? _mapCenterForAreaSearch;
+  double _currentMapZoom = 15;
+  /// Drives [ListenableBuilder] around company markers so clustering updates when
+  /// zoom crosses thresholds (marker layer otherwise only listened to GPS).
+  final ValueNotifier<double> _mapClusterZoomNotifier = ValueNotifier(15);
+  bool _showSearchAreaCta = false;
+  bool _isApplyingAreaSearch = false;
+  LatLng? _areaSearchReference;
+  List<_LocationProfile> _locationProfiles = [];
+  Set<String> _matchedCompanyNames = <String>{};
+  String? _mapNextCursor;
+  bool _mapHasMore = true;
+  bool _mapLoadingMore = false;
+  String? _inflightMapCursor;
+  int _mapDataVersion = 0;
+  Timer? _mapLoadMoreDebounce;
+  bool _bestMatchOnly = false;
+  final Set<String> _compareBusinessIds = <String>{};
 
   // ─── Map animation ─────────────────────────────────────────────────────────
   AnimationController? _moveAnimController;
@@ -2991,10 +3115,14 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    SkillMatchUtils.invalidateUserSkillsCache();
+    mapUserSkillsRevisionNotifier.addListener(_onMapUserSkillsRevision);
     // Start location controller only when Map tab is opened, so permission
     // prompts are scoped to this screen.
     unawaited(LocationController.instance.start());
     _loadBusinessesFromApi();
+    unawaited(_hydrateSessionSkillsIfNeededThenRefreshMatches());
+    unawaited(_loadLocationProfiles());
     mapFocusRequestNotifier.addListener(_onMapFocusRequested);
     _onMapFocusRequested();
 
@@ -3032,17 +3160,36 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   void _onLocationChanged() {
     if (!mounted) return;
     setState(() {});
-    if (!_hasAutoCenteredOnUser) {
-      final p = LocationController.instance.effectiveLocation;
-      if (p != null) {
-        _hasAutoCenteredOnUser = true;
-        // Use a short post-frame callback to ensure map is ready.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _animatedMove(LatLng(p.latitude, p.longitude), 15, durationMs: 500);
-          }
-        });
+
+    final lc = LocationController.instance;
+    final manual = lc.manualLocation.value;
+    final live = lc.liveLocation.value;
+
+    if (manual == null && _autoCenteredManualPoint != null) {
+      _autoCenteredManualPoint = null;
+      _hasAutoCenteredOnLiveGps = false;
+    }
+
+    void scheduleUserCenter(LatLng target) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _animatedMove(target, 15, durationMs: 500);
+        }
+      });
+    }
+
+    if (manual != null) {
+      if (_autoCenteredManualPoint != manual) {
+        _autoCenteredManualPoint = manual;
+        _hasAutoCenteredOnLiveGps = true;
+        scheduleUserCenter(LatLng(manual.latitude, manual.longitude));
       }
+      return;
+    }
+
+    if (live != null && !_hasAutoCenteredOnLiveGps) {
+      _hasAutoCenteredOnLiveGps = true;
+      scheduleUserCenter(LatLng(live.latitude, live.longitude));
     }
   }
 
@@ -3051,16 +3198,33 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     setState(() {});
   }
 
-  Future<void> _loadBusinessesFromApi() async {
+  Future<void> _loadBusinessesFromApi({bool loadMore = false}) async {
+    if (loadMore && (_mapLoadingMore || !_mapHasMore)) return;
     if (!mounted) return;
+    final requestVersion = loadMore ? _mapDataVersion : (++_mapDataVersion);
+    final requestedCursor = loadMore ? _mapNextCursor : null;
+    if (loadMore && requestedCursor != null && requestedCursor == _inflightMapCursor) {
+      return;
+    }
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      if (!loadMore) {
+        _isLoading = true;
+        _errorMessage = null;
+        _mapNextCursor = null;
+        _mapHasMore = true;
+        _inflightMapCursor = null;
+      } else {
+        _mapLoadingMore = true;
+        _inflightMapCursor = requestedCursor;
+      }
     });
 
     try {
-      final response = await ApiService.getMapEmployers();
+      final response = await ApiService.getMapEmployers(
+        cursor: requestedCursor,
+      );
       if (!mounted) return;
+      if (requestVersion != _mapDataVersion) return;
       if (response['success'] == true) {
         final raw = response['data'] as List<dynamic>? ?? [];
 
@@ -3125,40 +3289,381 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         }
 
         if (!mounted) return;
+        final meta = response['meta'] as Map<String, dynamic>? ?? {};
+        final nextCursor = meta['next_cursor'] as String?;
+        final hasMore = meta['has_more'] == true || (nextCursor != null && nextCursor.isNotEmpty);
         setState(() {
-          _allBusinesses = businesses;
-          _filteredBusinesses = businesses;
+          if (!loadMore) {
+            _allBusinesses = businesses;
+          } else {
+            final known = _allBusinesses.map((e) => e.id).toSet();
+            final appended = businesses.where((b) => !known.contains(b.id)).toList();
+            _allBusinesses = [..._allBusinesses, ...appended];
+          }
+          _mapNextCursor = nextCursor;
+          _mapHasMore = hasMore;
+          _filteredBusinesses = _applyBestMatchFilter(_allBusinesses);
           _isLoading = false;
+          _mapLoadingMore = false;
         });
+        unawaited(_loadMatchedCompanyNames());
         _tryApplyPendingMapFocus();
       } else {
         if (!mounted) return;
+        if (requestVersion != _mapDataVersion) return;
         setState(() {
           _errorMessage =
               response['message'] as String? ?? 'Failed to load map data.';
           _isLoading = false;
+          _mapLoadingMore = false;
         });
       }
     } catch (e) {
       if (!mounted) return;
+      if (requestVersion != _mapDataVersion) return;
       setState(() {
         _errorMessage = 'Failed to load map data.';
         _isLoading = false;
+        _mapLoadingMore = false;
       });
+    } finally {
+      if (mounted && loadMore) {
+        setState(() {
+          _inflightMapCursor = null;
+        });
+      }
     }
+  }
+
+  void _maybeLoadMoreBusinessesForSearch(String query) {
+    if (query.isEmpty) return;
+    if (!_mapHasMore || _mapLoadingMore) return;
+    if (_filteredBusinesses.length >= 6) return;
+    _mapLoadMoreDebounce?.cancel();
+    _mapLoadMoreDebounce = Timer(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      unawaited(_loadBusinessesFromApi(loadMore: true));
+    });
+  }
+
+  Future<void> _loadLocationProfiles() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_locationProfilesPrefKey);
+      if (raw == null || raw.trim().isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      final profiles = decoded
+          .whereType<Map>()
+          .map((e) => _LocationProfile.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _locationProfiles = profiles;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _persistLocationProfiles() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final data = _locationProfiles.map((e) => e.toJson()).toList();
+      await prefs.setString(_locationProfilesPrefKey, jsonEncode(data));
+    } catch (_) {}
+  }
+
+  Future<void> _showLocationProfilesSheet() async {
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return SafeArea(
+              child: Container(
+                margin: EdgeInsets.only(
+                  left: 12,
+                  right: 12,
+                  bottom: MediaQuery.viewInsetsOf(ctx).bottom + 12,
+                ),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.layers_rounded, color: Color(0xFF2563EB)),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Location Profiles',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(ctx).pop();
+                            _startPickingExactLocation();
+                          },
+                          icon: const Icon(Icons.add_location_alt_rounded, size: 16),
+                          label: const Text('Pick exact pin'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            _useLiveGps();
+                            Navigator.of(ctx).pop();
+                          },
+                          icon: const Icon(Icons.gps_fixed_rounded, size: 16),
+                          label: const Text('Use live GPS'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    if (_locationProfiles.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'No saved profiles yet. Save a location like Home or Boarding House.',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                        ),
+                      )
+                    else
+                      ..._locationProfiles.map((profile) {
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF8FAFC),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                          ),
+                          child: ListTile(
+                            contentPadding:
+                                const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                            leading: const Icon(Icons.place_rounded,
+                                color: Color(0xFF2563EB)),
+                            title: Text(
+                              profile.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            subtitle: Text(
+                              '${profile.latitude.toStringAsFixed(5)}, ${profile.longitude.toStringAsFixed(5)}',
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            onTap: () {
+                              _useLocationProfile(profile);
+                              Navigator.of(ctx).pop();
+                            },
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  onPressed: () async {
+                                    final renamed = await _promptRenameProfile(profile);
+                                    if (!mounted) return;
+                                    if (renamed) setSheetState(() {});
+                                  },
+                                  icon: const Icon(Icons.edit_rounded,
+                                      color: Color(0xFF64748B)),
+                                ),
+                                IconButton(
+                                  onPressed: () async {
+                                    final removed = await _removeLocationProfile(profile.id);
+                                    if (!mounted) return;
+                                    if (removed) setSheetState(() {});
+                                  },
+                                  icon: const Icon(Icons.delete_outline_rounded,
+                                      color: Color(0xFFDC2626)),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<bool> _saveLocationProfile({
+    required LatLng initialPoint,
+    required String name,
+    bool showToast = true,
+  }) async {
+    final trimmedName = name.trim();
+    if (trimmedName.isEmpty) {
+      if (showToast) {
+        CustomToast.show(
+          context,
+          message: 'Please provide a profile name.',
+          type: ToastType.info,
+        );
+      }
+      return false;
+    }
+    if (_locationProfiles
+        .any((e) => e.name.toLowerCase() == trimmedName.toLowerCase())) {
+      if (showToast) {
+        CustomToast.show(
+          context,
+          message: 'A profile with this name already exists.',
+          type: ToastType.info,
+        );
+      }
+      return false;
+    }
+    setState(() {
+      _locationProfiles = [
+        ..._locationProfiles,
+        _LocationProfile(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: trimmedName,
+          latitude: initialPoint.latitude,
+          longitude: initialPoint.longitude,
+        ),
+      ];
+    });
+    await _persistLocationProfiles();
+    if (!mounted) return true;
+    if (showToast) {
+      CustomToast.show(
+        context,
+        message: 'Location profile "$trimmedName" saved.',
+        type: ToastType.success,
+      );
+    }
+    return true;
+  }
+
+  Future<bool> _promptRenameProfile(_LocationProfile profile) async {
+    final controller = TextEditingController(text: profile.name);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename Profile'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(labelText: 'Profile name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return false;
+    final nextName = controller.text.trim();
+    if (nextName.isEmpty) return false;
+    setState(() {
+      _locationProfiles = _locationProfiles
+          .map((e) => e.id == profile.id ? e.copyWith(name: nextName) : e)
+          .toList();
+    });
+    await _persistLocationProfiles();
+    return true;
+  }
+
+  Future<bool> _removeLocationProfile(String id) async {
+    setState(() {
+      _locationProfiles = _locationProfiles.where((e) => e.id != id).toList();
+    });
+    await _persistLocationProfiles();
+    return true;
+  }
+
+  void _useLocationProfile(_LocationProfile profile) {
+    LocationController.instance.setManualLocation(
+      LocationPoint(profile.latitude, profile.longitude),
+    );
+    final point = LatLng(profile.latitude, profile.longitude);
+    _animatedMove(point, 15);
+    setState(() {
+      _areaSearchReference = null;
+      _showSearchAreaCta = false;
+    });
+    CustomToast.show(
+      context,
+      message: 'Using location profile "${profile.name}".',
+      type: ToastType.success,
+    );
+  }
+
+  String _manualLocationPinLabel(LocationPoint manual) {
+    final manualLatLng = LatLng(manual.latitude, manual.longitude);
+    for (final profile in _locationProfiles) {
+      final profileLatLng = LatLng(profile.latitude, profile.longitude);
+      final meters = const Distance().as(
+        LengthUnit.Meter,
+        manualLatLng,
+        profileLatLng,
+      );
+      if (meters <= 25) {
+        final trimmed = profile.name.trim();
+        if (trimmed.isNotEmpty) return trimmed;
+      }
+    }
+    return 'Exact';
   }
 
   @override
   void dispose() {
+    mapUserSkillsRevisionNotifier.removeListener(_onMapUserSkillsRevision);
     mapFocusRequestNotifier.removeListener(_onMapFocusRequested);
     final lc = LocationController.instance;
     lc.liveLocation.removeListener(_onLocationChanged);
     lc.manualLocation.removeListener(_onLocationChanged);
     lc.permission.removeListener(_onPermissionChanged);
+    _mapLoadMoreDebounce?.cancel();
     _moveAnimController?.dispose();
+    _exactProfileNameController.dispose();
     _searchController.dispose();
     _mapController.dispose();
+    _mapClusterZoomNotifier.dispose();
     super.dispose();
+  }
+
+  /// Buckets must match zoom / radius tiers in [_clusterBusinesses] so the
+  /// marker [ListenableBuilder] rebuilds when clustering strength changes.
+  static int _clusteringModeBucket(double z) {
+    if (z >= 13) return 4;
+    if (z >= 11) return 3;
+    if (z >= 9) return 2;
+    if (z >= 7) return 1;
+    return 0;
   }
 
   /// The user point currently being used for distance / ranking.
@@ -3171,13 +3676,22 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   /// If [source] is empty the result is also empty.
   List<Business> _nearestTop5(List<Business> source) {
     if (source.isEmpty) return const [];
-    final user = _userLatLng();
+    final reference = _activeDistanceReference();
+    return _nearestTop5From(source, reference);
+  }
+
+  /// Active point used for ranking + displayed distance/travel metrics.
+  /// When "Search this area" is applied, map center takes precedence.
+  LatLng _activeDistanceReference() => _areaSearchReference ?? _userLatLng();
+
+  List<Business> _nearestTop5From(List<Business> source, LatLng reference) {
+    if (source.isEmpty) return const [];
     final list = [...source];
     list.sort((a, b) {
       final da = a.getDistanceFromUser(
-          fromLat: user.latitude, fromLng: user.longitude);
+          fromLat: reference.latitude, fromLng: reference.longitude);
       final db = b.getDistanceFromUser(
-          fromLat: user.latitude, fromLng: user.longitude);
+          fromLat: reference.latitude, fromLng: reference.longitude);
       return da.compareTo(db);
     });
     return list.take(5).toList(growable: false);
@@ -3244,15 +3758,17 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   }
 
   void _onSearch(String query) {
+    final base = _applyBestMatchFilter(_allBusinesses);
     setState(() {
       if (query.isEmpty) {
-        _filteredBusinesses = _allBusinesses;
+        _filteredBusinesses = base;
       } else {
-        _filteredBusinesses = _allBusinesses
+        _filteredBusinesses = base
             .where((b) => b.name.toLowerCase().contains(query.toLowerCase()))
             .toList();
       }
     });
+    _maybeLoadMoreBusinessesForSearch(query);
   }
 
   /// Smoothly animate the map camera from current position to [target] at
@@ -3375,6 +3891,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       _isPickingExactLocation = true;
       _exactPickPreview = _userLatLng();
       _selectedBusiness = null;
+      _saveExactAsProfile = false;
+      _exactProfileNameController.clear();
     });
   }
 
@@ -3382,25 +3900,47 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     setState(() {
       _isPickingExactLocation = false;
       _exactPickPreview = null;
+      _saveExactAsProfile = false;
+      _exactProfileNameController.clear();
     });
   }
 
   void _confirmPickingExactLocation() {
     final preview = _exactPickPreview;
     if (preview == null) return;
+    final shouldSaveProfile = _saveExactAsProfile;
+    final profileName = _exactProfileNameController.text.trim();
     LocationController.instance.setManualLocation(
       LocationPoint(preview.latitude, preview.longitude),
     );
     setState(() {
       _isPickingExactLocation = false;
       _exactPickPreview = null;
+      _areaSearchReference = null;
+      _showSearchAreaCta = false;
+      _saveExactAsProfile = false;
+      _exactProfileNameController.clear();
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text('Exact location set. Showing closest jobs from here.'),
-      ),
+    CustomToast.show(
+      context,
+      message: 'Exact location set. Showing closest jobs from here.',
+      type: ToastType.success,
     );
+    if (shouldSaveProfile) {
+      if (profileName.isEmpty) {
+        CustomToast.show(
+          context,
+          message: 'Exact location set. Enter a profile name to save it.',
+          type: ToastType.info,
+        );
+      } else {
+        unawaited(_saveLocationProfile(
+          initialPoint: preview,
+          name: profileName,
+          showToast: true,
+        ));
+      }
+    }
   }
 
   void _useLiveGps() {
@@ -3412,38 +3952,23 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
       // Try to fetch a fresh position on demand.
       unawaited(_ensureLocationReady());
     }
-    setState(() {});
+    setState(() {
+      _areaSearchReference = null;
+      _showSearchAreaCta = false;
+    });
   }
 
-  Widget _buildSetExactLocationFab() {
+  Widget _buildLocationProfilesFab() {
     return FloatingActionButton.extended(
-      heroTag: 'map_tab_set_exact_location',
+      heroTag: 'map_tab_location_profiles',
       backgroundColor: Colors.white,
       foregroundColor: const Color(0xFF2563EB),
       elevation: 4,
-      onPressed: _isPickingExactLocation
-          ? _cancelPickingExactLocation
-          : (LocationController.instance.manualLocation.value != null
-              ? _useLiveGps
-              : _startPickingExactLocation),
-      icon: Icon(
-        _isPickingExactLocation
-            ? Icons.close_rounded
-            : (LocationController.instance.manualLocation.value != null
-                ? Icons.gps_fixed_rounded
-                : Icons.edit_location_alt_rounded),
-        size: 18,
-      ),
-      label: Text(
-        _isPickingExactLocation
-            ? 'Cancel'
-            : (LocationController.instance.manualLocation.value != null
-                ? 'Use Live GPS'
-                : 'Set Exact Location'),
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
+      onPressed: _isPickingExactLocation ? _cancelPickingExactLocation : _showLocationProfilesSheet,
+      icon: const Icon(Icons.layers_rounded, size: 18),
+      label: const Text(
+        'Location Profiles',
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
   }
@@ -3454,6 +3979,424 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     } else {
       return '${(meters / 1000).toStringAsFixed(1)} km';
     }
+  }
+
+  /// Drive-time estimate from straight-line distance (see [_mapTravelTimeBucket]).
+  Widget _travelTimeWithCarIcon(
+    double meters, {
+    required TextStyle style,
+    double iconSize = 14,
+  }) =>
+      _mapTravelTimeWithCarIcon(meters, style: style, iconSize: iconSize);
+
+  Set<String> _normalizedUserSkills() {
+    return SkillMatchUtils.normalizedUserSkillsFromSession();
+  }
+
+  String _normalizedCompanyName(String name) {
+    return SkillMatchUtils.normalizeCompanyName(name);
+  }
+
+  bool _businessHasSkillMatch(Business business, Set<String> userSkills) {
+    if (_matchedCompanyNames.contains(_normalizedCompanyName(business.name))) {
+      return true;
+    }
+    for (final job in business.availableJobs) {
+      // Respect backend-calculated match when available.
+      if (job.matchPercentage > 0) return true;
+      if (SkillMatchUtils.anySkillMatch(
+        normalizedUserSkills: userSkills,
+        jobSkillsRaw: job.skills,
+      )) return true;
+    }
+    return false;
+  }
+
+  List<Business> _applyBestMatchFilter(
+    List<Business> source, {
+    Set<String>? userSkills,
+  }) {
+    if (!_bestMatchOnly) return source;
+    final skills = userSkills ?? _normalizedUserSkills();
+    return source
+        .where((b) => _businessHasSkillMatch(b, skills))
+        .toList(growable: false);
+  }
+
+  void _onMapUserSkillsRevision() {
+    if (!mounted) return;
+    SkillMatchUtils.invalidateUserSkillsCache();
+    unawaited(() async {
+      await _loadMatchedCompanyNames();
+      if (mounted) setState(() {});
+    }());
+  }
+
+  /// Login payloads sometimes omit `skills`; profile has the canonical list.
+  Future<void> _hydrateSessionSkillsIfNeededThenRefreshMatches() async {
+    final token = UserSession().token;
+    if (token != null &&
+        token.isNotEmpty &&
+        UserSession().skills.isEmpty) {
+      try {
+        final profile = await ApiService.getUser(token);
+        if (mounted && profile['success'] == true) {
+          final data = profile['data'];
+          if (data is Map<String, dynamic>) {
+            final user = (data['jobseeker'] as Map<String, dynamic>?) ??
+                (data['user'] as Map<String, dynamic>?) ??
+                data;
+            UserSession().updateFromUser(user);
+          }
+        }
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    SkillMatchUtils.invalidateUserSkillsCache();
+    await _loadMatchedCompanyNames();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadMatchedCompanyNames() async {
+    final token = UserSession().token;
+    final rawSkills = UserSession().skills
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList(growable: false);
+    if (token == null || token.isEmpty || rawSkills.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _matchedCompanyNames = <String>{};
+        final q = _searchController.text.trim().toLowerCase();
+        final base = _applyBestMatchFilter(_allBusinesses);
+        _filteredBusinesses = q.isEmpty
+            ? base
+            : base.where((b) => b.name.toLowerCase().contains(q)).toList();
+      });
+      return;
+    }
+
+    try {
+      final res = await ApiService.getMatchedJobs(token, skills: rawSkills);
+      if (!mounted || res['success'] != true) return;
+      final data = res['data'] as List<dynamic>? ?? const <dynamic>[];
+      final names = <String>{};
+      for (final item in data) {
+        if (item is! Map<String, dynamic>) continue;
+        final employer = item['employer'] as Map<String, dynamic>?;
+        final companyName = (item['company']?.toString() ??
+                employer?['company_name']?.toString() ??
+                '')
+            .trim();
+        if (companyName.isEmpty) continue;
+        names.add(_normalizedCompanyName(companyName));
+      }
+      if (!mounted) return;
+      setState(() {
+        _matchedCompanyNames = names;
+        final q = _searchController.text.trim().toLowerCase();
+        final base = _applyBestMatchFilter(_allBusinesses);
+        _filteredBusinesses = q.isEmpty
+            ? base
+            : base.where((b) => b.name.toLowerCase().contains(q)).toList();
+      });
+    } catch (_) {
+      // Silently skip; map still works with direct skill checks.
+    }
+  }
+
+  void _onMapPositionChanged(MapPosition position, bool hasGesture) {
+    final center = position.center;
+    final zoom = position.zoom;
+    if (center == null || zoom == null) return;
+    _mapCenterForAreaSearch = center;
+    _currentMapZoom = zoom;
+    final prevBucket = _clusteringModeBucket(_mapClusterZoomNotifier.value);
+    final nextBucket = _clusteringModeBucket(zoom);
+    if (prevBucket != nextBucket) {
+      _mapClusterZoomNotifier.value = zoom;
+    }
+    if (_isApplyingAreaSearch || !hasGesture) return;
+    if (_searchController.text.isNotEmpty) return;
+    final currentReference = _areaSearchReference ?? _userLatLng();
+    final moved = const Distance().as(
+      LengthUnit.Meter,
+      currentReference,
+      center,
+    );
+    if (moved > 350) {
+      if (!_showSearchAreaCta && mounted) {
+        setState(() {
+          _showSearchAreaCta = true;
+        });
+      }
+    }
+  }
+
+  void _applySearchThisArea() {
+    final center = _mapCenterForAreaSearch;
+    if (center == null) return;
+    setState(() {
+      _isApplyingAreaSearch = true;
+      _areaSearchReference = center;
+      _showSearchAreaCta = false;
+      _selectedBusiness = null;
+    });
+    Future<void>.delayed(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      setState(() {
+        _isApplyingAreaSearch = false;
+      });
+    });
+    CustomToast.show(
+      context,
+      message: 'Showing closest companies for this area.',
+      type: ToastType.info,
+    );
+  }
+
+  void _toggleCompareBusiness(Business business) {
+    setState(() {
+      if (_compareBusinessIds.contains(business.id)) {
+        _compareBusinessIds.remove(business.id);
+      } else {
+        if (_compareBusinessIds.length >= 3) {
+          _compareBusinessIds.remove(_compareBusinessIds.first);
+        }
+        _compareBusinessIds.add(business.id);
+      }
+    });
+  }
+
+  void _clearCompareSelection() {
+    if (_compareBusinessIds.isEmpty) return;
+    setState(() {
+      _compareBusinessIds.clear();
+    });
+  }
+
+  Future<void> _showCompanyCompareSheet() async {
+    // Resolve selections from the full map data, not only the current card
+    // source, so compare can reopen reliably even if the visible top list
+    // changes after closing the modal.
+    final selected = _allBusinesses
+        .where((b) => _compareBusinessIds.contains(b.id))
+        .take(3)
+        .toList();
+    if (selected.length < 2) {
+      CustomToast.show(
+        context,
+        message: 'Select at least 2 companies to compare (long-press cards).',
+        type: ToastType.info,
+      );
+      return;
+    }
+    final user = _activeDistanceReference();
+    await showModalBottomSheet(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.14),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.compare_arrows_rounded,
+                      color: Color(0xFF1D4ED8),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Quick Compare',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  Text(
+                    '${selected.length} selected',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Straight-line distance from your active map location. '
+                'Drive time is a rough estimate (~20 km/h city traffic), not routing.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF64748B),
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...selected.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final b = entry.value;
+                final d = b.getDistanceFromUser(
+                  fromLat: user.latitude,
+                  fromLng: user.longitude,
+                );
+                final accent = switch (idx) {
+                  0 => const Color(0xFF2563EB),
+                  1 => const Color(0xFF0F766E),
+                  _ => const Color(0xFF9333EA),
+                };
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        accent.withOpacity(0.12),
+                        accent.withOpacity(0.03),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: accent.withOpacity(0.28)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: accent.withOpacity(0.16),
+                              borderRadius: BorderRadius.circular(7),
+                            ),
+                            alignment: Alignment.center,
+                            child: Text(
+                              '#${idx + 1}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: accent,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              b.name,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                                height: 1.22,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.92),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              _formatDistance(d),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF1E3A8A),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.92),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: _travelTimeWithCarIcon(
+                              d,
+                              iconSize: 14,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.92),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${b.availableJobs.length} jobs',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 2),
+              const Text(
+                'Tip: long-press cards on the map list to add or remove companies.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF64748B),
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   /// Whether to show the "enable location" banner at the top of the map.
@@ -3474,11 +4417,18 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     required Color ringColor,
     IconData icon = Icons.person,
   }) {
+    const labelStyle = TextStyle(
+      color: Colors.white,
+      fontSize: 8,
+      fontWeight: FontWeight.bold,
+      height: 1.2,
+    );
     return Marker(
       point: point,
-      width: 60,
-      height: 50,
+      width: 104,
+      height: 58,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             width: 24,
@@ -3499,23 +4449,96 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
           ),
           const SizedBox(height: 2),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            constraints: const BoxConstraints(maxWidth: 96),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
             decoration: BoxDecoration(
               color: ringColor,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 8,
-                fontWeight: FontWeight.bold,
-              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: labelStyle,
             ),
           ),
         ],
       ),
+    );
+  }
+
+  List<_MapCluster> _clusterBusinesses(
+    List<Business> businesses, {
+    required double zoom,
+  }) {
+    if (businesses.isEmpty) return const [];
+    if (zoom >= 13) {
+      return businesses
+          .map((b) => _MapCluster(
+                center: LatLng(b.latitude, b.longitude),
+                businesses: [b],
+              ))
+          .toList();
+    }
+
+    // Distance-based clustering is more stable than decimal-grid bucketing.
+    // Radii grow quickly as the user zooms out: fixed ~km thresholds made pins
+    // look stacked (same screen pixels) while still being unmerged >2.5 km apart.
+    final radiusMeters = zoom < 7
+        ? 50000.0
+        : zoom < 9
+            ? 15000.0
+            : zoom < 11
+                ? 5000.0
+                : 900.0;
+
+    final sorted = [...businesses]
+      ..sort((a, b) {
+        final byLat = a.latitude.compareTo(b.latitude);
+        if (byLat != 0) return byLat;
+        return a.longitude.compareTo(b.longitude);
+      });
+
+    final clusters = <List<Business>>[];
+    final centers = <LatLng>[];
+
+    for (final b in sorted) {
+      final point = LatLng(b.latitude, b.longitude);
+      int? nearestIdx;
+      double nearestMeters = double.infinity;
+
+      for (var i = 0; i < centers.length; i++) {
+        final d = const Distance().as(
+          LengthUnit.Meter,
+          centers[i],
+          point,
+        );
+        if (d <= radiusMeters && d < nearestMeters) {
+          nearestMeters = d;
+          nearestIdx = i;
+        }
+      }
+
+      if (nearestIdx == null) {
+        clusters.add([b]);
+        centers.add(point);
+        continue;
+      }
+
+      clusters[nearestIdx].add(b);
+      final group = clusters[nearestIdx];
+      final latAvg =
+          group.map((e) => e.latitude).reduce((a, v) => a + v) / group.length;
+      final lngAvg =
+          group.map((e) => e.longitude).reduce((a, v) => a + v) / group.length;
+      centers[nearestIdx] = LatLng(latAvg, lngAvg);
+    }
+
+    return List<_MapCluster>.generate(
+      clusters.length,
+      (i) => _MapCluster(center: centers[i], businesses: clusters[i]),
+      growable: false,
     );
   }
 
@@ -3531,6 +4554,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
             options: MapOptions(
               initialCenter: _userLatLng(),
               initialZoom: 15,
+              onPositionChanged: _onMapPositionChanged,
               onTap: (_, point) {
                 if (_isPickingExactLocation) {
                   setState(() {
@@ -3554,6 +4578,34 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               // TileLayer(
               //   urlTemplate: 'https://api.mapbox.com/styles/v1/mapbox/streets-v11/tiles/{z}/{x}/{y}?access_token=$mapboxAccessToken',
               // ),
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: _areaSearchReference ?? _userLatLng(),
+                    radius: 1000,
+                    useRadiusInMeter: true,
+                    color: const Color(0xFF10B981).withOpacity(0.04),
+                    borderColor: const Color(0xFF10B981).withOpacity(0.32),
+                    borderStrokeWidth: 1.2,
+                  ),
+                  CircleMarker(
+                    point: _areaSearchReference ?? _userLatLng(),
+                    radius: 3000,
+                    useRadiusInMeter: true,
+                    color: Colors.transparent,
+                    borderColor: const Color(0xFF0EA5E9).withOpacity(0.26),
+                    borderStrokeWidth: 1.1,
+                  ),
+                  CircleMarker(
+                    point: _areaSearchReference ?? _userLatLng(),
+                    radius: 5000,
+                    useRadiusInMeter: true,
+                    color: Colors.transparent,
+                    borderColor: const Color(0xFFF59E0B).withOpacity(0.22),
+                    borderStrokeWidth: 1.0,
+                  ),
+                ],
+              ),
 
               // Markers Layer — bind to location notifiers so pins update even if
               // a parent misses a rebuild (e.g. IndexedStack / notifier edge cases).
@@ -3561,11 +4613,21 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 listenable: Listenable.merge([
                   LocationController.instance.liveLocation,
                   LocationController.instance.manualLocation,
+                  _mapClusterZoomNotifier,
                 ]),
                 builder: (context, _) {
                   final lc = LocationController.instance;
                   final live = lc.liveLocation.value;
                   final manual = lc.manualLocation.value;
+                  final userSkills = _normalizedUserSkills();
+                  final mapBusinesses = _applyBestMatchFilter(
+                    _allBusinesses,
+                    userSkills: userSkills,
+                  );
+                  final clusters = _clusterBusinesses(
+                    mapBusinesses,
+                    zoom: _mapClusterZoomNotifier.value,
+                  );
                   return MarkerLayer(
                     markers: [
                       // Live GPS "You" — only when not using a manual exact pin and
@@ -3579,7 +4641,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                       if (manual != null)
                         _buildUserMarker(
                           LatLng(manual.latitude, manual.longitude),
-                          label: 'Exact',
+                          label: _manualLocationPinLabel(manual),
                           ringColor: const Color(0xFFF59E0B),
                           icon: Icons.push_pin_rounded,
                         ),
@@ -3590,11 +4652,82 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           ringColor: const Color(0xFF10B981),
                           icon: Icons.add_location_alt_rounded,
                         ),
-                      // Business markers
-                      ..._allBusinesses.map((business) {
+                      // Business markers (clustered on low zoom)
+                      ...clusters.map((cluster) {
+                        if (cluster.businesses.length > 1) {
+                          final count = cluster.businesses.length;
+                          final matchedCount = cluster.businesses
+                              .where(
+                                (b) =>
+                                    _businessHasSkillMatch(b, userSkills),
+                              )
+                              .length;
+                          const matchCol = Color(0xFF16A34A);
+                          const nonMatchCol = Color(0xFF7C3AED);
+                          final matchedFraction =
+                              count > 0 ? matchedCount / count : 0.0;
+                          final shadowTint = Color.lerp(
+                            matchCol,
+                            nonMatchCol,
+                            1.0 - matchedFraction,
+                          )!;
+                          return Marker(
+                            point: cluster.center,
+                            width: 52,
+                            height: 52,
+                            child: GestureDetector(
+                              onTap: () {
+                                final nextZoom =
+                                    (_currentMapZoom + 2).clamp(5, 17).toDouble();
+                                _animatedMove(cluster.center, nextZoom);
+                              },
+                              child: Container(
+                                width: 52,
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: shadowTint.withOpacity(0.35),
+                                      blurRadius: 10,
+                                    ),
+                                  ],
+                                ),
+                                child: CustomPaint(
+                                  painter: _MapClusterPiePainter(
+                                    matchedFraction: matchedFraction,
+                                    matchColor: matchCol,
+                                    nonMatchColor: nonMatchCol,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '$count',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: count > 99 ? 11 : 14,
+                                        shadows: const [
+                                          Shadow(
+                                            color: Color(0x80000000),
+                                            blurRadius: 4,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        final business = cluster.businesses.first;
                         final isSelected =
                             _selectedBusiness?.id == business.id;
-                        final color = business.id == 'sm_savemore'
+                        final hasSkillMatch =
+                            _businessHasSkillMatch(business, userSkills);
+                        final color = hasSkillMatch
+                            ? const Color(0xFF16A34A)
+                            : business.id == 'sm_savemore'
                             ? const Color(0xFFE11D48)
                             : const Color(0xFF7C3AED);
                         final pinSize = isSelected ? 44.0 : 36.0;
@@ -3622,7 +4755,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: Colors.white,
+                                        color: hasSkillMatch
+                                            ? const Color(0xFF16A34A)
+                                            : Colors.white,
                                         width: isSelected ? 4 : 3,
                                       ),
                                       boxShadow: [
@@ -3673,7 +4808,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                   padding: const EdgeInsets.symmetric(
                                       horizontal: 8, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: hasSkillMatch
+                                        ? const Color(0xFFDCFCE7)
+                                        : Colors.white,
                                     borderRadius: BorderRadius.circular(6),
                                     boxShadow: [
                                       BoxShadow(
@@ -3747,6 +4884,28 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               ),
             ),
 
+          if (_showSearchAreaCta && !_isPickingExactLocation)
+            Positioned(
+              top: MediaQuery.paddingOf(context).top + 80,
+              left: 16,
+              right: 16,
+              child: Center(
+                child: ElevatedButton.icon(
+                  onPressed: _applySearchThisArea,
+                  icon: const Icon(Icons.travel_explore_rounded, size: 16),
+                  label: const Text('Search this area'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           // Search Bar & Business List
           SafeArea(
             child: Column(
@@ -3805,6 +4964,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                             itemCount: _filteredBusinesses.length,
                             itemBuilder: (context, index) {
                               final business = _filteredBusinesses[index];
+                              final reference = _activeDistanceReference();
+                              final distance = business.getDistanceFromUser(
+                                fromLat: reference.latitude,
+                                fromLng: reference.longitude,
+                              );
                               return ListTile(
                                 leading: ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
@@ -3848,10 +5012,35 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w600),
                                 ),
-                                subtitle: Text(
-                                  '${_formatDistance(business.getDistanceFromUser())} away',
+                                subtitle: DefaultTextStyle.merge(
                                   style: TextStyle(
-                                      color: Colors.grey[600], fontSize: 12),
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          _formatDistance(distance),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      Text(
+                                        ' • ',
+                                        style: TextStyle(
+                                            color: Colors.grey[500]),
+                                      ),
+                                      _travelTimeWithCarIcon(
+                                        distance,
+                                        iconSize: 13,
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                                 onTap: () {
                                   _searchController.clear();
@@ -3863,6 +5052,38 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           ),
                         ),
                     ],
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilterChip(
+                      selected: _bestMatchOnly,
+                      onSelected: (value) {
+                        setState(() {
+                          _bestMatchOnly = value;
+                        });
+                        _onSearch(_searchController.text);
+                      },
+                      showCheckmark: false,
+                      label: Icon(
+                        Icons.verified_rounded,
+                        size: 21,
+                        color: _bestMatchOnly
+                            ? const Color(0xFF15803D)
+                            : const Color(0xFF64748B),
+                      ),
+                      labelPadding: EdgeInsets.zero,
+                      padding: const EdgeInsets.all(10),
+                      selectedColor: const Color(0xFFDCFCE7),
+                      backgroundColor: Colors.white,
+                      side: BorderSide(
+                        color: _bestMatchOnly
+                            ? const Color(0xFF16A34A)
+                            : const Color(0xFFE2E8F0),
+                      ),
+                    ),
                   ),
                 ),
 
@@ -3883,10 +5104,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                   null ||
                               LocationController.instance.manualLocation.value !=
                                   null;
+                      final visibleBusinesses = _applyBestMatchFilter(_allBusinesses);
                       final List<Business> cardSource = isSearching
                           ? _filteredBusinesses
                           : (hasTrackedLocation
-                              ? _nearestTop5(_allBusinesses)
+                              ? _nearestTop5(visibleBusinesses)
                               : const <Business>[]);
 
                       return Column(
@@ -3899,45 +5121,117 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                   const EdgeInsets.fromLTRB(20, 0, 20, 8),
                               child: Align(
                                 alignment: Alignment.centerLeft,
-                                child: _buildSetExactLocationFab(),
+                                child: _buildLocationProfilesFab(),
                               ),
                             ),
                           if (!isSearching && cardSource.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(10),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.08),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 3),
+                              child: Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 20),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(10),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black.withOpacity(0.08),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 3),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.near_me_rounded,
+                                                size: 16,
+                                                color: Color(0xFF2563EB),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                _areaSearchReference == null
+                                                    ? 'Closest company near you'
+                                                    : 'Closest company in this area',
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.grey[800],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  ],
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.near_me_rounded,
-                                      size: 16,
-                                      color: Color(0xFF2563EB),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Text(
-                                      'Closest company near you',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.grey[800],
+                                  ),
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    top: 0,
+                                    child: Align(
+                                      alignment: Alignment.topCenter,
+                                      child: AnimatedSwitcher(
+                                        duration: const Duration(milliseconds: 180),
+                                        switchInCurve: Curves.easeOutCubic,
+                                        switchOutCurve: Curves.easeInCubic,
+                                        child: _compareBusinessIds.isNotEmpty
+                                            ? Row(
+                                                key: const ValueKey('compare_button_visible_overlay'),
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  FilledButton.icon(
+                                                    onPressed: _showCompanyCompareSheet,
+                                                    icon: const Icon(Icons.compare_arrows_rounded, size: 16),
+                                                    label: Text('Compare (${_compareBusinessIds.length}/3)'),
+                                                    style: FilledButton.styleFrom(
+                                                      backgroundColor: const Color(0xFF2563EB),
+                                                      foregroundColor: Colors.white,
+                                                      padding: const EdgeInsets.symmetric(
+                                                          horizontal: 14, vertical: 10),
+                                                      textStyle: const TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w700,
+                                                      ),
+                                                      shape: RoundedRectangleBorder(
+                                                        borderRadius: BorderRadius.circular(999),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Material(
+                                                    color: const Color(0xFF1D4ED8),
+                                                    shape: const CircleBorder(),
+                                                    child: InkWell(
+                                                      customBorder: const CircleBorder(),
+                                                      onTap: _clearCompareSelection,
+                                                      child: const Padding(
+                                                        padding: EdgeInsets.all(6),
+                                                        child: Icon(
+                                                          Icons.close_rounded,
+                                                          size: 14,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              )
+                                            : const SizedBox(
+                                                key: ValueKey('compare_button_hidden_overlay'),
+                                              ),
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
                           SizedBox(
@@ -3949,7 +5243,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                               itemCount: cardSource.length,
                               itemBuilder: (context, index) {
                                 final business = cardSource[index];
-                                final user = _userLatLng();
+                                final user = _activeDistanceReference();
                                 final distance = business.getDistanceFromUser(
                                   fromLat: user.latitude,
                                   fromLng: user.longitude,
@@ -3959,6 +5253,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
 
                                 return GestureDetector(
                                   onTap: () => _centerOnBusiness(business),
+                                  onLongPress: () => _toggleCompareBusiness(business),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     width: 280,
@@ -3982,7 +5277,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                         ),
                                       ],
                                     ),
-                                    child: Column(
+                                    child: Stack(
+                              children: [
+                                Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
@@ -4071,6 +5368,16 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                                   color: Color(0xFF2563EB),
                                                 ),
                                               ),
+                                              const SizedBox(width: 6),
+                                              _travelTimeWithCarIcon(
+                                                distance,
+                                                iconSize: 13,
+                                                style: const TextStyle(
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Color(0xFF64748B),
+                                                ),
+                                              ),
                                             ],
                                           ),
                                         ],
@@ -4142,6 +5449,25 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                 ),
                               ],
                             ),
+                                if (_compareBusinessIds.contains(business.id))
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF2563EB),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.check_rounded,
+                                        color: Colors.white,
+                                        size: 14,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         );
                       },
@@ -4179,7 +5505,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 // searching; keep it here while searching so it stays reachable.
                 if (_searchController.text.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  _buildSetExactLocationFab(),
+                  _buildLocationProfilesFab(),
                 ],
               ],
             ),
@@ -4193,6 +5519,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               bottom: MediaQuery.paddingOf(context).bottom + 250,
               child: _ExactLocationPickBanner(
                 hasPreview: _exactPickPreview != null,
+                saveAsProfile: _saveExactAsProfile,
+                profileNameController: _exactProfileNameController,
+                onSaveAsProfileChanged: (value) {
+                  setState(() => _saveExactAsProfile = value);
+                },
                 onCancel: _cancelPickingExactLocation,
                 onConfirm: _confirmPickingExactLocation,
               ),
@@ -4226,6 +5557,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               bottom: MediaQuery.paddingOf(context).bottom + 250,
               child: _BusinessPopupCard(
                 business: _selectedBusiness!,
+                distanceReference: _activeDistanceReference(),
                 onClose: () => setState(() => _selectedBusiness = null),
                 onViewJobs: () => _showBusinessDetails(_selectedBusiness!),
                 formatDistance: _formatDistance,
@@ -4237,6 +5569,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   }
 
   void _showBusinessDetails(Business business) {
+    final userSkills = _normalizedUserSkills();
+    final highlightAllJobs = _businessHasSkillMatch(business, userSkills);
+    final distanceReference = _activeDistanceReference();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -4253,7 +5588,10 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 child: _BusinessDetailSheet(
                   hostContext: this.context,
                   business: business,
+                  distanceReference: distanceReference,
                   formatDistance: _formatDistance,
+                  userSkills: userSkills,
+                  highlightAllJobs: highlightAllJobs,
                 ),
               ),
             ),
@@ -4264,19 +5602,162 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   }
 }
 
+class _MapCluster {
+  final LatLng center;
+  final List<Business> businesses;
+
+  const _MapCluster({
+    required this.center,
+    required this.businesses,
+  });
+}
+
+/// Two-tone pie for cluster bubbles: green = skill-matched employers, purple = not.
+class _MapClusterPiePainter extends CustomPainter {
+  _MapClusterPiePainter({
+    required this.matchedFraction,
+    required this.matchColor,
+    required this.nonMatchColor,
+  });
+
+  final double matchedFraction;
+  final Color matchColor;
+  final Color nonMatchColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final center = Offset(w / 2, h / 2);
+    const strokeWidth = 3.0;
+    final radius = (math.min(w, h) - strokeWidth) / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final f = matchedFraction.clamp(0.0, 1.0);
+    if (f <= 0) {
+      canvas.drawCircle(center, radius, Paint()..color = nonMatchColor);
+    } else if (f >= 1) {
+      canvas.drawCircle(center, radius, Paint()..color = matchColor);
+    } else {
+      canvas.drawCircle(center, radius, Paint()..color = nonMatchColor);
+      final start = -math.pi / 2;
+      final matchedSweep = 2 * math.pi * f;
+      canvas.drawArc(
+        rect,
+        start,
+        matchedSweep,
+        true,
+        Paint()..color = matchColor,
+      );
+    }
+
+    canvas.drawCircle(
+      center,
+      radius,
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MapClusterPiePainter old) =>
+      old.matchedFraction != matchedFraction ||
+      old.matchColor != matchColor ||
+      old.nonMatchColor != nonMatchColor;
+}
+
+class _LocationProfile {
+  final String id;
+  final String name;
+  final double latitude;
+  final double longitude;
+
+  const _LocationProfile({
+    required this.id,
+    required this.name,
+    required this.latitude,
+    required this.longitude,
+  });
+
+  _LocationProfile copyWith({
+    String? id,
+    String? name,
+    double? latitude,
+    double? longitude,
+  }) {
+    return _LocationProfile(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'lat': latitude,
+        'lng': longitude,
+      };
+
+  factory _LocationProfile.fromJson(Map<String, dynamic> json) {
+    return _LocationProfile(
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      latitude: (json['lat'] as num?)?.toDouble() ?? 0,
+      longitude: (json['lng'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
+/// Rough drive-time buckets from straight-line distance (~20 km/h mixed traffic).
+String _mapTravelTimeBucket(double meters) {
+  final minutes = ((meters / 1000) / 20) * 60;
+  if (minutes <= 10) return '<10 min';
+  if (minutes <= 20) return '10-20 min';
+  if (minutes <= 35) return '20-35 min';
+  return '35+ min';
+}
+
+Widget _mapTravelTimeWithCarIcon(
+  double meters, {
+  required TextStyle style,
+  double iconSize = 14,
+}) {
+  final color = style.color ?? const Color(0xFF64748B);
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(Icons.directions_car_rounded, size: iconSize, color: color),
+      SizedBox(width: iconSize >= 14 ? 4 : 3),
+      Text(_mapTravelTimeBucket(meters), style: style),
+    ],
+  );
+}
+
 // ─── Business Popup Card ──────────────────────────────────────────────────────
 class _BusinessPopupCard extends StatelessWidget {
   final Business business;
+  /// Point km / drive-time estimates are measured from (map search area or user pin).
+  final LatLng distanceReference;
   final VoidCallback onClose;
   final VoidCallback onViewJobs;
   final String Function(double) formatDistance;
 
   const _BusinessPopupCard({
     required this.business,
+    required this.distanceReference,
     required this.onClose,
     required this.onViewJobs,
     required this.formatDistance,
   });
+
+  double _distanceMeters() => business.getDistanceFromUser(
+        fromLat: distanceReference.latitude,
+        fromLng: distanceReference.longitude,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -4346,17 +5827,34 @@ class _BusinessPopupCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Icon(Icons.location_on_rounded,
-                            size: 16, color: Color(0xFF2563EB)),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${formatDistance(business.getDistanceFromUser())} away',
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.location_on_rounded,
+                                size: 16, color: Color(0xFF2563EB)),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${formatDistance(_distanceMeters())} away',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF2563EB),
+                              ),
+                            ),
+                          ],
+                        ),
+                        _mapTravelTimeWithCarIcon(
+                          _distanceMeters(),
+                          iconSize: 14,
                           style: const TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF2563EB),
+                            color: Color(0xFF64748B),
                           ),
                         ),
                       ],
@@ -4451,11 +5949,17 @@ class _BusinessPopupCard extends StatelessWidget {
 // ─── Exact-location pick banner ───────────────────────────────────────────────
 class _ExactLocationPickBanner extends StatelessWidget {
   final bool hasPreview;
+  final bool saveAsProfile;
+  final TextEditingController profileNameController;
+  final ValueChanged<bool> onSaveAsProfileChanged;
   final VoidCallback onCancel;
   final VoidCallback onConfirm;
 
   const _ExactLocationPickBanner({
     required this.hasPreview,
+    required this.saveAsProfile,
+    required this.profileNameController,
+    required this.onSaveAsProfileChanged,
     required this.onCancel,
     required this.onConfirm,
   });
@@ -4477,64 +5981,108 @@ class _ExactLocationPickBanner extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.add_location_alt_rounded,
-                color: Color(0xFF10B981), size: 22),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Set your exact location',
+            Row(
+              children: [
+                const Icon(Icons.add_location_alt_rounded,
+                    color: Color(0xFF10B981), size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Set your exact location',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      Text(
+                        hasPreview
+                            ? 'Tap elsewhere to adjust, then confirm below.'
+                            : 'Tap anywhere on the map to drop a pin.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Checkbox(
+                  value: saveAsProfile,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: (value) => onSaveAsProfileChanged(value ?? false),
+                ),
+                const SizedBox(width: 2),
+                const Expanded(
+                  child: Text(
+                    'Save as location profile',
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
                       color: Color(0xFF0F172A),
                     ),
                   ),
-                  Text(
-                    hasPreview
-                        ? 'Tap elsewhere to adjust, then Confirm.'
-                        : 'Tap anywhere on the map to drop a pin.',
+                ),
+              ],
+            ),
+            if (saveAsProfile) ...[
+              const SizedBox(height: 6),
+              TextField(
+                controller: profileNameController,
+                textInputAction: TextInputAction.done,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  hintText: 'e.g. Home, Boarding House',
+                  labelText: 'Profile name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Spacer(),
+                TextButton(
+                  onPressed: onCancel,
+                  child: const Text(
+                    'Cancel',
                     style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[600],
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            TextButton(
-              onPressed: onCancel,
-              child: const Text(
-                'Cancel',
-                style: TextStyle(
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w700,
                 ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            ElevatedButton(
-              onPressed: hasPreview ? onConfirm : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF10B981),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                const SizedBox(width: 4),
+                ElevatedButton(
+                  onPressed: hasPreview ? onConfirm : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF10B981),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ),
-                elevation: 0,
-              ),
-              child: const Text(
-                'Confirm',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
+              ],
             ),
           ],
         ),
@@ -4674,13 +6222,24 @@ class _LocationPermissionBanner extends StatelessWidget {
 class _BusinessDetailSheet extends StatelessWidget {
   final BuildContext hostContext;
   final Business business;
+  final LatLng distanceReference;
   final String Function(double) formatDistance;
+  final Set<String> userSkills;
+  final bool highlightAllJobs;
 
   const _BusinessDetailSheet({
     required this.hostContext,
     required this.business,
+    required this.distanceReference,
     required this.formatDistance,
+    required this.userSkills,
+    required this.highlightAllJobs,
   });
+
+  double _distanceMeters() => business.getDistanceFromUser(
+        fromLat: distanceReference.latitude,
+        fromLng: distanceReference.longitude,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -4784,8 +6343,7 @@ class _BusinessDetailSheet extends StatelessWidget {
                                               color: Color(0xFF2563EB)),
                                           const SizedBox(width: 4),
                                           Text(
-                                            formatDistance(
-                                                business.getDistanceFromUser()),
+                                            formatDistance(_distanceMeters()),
                                             style: const TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w600,
@@ -4793,6 +6351,25 @@ class _BusinessDetailSheet extends StatelessWidget {
                                             ),
                                           ),
                                         ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF64748B)
+                                            .withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: _mapTravelTimeWithCarIcon(
+                                        _distanceMeters(),
+                                        iconSize: 14,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF475569),
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -4856,6 +6433,8 @@ class _BusinessDetailSheet extends StatelessWidget {
                       // Job List
                       ...business.availableJobs.map((job) => _JobListItem(
                             job: job,
+                            userSkills: userSkills,
+                            highlightOverride: highlightAllJobs,
                             onTap: () {
                               Navigator.pop(context);
                               Future.microtask(
@@ -4899,7 +6478,10 @@ class _BusinessDetailSheet extends StatelessWidget {
               'location': job.location,
             // Ensure match badge is present like Jobs page details.
             'match_percentage':
-                (data['match_score'] as num?)?.toInt() ?? job.matchPercentage,
+                (data['match_score'] as num?)?.toInt() ??
+                    (data['match_percentage'] as num?)?.toInt() ??
+                    (listing['match_percentage'] as num?)?.toInt() ??
+                    job.matchPercentage,
           });
         }
       }
@@ -4957,18 +6539,40 @@ class _BusinessDetailSheet extends StatelessWidget {
 // ─── Job List Item for Business Detail ────────────────────────────────────────
 class _JobListItem extends StatelessWidget {
   final Job job;
+  final Set<String> userSkills;
+  final bool highlightOverride;
   final VoidCallback onTap;
 
-  const _JobListItem({required this.job, required this.onTap});
+  const _JobListItem({
+    required this.job,
+    required this.userSkills,
+    this.highlightOverride = false,
+    required this.onTap,
+  });
+
+  bool _looksMatched() {
+    if (highlightOverride) return true;
+    if (job.matchPercentage > 0) return true;
+    return SkillMatchUtils.anySkillMatch(
+      normalizedUserSkills: userSkills,
+      jobSkillsRaw: job.skills,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hasSkillMatch = _looksMatched();
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: hasSkillMatch
+              ? const Color(0xFF16A34A)
+              : const Color(0xFFE2E8F0),
+          width: hasSkillMatch ? 1.4 : 1,
+        ),
       ),
       child: Material(
         color: Colors.transparent,
@@ -5211,7 +6815,7 @@ class _NotificationsTabState extends State<NotificationsTab>
   /// Bulk delete is enabled only after every notification has been read.
   bool get _allNotificationsRead =>
       _notifications.isNotEmpty &&
-      _notifications.every((n) => n['read_at'] != null);
+      _notifications.every(_isReadNotification);
 
   /// Gray icon-only state while any notification is still unread.
   bool get _deleteFabIsCompact =>
@@ -5460,12 +7064,18 @@ class _NotificationsTabState extends State<NotificationsTab>
     }
   }
 
-  Future<void> _openNotification(int index) async {
+  bool _isReadNotification(Map<String, dynamic> item) {
+    final readAt = item['read_at'];
+    if (readAt == null) return false;
+    if (readAt is String) return readAt.trim().isNotEmpty;
+    return true;
+  }
+
+  Future<void> _openNotification(Map<String, dynamic> notificationItem) async {
     HapticFeedback.selectionClick();
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
-    final n = _notifications[index];
-    final id = n['id'];
+    final id = notificationItem['id'];
     if (id == null) return;
 
     final result = await ApiService.getJobseekerNotification(
@@ -5475,11 +7085,16 @@ class _NotificationsTabState extends State<NotificationsTab>
     if (!mounted) return;
     if (result['success'] == true) {
       final data = result['data'] as Map<String, dynamic>? ?? {};
+      final readAt = data['read_at'] ?? DateTime.now().toIso8601String();
       setState(() {
-        _notifications[index] = {
-          ..._notifications[index],
-          'read_at': data['read_at'] ?? DateTime.now().toIso8601String(),
-        };
+        _notifications = _notifications
+            .map((item) => item['id'] == id
+                ? {
+                    ...item,
+                    'read_at': readAt,
+                  }
+                : item)
+            .toList();
       });
     }
   }
@@ -5638,19 +7253,56 @@ class _NotificationsTabState extends State<NotificationsTab>
     required String employmentType,
     required bool hasKnownApplicationId,
   }) async {
-    final initialState = await _resolveOfferState(notificationItem);
-    int? resolvedAppId = initialState.applicationId;
-    String? selectedResponse = initialState.offerResponse;
+    int? resolvedAppId;
+    String? selectedResponse;
     bool isSubmitting = false;
+    bool isHydratingOfferState = true;
+    bool hasStartedHydration = false;
+    bool isActionCooldown = true;
+    bool hasStartedActionCooldown = false;
 
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setModalState) {
+          if (!hasStartedHydration) {
+            hasStartedHydration = true;
+            unawaited(() async {
+              ({int? applicationId, String? offerResponse}) initialState;
+              try {
+                initialState = await _resolveOfferState(notificationItem);
+              } catch (_) {
+                if (!mounted || !ctx.mounted) return;
+                setModalState(() {
+                  isHydratingOfferState = false;
+                });
+                return;
+              }
+              if (!mounted || !ctx.mounted) return;
+              setModalState(() {
+                resolvedAppId = initialState.applicationId;
+                selectedResponse = initialState.offerResponse;
+                isHydratingOfferState = false;
+              });
+            }());
+          }
+          if (!hasStartedActionCooldown) {
+            hasStartedActionCooldown = true;
+            unawaited(() async {
+              await Future<void>.delayed(const Duration(milliseconds: 1500));
+              if (!mounted || !ctx.mounted) return;
+              setModalState(() {
+                isActionCooldown = false;
+              });
+            }());
+          }
+
           Future<void> handleResponse(String response) async {
-            if (isSubmitting || selectedResponse != null) return;
+            if (isSubmitting || selectedResponse != null || isActionCooldown) return;
             setModalState(() => isSubmitting = true);
 
             resolvedAppId ??= await _resolveOfferApplicationId(notificationItem);
@@ -5696,182 +7348,245 @@ class _NotificationsTabState extends State<NotificationsTab>
             }
           }
 
-          return SafeArea(
-            child: Padding(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 16,
-                bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
-              ),
-              child: Material(
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.84,
+            minChildSize: 0.52,
+            maxChildSize: 0.94,
+            builder: (_, scrollCtrl) => Container(
+              decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Respond to Job Offer',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      RichText(
-                        text: TextSpan(
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF475569),
-                            height: 1.5,
-                          ),
-                          children: _parseMessageWithBold(
-                            '**$companyName** offered you the **$jobTitle** role. Please review and choose one response below.',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: ListView(
+                controller: scrollCtrl,
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
+                ),
+                children: [
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Container(
+                        width: 36,
+                        height: 4,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF8FAFC),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Start Date: $startDate',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
-                            const SizedBox(height: 4),
-                            Text('Salary: $salary',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
-                            const SizedBox(height: 4),
-                            Text('Employment Type: $employmentType',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
-                          ],
+                          color: const Color(0xFFE2E8F0),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      if (!hasKnownApplicationId)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Text(
-                            'Preparing offer reference...',
-                            style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 20),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0EA5E9), Color(0xFF0284C7)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        Icon(Icons.gavel_rounded, color: Colors.white, size: 28),
+                        SizedBox(height: 10),
+                        Text(
+                          'Job Offer Received',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
                           ),
                         ),
-                      if (selectedResponse != null)
-                        Container(
-                          margin: const EdgeInsets.only(top: 10),
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: selectedResponse == 'accepted'
-                                ? const Color(0xFFECFDF5)
-                                : const Color(0xFFFEF2F2),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: selectedResponse == 'accepted'
-                                  ? const Color(0xFFA7F3D0)
-                                  : const Color(0xFFFECACA),
-                            ),
-                          ),
-                          child: Text(
-                            selectedResponse == 'accepted'
-                                ? 'You already accepted this offer.'
-                                : 'You already rejected this offer.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: selectedResponse == 'accepted'
-                                  ? const Color(0xFF047857)
-                                  : const Color(0xFFB91C1C),
-                            ),
-                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: RichText(
+                      text: TextSpan(
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF475569),
+                          height: 1.5,
                         ),
-                      const SizedBox(height: 14),
-                      Row(
+                        children: _parseMessageWithBold(
+                          '**$companyName** offered you the **$jobTitle** role. Please review and choose one response below.',
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: (isSubmitting || selectedResponse != null)
-                                  ? null
-                                  : () => handleResponse('declined'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: selectedResponse == null
-                                    ? const Color(0xFFB91C1C)
-                                    : const Color(0xFF94A3B8),
-                                side: BorderSide(
-                                  color: selectedResponse == null
-                                      ? const Color(0xFFFCA5A5)
-                                      : const Color(0xFFE2E8F0),
-                                ),
-                                backgroundColor: selectedResponse == 'declined'
-                                    ? const Color(0xFFFEF2F2)
-                                    : Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                              child: Text(
-                                selectedResponse == 'declined'
-                                    ? 'Rejected'
-                                    : 'Reject Offer',
-                                style: const TextStyle(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: (isSubmitting || selectedResponse != null)
-                                  ? null
-                                  : () => handleResponse('accepted'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: selectedResponse == 'accepted'
-                                    ? const Color(0xFF047857)
-                                    : (selectedResponse == null
-                                        ? const Color(0xFF059669)
-                                        : const Color(0xFFCBD5E1)),
-                                foregroundColor: selectedResponse == null
-                                    ? Colors.white
-                                    : const Color(0xFF475569),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: isSubmitting
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : Text(
-                                      selectedResponse == 'accepted'
-                                          ? 'Accepted'
-                                          : 'Accept Offer',
-                                      style:
-                                          const TextStyle(fontWeight: FontWeight.w700),
-                                    ),
-                            ),
-                          ),
+                          Text('Start Date: $startDate',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+                          const SizedBox(height: 4),
+                          Text('Salary: $salary',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
+                          const SizedBox(height: 4),
+                          Text('Employment Type: $employmentType',
+                              style: const TextStyle(fontSize: 12, color: Color(0xFF334155))),
                         ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                  if (!hasKnownApplicationId)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8, left: 20, right: 20),
+                      child: Text(
+                        'Preparing offer reference...',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  if (isHydratingOfferState)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6, left: 20, right: 20),
+                      child: Text(
+                        'Loading offer status...',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      ),
+                    ),
+                  if (selectedResponse != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 10, left: 20, right: 20),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: selectedResponse == 'accepted'
+                              ? const Color(0xFFECFDF5)
+                              : const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: selectedResponse == 'accepted'
+                                ? const Color(0xFFA7F3D0)
+                                : const Color(0xFFFECACA),
+                          ),
+                        ),
+                        child: Text(
+                          selectedResponse == 'accepted'
+                              ? 'You accepted this offer.'
+                              : 'You rejected this offer.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: selectedResponse == 'accepted'
+                                ? const Color(0xFF047857)
+                                : const Color(0xFFB91C1C),
+                          ),
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 14),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: (isSubmitting ||
+                                    selectedResponse != null ||
+                                    isActionCooldown)
+                                ? null
+                                : () => handleResponse('declined'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: isActionCooldown
+                                  ? const Color(0xFF94A3B8)
+                                  : selectedResponse == null
+                                  ? const Color(0xFFB91C1C)
+                                  : const Color(0xFF94A3B8),
+                              side: BorderSide(
+                                color: isActionCooldown
+                                    ? const Color(0xFFE2E8F0)
+                                    : selectedResponse == null
+                                    ? const Color(0xFFFCA5A5)
+                                    : const Color(0xFFE2E8F0),
+                              ),
+                              backgroundColor: isActionCooldown
+                                  ? const Color(0xFFF1F5F9)
+                                  : selectedResponse == 'declined'
+                                  ? const Color(0xFFFEF2F2)
+                                  : Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            child: Text(
+                              isActionCooldown
+                                  ? 'Reject Offer'
+                                  : selectedResponse == 'declined'
+                                  ? 'Rejected'
+                                  : 'Reject Offer',
+                              style: const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: (isSubmitting ||
+                                    selectedResponse != null ||
+                                    isActionCooldown)
+                                ? null
+                                : () => handleResponse('accepted'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isActionCooldown
+                                  ? const Color(0xFFCBD5E1)
+                                  : selectedResponse == 'accepted'
+                                  ? const Color(0xFF047857)
+                                  : (selectedResponse == null
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFFCBD5E1)),
+                              foregroundColor: isActionCooldown
+                                  ? const Color(0xFF475569)
+                                  : selectedResponse == null
+                                  ? Colors.white
+                                  : const Color(0xFF475569),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 0,
+                            ),
+                            child: isSubmitting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    selectedResponse == 'accepted'
+                                        ? 'Accepted'
+                                        : 'Accept Offer',
+                                    style: const TextStyle(fontWeight: FontWeight.w700),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -5901,6 +7616,26 @@ class _NotificationsTabState extends State<NotificationsTab>
     final token = UserSession().token;
     if (token == null || token.isEmpty || notifId == null) return;
     
+    await ApiService.deleteJobseekerNotification(
+      token: token,
+      id: notifId is int ? notifId : int.tryParse(notifId.toString()) ?? 0,
+    );
+  }
+
+  Future<void> _deleteNotificationByItem(Map<String, dynamic> n,
+      {bool allowSatisfactionSurvey = false}) async {
+    final notifId = n['id'];
+    final notifData = n['notification'] as Map<String, dynamic>? ?? {};
+    if (notifData['type'] == 'satisfaction_survey' && !allowSatisfactionSurvey) {
+      return;
+    }
+
+    setState(() {
+      _notifications.removeWhere((item) => item['id'] == notifId);
+    });
+
+    final token = UserSession().token;
+    if (token == null || token.isEmpty || notifId == null) return;
     await ApiService.deleteJobseekerNotification(
       token: token,
       id: notifId is int ? notifId : int.tryParse(notifId.toString()) ?? 0,
@@ -6046,12 +7781,12 @@ class _NotificationsTabState extends State<NotificationsTab>
     return spans;
   }
 
-  Future<void> _showRatingDialog(int index, Map<String, dynamic> n) async {
+  Future<void> _showRatingDialog(Map<String, dynamic> n) async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
 
-    if (n['read_at'] == null) {
-      _openNotification(index);
+    if (!_isReadNotification(n)) {
+      _openNotification(n);
     }
 
     int selectedRating = 0;
@@ -6267,8 +8002,10 @@ class _NotificationsTabState extends State<NotificationsTab>
                                                   BorderRadius.circular(12)),
                                         ),
                                       );
-                                      _deleteNotification(index,
-                                          allowSatisfactionSurvey: true);
+                                      _deleteNotificationByItem(
+                                        n,
+                                        allowSatisfactionSurvey: true,
+                                      );
                                     } else {
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(
@@ -6546,7 +8283,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                 (notif['created_at'] as String? ?? ''),
                               ) ??
                               DateTime.now();
-                          final isRead = n['read_at'] != null;
+                          final isRead = _isReadNotification(n);
                           final id = n['id'] ?? index;
 
                           // Shared time/date formatting
@@ -6633,7 +8370,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                     color: Colors.white,
                                     child: InkWell(
                                       onTap: () {
-                                        _openNotification(index);
+                                        _openNotification(n);
                                         _openInvitationJob(n);
                                       },
                                       child: Padding(
@@ -6687,7 +8424,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                             const SizedBox(height: 18),
                                             _buildSurveyMessageBox(message),
                                             const SizedBox(height: 18),
-                                            _buildRateButton(() => _showRatingDialog(index, n)),
+                                            _buildRateButton(() => _showRatingDialog(n)),
                                           ],
                                         ),
                                       ),
@@ -6726,7 +8463,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                     color: Colors.white,
                                     child: InkWell(
                                       onTap: () {
-                                        _openNotification(index);
+                                        _openNotification(n);
                                         _showInterviewScheduleModal(
                                           context,
                                           companyName: interviewCompany,
@@ -6842,7 +8579,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                     color: Colors.white,
                                     child: InkWell(
                                       onTap: () {
-                                        _openNotification(index);
+                                        _openNotification(n);
                                         _showOfferDecisionModal(
                                           notificationItem: n,
                                           jobTitle: offerJobTitle,
@@ -6967,7 +8704,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                     color: Colors.white,
                                     child: InkWell(
                                       onTap: () {
-                                        _openNotification(index);
+                                        _openNotification(n);
                                         _showHiredOfferModal(
                                           context,
                                           jobTitle: hiredJobTitle,
@@ -7073,7 +8810,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                     color: Colors.white,
                                     child: InkWell(
                                       onTap: () {
-                                        _openNotification(index);
+                                        _openNotification(n);
                                         _showRejectedModal(
                                           context,
                                           jobTitle: rejJobTitle,
@@ -7167,7 +8904,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                 margin: const EdgeInsets.only(bottom: 12),
                                 decoration: _buildCardDecoration(isRead, statusColor),
                                 child: ListTile(
-                                  onTap: () => _openNotification(index),
+                                  onTap: () => _openNotification(n),
                                   leading: _buildStatusLeading(statusColor, statusAsset),
                                   title: Text(
                                     subject,
@@ -7364,8 +9101,11 @@ class _NotificationsTabState extends State<NotificationsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
+        expand: false,
         initialChildSize: 0.88,
         minChildSize: 0.5,
         maxChildSize: 0.95,
@@ -7602,8 +9342,11 @@ class _NotificationsTabState extends State<NotificationsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
+        expand: false,
         initialChildSize: 0.78,
         minChildSize: 0.5,
         maxChildSize: 0.92,
@@ -7750,8 +9493,11 @@ class _NotificationsTabState extends State<NotificationsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
       builder: (_) => DraggableScrollableSheet(
+        expand: false,
         initialChildSize: 0.82,
         minChildSize: 0.5,
         maxChildSize: 0.95,

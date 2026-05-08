@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'api_service.dart';
 import 'user_session.dart';
 import 'job_models.dart';
 import 'job_action_service.dart';
 import 'home_pages.dart'; // Added for map navigation notifiers
+import 'skill_match_utils.dart';
 import 'my_documents_page.dart';
 import 'main.dart';
 
@@ -26,6 +28,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   bool _isLoadingCatalog = true;
   bool _isSaving = false;
   bool _hasChanges = false;
+  List<String> _lastSavedSkills = [];
   /// When false, selected chips have no remove (X); browse/search add is locked too.
   /// New users with no skills yet can always browse/add (`_canChangeSkills`).
   bool _editingSelectedSkills = false;
@@ -36,6 +39,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   String _searchQuery = '';
+  String? _activeCategoryFilter;
 
   // Job Matches sorting & filtering
   String _sortOption = 'Best Match';
@@ -54,16 +58,52 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     'Freelance',
   ];
 
+  final Map<String, GlobalKey> _categoryKeys = {};
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     _selectedSkills = List.from(UserSession().skills);
+    _lastSavedSkills = List.from(_selectedSkills);
     _loadSavedSkills();
     _loadSkillCatalog();
     if (_selectedSkills.isNotEmpty) {
       _loadMatchedJobs();
     }
+  }
+
+  void _showToast(String message, {ToastType type = ToastType.info}) {
+    if (!mounted) return;
+    CustomToast.show(
+      context,
+      message: message,
+      type: type,
+      duration: const Duration(milliseconds: 1300),
+    );
+  }
+
+  bool _hasSameSkillsAsSaved() {
+    final current = _selectedSkills.toSet();
+    final saved = _lastSavedSkills.toSet();
+    if (current.length != saved.length) return false;
+    return current.containsAll(saved);
+  }
+
+  Future<bool> _confirmLeaveWithUnsavedChanges() async {
+    if (!_hasChanges) return true;
+    final shouldLeave = await showAppDialog<bool>(
+      context: context,
+      type: AppDialogType.warning,
+      icon: Icons.warning_amber_rounded,
+      title: 'Unsaved Changes',
+      message:
+          'You have unsaved skill changes. Are you sure you want to go back without saving?',
+      confirmLabel: 'Leave',
+      onConfirm: () => Navigator.of(context).pop(true),
+      onCancel: () => Navigator.of(context).pop(false),
+    );
+    return shouldLeave == true;
   }
 
   @override
@@ -131,6 +171,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
       setState(() {
         _selectedSkills = names;
+        _lastSavedSkills = List.from(names);
         _hasChanges = false;
       });
 
@@ -522,6 +563,33 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
 
+    final currentSkills = List<String>.from(_lastSavedSkills);
+    final previouslySaved = Set<String>.from(_lastSavedSkills);
+    final newlyAdded = _selectedSkills
+        .where((s) => !previouslySaved.contains(s))
+        .toList();
+
+    String summarize(List<String> items, {int max = 10}) {
+      if (items.isEmpty) return 'None';
+      final shown = items.take(max).join(', ');
+      final remaining = items.length - max;
+      return remaining > 0 ? '$shown, +$remaining more' : shown;
+    }
+
+    final shouldSave = await showAppDialog<bool>(
+      context: context,
+      type: AppDialogType.confirm,
+      icon: Icons.save_rounded,
+      title: 'Save Skills?',
+      message:
+          'Current skills (${currentSkills.length}): ${summarize(currentSkills)}\n\n'
+          'Newly added (${newlyAdded.length}): ${summarize(newlyAdded)}',
+      confirmLabel: 'Save Skills',
+      onConfirm: () => Navigator.of(context).pop(true),
+      onCancel: () => Navigator.of(context).pop(false),
+    );
+    if (shouldSave != true || !mounted) return;
+
     setState(() => _isSaving = true);
 
     final skillIds = _selectedSkills
@@ -534,11 +602,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     if (skillIds.isEmpty && _selectedSkills.isNotEmpty) {
       setState(() => _isSaving = false);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select skills from the catalog before saving.'),
-          backgroundColor: Color(0xFFEF4444),
-        ),
+      _showToast(
+        'Please select skills from the catalog before saving.',
+        type: ToastType.error,
       );
       return;
     }
@@ -555,39 +621,28 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       final userData = refreshed['data'] as Map<String, dynamic>? ?? {};
       if (refreshed['success'] == true) {
         UserSession().updateFromUser(userData);
+        SkillMatchUtils.invalidateUserSkillsCache();
+        mapUserSkillsRevisionNotifier.value++;
       }
       setState(() {
         _hasChanges = false;
         _isSaving = false;
         _editingSelectedSkills = false;
+        _lastSavedSkills = List.from(_selectedSkills);
       });
       _loadMatchedJobs();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
-                SizedBox(width: 8),
-                Text('Skills saved! Finding matched jobs...'),
-              ],
-            ),
-            backgroundColor: const Color(0xFF10B981),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+        _showToast(
+          'Skills saved! Finding matched jobs...',
+          type: ToastType.success,
         );
       }
     } else {
       setState(() => _isSaving = false);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] as String? ?? 'Failed to save skills.'),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
+        _showToast(
+          result['message'] as String? ?? 'Failed to save skills.',
+          type: ToastType.error,
         );
       }
     }
@@ -599,14 +654,17 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   void _toggleSkill(String skill) {
     if (!_canChangeSkills) return;
+    bool added = false;
     setState(() {
       final wasEmpty = _selectedSkills.isEmpty;
       if (_selectedSkills.contains(skill)) {
         _selectedSkills.remove(skill);
+        added = false;
       } else {
         _selectedSkills.add(skill);
+        added = true;
       }
-      _hasChanges = true;
+      _hasChanges = !_hasSameSkillsAsSaved();
       // First pick from empty: stay in an open "picking" session so browse doesn't lock.
       if (wasEmpty && _selectedSkills.isNotEmpty) {
         _editingSelectedSkills = true;
@@ -615,6 +673,11 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
         _editingSelectedSkills = false;
       }
     });
+    HapticFeedback.selectionClick();
+    _showToast(
+      added ? '$skill added' : '$skill removed',
+      type: added ? ToastType.success : ToastType.info,
+    );
   }
 
   Future<void> _confirmEnableSkillEditing() async {
@@ -647,20 +710,48 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   /// Within each category, matching skills are ordered before non-matching ones.
   List<MapEntry<String, List<String>>> get _sortedFilteredCatalog {
     final q = _searchQuery.toLowerCase();
-    final entries = _skillCatalog.entries.toList();
+    final entries = _skillCatalog.entries
+        .where((entry) => _activeCategoryFilter == null || entry.key == _activeCategoryFilter)
+        .map((entry) => MapEntry<String, List<String>>(entry.key, List<String>.from(entry.value)))
+        .toList();
 
     if (q.isEmpty) return entries;
 
+    int skillScore(String s) {
+      final k = s.toLowerCase();
+      if (k.startsWith(q)) return 3;
+      if (k.contains(q)) return 2;
+      return 0;
+    }
+
     int scoreEntry(MapEntry<String, List<String>> entry) {
-      final catMatch = entry.key.toLowerCase().contains(q) ? 2 : 0;
-      final skillMatches = entry.value.where((s) => s.toLowerCase().contains(q)).length;
+      final cat = entry.key.toLowerCase();
+      final catMatch = cat.startsWith(q)
+          ? 4
+          : cat.contains(q)
+              ? 2
+              : 0;
+      final skillMatches = entry.value.map(skillScore).fold<int>(0, (a, b) => a + b);
       return catMatch + skillMatches;
     }
 
-    entries.sort((a, b) => scoreEntry(b).compareTo(scoreEntry(a)));
+    for (final entry in entries) {
+      entry.value.sort((a, b) {
+        final byScore = skillScore(b).compareTo(skillScore(a));
+        if (byScore != 0) return byScore;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
+    }
+
+    entries.sort((a, b) {
+      final byScore = scoreEntry(b).compareTo(scoreEntry(a));
+      if (byScore != 0) return byScore;
+      return a.key.toLowerCase().compareTo(b.key.toLowerCase());
+    });
 
     return entries.where((entry) {
-      if (entry.key.toLowerCase().contains(q)) return true;
+      final cat = entry.key.toLowerCase();
+      if (cat.startsWith(q) || cat.contains(q)) return true;
       return entry.value.any((s) => s.toLowerCase().contains(q));
     }).toList();
   }
@@ -670,9 +761,19 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     final q = _searchQuery.toLowerCase();
     if (q.isEmpty) return [];
     final selectedSet = _selectedSkills.toSet();
-    return _allCatalogSkills
+    final matches = _allCatalogSkills
         .where((s) => s.toLowerCase().contains(q) && !selectedSet.contains(s))
         .toList();
+    matches.sort((a, b) {
+      final ak = a.toLowerCase();
+      final bk = b.toLowerCase();
+      final aStarts = ak.startsWith(q);
+      final bStarts = bk.startsWith(q);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      return ak.compareTo(bk);
+    });
+    return matches;
   }
 
   void _onSearchChanged(String value) {
@@ -686,98 +787,109 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
-        title: const Text(
-          'Skills Profile',
-          style: TextStyle(
-            color: Color(0xFF0F172A),
-            fontWeight: FontWeight.w800,
+    return WillPopScope(
+      onWillPop: _confirmLeaveWithUnsavedChanges,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () async {
+              final shouldLeave = await _confirmLeaveWithUnsavedChanges();
+              if (!mounted || !shouldLeave) return;
+              Navigator.of(context).pop();
+            },
           ),
-        ),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(49),
-          child: Column(
-            children: [
-              Container(height: 1, color: const Color(0xFFE2E8F0)),
-              TabBar(
-                controller: _tabController,
-                labelColor: const Color(0xFF2563EB),
-                unselectedLabelColor: const Color(0xFF94A3B8),
-                labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-                indicatorColor: const Color(0xFF2563EB),
-                indicatorWeight: 3,
-                tabs: [
-                  Tab(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.psychology_outlined, size: 18),
-                        const SizedBox(width: 6),
-                        const Text('My Skills'),
-                        if (_selectedSkills.isNotEmpty) ...[
+          title: const Text(
+            'Skills Profile',
+            style: TextStyle(
+              color: Color(0xFF0F172A),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(49),
+            child: Column(
+              children: [
+                Container(height: 1, color: const Color(0xFFE2E8F0)),
+                TabBar(
+                  controller: _tabController,
+                  labelColor: const Color(0xFF2563EB),
+                  unselectedLabelColor: const Color(0xFF94A3B8),
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                  indicatorColor: const Color(0xFF2563EB),
+                  indicatorWeight: 3,
+                  tabs: [
+                    Tab(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.psychology_outlined, size: 18),
                           const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF2563EB).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${_selectedSkills.length}',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  Tab(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.work_outline_rounded, size: 18),
-                        const SizedBox(width: 6),
-                        const Text('Job Matches'),
-                        if (_matchedJobs.isNotEmpty) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF10B981).withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${_matchedJobs.length}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Color(0xFF10B981),
+                          const Text('My Skills'),
+                          if (_selectedSkills.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${_selectedSkills.length}',
+                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                               ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    Tab(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.work_outline_rounded, size: 18),
+                          const SizedBox(width: 6),
+                          const Text('Job Matches'),
+                          if (_matchedJobs.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                '${_matchedJobs.length}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildSkillsTab(),
-          _buildMatchedJobsTab(),
-        ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildSkillsTab(),
+            _buildMatchedJobsTab(),
+          ],
+        ),
       ),
     );
   }
@@ -832,6 +944,26 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
           ),
         ),
         Container(height: 1, color: const Color(0xFFE2E8F0)),
+        if (_hasChanges)
+          Container(
+            width: double.infinity,
+            color: const Color(0xFFFFFBEB),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+            child: Row(
+              children: [
+                const Icon(Icons.edit_note_rounded, size: 16, color: Color(0xFFD97706)),
+                const SizedBox(width: 8),
+                Text(
+                  'Unsaved changes',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.orange[800],
+                  ),
+                ),
+              ],
+            ),
+          ),
 
         Expanded(
           child: _isLoadingCatalog
@@ -902,7 +1034,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    'Your chosen skills will appear here. Open a category below and tap any skill to add it.',
+                                    'Start by adding 3-5 key skills to improve match quality. Open a category below and tap skills to add them here.',
                                     style: TextStyle(
                                       fontSize: 13,
                                       color: Colors.grey[600],
@@ -1112,6 +1244,52 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           subtitle: 'Skills sourced from available job listings',
                         ),
                       if (!isSearching) const SizedBox(height: 16),
+                      if (!isSearching && _skillCatalog.isNotEmpty) ...[
+                        SizedBox(
+                          height: 38,
+                          child: ListView(
+                            scrollDirection: Axis.horizontal,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: const Text('All categories'),
+                                  selected: _activeCategoryFilter == null,
+                                  onSelected: (_) {
+                                    setState(() => _activeCategoryFilter = null);
+                                  },
+                                ),
+                              ),
+                              ..._skillCatalog.keys.map((category) {
+                                final isActive = _activeCategoryFilter == category;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    label: Text(category),
+                                    selected: isActive,
+                                    onSelected: (_) {
+                                      setState(() => _activeCategoryFilter = category);
+                                      final key = _categoryKeys[category];
+                                      final ctx = key?.currentContext;
+                                      if (ctx != null) {
+                                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                                          Scrollable.ensureVisible(
+                                            ctx,
+                                            duration: const Duration(milliseconds: 280),
+                                            curve: Curves.easeOutCubic,
+                                            alignment: 0.02,
+                                          );
+                                        });
+                                      }
+                                    },
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
 
                       if (isSearching && filteredCatalog.isEmpty)
                         Center(
@@ -1135,16 +1313,27 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           ),
                         ),
 
-                      ...(isSearching ? filteredCatalog : _skillCatalog.entries.toList()).map((entry) {
-                        return _SkillCategoryCard(
-                          category: entry.key,
-                          skills: entry.value,
-                          selectedSkillSet: selectedSkillSet,
-                          onToggle: _toggleSkill,
-                          onDisabledTap: _confirmEnableSkillEditing,
-                          searchQuery: _searchQuery,
-                          forceExpanded: isSearching,
-                          skillsEditable: _canChangeSkills,
+                      ...(isSearching
+                              ? filteredCatalog
+                              : _skillCatalog.entries
+                                  .where((entry) =>
+                                      _activeCategoryFilter == null ||
+                                      entry.key == _activeCategoryFilter)
+                                  .toList())
+                          .map((entry) {
+                        final key = _categoryKeys.putIfAbsent(entry.key, () => GlobalKey());
+                        return KeyedSubtree(
+                          key: key,
+                          child: _SkillCategoryCard(
+                            category: entry.key,
+                            skills: entry.value,
+                            selectedSkillSet: selectedSkillSet,
+                            onToggle: _toggleSkill,
+                            onDisabledTap: _confirmEnableSkillEditing,
+                            searchQuery: _searchQuery,
+                            forceExpanded: isSearching,
+                            skillsEditable: _canChangeSkills,
+                          ),
                         );
                       }),
                     ],
@@ -1530,14 +1719,20 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
               : RefreshIndicator(
                   color: const Color(0xFF2563EB),
                   onRefresh: _loadMatchedJobs,
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                    itemCount: jobs.length,
-                    itemBuilder: (context, index) {
-                      return _MatchedJobCard(
-                        job: jobs[index],
-                        userSkills: _selectedSkills,
+                  child: Builder(
+                    builder: (context) {
+                      final normalizedUserSkills =
+                          SkillMatchUtils.normalizeSkillTerms(_selectedSkills);
+                      return ListView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                        itemCount: jobs.length,
+                        itemBuilder: (context, index) {
+                          return _MatchedJobCard(
+                            job: jobs[index],
+                            normalizedUserSkills: normalizedUserSkills,
+                          );
+                        },
                       );
                     },
                   ),
@@ -1674,16 +1869,20 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
     // Sort skills: search matches first, then selected, then the rest
     final sortedSkills = List<String>.from(widget.skills);
     if (isSearching) {
+      int score(String s) {
+        final k = s.toLowerCase();
+        if (k.startsWith(q)) return 3;
+        if (k.contains(q)) return 2;
+        return 0;
+      }
       sortedSkills.sort((a, b) {
-        final aMatch = a.toLowerCase().contains(q);
-        final bMatch = b.toLowerCase().contains(q);
-        if (aMatch && !bMatch) return -1;
-        if (!aMatch && bMatch) return 1;
+        final byScore = score(b).compareTo(score(a));
+        if (byScore != 0) return byScore;
         final aSelected = widget.selectedSkillSet.contains(a);
         final bSelected = widget.selectedSkillSet.contains(b);
         if (aSelected && !bSelected) return -1;
         if (!aSelected && bSelected) return 1;
-        return 0;
+        return a.toLowerCase().compareTo(b.toLowerCase());
       });
     }
 
@@ -1893,9 +2092,12 @@ class _HighlightedText extends StatelessWidget {
 
 class _MatchedJobCard extends StatelessWidget {
   final Job job;
-  final List<String> userSkills;
+  final Set<String> normalizedUserSkills;
 
-  const _MatchedJobCard({required this.job, required this.userSkills});
+  const _MatchedJobCard({
+    required this.job,
+    required this.normalizedUserSkills,
+  });
 
   Future<bool> _ensureResumeReadyForApply(
       BuildContext context, JobActionService jobActionService) async {
@@ -1960,14 +2162,30 @@ class _MatchedJobCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final jobActionService = JobActionService();
-    final percentage = job.matchPercentage;
     final isApplied = jobActionService.isApplied(job.id);
     final isSaved = jobActionService.isSaved(job.id);
+    void openDetails() {
+      final saved = jobActionService.isSaved(job.id);
+      final applied = jobActionService.isApplied(job.id);
+      showJobDetailSheet(
+        context,
+        job,
+        isApplied: applied,
+        isSaved: saved,
+        onApply: () async {
+          await _confirmAndApply(context, jobActionService);
+        },
+        onViewMap: () {
+          Navigator.of(context).pop(); // Pop detail sheet
+          Navigator.of(context).pop(); // Pop SkillsProfilePage to return to Home tabs
+          homeNavRequestNotifier.value = 1; // Select Map tab
+          mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
+        },
+      );
+    }
 
     const matchColor = Color(0xFF059669);
     const matchBg = Color(0xFFF0FDF4);
-
-    final userSkillsLower = userSkills.map((s) => s.toLowerCase()).toSet();
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -1987,25 +2205,7 @@ class _MatchedJobCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
-          onTap: () {
-            final isSaved = jobActionService.isSaved(job.id);
-            final isApplied = jobActionService.isApplied(job.id);
-            showJobDetailSheet(
-              context,
-              job,
-              isApplied: isApplied,
-              isSaved: isSaved,
-              onApply: () async {
-                await _confirmAndApply(context, jobActionService);
-              },
-              onViewMap: () {
-                Navigator.of(context).pop(); // Pop detail sheet
-                Navigator.of(context).pop(); // Pop SkillsProfilePage to return to Home tabs
-                homeNavRequestNotifier.value = 1; // Select Map tab
-                mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
-              },
-            );
-          },
+          onTap: openDetails,
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -2145,7 +2345,10 @@ class _MatchedJobCard extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 6,
                   children: job.skills.take(5).map((skill) {
-                    final isMatch = userSkillsLower.contains(skill.toLowerCase());
+                    final isMatch = SkillMatchUtils.matchesSingleSkillLabel(
+                      normalizedUserSkills: normalizedUserSkills,
+                      jobSkill: skill,
+                    );
                     return Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
@@ -2208,21 +2411,17 @@ class _MatchedJobCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // Apply Button
+                    // Apply Now button (opens details modal first)
                     GestureDetector(
-                      onTap: isApplied
-                          ? null
-                          : () async {
-                              await _confirmAndApply(context, jobActionService);
-                            },
+                      onTap: openDetails,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
-                          color: isApplied ? const Color(0xFF10B981) : const Color(0xFF2563EB),
+                          color: const Color(0xFF2563EB),
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: (isApplied ? const Color(0xFF10B981) : const Color(0xFF2563EB)).withOpacity(0.2),
+                              color: const Color(0xFF2563EB).withOpacity(0.2),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),
@@ -2231,20 +2430,24 @@ class _MatchedJobCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              isApplied ? Icons.check_circle_outline_rounded : Icons.arrow_forward_rounded,
-                              size: 16,
-                              color: Colors.white,
-                            ),
+                            const Icon(Icons.send_rounded, size: 16, color: Colors.white),
                             const SizedBox(width: 6),
-                            Text(
-                              isApplied ? 'Applied' : 'Apply',
-                              style: const TextStyle(
+                            const Text(
+                              'Apply Now',
+                              style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700,
                                 fontSize: 13,
                               ),
                             ),
+                            if (isApplied) ...[
+                              const SizedBox(width: 6),
+                              const Icon(
+                                Icons.check_circle_outline_rounded,
+                                size: 15,
+                                color: Colors.white,
+                              ),
+                            ],
                           ],
                         ),
                       ),

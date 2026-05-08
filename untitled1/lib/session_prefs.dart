@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'notification_service.dart';
 import 'api_service.dart';
 import 'user_session.dart';
+import 'skill_match_utils.dart';
 
 class SessionPrefs {
   static const _kToken = 'auth_token_v1';
@@ -59,6 +60,7 @@ class SessionPrefs {
 
     UserSession().token = token;
     UserSession().updateFromUser(user);
+    SkillMatchUtils.invalidateUserSkillsCache();
 
     // Trigger sync for restored sessions
     NotificationService().initialize();
