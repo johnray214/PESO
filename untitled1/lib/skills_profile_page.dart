@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'api_service.dart';
 import 'user_session.dart';
 import 'job_models.dart';
@@ -11,6 +13,8 @@ import 'home_pages.dart'; // Added for map navigation notifiers
 import 'skill_match_utils.dart';
 import 'my_documents_page.dart';
 import 'main.dart';
+import 'onboarding_prefs.dart';
+import 'l10n/app_localizations.dart';
 
 class SkillsProfilePage extends StatefulWidget {
   const SkillsProfilePage({super.key});
@@ -37,6 +41,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   bool _isLoadingMatched = false;
 
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _skillsScrollController = ScrollController();
   Timer? _searchDebounce;
   String _searchQuery = '';
   String? _activeCategoryFilter;
@@ -60,16 +65,133 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   final Map<String, GlobalKey> _categoryKeys = {};
 
+  // ─── Guided tutorial (action-based) ────────────────────────────────────────
+  bool _skillsGuideDone = false;
+  bool _skillsGuideActive = false;
+  int _skillsGuideStep = 0;
+  final GlobalKey _guideSearchKey = GlobalKey();
+  final GlobalKey _guideEditKey = GlobalKey();
+  final GlobalKey _guideSaveKey = GlobalKey();
+  final GlobalKey _guideMatchesTabKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_onSkillsProfileTabChanged);
     _selectedSkills = List.from(UserSession().skills);
     _lastSavedSkills = List.from(_selectedSkills);
     _loadSavedSkills();
     _loadSkillCatalog();
     if (_selectedSkills.isNotEmpty) {
       _loadMatchedJobs();
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _maybeStartSkillsGuide();
+    });
+  }
+
+  Future<void> _maybeStartSkillsGuide() async {
+    final token = UserSession().token;
+    final done = await OnboardingPrefs.isSkillsProfileGuideDone(token: token);
+    if (!mounted) return;
+    setState(() => _skillsGuideDone = done);
+
+    // Auto-trigger only for newly created accounts (explicit pending flag set on registration).
+    if (done) return;
+    final pending =
+        await OnboardingPrefs.isSkillsProfileGuidePending(token: token);
+    if (!mounted || !pending) return;
+    _startSkillsGuide(force: false);
+  }
+
+  void _startSkillsGuide({required bool force}) {
+    if (!mounted) return;
+    if (force && _skillsGuideActive) {
+      _showToast(
+        'Finish the tutorial first.',
+        type: ToastType.info,
+      );
+      return;
+    }
+    _skillsScrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+    setState(() {
+      _skillsGuideActive = true;
+      _skillsGuideStep = 0;
+      _tabController.index = 0;
+      _editingSelectedSkills = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showCurrentGuideStep();
+    });
+  }
+
+  void _showCurrentGuideStep() {
+    if (!_skillsGuideActive || !mounted) return;
+    switch (_skillsGuideStep) {
+      case 0:
+        // Step 0: Search bar — tap search bar to continue
+        ShowcaseView.get().startShowCase([_guideSearchKey]);
+        break;
+      case 1:
+        // Step 1: Edit button — user MUST click to advance (handled by onTargetClick)
+        ShowcaseView.get().startShowCase([_guideEditKey]);
+        break;
+      case 2:
+        // Step 2: No highlight. Show a floating instruction card while user browses/adds skills.
+        ShowcaseView.get().dismiss();
+        break;
+      case 3:
+        // Step 3: Save button — user MUST click to advance
+        ShowcaseView.get().startShowCase([_guideSaveKey]);
+        break;
+      case 4:
+        // Step 4: Job Matches tab — user MUST click to complete
+        ShowcaseView.get().startShowCase([_guideMatchesTabKey]);
+        break;
+    }
+  }
+
+  void _advanceGuideStep() {
+    if (!mounted || !_skillsGuideActive) return;
+    setState(() => _skillsGuideStep++);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _showCurrentGuideStep();
+    });
+  }
+
+  Future<void> _completeSkillsGuide() async {
+    final token = UserSession().token;
+    await OnboardingPrefs.setSkillsProfileGuideDone(token: token);
+    await OnboardingPrefs.clearSkillsProfileGuidePending(token: token);
+    if (!mounted) return;
+    setState(() {
+      _skillsGuideDone = true;
+      _skillsGuideActive = false;
+    });
+    ShowcaseView.get().dismiss();
+  }
+
+  bool _isActionAllowedDuringGuide(String action) {
+    if (!_skillsGuideActive) return true;
+    switch (action) {
+      case 'edit':
+        return _skillsGuideStep == 1;
+      case 'open_category':
+        return _skillsGuideStep == 2;
+      case 'add_skill':
+        return _skillsGuideStep == 2;
+      case 'save':
+        return _skillsGuideStep == 3;
+      case 'job_matches':
+        return _skillsGuideStep == 4;
+      default:
+        return false;
     }
   }
 
@@ -106,10 +228,22 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     return shouldLeave == true;
   }
 
+  void _onSkillsProfileTabChanged() {
+    if (!_skillsGuideActive) return;
+    if (_tabController.index != 1) return;
+    if (_isActionAllowedDuringGuide('job_matches')) return;
+    // TabBar ink targets the full tab slot; expand the tab body (SizedBox.expand) so
+    // AbsorbPointer covers it — this listener is a backup if the index still changes.
+    _tabController.index = 0;
+    _showToast('Follow the tutorial steps first.', type: ToastType.info);
+  }
+
   @override
   void dispose() {
+    _tabController.removeListener(_onSkillsProfileTabChanged);
     _tabController.dispose();
     _searchController.dispose();
+    _skillsScrollController.dispose();
     _searchDebounce?.cancel();
     super.dispose();
   }
@@ -560,6 +694,13 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   }
 
   Future<void> _saveSkills() async {
+    if (!_isActionAllowedDuringGuide('save')) {
+      _showToast(
+        'Continue the tutorial steps first.',
+        type: ToastType.info,
+      );
+      return;
+    }
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
 
@@ -584,7 +725,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       message:
           'Current skills (${currentSkills.length}): ${summarize(currentSkills)}\n\n'
           'Newly added (${newlyAdded.length}): ${summarize(newlyAdded)}',
-      confirmLabel: 'Save Skills',
+      confirmLabel: S.of(context)?.saveSkills ?? 'Save Skills',
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
     );
@@ -637,6 +778,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
           type: ToastType.success,
         );
       }
+      if (_skillsGuideActive && _skillsGuideStep == 3) {
+        _advanceGuideStep();
+      }
     } else {
       setState(() => _isSaving = false);
       if (mounted) {
@@ -653,7 +797,15 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       _selectedSkills.isEmpty || _editingSelectedSkills;
 
   void _toggleSkill(String skill) {
+    if (_skillsGuideActive && !_isActionAllowedDuringGuide('add_skill')) {
+      _showToast('Follow the tutorial steps first.', type: ToastType.info);
+      return;
+    }
     if (!_canChangeSkills) return;
+    if (_skillsGuideActive && _skillsGuideStep == 2 && _selectedSkills.contains(skill)) {
+      _showToast('Add at least one skill to continue.', type: ToastType.info);
+      return;
+    }
     bool added = false;
     setState(() {
       final wasEmpty = _selectedSkills.isEmpty;
@@ -678,6 +830,15 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       added ? '$skill added' : '$skill removed',
       type: added ? ToastType.success : ToastType.info,
     );
+
+    // Tutorial: if we added a skill during step 2, advance to Save step
+    if (_skillsGuideActive && _skillsGuideStep == 2 && added && _selectedSkills.isNotEmpty) {
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        if (mounted && _skillsGuideActive && _skillsGuideStep == 2) {
+          _advanceGuideStep();
+        }
+      });
+    }
   }
 
   Future<void> _confirmEnableSkillEditing() async {
@@ -787,9 +948,13 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   @override
   Widget build(BuildContext context) {
+    final jobMatchesGuideLocked =
+        _skillsGuideActive && !_isActionAllowedDuringGuide('job_matches');
+
     return WillPopScope(
       onWillPop: _confirmLeaveWithUnsavedChanges,
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: const Color(0xFFF8FAFC),
         appBar: AppBar(
           backgroundColor: Colors.white,
@@ -804,9 +969,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
               Navigator.of(context).pop();
             },
           ),
-          title: const Text(
-            'Skills Profile',
-            style: TextStyle(
+          title: Text(
+            S.of(context)?.skillsProfile ?? 'Skills Profile',
+            style: const TextStyle(
               color: Color(0xFF0F172A),
               fontWeight: FontWeight.w800,
             ),
@@ -818,6 +983,17 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                 Container(height: 1, color: const Color(0xFFE2E8F0)),
                 TabBar(
                   controller: _tabController,
+                  onTap: (index) {
+                    if (!_skillsGuideActive) return;
+                    final canOpenMatches = index == 1 && _isActionAllowedDuringGuide('job_matches');
+                    final canOpenSkills = index == 0;
+                    if (canOpenMatches || canOpenSkills) return;
+                    _showToast('Follow the tutorial step first.', type: ToastType.info);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      _tabController.index = 0;
+                    });
+                  },
                   labelColor: const Color(0xFF2563EB),
                   unselectedLabelColor: const Color(0xFF94A3B8),
                   labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
@@ -831,7 +1007,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                         children: [
                           const Icon(Icons.psychology_outlined, size: 18),
                           const SizedBox(width: 6),
-                          const Text('My Skills'),
+                          Text(S.of(context)?.skillsTab ?? 'My Skills'),
                           if (_selectedSkills.isNotEmpty) ...[
                             const SizedBox(width: 6),
                             Container(
@@ -850,31 +1026,66 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                       ),
                     ),
                     Tab(
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.work_outline_rounded, size: 18),
-                          const SizedBox(width: 6),
-                          const Text('Job Matches'),
-                          if (_matchedJobs.isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                '${_matchedJobs.length}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF10B981),
+                      child: AbsorbPointer(
+                        absorbing: jobMatchesGuideLocked,
+                        child: Opacity(
+                          opacity: jobMatchesGuideLocked ? 0.45 : 1,
+                          child: SizedBox.expand(
+                            child: Showcase(
+                              key: _guideMatchesTabKey,
+                              title: 'Job Matches',
+                              description:
+                                  'Tap this tab after saving to view jobs matched to your skills.',
+                              tooltipActions: const [],
+                              disableBarrierInteraction: true,
+                              disposeOnTap: true,
+                              onTargetClick: () {
+                                if (!_isActionAllowedDuringGuide('job_matches')) return;
+                                if (_tabController.index != 1) {
+                                  _tabController.animateTo(1);
+                                }
+                                _completeSkillsGuide();
+                              },
+                              child: Center(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.work_outline_rounded, size: 18),
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        S.of(context)?.jobMatchesTab ??
+                                            'Job Matches',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (_matchedJobs.isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color:
+                                              const Color(0xFF10B981).withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          '${_matchedJobs.length}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF10B981),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                             ),
-                          ],
-                        ],
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -885,6 +1096,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
         ),
         body: TabBarView(
           controller: _tabController,
+          physics: (_skillsGuideActive && !_isActionAllowedDuringGuide('job_matches'))
+              ? const NeverScrollableScrollPhysics()
+              : null,
           children: [
             _buildSkillsTab(),
             _buildMatchedJobsTab(),
@@ -902,44 +1116,104 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     final suggestions = _searchSuggestions;
     final selectedSkillSet = _selectedSkills.toSet();
 
-    return Column(
+    return Stack(
       children: [
-        // Persistent search bar
+        Column(
+          children: [
         Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          child: TextField(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-            decoration: InputDecoration(
-              hintText: 'Search skills (e.g. Flutter, Sales, Nursing...)',
-              hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-              prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 22),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? GestureDetector(
-                      onTap: () {
-                        _searchDebounce?.cancel();
-                        _searchController.clear();
-                        setState(() => _searchQuery = '');
-                      },
-                      child: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 20),
-                    )
-                  : null,
-              filled: true,
-              fillColor: const Color(0xFFF1F5F9),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
+            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFDBEAFE)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.tips_and_updates_outlined,
+                    color: Color(0xFF2563EB)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    _skillsGuideDone
+                        ? (S.of(context)?.replayTourSubtitle ??
+                            'Need a refresher? Replay the Skills Profile tutorial.')
+                        : (Localizations.localeOf(context).languageCode == 'tl'
+                            ? 'Bago ka ba? Kumpletuhin ang Profile ng Kasanayan para sa mas magandang job matches.'
+                            : 'New here? Complete your Skills Profile to unlock better matches.'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                      height: 1.25,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => _startSkillsGuide(force: true),
+                  child: Text(
+                    _skillsGuideDone
+                        ? (S.of(context)?.replayTour ?? 'Replay')
+                        : (Localizations.localeOf(context).languageCode == 'tl'
+                            ? 'Simulan'
+                            : 'Start'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        // Persistent search bar
+        Showcase(
+          key: _guideSearchKey,
+          title: 'Search Skills',
+          description: 'Use the search bar to find specific skills by keyword. Tap anywhere on the screen to continue.',
+          tooltipActions: const [],
+          disableBarrierInteraction: false,
+          onBarrierClick: () {
+            if (!mounted || !_skillsGuideActive || _skillsGuideStep != 0) return;
+            _advanceGuideStep();
+          },
+          disposeOnTap: true,
+          onTargetClick: () {
+            if (!mounted || !_skillsGuideActive || _skillsGuideStep != 0) return;
+            _advanceGuideStep();
+          },
+          child: Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                hintText: S.of(context)?.searchSkills ?? 'Search skills...',
+                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 22),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? GestureDetector(
+                        onTap: () {
+                          _searchDebounce?.cancel();
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                        child: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 20),
+                      )
+                    : null,
+                filled: true,
+                fillColor: const Color(0xFFF1F5F9),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
-              ),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             ),
           ),
         ),
@@ -971,8 +1245,14 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                   child: CircularProgressIndicator(color: Color(0xFF2563EB)),
                 )
               : SingleChildScrollView(
+                  controller: _skillsScrollController,
                   physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    16,
+                    20,
+                    120 + MediaQuery.viewInsetsOf(context).bottom,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -992,13 +1272,36 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                         : '${_selectedSkills.length} skill${_selectedSkills.length == 1 ? '' : 's'} added · Tap Edit to change',
                               ),
                             ),
-                            if (_selectedSkills.isNotEmpty) ...[
+                            ...[
                               const SizedBox(width: 8),
-                              TextButton.icon(
-                                onPressed: () {
+                              Showcase(
+                                key: _guideEditKey,
+                                title: 'Step 1: Tap Edit',
+                                description: 'Tap Edit to unlock adding/removing skills.',
+                                tooltipActions: const [],
+                                disableBarrierInteraction: true,
+                                disposeOnTap: true,
+                                onTargetClick: () {
+                                  if (!mounted || !_skillsGuideActive || _skillsGuideStep != 1) return;
                                   setState(() {
-                                    _editingSelectedSkills = !_editingSelectedSkills;
+                                    _editingSelectedSkills = true;
                                   });
+                                  _advanceGuideStep();
+                                },
+                                child: TextButton.icon(
+                                onPressed: () {
+                                  if (_skillsGuideActive && _skillsGuideStep == 1) {
+                                    setState(() {
+                                      _editingSelectedSkills = true;
+                                    });
+                                    _advanceGuideStep();
+                                  } else if (_skillsGuideActive) {
+                                    _showToast('Follow the tutorial step first.', type: ToastType.info);
+                                  } else {
+                                    setState(() {
+                                      _editingSelectedSkills = !_editingSelectedSkills;
+                                    });
+                                  }
                                 },
                                 style: TextButton.styleFrom(
                                   foregroundColor: const Color(0xFF2563EB),
@@ -1014,6 +1317,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                   _editingSelectedSkills ? 'Done' : 'Edit',
                                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                                 ),
+                              ),
                               ),
                             ],
                           ],
@@ -1092,12 +1396,15 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                 ),
                               ),
                               const SizedBox(width: 16),
-                              const Expanded(
+                              Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Build Your Skills Profile',
+                                      Localizations.localeOf(context).languageCode ==
+                                              'tl'
+                                          ? 'Buuin ang Profile ng Kasanayan'
+                                          : 'Build Your Skills Profile',
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w800,
@@ -1106,7 +1413,11 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                     ),
                                     SizedBox(height: 4),
                                     Text(
-                                      'Search or browse skills below and we\'ll match you with the best job opportunities.',
+                                      Localizations.localeOf(context)
+                                                  .languageCode ==
+                                              'tl'
+                                          ? 'Maghanap o mag-browse ng mga kasanayan sa ibaba at hahanapan ka namin ng pinakaangkop na oportunidad sa trabaho.'
+                                          : 'Search or browse skills below and we\'ll match you with the best job opportunities.',
                                       style: TextStyle(
                                         fontSize: 12,
                                         color: Colors.white70,
@@ -1332,7 +1643,11 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                             onDisabledTap: _confirmEnableSkillEditing,
                             searchQuery: _searchQuery,
                             forceExpanded: isSearching,
+                            allowExpandCollapse: !_skillsGuideActive || _skillsGuideStep == 2,
                             skillsEditable: _canChangeSkills,
+                            onExpandedChanged: (expanded) {
+                              if (!expanded) return;
+                            },
                           ),
                         );
                       }),
@@ -1360,8 +1675,27 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
               child: SizedBox(
                 width: double.infinity,
                 height: 54,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveSkills,
+                child: Showcase(
+                  key: _guideSaveKey,
+                  title: 'Step 3: Save skills',
+                  description: 'Tap Save Skills to store your selected skills.',
+                  tooltipActions: const [],
+                  disableBarrierInteraction: true,
+                  disposeOnTap: true,
+                  onTargetClick: () {
+                    if (!_isActionAllowedDuringGuide('save') || _isSaving) return;
+                    _saveSkills();
+                  },
+                  child: ElevatedButton(
+                  onPressed: _isSaving
+                      ? null
+                      : () {
+                          if (_skillsGuideActive && !_isActionAllowedDuringGuide('save')) {
+                            _showToast('Follow the tutorial step first.', type: ToastType.info);
+                            return;
+                          }
+                          _saveSkills();
+                        },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
@@ -1386,6 +1720,34 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                             ),
                           ],
                         ),
+                ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    ),
+        if (_skillsGuideActive && _skillsGuideStep == 2)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: IgnorePointer(
+                  ignoring: true,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 460),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: const _Step2GuideFloatingCard(),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -1573,8 +1935,10 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
     final jobs = _sortedFilteredMatchedJobs;
 
-    return Column(
+    return Stack(
       children: [
+        Column(
+          children: [
         // Sort + Filter row
         Container(
           color: Colors.white,
@@ -1738,7 +2102,103 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                   ),
                 ),
         ),
+          ],
+        ),
       ],
+    );
+  }
+}
+
+/// Pulsing glow + subtle vertical bob so Step 2 instructions stay noticeable without blocking taps.
+class _Step2GuideFloatingCard extends StatefulWidget {
+  const _Step2GuideFloatingCard();
+
+  @override
+  State<_Step2GuideFloatingCard> createState() => _Step2GuideFloatingCardState();
+}
+
+class _Step2GuideFloatingCardState extends State<_Step2GuideFloatingCard>
+    with SingleTickerProviderStateMixin {
+  static const Color _accent = Color(0xFF2563EB);
+
+  late final AnimationController _motion;
+
+  @override
+  void initState() {
+    super.initState();
+    _motion = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _motion.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _motion,
+      builder: (context, child) {
+        final phase = math.sin(_motion.value * math.pi);
+        final dy = -5.0 * phase;
+        final glowAlpha = 0.26 + 0.14 * phase;
+        final blur = 16.0 + 14.0 * phase;
+        return Transform.translate(
+          offset: Offset(0, dy),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: _accent.withValues(alpha: glowAlpha),
+                  blurRadius: blur,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 6),
+                ),
+                BoxShadow(
+                  color: _accent.withValues(alpha: glowAlpha * 0.5),
+                  blurRadius: blur * 1.85,
+                  spreadRadius: -4,
+                  offset: Offset.zero,
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Step 2: Browse and add skills',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Browse any category and add at least 1 skill to continue.',
+              style: TextStyle(
+                fontSize: 13,
+                height: 1.35,
+                color: Color(0xFF334155),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1801,8 +2261,10 @@ class _SkillCategoryCard extends StatefulWidget {
   final void Function(String) onToggle;
   final String searchQuery;
   final bool forceExpanded;
+  final bool allowExpandCollapse;
   final bool skillsEditable;
   final VoidCallback? onDisabledTap;
+  final ValueChanged<bool>? onExpandedChanged;
 
   const _SkillCategoryCard({
     required this.category,
@@ -1811,8 +2273,10 @@ class _SkillCategoryCard extends StatefulWidget {
     required this.onToggle,
     this.searchQuery = '',
     this.forceExpanded = false,
+    this.allowExpandCollapse = true,
     this.skillsEditable = true,
     this.onDisabledTap,
+    this.onExpandedChanged,
   });
 
   @override
@@ -1914,8 +2378,10 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
         children: [
           InkWell(
             onTap: () {
+              if (!widget.allowExpandCollapse) return;
               if (widget.forceExpanded) return;
               setState(() => _expanded = !_expanded);
+              widget.onExpandedChanged?.call(_expanded);
             },
             borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
             child: Padding(

@@ -7,6 +7,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:http/http.dart' as http;
 import 'api_service.dart';
+import 'l10n/app_localizations.dart';
 import 'app_nav.dart';
 
 /// A global wrapper that monitor's connectivity and shows a premium "No Internet" modal.
@@ -194,6 +195,7 @@ class _NoInternetModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = S.of(context);
     return Material(
       color: Colors.black54,
       child: Center(
@@ -234,7 +236,7 @@ class _NoInternetModal extends StatelessWidget {
               const SizedBox(height: 24),
               
               Text(
-                'No Connection',
+                l10n?.noConnection ?? 'No Connection',
                 style: GoogleFonts.poppins(
                   fontSize: 22,
                   fontWeight: FontWeight.w700,
@@ -245,7 +247,7 @@ class _NoInternetModal extends StatelessWidget {
               const SizedBox(height: 12),
               
               Text(
-                'Please check your internet connection and try again.',
+                l10n?.checkConnection ?? 'Please check your internet connection and try again.',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 14,
@@ -279,7 +281,7 @@ class _NoInternetModal extends StatelessWidget {
                           ),
                         )
                       : Text(
-                          'Retry',
+                          l10n?.retry ?? 'Retry',
                           style: GoogleFonts.poppins(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'job_action_service.dart';
 import 'skill_match_utils.dart';
+import 'l10n/app_localizations.dart';
 
 // ─── Job Model ────────────────────────────────────────────────────────────────
 class Job {
@@ -925,6 +926,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     required String deadlineText,
     required Set<String> userSkillsNormalized,
   }) {
+    final l10n = S.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Container(
@@ -952,7 +954,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildSectionTitle(
-                        'About This Role', Icons.description_outlined),
+                        l10n?.aboutThisRoleTitle ?? 'About This Role',
+                        Icons.description_outlined),
                     const SizedBox(height: 16),
                     Text(
                       job.description,
@@ -1122,6 +1125,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
 
   // ── Skills Content ─────────────────────────────────────────────────────────
   Widget _buildSkillsContent(Job job, Set<String> userSkillsNormalized) {
+    final l10n = S.of(context);
     final matchedCount = job.skills
         .where((s) => SkillMatchUtils.matchesSingleSkillLabel(
               normalizedUserSkills: userSkillsNormalized,
@@ -1132,7 +1136,9 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Skills Required', Icons.psychology_outlined,
+        _buildSectionTitle(
+            l10n?.skillsRequiredTitle ?? 'Skills Required',
+            Icons.psychology_outlined,
             iconColor: const Color(0xFF8B5CF6)),
         const SizedBox(height: 18),
         Wrap(
@@ -1298,8 +1304,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                     opacity: opacity,
                     child: Transform.translate(
                       offset: Offset(0, translateY),
-                      child: const Text(
-                        'Job Details',
+                      child: Text(
+                        S.of(context)?.jobDetailsTitle ?? 'Job Details',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 16,

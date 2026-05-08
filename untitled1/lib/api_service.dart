@@ -6,7 +6,7 @@ import 'user_session.dart';
 
 class ApiService {
   static const String baseUrl =
-      'http://192.168.0.100:8000/api';
+      'http://10.169.75.42:8000/api';
 
   /// True when [baseUrl] points at a machine-local / emulator-typical host.
   ///
@@ -553,10 +553,25 @@ class ApiService {
 
   // ─── Job Listings ────────────────────────────────────────────────────────────
 
-  static Future<Map<String, dynamic>> getJobListings({int page = 1}) async {
+  static Future<Map<String, dynamic>> getJobListings({
+    int page = 1,
+    String? search,
+    List<String>? employmentTypes,
+    List<String>? skills,
+  }) async {
     try {
+      final params = <String, String>{'page': page.toString()};
+      if (search != null && search.trim().isNotEmpty) {
+        params['search'] = search.trim();
+      }
+      if (employmentTypes != null && employmentTypes.isNotEmpty) {
+        params['types'] = employmentTypes.join(',');
+      }
+      if (skills != null && skills.isNotEmpty) {
+        params['skills'] = skills.join(',');
+      }
       final uri = Uri.parse('$baseUrl/public/jobs').replace(
-        queryParameters: {'page': page.toString()},
+        queryParameters: params,
       );
       final response = await http.get(
         uri,
@@ -1166,16 +1181,24 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getMatchedJobs(
     String token, {
-    List<String>? skills,
     int page = 1,
+    String? search,
+    List<String>? employmentTypes,
+    List<String>? skills,
   }) async {
     try {
-      final hasSkills = skills != null && skills.isNotEmpty;
+      final params = <String, String>{'page': page.toString()};
+      if (search != null && search.trim().isNotEmpty) {
+        params['search'] = search.trim();
+      }
+      if (employmentTypes != null && employmentTypes.isNotEmpty) {
+        params['types'] = employmentTypes.join(',');
+      }
+      if (skills != null && skills.isNotEmpty) {
+        params['skills'] = skills.join(',');
+      }
       final uri = Uri.parse('$baseUrl/jobseeker/jobs').replace(
-        queryParameters: {
-          if (hasSkills) 'skills': skills.join(','),
-          'page': page.toString(),
-        },
+        queryParameters: params,
       );
 
       final response = await http.get(

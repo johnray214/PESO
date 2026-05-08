@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'api_service.dart';
+import 'l10n/app_localizations.dart';
 import 'main.dart';
 import 'user_session.dart';
 
@@ -47,7 +48,8 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
     try {
       final token = UserSession().token ?? '';
       if (token.isEmpty) {
-        _showToast('Session expired. Please log in again.', isError: true);
+        final l10n = S.of(context);
+        _showToast(l10n?.sessionExpired ?? 'Session expired. Please log in again.', isError: true);
         return;
       }
       final sendRes = await ApiService.requestJobseekerEmailChangeOtp(
@@ -82,7 +84,8 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
     try {
       final token = UserSession().token ?? '';
       if (token.isEmpty) {
-        _showToast('Session expired. Please log in again.', isError: true);
+        final l10n = S.of(context);
+        _showToast(l10n?.sessionExpired ?? 'Session expired. Please log in again.', isError: true);
         return;
       }
       final res = await ApiService.requestJobseekerEmailChangeOtp(
@@ -111,7 +114,8 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
     if (!_otpFormKey.currentState!.validate()) return;
     final token = UserSession().token ?? '';
     if (token.isEmpty) {
-      _showToast('Session expired. Please log in again.', isError: true);
+      final l10n = S.of(context);
+      _showToast(l10n?.sessionExpired ?? 'Session expired. Please log in again.', isError: true);
       return;
     }
 
@@ -213,15 +217,16 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = S.of(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: const Color(0xFFF1F5F9),
         foregroundColor: const Color(0xFF0F172A),
-        title: const Text(
-          'Change Email',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        title: Text(
+          l10n?.changeEmail ?? 'Change email address',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
       ),
       body: Padding(
@@ -240,6 +245,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
   }
 
   Widget _buildCurrentEmailCard() {
+    final l10n = S.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -251,9 +257,9 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Current email',
-            style: TextStyle(
+          Text(
+            l10n?.currentEmail ?? 'Current email',
+            style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: Color(0xFF0F172A),
@@ -274,6 +280,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
   }
 
   Widget _buildEnterEmailCard() {
+    final l10n = S.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -287,18 +294,19 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Step 1: Enter new email',
-              style: TextStyle(
+            Text(
+              'Step 1: ${l10n?.newEmailAddress ?? 'New email address'}',
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF0F172A),
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'We will send an OTP to your new email address.',
-              style: TextStyle(
+            Text(
+              l10n?.changeEmailOtpInfo ??
+                  'We will send an OTP to your new email address.',
+              style: const TextStyle(
                 fontSize: 13,
                 color: Color(0xFF475569),
               ),
@@ -308,14 +316,14 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               controller: _newEmailController,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
-                labelText: 'New email',
-                prefixIcon: Icon(Icons.email_outlined),
-                border: OutlineInputBorder(),
-                enabledBorder: OutlineInputBorder(
+              decoration: InputDecoration(
+                labelText: l10n?.newEmailAddress ?? 'New email address',
+                prefixIcon: const Icon(Icons.email_outlined),
+                border: const OutlineInputBorder(),
+                enabledBorder: const OutlineInputBorder(
                   borderSide: BorderSide(color: Color(0xFFBFDBFE)),
                 ),
-                focusedBorder: OutlineInputBorder(
+                focusedBorder: const OutlineInputBorder(
                   borderSide: BorderSide(color: Color(0xFF2563EB), width: 2),
                 ),
               ),
@@ -337,7 +345,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
                         height: 20,
                         child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                       )
-                    : const Text('Send OTP'),
+                    : Text(l10n?.sendOtp ?? 'Send OTP'),
               ),
             ),
           ],
@@ -347,6 +355,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
   }
 
   Widget _buildOtpVerificationCard() {
+    final l10n = S.of(context);
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -360,9 +369,9 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Step 2: Verify OTP',
-              style: TextStyle(
+            Text(
+              'Step 2: ${l10n?.verifyOtp ?? 'Verify OTP'}',
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF0F172A),
@@ -370,7 +379,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Enter the 6-digit code sent to $_pendingEmail',
+              '${l10n?.enterOtp ?? 'Enter OTP'} — $_pendingEmail',
               style: const TextStyle(
                 fontSize: 13,
                 color: Color(0xFF475569),
@@ -382,15 +391,15 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.done,
               maxLength: 6,
-              decoration: const InputDecoration(
-                labelText: 'OTP code',
-                prefixIcon: Icon(Icons.verified_user_outlined),
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: l10n?.enterOtp ?? 'Enter OTP',
+                prefixIcon: const Icon(Icons.verified_user_outlined),
+                border: const OutlineInputBorder(),
                 counterText: '',
-                enabledBorder: OutlineInputBorder(
+                enabledBorder: const OutlineInputBorder(
                   borderSide: BorderSide(color: Color(0xFFBFDBFE)),
                 ),
-                focusedBorder: OutlineInputBorder(
+                focusedBorder: const OutlineInputBorder(
                   borderSide: BorderSide(color: Color(0xFF2563EB), width: 2),
                 ),
               ),
@@ -415,7 +424,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
                         : Text(
                             _resendCooldown > 0
                                 ? 'Resend in ${_resendCooldown}s'
-                                : 'Resend OTP',
+                                : l10n?.resendOtp ?? 'Resend OTP',
                           ),
                   ),
                 ),
@@ -434,7 +443,7 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
                             child:
                                 CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                           )
-                        : const Text('Verify and Update'),
+                        : Text(l10n?.verifyOtp ?? 'Verify OTP'),
                   ),
                 ),
               ],
@@ -448,9 +457,9 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
                   _pendingEmail = null;
                 });
               },
-              child: const Text(
-                'Use a different email',
-                style: TextStyle(color: Color(0xFF0F172A)),
+              child: Text(
+                'Use a different ${l10n?.email ?? 'email'}',
+                style: const TextStyle(color: Color(0xFF0F172A)),
               ),
             ),
           ],

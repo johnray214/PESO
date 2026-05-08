@@ -24,6 +24,7 @@ import 'notification_service.dart';
 import 'main.dart';
 import 'home_pages.dart'; // Added to access global map notifiers
 import 'skill_match_utils.dart';
+import 'l10n/app_localizations.dart';
 
 /// Matches app blues ([AppColors]); menu rows stay one hue — no rainbow accents.
 class _ProfileTheme {
@@ -202,6 +203,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = S.of(context);
     const coverHeight = 180.0;
     const avatarSize = 100.0;
     const avatarTop = coverHeight - avatarSize / 2;
@@ -334,17 +336,17 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _buildCompactStat('$_appliedCount', 'Applied'),
+                        _buildCompactStat('$_appliedCount', l10n?.statApplied ?? 'Applied'),
                         Container(
                             width: 1,
                             height: 28,
                             color: AppColors.divider),
-                        _buildCompactStat('$_interviewCount', 'Processing'),
+                        _buildCompactStat('$_interviewCount', l10n?.statProcessing ?? 'Processing'),
                         Container(
                             width: 1,
                             height: 28,
                             color: AppColors.divider),
-                        _buildCompactStat('$_savedCount', 'Saved'),
+                        _buildCompactStat('$_savedCount', l10n?.statSaved ?? 'Saved'),
                       ],
                     ),
                   ),
@@ -359,7 +361,7 @@ class _ProfileTabState extends State<ProfileTab> {
               delegate: SliverChildListDelegate([
                 _buildMenuItem(
                   icon: Icons.folder_rounded,
-                  title: 'My Applications',
+                  title: l10n?.myApplications ?? 'My Applications',
                   onTap: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
@@ -369,7 +371,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
                 _buildMenuItem(
                   icon: Icons.bookmark_rounded,
-                  title: 'Saved Jobs',
+                  title: l10n?.savedJobs ?? 'Saved Jobs',
                   onTap: () async {
                     await Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const SavedJobsPage()),
@@ -379,14 +381,14 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
                 _buildMenuItem(
                   icon: Icons.workspace_premium_outlined,
-                  title: 'Skills Profile',
+                  title: l10n?.skillsProfile ?? 'Skills Profile',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SkillsProfilePage()),
                   ),
                 ),
                 _buildMenuItem(
                   icon: Icons.description_rounded,
-                  title: 'My Documents',
+                  title: l10n?.myDocuments ?? 'My Documents',
                   trailing: _missingDocsCount > 0
                       ? Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -423,9 +425,9 @@ class _ProfileTabState extends State<ProfileTab> {
                             children: [
                               const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF16A34A)),
                               const SizedBox(width: 4),
-                              const Text(
-                                'Complete',
-                                style: TextStyle(
+                              Text(
+                                l10n?.docsComplete ?? 'Complete',
+                                style: const TextStyle(
                                   fontSize: 11,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF16A34A),
@@ -443,14 +445,14 @@ class _ProfileTabState extends State<ProfileTab> {
                 ),
                 _buildMenuItem(
                   icon: Icons.settings_rounded,
-                  title: 'Settings',
+                  title: l10n?.settings ?? 'Settings',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SettingsPage()),
                   ),
                 ),
                 _buildMenuItem(
                   icon: Icons.help_center_rounded,
-                  title: 'Help & Support',
+                  title: l10n?.helpSupport ?? 'Help & Support',
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const HelpSupportPage()),
                   ),
@@ -458,7 +460,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 const SizedBox(height: 12),
                 _buildMenuItem(
                   icon: Icons.logout_rounded,
-                  title: 'Sign Out',
+                  title: l10n?.signOut ?? 'Sign Out',
                   isSignOut: true,
                   onTap: () => _confirmSignOut(context),
                 ),
@@ -498,13 +500,14 @@ class _ProfileTabState extends State<ProfileTab> {
 
 
   Future<void> _confirmSignOut(BuildContext context) async {
+    final l10n = S.of(context);
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.destructive,
       icon: Icons.logout_rounded,
-      title: 'Sign Out',
-      message: 'Are you sure you want to sign out?',
-      confirmLabel: 'Sign Out',
+      title: l10n?.signOut ?? 'Sign Out',
+      message: l10n?.signOutConfirm ?? 'Are you sure you want to sign out?',
+      confirmLabel: l10n?.signOut ?? 'Sign Out',
       onConfirm: () => Navigator.pop(context, true),
       onCancel: () => Navigator.pop(context, false),
     );
@@ -2570,9 +2573,13 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
       context: context,
       type: AppDialogType.confirm,
       icon: Icons.send_rounded,
-      title: 'Confirm Application',
-      message: 'Apply for $jobTitle?',
-      confirmLabel: 'Apply',
+      title: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Kumpirmahin ang Aplikasyon'
+          : 'Confirm Application',
+      message: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Mag-apply para sa $jobTitle?'
+          : 'Apply for $jobTitle?',
+      confirmLabel: S.of(context)?.apply ?? 'Apply',
       onConfirm: () => Navigator.pop(context, true),
       onCancel: () => Navigator.pop(context, false),
     );
@@ -2977,7 +2984,9 @@ class _SavedJobCard extends StatelessWidget {
                             ),
                             const SizedBox(width: 5),
                             Text(
-                              isApplied ? 'Applied' : 'Apply Now',
+                              isApplied
+                                  ? (S.of(context)?.applied ?? 'Applied')
+                                  : (S.of(context)?.applyNow ?? 'Apply Now'),
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w700,

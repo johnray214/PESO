@@ -22,8 +22,11 @@ import 'connectivity_wrapper.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'l10n/app_localizations.dart';
 import 'notification_service.dart';
 import 'legal_documents.dart';
+import 'locale_service.dart';
 
 /// Launcher / task-switcher name and in-app branding (auth, dialogs, etc.).
 const String kAppDisplayName = 'Kabsat Empoy';
@@ -52,6 +55,8 @@ Future<void> main() async {
   };
 
   await dotenv.load(fileName: ".env");
+
+  await LocaleService.instance.load();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -101,8 +106,29 @@ class UpperCaseTextFormatter extends TextInputFormatter {
   }
 }
 
-class PESOApp extends StatelessWidget {
+class PESOApp extends StatefulWidget {
   const PESOApp({super.key});
+
+  @override
+  State<PESOApp> createState() => _PESOAppState();
+}
+
+class _PESOAppState extends State<PESOApp> {
+  @override
+  void initState() {
+    super.initState();
+    LocaleService.instance.addListener(_onLocaleChanged);
+  }
+
+  @override
+  void dispose() {
+    LocaleService.instance.removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +137,14 @@ class PESOApp extends StatelessWidget {
       title: kAppDisplayName,
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: scaffoldMessengerKey,
+      locale: LocaleService.instance.locale,
+      supportedLocales: AppLocales.supported,
+      localizationsDelegates: const [
+        S.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.blueAccent,
@@ -2301,6 +2335,9 @@ class _LoginModalState extends State<LoginModal>
       if (!mounted) return;
       await OnboardingPrefs.setPostAuthPending();
       if (!mounted) return;
+      // Brand-new account: show Skills Profile guided setup on first open.
+      await OnboardingPrefs.setSkillsProfileGuidePending(token: token);
+      if (!mounted) return;
       if (widget.renderAsModal) Navigator.pop(context);
       Navigator.pushReplacement(
         context,
@@ -2424,7 +2461,7 @@ class _LoginModalState extends State<LoginModal>
           return StatefulBuilder(
             builder: (ctx, setLocal) {
               return AlertDialog(
-              title: const Text('Forgot password'),
+              title: Text(S.of(context)?.forgotPassword ?? 'Forgot password'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -3024,9 +3061,9 @@ class _LoginModalState extends State<LoginModal>
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          child: const Text(
-                            'Forgot password?',
-                            style: TextStyle(
+                          child: Text(
+                            S.of(context)?.forgotPassword ?? 'Forgot password?',
+                            style: const TextStyle(
                               color: Color(0xFF2563EB),
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -3297,7 +3334,7 @@ class _LoginModalState extends State<LoginModal>
                                   ],
                                 )
                               : Text(
-                                  _isSignUpMode ? 'Sign Up' : 'Sign In',
+                                  _isSignUpMode ? (S.of(context)?.signup ?? 'Sign Up') : (S.of(context)?.login ?? 'Sign In'),
                                   style: const TextStyle(
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700),

@@ -1,0 +1,350 @@
+{
+  "@@locale": "en",
+
+  "appName": "Kabsat Empoy",
+
+  "navHome": "Home",
+  "navMap": "Map",
+  "navProfile": "Profile",
+
+  "greetingMorning": "Good Morning",
+  "greetingAfternoon": "Good Afternoon",
+  "greetingEvening": "Good Evening",
+
+  "jobsFound": "{count} Jobs Found",
+  "@jobsFound": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "jobsFoundFiltered": "{filtered} of {total} Jobs Found",
+  "@jobsFoundFiltered": {
+    "placeholders": {
+      "filtered": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+
+  "searchJobsHint": "Search jobs, companies...",
+  "homeFindJobTitle": "Find a job",
+  "noJobsFound": "No jobs found",
+  "tryAdjustingFilters": "Try adjusting your search or filters",
+  "loadMoreJobs": "Loading more jobs...",
+
+  "sortBy": "Sort by",
+  "sortLatest": "Latest",
+  "sortOldest": "Oldest",
+  "sortBestMatch": "Best Match",
+
+  "filterEmploymentType": "Employment Type",
+  "filterSkills": "Skills",
+  "filterClearAll": "Clear All",
+  "filterApply": "Apply Filters",
+  "filterReset": "Reset",
+  "searchSkillsHint": "Search skills...",
+
+  "fullTime": "Full-time",
+  "partTime": "Part-time",
+  "contract": "Contract",
+  "freelance": "Freelance",
+  "internship": "Internship",
+
+  "apply": "Apply",
+  "applyNow": "Apply Now",
+  "applied": "Applied",
+  "viewDetails": "View Details",
+
+  "location": "Location",
+  "salary": "Salary",
+  "employmentType": "Employment Type",
+  "experience": "Experience",
+  "education": "Education",
+  "skills": "Skills",
+  "description": "Description",
+  "requirements": "Requirements",
+  "jobDetailsTitle": "Job Details",
+  "aboutThisRoleTitle": "About This Role",
+  "skillsRequiredTitle": "Skills Required",
+
+  "companyAbout": "About Company",
+  "companyJobs": "Available Jobs",
+  "viewOnMap": "View on Map",
+
+  "notifications": "Notifications",
+  "markAllRead": "Mark all as read",
+  "deleteAll": "Delete all",
+  "noNotifications": "No notifications yet",
+  "notifApplicationReceived": "Application received",
+  "notifShortlisted": "You have been shortlisted",
+  "notifInterview": "Interview scheduled",
+  "notifHired": "Congratulations! You are hired",
+  "notifRejected": "Application not successful",
+
+  "profileTitle": "Profile",
+  "editProfile": "Edit Profile",
+  "myDocuments": "My Documents",
+  "skillsProfile": "Skills Profile",
+  "myApplications": "My Applications",
+  "savedJobs": "Saved Jobs",
+  "signOut": "Sign Out",
+  "signOutConfirm": "Are you sure you want to sign out?",
+
+  "statApplied": "Applied",
+  "statProcessing": "Processing",
+  "statSaved": "Saved",
+  "docsComplete": "Complete",
+  "docsMoreNeeded": "{count} more",
+  "@docsMoreNeeded": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "settings": "Settings",
+  "preferences": "Preferences",
+  "account": "Account",
+  "language": "Language",
+  "changeEmail": "Change email address",
+  "changeEmailSubtitle": "Secure this change using OTP verification",
+  "currentEmail": "Current email",
+  "changeEmailOtpInfo": "We will send an OTP to your new email address.",
+  "changePassword": "Change password",
+  "logout": "Log out",
+
+  "languageEnglish": "English",
+  "languageTagalog": "Tagalog (Filipino)",
+  "languageSelectTitle": "Select Language",
+  "languageSelectSubtitle": "Choose your preferred language",
+
+  "helpSupport": "Help & Support",
+  "quickHelp": "Quick Help",
+  "faq": "Frequently Asked Questions",
+  "contactSupport": "Contact Support",
+  "replayTour": "Replay App Tour",
+  "replayTourSubtitle": "See the guided walkthrough again",
+  "goToMyDocuments": "Go to My Documents",
+  "goToMyDocumentsSubtitle": "Upload required files before applying",
+  "openSettings": "Open Settings",
+  "openSettingsSubtitle": "Manage account details and email",
+  "privacyPolicy": "Privacy Policy",
+  "privacyPolicySubtitle": "How we handle personal data",
+  "termsOfService": "Terms of Service",
+  "termsOfServiceSubtitle": "Rules for using the app",
+  "legal": "Legal",
+
+  "applicationStatusGuide": "Application Status Guide",
+  "statusRegistration": "Registration",
+  "statusRegistrationDesc": "Application submitted and recorded by the system.",
+  "statusProcessing": "Processing",
+  "statusProcessingDesc": "Employer review stage. Sub-stages can appear as: • Shortlisted • Interview • For Job Offer",
+  "statusPlacementHired": "Placement/Hired",
+  "statusPlacementHiredDesc": "Final stage after hiring decision.",
+
+  "events": "Events",
+  "upcomingEvents": "Upcoming Events",
+  "noEvents": "No events at the moment",
+  "register": "Register",
+  "registered": "Registered",
+  "cancelRegistration": "Cancel Registration",
+  "eventDetails": "Event Details",
+  "eventDate": "Date",
+  "eventLocation": "Location",
+  "eventSlots": "Slots",
+
+  "login": "Log in",
+  "signup": "Sign up",
+  "email": "Email",
+  "password": "Password",
+  "confirmPassword": "Confirm password",
+  "forgotPassword": "Forgot password?",
+  "createAccount": "Create account",
+  "alreadyHaveAccount": "Already have an account?",
+  "dontHaveAccount": "Don't have an account?",
+  "welcomeBack": "Welcome back",
+  "getStarted": "Get started",
+  "sessionExpired": "Session expired. Please log in again.",
+
+  "firstName": "First name",
+  "middleName": "Middle name",
+  "lastName": "Last name",
+  "suffix": "Suffix",
+  "birthdate": "Birthdate",
+  "gender": "Gender",
+  "contactNumber": "Contact number",
+
+  "male": "Male",
+  "female": "Female",
+  "other": "Other",
+  "preferNotToSay": "Prefer not to say",
+
+  "upload": "Upload",
+  "uploadResume": "Upload Resume",
+  "uploadPhoto": "Upload Photo",
+  "camera": "Camera",
+  "gallery": "Gallery",
+  "chooseFile": "Choose File",
+  "resume": "Resume / CV",
+  "certificate": "Certificate / Diploma",
+  "barangayClearance": "Barangay Clearance",
+  "documentUploaded": "Document uploaded successfully",
+  "documentDeleted": "Document deleted",
+  "noDocumentYet": "No document uploaded yet",
+  "tapToUpload": "Tap to upload",
+  "viewDocument": "View",
+  "replaceDocument": "Replace",
+  "deleteDocument": "Delete",
+
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "ok": "OK",
+  "yes": "Yes",
+  "no": "No",
+  "done": "Done",
+  "next": "Next",
+  "back": "Back",
+  "skip": "Skip",
+  "submit": "Submit",
+  "save": "Save",
+  "saveChanges": "Save Changes",
+  "delete": "Delete",
+  "edit": "Edit",
+  "close": "Close",
+  "retry": "Retry",
+  "search": "Search",
+  "clear": "Clear",
+
+  "loading": "Loading...",
+  "loadingJobs": "Loading jobs...",
+  "refreshing": "Refreshing...",
+  "noConnection": "No Connection",
+  "noInternetConnection": "No internet connection",
+  "checkConnection": "Please check your internet connection and try again.",
+
+  "success": "Success",
+  "error": "Error",
+  "warning": "Warning",
+  "info": "Info",
+
+  "applicationSubmitted": "Application submitted successfully",
+  "applicationFailed": "Failed to submit application",
+  "jobSaved": "Job saved",
+  "jobUnsaved": "Job removed from saved",
+  "profileUpdated": "Profile updated successfully",
+  "passwordChanged": "Password changed successfully",
+
+  "areYouSure": "Are you sure?",
+  "logoutConfirm": "Are you sure you want to log out?",
+  "deleteConfirm": "This action cannot be undone",
+
+  "today": "Today",
+  "yesterday": "Yesterday",
+  "daysAgo": "{count}d ago",
+  "@daysAgo": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "matchPercentage": "{percent}% Match",
+  "@matchPercentage": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+
+  "slotsAvailable": "{count} slots available",
+  "@slotsAvailable": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "deadline": "Deadline",
+  "postedDate": "Posted",
+  "expiresIn": "Expires in {days} days",
+  "@expiresIn": {
+    "placeholders": {
+      "days": { "type": "int" }
+    }
+  },
+
+  "resumeRequired": "Resume Required",
+  "resumeRequiredMessage": "You need to upload your resume first before applying to jobs.",
+  "goToDocuments": "Go to Documents",
+
+  "skillsTab": "Skills",
+  "jobMatchesTab": "Job Matches",
+  "yourSkills": "Your Skills",
+  "browseSkills": "Browse & add skills from the catalog below",
+  "saveSkills": "Save Skills",
+  "savingSkills": "Saving...",
+  "skillsSaved": "Skills saved successfully",
+  "noSkillsYet": "No skills added yet",
+  "addSkillsPrompt": "Add your key skills to improve job matching",
+  "searchSkills": "Search skills...",
+  "allCategories": "All Categories",
+  "selectedCount": "{count} selected",
+  "@selectedCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "editSkills": "Edit Skills",
+  "noMatchedJobs": "No matched jobs yet",
+  "addSkillsForMatches": "Add skills to see matching jobs",
+  "guideFinishTutorialFirst": "Finish the tutorial first.",
+
+  "currentPassword": "Current password",
+  "newPassword": "New password",
+  "confirmNewPassword": "Confirm new password",
+  "confirmYourNewPassword": "Confirm your new password",
+  "passwordsDoNotMatch": "Passwords do not match",
+
+  "otpSentTo": "OTP sent to {email}",
+  "@otpSentTo": {
+    "placeholders": {
+      "email": { "type": "String" }
+    }
+  },
+  "newEmailAddress": "New email address",
+  "enterOtp": "Enter OTP",
+  "verifyOtp": "Verify OTP",
+  "resendOtp": "Resend OTP",
+  "sendOtp": "Send OTP",
+  "resendIn": "Resend in {seconds}s",
+  "@resendIn": {
+    "placeholders": {
+      "seconds": { "type": "int" }
+    }
+  },
+
+  "noResultsFor": "No results for \"{query}\"",
+  "@noResultsFor": {
+    "placeholders": {
+      "query": { "type": "String" }
+    }
+  },
+
+  "mapSearchThisArea": "Search this area",
+  "mapClosestCompanyNearYou": "Closest company near you",
+  "mapClosestCompanyInArea": "Closest company in this area",
+  "searchBusinessesHint": "Search businesses...",
+  "mapBestMatchOnly": "Best Match Only",
+  "mapLocationProfiles": "Location Profiles",
+  "mapExactLocation": "Exact Location",
+  "mapLiveGps": "Live GPS",
+  "mapNearbyCompanies": "Nearby Companies",
+  "mapCompare": "Compare",
+  "mapDirections": "Directions",
+  "mapNoCompaniesNearby": "No companies found nearby",
+
+  "selectGender": "Select gender",
+  "personalInfo": "Personal Information",
+  "saveProfile": "Save Profile",
+  "updatePhoto": "Update Photo",
+
+  "openEmailApp": "Open email app",
+  "facebookMessenger": "Facebook Messenger",
+  "couldNotOpenEmail": "Could not open an email app on this device.",
+  "couldNotOpenLink": "Could not open the link."
+}

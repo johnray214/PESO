@@ -10,6 +10,57 @@ use Illuminate\Support\Str;
 
 class SkillCatalogSeeder extends Seeder
 {
+    private const PRESET_SKILLS = [
+        'Information Technology' => [
+            'PHP', 'Laravel', 'JavaScript', 'TypeScript', 'Vue.js', 'React', 'Node.js', 'Python',
+            'C#', 'Java', 'MySQL', 'PostgreSQL', 'REST API', 'Git', 'Docker', 'Linux',
+            'Quality Assurance', 'Manual Testing', 'Automation Testing', 'Cybersecurity',
+            'Network Administration', 'Cloud Computing', 'Data Analysis', 'UI Design', 'UX Research',
+        ],
+        'Business and Office' => [
+            'Administrative Support', 'MS Office', 'Data Entry', 'Bookkeeping', 'Payroll Processing',
+            'Accounting', 'Procurement', 'Inventory Management', 'Project Coordination',
+            'Customer Service', 'Sales', 'Business Writing', 'Presentation Skills', 'Negotiation',
+            'Report Preparation',
+        ],
+        'Construction and Engineering' => [
+            'AutoCAD', 'Civil Engineering', 'Structural Analysis', 'Project Management',
+            'Construction Safety', 'Masonry', 'Carpentry', 'Welding', 'Electrical Installation',
+            'Plumbing', 'Heavy Equipment Operation', 'Quantity Surveying', 'Site Supervision',
+        ],
+        'Hospitality and Tourism' => [
+            'Front Desk Operations', 'Housekeeping', 'Food and Beverage Service', 'Bartending',
+            'Barista', 'Tour Guiding', 'Reservation Management', 'Event Coordination',
+            'Guest Relations', 'Kitchen Operations',
+        ],
+        'Logistics and Transport' => [
+            'Driving', 'Defensive Driving', 'Route Planning', 'Fleet Coordination',
+            'Warehouse Operations', 'Forklift Operation', 'Dispatching', 'Cargo Handling',
+            'Inventory Auditing', 'Supply Chain Coordination',
+        ],
+        'Healthcare and Wellness' => [
+            'Nursing Care', 'Patient Care', 'First Aid', 'Phlebotomy', 'Medical Records',
+            'Caregiving', 'Pharmacy Assistance', 'Clinic Administration', 'Health Education',
+        ],
+        'Agriculture and Fisheries' => [
+            'Farming', 'Harvesting', 'Irrigation', 'Pest Control', 'Soil Science', 'Crop Management',
+            'Aquaculture', 'Fisheries Operations', 'Post-Harvest Handling', 'Agricultural Machinery',
+        ],
+        'Creative and Media' => [
+            'Graphic Design', 'Adobe Photoshop', 'Adobe Illustrator', 'Canva', 'Video Editing',
+            'Photography', 'Copywriting', 'Content Creation', 'Social Media Management',
+            'Branding', 'SEO',
+        ],
+        'Manufacturing and Production' => [
+            'Machine Operation', 'Quality Control', 'Food Safety', 'Packaging', 'Sanitation',
+            'Production Planning', 'Lean Manufacturing', '5S', 'Safety Compliance',
+        ],
+        'Public Service and Community' => [
+            'Community Organizing', 'Case Management', 'Facilitation', 'Public Communication',
+            'Documentation', 'Program Implementation', 'Training Delivery', 'Stakeholder Engagement',
+        ],
+    ];
+
     private function normaliseName(string $name): string
     {
         $name = trim(preg_replace('/\s+/', ' ', $name) ?? '');
@@ -24,6 +75,36 @@ class SkillCatalogSeeder extends Seeder
 
     public function run(): void
     {
+        foreach (self::PRESET_SKILLS as $category => $skills) {
+            foreach ($skills as $name) {
+                $normalized = $this->normaliseName($name);
+                if ($normalized === '') {
+                    continue;
+                }
+
+                $slug = $this->slugFor($normalized);
+
+                $existing = Skill::where('slug', $slug)->first();
+                if ($existing && mb_strtolower($existing->name) !== mb_strtolower($normalized)) {
+                    $base = $slug;
+                    $i = 2;
+                    while (Skill::where('slug', $slug)->exists()) {
+                        $slug = $base . '-' . $i;
+                        $i++;
+                    }
+                }
+
+                Skill::updateOrCreate(
+                    ['name' => $normalized],
+                    [
+                        'slug' => $slug,
+                        'category' => $category,
+                        'is_active' => true,
+                    ]
+                );
+            }
+        }
+
         $rawSkills = collect();
 
         if (Schema::hasTable('job_skills')) {
@@ -56,12 +137,14 @@ class SkillCatalogSeeder extends Seeder
                 $i++;
             }
 
-            $skill = Skill::create([
-                'name' => $name,
-                'slug' => $slug,
-                'category' => null,
-                'is_active' => true,
-            ]);
+            $skill = Skill::updateOrCreate(
+                ['name' => $name],
+                [
+                    'slug' => $slug,
+                    'category' => null,
+                    'is_active' => true,
+                ]
+            );
             $slugToId[$slug] = $skill->id;
         }
 

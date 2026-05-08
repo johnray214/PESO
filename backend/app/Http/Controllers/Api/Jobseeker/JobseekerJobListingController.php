@@ -26,7 +26,16 @@ class JobseekerJobListingController extends Controller
             });
         }
         
-        if ($request->has('type')) {
+        // Support single 'type' or multiple 'types' (array or comma-separated)
+        if ($request->has('types')) {
+            $types = is_array($request->types) ? $request->types : explode(',', $request->types);
+            // Normalize: strip spaces, lowercase for comparison
+            $types = array_filter(array_map(fn($t) => strtolower(trim($t)), $types));
+            if (!empty($types)) {
+                $query->whereRaw('LOWER(REPLACE(type, " ", "")) IN (' . implode(',', array_fill(0, count($types), '?')) . ')', 
+                    array_map(fn($t) => str_replace(' ', '', $t), $types));
+            }
+        } elseif ($request->has('type')) {
             $query->where('type', $request->type);
         }
         

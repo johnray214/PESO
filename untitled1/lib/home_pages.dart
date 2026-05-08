@@ -9,6 +9,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'profile_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'job_models.dart';
@@ -24,11 +25,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'main.dart';
 import 'location_controller.dart';
 import 'skill_match_utils.dart';
+import 'onboarding_prefs.dart';
 import 'package:geolocator/geolocator.dart' show LocationPermission;
+import 'l10n/app_localizations.dart';
+import 'locale_service.dart';
 
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
 
 final String mapboxAccessToken = mapboxToken.isNotEmpty ? mapboxToken : '';
+
+// ─── Coach-mark tour keys & notifiers ────────────────────────────────────────
+
+/// Set to `true` from Help page to replay the home tour on next visit.
+final ValueNotifier<bool> replayHomeTourNotifier = ValueNotifier<bool>(false);
+/// Increment this to request Home tab list scroll reset.
+final ValueNotifier<int> homeTourScrollResetNotifier = ValueNotifier<int>(0);
+
+/// GlobalKeys shared between _HomePageState and _HomeTabState.
+final GlobalKey _showcaseMascot = GlobalKey();
+final GlobalKey _showcaseBell = GlobalKey();
+final GlobalKey _showcaseSearch = GlobalKey();
+final GlobalKey _showcaseJobCard = GlobalKey();
+final GlobalKey _showcaseEventsFab = GlobalKey();
+final GlobalKey _showcaseNavBar = GlobalKey();
+
+/// Map-tour keys (used in _MapTabState).
+final GlobalKey _showcaseMapBestMatch = GlobalKey();
+final GlobalKey _showcaseMapLocProfiles = GlobalKey();
 
 Future<bool> _ensureResumeReadyForApply(
     BuildContext context, JobActionService jobActionService) async {
@@ -36,13 +59,14 @@ Future<bool> _ensureResumeReadyForApply(
   if (hasResume) return true;
   if (!context.mounted) return false;
 
+  final l10n = S.of(context);
   final goToDocuments = await showAppDialog<bool>(
     context: context,
     type: AppDialogType.info,
     icon: Icons.description_outlined,
-    title: 'Resume Required',
-    message: 'You need to upload your resume first before applying to jobs.',
-    confirmLabel: 'Go to Documents',
+    title: l10n?.resumeRequired ?? 'Resume Required',
+    message: l10n?.resumeRequiredMessage ?? 'You need to upload your resume first before applying to jobs.',
+    confirmLabel: l10n?.goToDocuments ?? 'Go to Documents',
     onConfirm: () => Navigator.of(context).pop(true),
     onCancel: () => Navigator.of(context).pop(false),
   );
@@ -79,6 +103,8 @@ class MapFocusRequest {
 }
 
 final ValueNotifier<int?> homeNavRequestNotifier = ValueNotifier<int?>(null);
+/// Current selected tab index on HomePage (0=Home, 1=Map, 2=Profile).
+final ValueNotifier<int> activeHomeTabIndexNotifier = ValueNotifier<int>(0);
 final ValueNotifier<MapFocusRequest?> mapFocusRequestNotifier =
     ValueNotifier<MapFocusRequest?>(null);
 
@@ -430,21 +456,23 @@ class _EventsPageState extends State<_EventsPage> {
               ),
             ),
             const SizedBox(width: 12),
-            const Column(
+            Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Events',
-                  style: TextStyle(
+                  S.of(context)?.events ?? 'Events',
+                  style: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w900,
                     color: Color(0xFF0F172A),
                   ),
                 ),
                 Text(
-                  'Stay updated on job fairs and seminars',
-                  style: TextStyle(
+                  LocaleService.instance.locale.languageCode == 'tl'
+                      ? 'Manatiling updated sa job fairs at seminars'
+                      : 'Stay updated on job fairs and seminars',
+                  style: const TextStyle(
                     fontSize: 12,
                     color: Color(0xFF64748B),
                     fontWeight: FontWeight.w500,
@@ -928,10 +956,123 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _eventsFuture = ApiService.getEventsWithRegistration();
+    activeHomeTabIndexNotifier.value = _selectedIndex;
     homeNavRequestNotifier.addListener(_onHomeNavRequested);
-    
+    replayHomeTourNotifier.addListener(_onReplayHomeTour);
+
+    _registerShowcase();
+
     // Kick off global background sync tasks immediately (non-blocking)
     _startGlobalBackgroundSync();
+
+    // Auto-start the coach-mark tour for first-time users
+    _maybeStartHomeTour();
+  }
+
+  // ── Showcase registration ─────────────────────────────────────────────────
+
+  void _registerShowcase() {
+    ShowcaseView.register(
+      blurValue: 1,
+      globalTooltipActionConfig: const TooltipActionConfig(
+        position: TooltipActionPosition.inside,
+        alignment: MainAxisAlignment.spaceBetween,
+      ),
+      globalTooltipActions: [
+        TooltipActionButton(
+          type: TooltipDefaultActionType.previous,
+          textStyle: const TextStyle(color: Colors.white),
+          hideActionWidgetForShowcase: [_showcaseMascot],
+        ),
+        TooltipActionButton(
+          type: TooltipDefaultActionType.next,
+          textStyle: const TextStyle(color: Colors.white),
+          hideActionWidgetForShowcase: [_showcaseNavBar],
+        ),
+        TooltipActionButton(
+          type: TooltipDefaultActionType.next,
+          name: 'Finish',
+          textStyle: const TextStyle(color: Colors.white),
+          hideActionWidgetForShowcase: [
+            _showcaseMascot,
+            _showcaseBell,
+            _showcaseSearch,
+            _showcaseJobCard,
+            _showcaseEventsFab,
+            _showcaseMapBestMatch,
+            _showcaseMapLocProfiles,
+          ],
+        ),
+      ],
+      globalFloatingActionWidget: (ctx) => FloatingActionWidget(
+        left: 16,
+        bottom: 16,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ElevatedButton(
+            onPressed: () {
+              ShowcaseView.get().dismiss();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+            ),
+            child: const Text(
+              'Skip tour',
+              style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ),
+      hideFloatingActionWidgetForShowcase: [_showcaseNavBar],
+      onComplete: (index, key) {
+        if (key == _showcaseNavBar) {
+          OnboardingPrefs.setHomeTourDone(token: UserSession().token);
+        }
+      },
+      onDismiss: (key) {
+        OnboardingPrefs.setHomeTourDone(token: UserSession().token);
+      },
+    );
+  }
+
+  Future<void> _maybeStartHomeTour() async {
+    final token = UserSession().token;
+    final done = await OnboardingPrefs.isHomeTourDone(token: token);
+    if (done || !mounted) return;
+    // Short delay so widgets are laid out and jobs have started loading
+    await Future.delayed(const Duration(milliseconds: 1200));
+    if (!mounted) return;
+    _startHomeTour();
+  }
+
+  void _startHomeTour() {
+    // Reset Home list scroll so first job card showcase is aligned.
+    homeTourScrollResetNotifier.value++;
+    Future<void>.delayed(const Duration(milliseconds: 320), () {
+      if (!mounted) return;
+      ShowcaseView.get().startShowCase([
+        _showcaseMascot,
+        _showcaseBell,
+        _showcaseSearch,
+        _showcaseJobCard,
+        _showcaseEventsFab,
+        _showcaseNavBar,
+      ]);
+    });
+  }
+
+  void _onReplayHomeTour() {
+    if (!replayHomeTourNotifier.value) return;
+    replayHomeTourNotifier.value = false;
+    if (!mounted) return;
+    // Ensure we're on the Home tab
+    setState(() {
+      _selectedIndex = 0;
+      activeHomeTabIndexNotifier.value = _selectedIndex;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _startHomeTour();
+    });
   }
 
   void _startGlobalBackgroundSync() {
@@ -947,6 +1088,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     homeNavRequestNotifier.removeListener(_onHomeNavRequested);
+    replayHomeTourNotifier.removeListener(_onReplayHomeTour);
+    ShowcaseView.get().unregister();
     super.dispose();
   }
 
@@ -955,12 +1098,18 @@ class _HomePageState extends State<HomePage> {
     if (requestedIndex == null) return;
     homeNavRequestNotifier.value = null;
     if (!mounted) return;
-    setState(() => _selectedIndex = requestedIndex.clamp(0, 2));
+    setState(() {
+      _selectedIndex = requestedIndex.clamp(0, 2);
+      activeHomeTabIndexNotifier.value = _selectedIndex;
+    });
   }
 
   void _openMapForJob(MapFocusRequest request) {
     if (!mounted) return;
-    setState(() => _selectedIndex = 1);
+    setState(() {
+      _selectedIndex = 1;
+      activeHomeTabIndexNotifier.value = _selectedIndex;
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       mapFocusRequestNotifier.value = request;
     });
@@ -998,7 +1147,17 @@ class _HomePageState extends State<HomePage> {
             left: 20,
             right: 20,
             bottom: bottomPadding + 12,
-            child: _buildFloatingNavBar(context),
+            child: Showcase(
+              key: _showcaseNavBar,
+              title: 'Navigation',
+              description: 'Home for jobs, Map to explore nearby employers, Profile for documents and settings.',
+              targetBorderRadius: BorderRadius.circular(40),
+              tooltipBackgroundColor: const Color(0xFF1D4ED8),
+              textColor: Colors.white,
+              titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+              descTextStyle: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white),
+              child: _buildFloatingNavBar(context),
+            ),
           ),
           // Floating Events button: always 3rd child; hide off-Home so Stack order never shifts
           Positioned(
@@ -1030,78 +1189,88 @@ class _HomePageState extends State<HomePage> {
                         }
                       }
                     }
-                    return AnimatedScale(
-                      scale: _fabPulseScale,
-                      duration: const Duration(milliseconds: 240),
-                      curve: Curves.easeOutBack,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _openEventsPage,
-                          borderRadius: BorderRadius.circular(16),
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF2563EB),
-                                      Color(0xFF1D4ED8)
-                                    ],
-                                  ),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF2563EB)
-                                          .withOpacity(0.4),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
-                                child: const Icon(
-                                  Icons.event_rounded,
-                                  color: Colors.white,
-                                  size: 28,
-                                ),
-                              ),
-                              if (count > 0)
-                                Positioned(
-                                  top: -4,
-                                  right: -4,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
+                    return Showcase(
+                      key: _showcaseEventsFab,
+                      title: 'Events',
+                      description: 'Workshops, job fairs, and PESO events. The badge shows how many are upcoming.',
+                      targetBorderRadius: BorderRadius.circular(16),
+                      tooltipBackgroundColor: const Color(0xFF1D4ED8),
+                      textColor: Colors.white,
+                      titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+                      descTextStyle: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white),
+                      child: AnimatedScale(
+                        scale: _fabPulseScale,
+                        duration: const Duration(milliseconds: 240),
+                        curve: Curves.easeOutBack,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: _openEventsPage,
+                            borderRadius: BorderRadius.circular(16),
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 56,
+                                  height: 56,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF2563EB),
+                                        Color(0xFF1D4ED8)
                                       ],
                                     ),
-                                    constraints:
-                                        const BoxConstraints(minWidth: 24),
-                                    child: Text(
-                                      count > 99 ? '99+' : '$count',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
+                                    borderRadius: BorderRadius.circular(16),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF2563EB)
+                                            .withOpacity(0.4),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 6),
                                       ),
-                                      textAlign: TextAlign.center,
-                                    ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.event_rounded,
+                                    color: Colors.white,
+                                    size: 28,
                                   ),
                                 ),
-                            ],
+                                if (count > 0)
+                                  Positioned(
+                                    top: -4,
+                                    right: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.2),
+                                            blurRadius: 4,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      constraints:
+                                          const BoxConstraints(minWidth: 24),
+                                      child: Text(
+                                        count > 99 ? '99+' : '$count',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -1157,22 +1326,25 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ),
                 ),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildNavItem(
-                          0, Icons.home_rounded, Icons.home_outlined, 'Home'),
-                    ),
-                    Expanded(
-                      child: _buildNavItem(
-                          1, Icons.map_rounded, Icons.map_outlined, 'Map'),
-                    ),
-                    Expanded(
-                      child: _buildNavItem(2, Icons.person_rounded,
-                          Icons.person_outline_rounded, 'Profile'),
-                    ),
-                  ],
-                ),
+                Builder(builder: (navCtx) {
+                  final l10n = S.of(navCtx);
+                  return Row(
+                    children: [
+                      Expanded(
+                        child: _buildNavItem(
+                            0, Icons.home_rounded, Icons.home_outlined, l10n?.navHome ?? 'Home'),
+                      ),
+                      Expanded(
+                        child: _buildNavItem(
+                            1, Icons.map_rounded, Icons.map_outlined, l10n?.navMap ?? 'Map'),
+                      ),
+                      Expanded(
+                        child: _buildNavItem(2, Icons.person_rounded,
+                            Icons.person_outline_rounded, l10n?.navProfile ?? 'Profile'),
+                      ),
+                    ],
+                  );
+                }),
               ],
             ),
           );
@@ -1191,7 +1363,10 @@ class _HomePageState extends State<HomePage> {
       onTap: () {
         if (_selectedIndex != index) {
           HapticFeedback.selectionClick();
-          setState(() => _selectedIndex = index);
+          setState(() {
+            _selectedIndex = index;
+            activeHomeTabIndexNotifier.value = _selectedIndex;
+          });
         }
       },
       child: Center(
@@ -1247,6 +1422,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   final Set<String> _selectedEmploymentTypes = <String>{};
   final Set<String> _selectedSkillFilters = <String>{};
   String _skillFilterQuery = '';
+  Map<String, List<String>> _skillCatalogByCategory = <String, List<String>>{};
+  final Set<String> _expandedSkillFilterCategories = <String>{};
 
   /// Robot mascot on greeting banner — swaps art while tapped / long‑pressed.
   bool _homeMascotPoked = false;
@@ -1254,14 +1431,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   /// Idle mascot (`empoyhomepagev2.png`) — [Positioned] + image box.
   static const double _mascotIdleLeft = -21;
   static const double _mascotIdleBottom = -65.5;
-  static const double _mascotIdleWidth = 156;
-  static const double _mascotIdleHeight = 166;
+  static const double _mascotIdleWidth = 153;
+  static const double _mascotIdleHeight = 163;
 
   /// Poked mascot (`empoy_poked.png`) — tweak independently of idle.
   static const double _mascotPokedLeft = -21;
-  static const double _mascotPokedBottom = -60;
-  static const double _mascotPokedWidth = 150;
-  static const double _mascotPokedHeight = 160;
+  static const double _mascotPokedBottom = -59.3;
+  static const double _mascotPokedWidth = 147;
+  static const double _mascotPokedHeight = 157;
 
   List<Job> _jobs = [];
   bool _isLoading = true;
@@ -1284,6 +1461,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   bool _isLoadingMoreJobs = false;
   int _jobsCurrentPage = 0;
   int _jobsLastPage = 1;
+  int? _jobsTotalCount;
+  bool _isGridView = false;
 
   static const List<String> _sortOptions = [
     'Latest',
@@ -1337,9 +1516,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     if (preferredType != null) {
       _selectedEmploymentTypes.add(preferredType);
     }
-    _greetingText = '${getPhilippinesGreeting()}, Kabsat';
+    _greetingText = _buildGreeting(null);
     _fetchJobs();
+    _loadSkillCatalogFilters();
     _jobListScrollController.addListener(_onJobListScroll);
+    homeTourScrollResetNotifier.addListener(_onHomeTourScrollResetRequested);
     _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
     _loadUnreadNotifications();
@@ -1385,6 +1566,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     _greetingTimer?.cancel();
     _searchDebounce?.cancel();
     _jobListScrollController.dispose();
+    homeTourScrollResetNotifier.removeListener(_onHomeTourScrollResetRequested);
     _jobActionService.removeListener(_onJobActionsChanged);
     _bellRingController.dispose();
     _searchFocus.dispose();
@@ -1397,8 +1579,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
     _greetingTimer?.cancel();
     _greetingTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      final next = '${getPhilippinesGreeting()}, Kabsat';
       if (!mounted) return;
+      final next = _buildGreeting(context.mounted ? S.of(context) : null);
       if (next != _greetingText) {
         setState(() => _greetingText = next);
       }
@@ -1422,6 +1604,19 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         _loadUnreadNotifications();
       }
     });
+  }
+
+  String _buildGreeting(S? l10n) {
+    final hour = nowInPhilippines().hour;
+    String greeting;
+    if (hour >= 5 && hour < 12) {
+      greeting = l10n?.greetingMorning ?? 'Good Morning';
+    } else if (hour >= 12 && hour < 18) {
+      greeting = l10n?.greetingAfternoon ?? 'Good Afternoon';
+    } else {
+      greeting = l10n?.greetingEvening ?? 'Good Evening';
+    }
+    return '$greeting, Kabsat';
   }
 
   String _getPhilippinesGreeting() => _greetingText;
@@ -1458,12 +1653,23 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   void _onJobListScroll() {
     if (_isLoading || _isLoadingMoreJobs) return;
     if (_jobsCurrentPage >= _jobsLastPage) return;
-    if (_searchText.trim().isNotEmpty) return;
     if (!_jobListScrollController.hasClients) return;
     final pos = _jobListScrollController.position;
     if (pos.pixels >= pos.maxScrollExtent - 360) {
       unawaited(_fetchJobs(showPageLoader: false, loadMore: true));
     }
+  }
+
+  void _onHomeTourScrollResetRequested() {
+    if (_isGridView && mounted) {
+      setState(() => _isGridView = false);
+    }
+    if (!_jobListScrollController.hasClients) return;
+    _jobListScrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _scheduleSearchApply(String value) {
@@ -1473,9 +1679,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       setState(() {
         _searchText = value;
       });
-      if (_filteredJobs.isEmpty && _jobsCurrentPage < _jobsLastPage) {
-        unawaited(_fetchJobs(showPageLoader: false, loadMore: true));
-      }
+      // Server-side filtering: re-fetch from page 1 when search changes
+      unawaited(_fetchJobs(showPageLoader: false));
     });
   }
 
@@ -1497,15 +1702,36 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       setState(() => _isLoadingMoreJobs = true);
     }
     final token = UserSession().token;
+    // Server-side filtering: pass search, employment types, and skills
+    final searchQuery = _searchText.trim().isNotEmpty ? _searchText.trim() : null;
+    final empTypes = _selectedEmploymentTypes.isNotEmpty
+        ? _selectedEmploymentTypes.toList()
+        : null;
+    final skillFilters = _selectedSkillFilters.isNotEmpty
+        ? _selectedSkillFilters.toList()
+        : null;
+
     final result = (token != null && token.isNotEmpty)
-        ? await ApiService.getMatchedJobs(token, page: targetPage)
-        : await ApiService.getJobListings(page: targetPage);
+        ? await ApiService.getMatchedJobs(
+            token,
+            page: targetPage,
+            search: searchQuery,
+            employmentTypes: empTypes,
+            skills: skillFilters,
+          )
+        : await ApiService.getJobListings(
+            page: targetPage,
+            search: searchQuery,
+            employmentTypes: empTypes,
+            skills: skillFilters,
+          );
     if (!mounted) return;
     if (result['success'] == true) {
       final rawList = result['data'] as List<dynamic>? ?? [];
       final meta = result['meta'] as Map<String, dynamic>? ?? {};
       final currentPage = (meta['current_page'] as num?)?.toInt() ?? targetPage;
       final lastPage = (meta['last_page'] as num?)?.toInt() ?? currentPage;
+      final totalCount = (meta['total'] as num?)?.toInt();
       final nextJobs = rawList
           .map((e) => Job.fromJson(e as Map<String, dynamic>))
           .toList();
@@ -1518,6 +1744,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         }
         _jobsCurrentPage = currentPage;
         _jobsLastPage = lastPage;
+        _jobsTotalCount = totalCount ?? _jobs.length;
         if (showPageLoader) _isLoading = false;
         _isLoadingMoreJobs = false;
         _jobListSerial++;
@@ -1549,9 +1776,13 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       context: context,
       type: AppDialogType.confirm,
       icon: Icons.send_rounded,
-      title: 'Confirm Application',
-      message: 'Apply for ${job.title} at ${job.company}?',
-      confirmLabel: 'Apply',
+      title: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Kumpirmahin ang Aplikasyon'
+          : 'Confirm Application',
+      message: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Mag-apply para sa ${job.title} sa ${job.company}?'
+          : 'Apply for ${job.title} at ${job.company}?',
+      confirmLabel: S.of(context)?.apply ?? 'Apply',
       onConfirm: () => Navigator.pop(context, true),
       onCancel: () => Navigator.pop(context, false),
     );
@@ -1607,27 +1838,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     return '${date.day}/${date.month}/${date.year}';
   }
 
-  List<Job> get _filteredJobs {
-    List<Job> jobs = _jobs.where((job) {
-      final q = _searchText.toLowerCase();
-      final matchesSearch = q.isEmpty ||
-          job.title.toLowerCase().contains(q) ||
-          job.company.toLowerCase().contains(q) ||
-          job.skills.any((s) => s.toLowerCase().contains(q));
-
-      String normType(String s) => s.toLowerCase().replaceAll(' ', '').trim();
-      final matchesType = _selectedEmploymentTypes.isEmpty ||
-          _selectedEmploymentTypes
-              .map(normType)
-              .contains(normType(job.employmentType));
-
-      final matchesSkill = _selectedSkillFilters.isEmpty ||
-          _selectedSkillFilters.any((selected) =>
-              job.skills.any((s) => s.toLowerCase() == selected.toLowerCase()));
-
-      return matchesSearch && matchesType && matchesSkill;
-    }).toList();
-
+  /// Returns jobs sorted client-side. Filtering is done server-side.
+  List<Job> get _sortedJobs {
+    final jobs = List<Job>.from(_jobs);
     switch (_sortOption) {
       case 'Latest':
         jobs.sort((a, b) => b.postedDate.compareTo(a.postedDate));
@@ -1643,28 +1856,81 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   }
 
   bool get _hasActiveFilters =>
-      _selectedEmploymentTypes.isNotEmpty || _selectedSkillFilters.isNotEmpty;
+      _searchText.trim().isNotEmpty ||
+      _selectedEmploymentTypes.isNotEmpty ||
+      _selectedSkillFilters.isNotEmpty;
 
-  List<String> get _availableSkillFilters {
-    final unique = <String>{};
+  Future<void> _loadSkillCatalogFilters() async {
+    Future<List<dynamic>> loadRawSkills() async {
+      final publicResult = await ApiService.getPublicSkills();
+      if (publicResult['success'] == true) {
+        return publicResult['data'] as List<dynamic>? ?? const [];
+      }
+      // Backward-compatible fallback endpoint used in older builds.
+      final legacyResult = await ApiService.getSkillCatalog();
+      if (legacyResult['success'] == true) {
+        return legacyResult['data'] as List<dynamic>? ?? const [];
+      }
+      return const [];
+    }
+
+    final raw = await loadRawSkills();
+    if (!mounted || raw.isEmpty) return;
+    final byCategory = <String, List<String>>{};
+    for (final item in raw) {
+      final skill = item as Map<String, dynamic>;
+      final name = (skill['name'] ?? skill['skill'])?.toString().trim() ?? '';
+      if (name.isEmpty) continue;
+      final categoryRaw = (skill['category'] ?? skill['category_name'])
+              ?.toString()
+              .trim() ??
+          '';
+      final category = categoryRaw.isNotEmpty ? categoryRaw : 'Other';
+      byCategory.putIfAbsent(category, () => <String>[]).add(name);
+    }
+    byCategory.updateAll((_, list) {
+      final uniqueSorted = list.toSet().toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      return uniqueSorted;
+    });
+    if (!mounted) return;
+    setState(() => _skillCatalogByCategory = byCategory);
+  }
+
+  Map<String, List<String>> get _availableSkillFiltersByCategory {
+    if (_skillCatalogByCategory.isNotEmpty) return _skillCatalogByCategory;
+    final unique = <String>[];
     for (final job in _jobs) {
       for (final skill in job.skills) {
         final s = skill.trim();
         if (s.isNotEmpty) unique.add(s);
       }
     }
-    final list = unique.toList()
+    final list = unique.toSet().toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    return list.take(30).toList(); // keep filter sheet compact
+    if (list.isEmpty) return const {};
+    return {'Other': list};
   }
 
-  List<String> get _visibleSkillFilters {
+  Map<String, List<String>> get _visibleSkillFiltersByCategory {
     final q = _skillFilterQuery.trim().toLowerCase();
-    if (q.isEmpty) return _availableSkillFilters;
-    return _availableSkillFilters
-        .where((s) => s.toLowerCase().contains(q))
-        .toList();
+    final source = _availableSkillFiltersByCategory;
+    if (q.isEmpty) return source;
+    final filtered = <String, List<String>>{};
+    for (final entry in source.entries) {
+      final matches = entry.value
+          .where((s) => s.toLowerCase().contains(q))
+          .toList(growable: false);
+      if (matches.isNotEmpty) {
+        filtered[entry.key] = matches;
+      }
+    }
+    return filtered;
   }
+
+  int get _visibleSkillFilterCount =>
+      _visibleSkillFiltersByCategory.values.fold<int>(
+          0, (sum, skills) => sum + skills.length);
 
   void _showSortSheet() {
     showModalBottomSheet(
@@ -1764,6 +2030,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setSheetState) {
+            final fl10n = S.of(ctx);
             final sheetHeight = (MediaQuery.sizeOf(ctx).height * 0.78)
                 .clamp(480.0, 680.0)
                 .toDouble();
@@ -1798,9 +2065,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                           const SizedBox(height: 20),
                           Row(
                             children: [
-                              const Text(
-                                'Filter Jobs',
-                                style: TextStyle(
+                              Text(
+                                fl10n?.filterApply != null ? (LocaleService.instance.locale.languageCode == 'tl' ? 'I-filter ang Trabaho' : 'Filter Jobs') : 'Filter Jobs',
+                                style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFF0F172A),
@@ -1815,9 +2082,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                     _skillFilterQuery = '';
                                   });
                                   setState(() {});
+                                  // Re-fetch from server without filters
+                                  unawaited(_fetchJobs(showPageLoader: false));
                                 },
-                                child: const Text(
-                                  'Clear All',
+                                child: Text(
+                                  fl10n?.filterClearAll ?? 'Clear All',
                                   style: TextStyle(
                                     color: Color(0xFF2563EB),
                                     fontWeight: FontWeight.w600,
@@ -1827,9 +2096,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             ],
                           ),
                           const SizedBox(height: 20),
-                          const Text(
-                            'Employment Type',
-                            style: TextStyle(
+                          Text(
+                            fl10n?.filterEmploymentType ?? 'Employment Type',
+                            style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               color: Color(0xFF64748B),
@@ -1929,57 +2198,200 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                               ),
                             ),
                           ),
+                          if (_skillFilterQuery.trim().isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              '$_visibleSkillFilterCount skills matching "${_skillFilterQuery.trim()}" in ${_visibleSkillFiltersByCategory.length} categories',
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: Color(0xFF2563EB),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 12),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _visibleSkillFilters.map((skill) {
-                              final isSelected =
-                                  _selectedSkillFilters.contains(skill);
-                              return GestureDetector(
-                                onTap: () {
-                                  setSheetState(() {
-                                    if (isSelected) {
-                                      _selectedSkillFilters.remove(skill);
-                                    } else {
-                                      _selectedSkillFilters.add(skill);
-                                    }
-                                  });
-                                  setState(() {});
-                                },
-                                child: AnimatedScale(
-                                  scale: isSelected ? 1.04 : 1.0,
-                                  duration: const Duration(milliseconds: 180),
-                                  curve: Curves.easeOutCubic,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 9),
-                                    decoration: BoxDecoration(
-                                      color: isSelected
-                                          ? const Color(0xFFDBEAFE)
-                                          : const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? const Color(0xFF93C5FD)
-                                            : const Color(0xFFE2E8F0),
-                                        width: isSelected ? 1.5 : 1,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      skill,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: isSelected
-                                            ? const Color(0xFF1D4ED8)
-                                            : const Color(0xFF0F172A),
-                                      ),
+                          Builder(
+                            builder: (_) {
+                              final visibleByCategory =
+                                  _visibleSkillFiltersByCategory;
+                              if (visibleByCategory.isEmpty) {
+                                return const Padding(
+                                  padding: EdgeInsets.only(top: 4, bottom: 8),
+                                  child: Text(
+                                    'No skills found for this search.',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                ),
+                                );
+                              }
+                              final categories = visibleByCategory.keys.toList()
+                                ..sort((a, b) =>
+                                    a.toLowerCase().compareTo(b.toLowerCase()));
+                              return Column(
+                                children: categories.map((category) {
+                                  final skills = visibleByCategory[category]!;
+                                  final selectedCount = skills
+                                      .where(_selectedSkillFilters.contains)
+                                      .length;
+                                  final hasSearch =
+                                      _skillFilterQuery.trim().isNotEmpty;
+                                  final isExpanded = hasSearch ||
+                                      _expandedSkillFilterCategories
+                                          .contains(category);
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF8FAFC),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                          color: const Color(0xFFE2E8F0)),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        InkWell(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          onTap: () {
+                                            if (hasSearch) return;
+                                            setSheetState(() {
+                                              if (isExpanded) {
+                                                _expandedSkillFilterCategories
+                                                    .remove(category);
+                                              } else {
+                                                _expandedSkillFilterCategories
+                                                    .add(category);
+                                              }
+                                            });
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 14, vertical: 12),
+                                            child: Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    category,
+                                                    style: const TextStyle(
+                                                      fontSize: 14,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                      color: Color(0xFF0F172A),
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (selectedCount > 0)
+                                                  Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3),
+                                                    decoration: BoxDecoration(
+                                                      color: const Color(
+                                                          0xFFDBEAFE),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              999),
+                                                    ),
+                                                    child: Text(
+                                                      '$selectedCount',
+                                                      style: const TextStyle(
+                                                        fontSize: 11,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color:
+                                                            Color(0xFF1D4ED8),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                const SizedBox(width: 8),
+                                                Icon(
+                                                  isExpanded
+                                                      ? Icons
+                                                          .keyboard_arrow_up_rounded
+                                                      : Icons
+                                                          .keyboard_arrow_down_rounded,
+                                                  color:
+                                                      const Color(0xFF64748B),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                        if (isExpanded)
+                                          Padding(
+                                            padding: const EdgeInsets.fromLTRB(
+                                                12, 0, 12, 12),
+                                            child: Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: skills.map((skill) {
+                                                final isSelected =
+                                                    _selectedSkillFilters
+                                                        .contains(skill);
+                                                return GestureDetector(
+                                                  onTap: () {
+                                                    setSheetState(() {
+                                                      if (isSelected) {
+                                                        _selectedSkillFilters
+                                                            .remove(skill);
+                                                      } else {
+                                                        _selectedSkillFilters
+                                                            .add(skill);
+                                                      }
+                                                    });
+                                                    setState(() {});
+                                                  },
+                                                  child: Container(
+                                                    padding: const EdgeInsets
+                                                        .symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 9),
+                                                    decoration: BoxDecoration(
+                                                      color: isSelected
+                                                          ? const Color(
+                                                              0xFFDBEAFE)
+                                                          : const Color(
+                                                              0xFFF1F5F9),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              12),
+                                                      border: Border.all(
+                                                        color: isSelected
+                                                            ? const Color(
+                                                                0xFF93C5FD)
+                                                            : const Color(
+                                                                0xFFE2E8F0),
+                                                        width:
+                                                            isSelected ? 1.5 : 1,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      skill,
+                                                      style: TextStyle(
+                                                        fontSize: 13,
+                                                        fontWeight:
+                                                            FontWeight.w600,
+                                                        color: isSelected
+                                                            ? const Color(
+                                                                0xFF1D4ED8)
+                                                            : const Color(
+                                                                0xFF0F172A),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
                               );
-                            }).toList(),
+                            },
                           ),
                           const SizedBox(height: 8),
                         ],
@@ -2008,11 +2420,15 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                         color: Colors.transparent,
                         child: InkWell(
                           borderRadius: BorderRadius.circular(16),
-                          onTap: () => Navigator.pop(ctx),
-                          child: const Center(
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            // Re-fetch from server with new filters
+                            unawaited(_fetchJobs(showPageLoader: false));
+                          },
+                          child: Center(
                             child: Text(
-                              'Apply Filters',
-                              style: TextStyle(
+                              fl10n?.filterApply ?? 'Apply Filters',
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white,
@@ -2115,7 +2531,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
       });
     }
 
-    final jobs = _filteredJobs;
+    final l10n = S.of(context);
+    _greetingText = _buildGreeting(l10n);
+    // Server returns filtered total in meta.total, so use it directly
+    final totalJobs = _jobsTotalCount ?? _jobs.length;
+    final jobsCountLabel = l10n?.jobsFound(totalJobs) ?? '$totalJobs Jobs Found';
     final topPadding = MediaQuery.paddingOf(context).top;
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -2127,7 +2547,16 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
         child: Column(
           children: [
             // Greeting banner: full-width blue card with mascot peeking from left
-            Container(
+            Showcase(
+              key: _showcaseMascot,
+              title: 'Meet Empoy!',
+              description: 'Your job-search buddy. He\'ll keep you posted on new matches.',
+              targetPadding: EdgeInsets.zero,
+              tooltipBackgroundColor: const Color(0xFF1D4ED8),
+              textColor: Colors.white,
+              titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+              descTextStyle: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white),
+              child: Container(
               width: double.infinity,
               height: 155 + topPadding,
               padding: EdgeInsets.fromLTRB(20, 12 + topPadding, 16, 32),
@@ -2238,57 +2667,67 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             ],
                           ),
                         ),
-                        Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            AnimatedBuilder(
-                              animation: _bellAngle,
-                              builder: (context, child) {
-                                return Transform.rotate(
-                                  angle: _bellAngle.value,
-                                  alignment: Alignment.topCenter,
-                                  child: child,
-                                );
-                              },
-                              child: IconButton(
-                                onPressed: _openNotifications,
-                                icon: const Icon(
-                                  Icons.notifications_none_rounded,
-                                  color: Colors.white,
-                                  size: 26,
+                        Showcase(
+                          key: _showcaseBell,
+                          title: 'Notifications',
+                          description: 'Application updates and PESO alerts land here. Red dot means unread.',
+                          targetShapeBorder: const CircleBorder(),
+                          tooltipBackgroundColor: const Color(0xFF1D4ED8),
+                          textColor: Colors.white,
+                          titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+                          descTextStyle: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              AnimatedBuilder(
+                                animation: _bellAngle,
+                                builder: (context, child) {
+                                  return Transform.rotate(
+                                    angle: _bellAngle.value,
+                                    alignment: Alignment.topCenter,
+                                    child: child,
+                                  );
+                                },
+                                child: IconButton(
+                                  onPressed: _openNotifications,
+                                  icon: const Icon(
+                                    Icons.notifications_none_rounded,
+                                    color: Colors.white,
+                                    size: 26,
+                                  ),
                                 ),
                               ),
-                            ),
-                            if (_unreadNotificationCount > 0)
-                              Positioned(
-                                right: 8,
-                                top: 8,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 5, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFEF4444),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                  constraints: const BoxConstraints(
-                                    minWidth: 16,
-                                    minHeight: 16,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      _unreadNotificationCount > 9
-                                          ? '9+'
-                                          : '$_unreadNotificationCount',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.w700,
+                              if (_unreadNotificationCount > 0)
+                                Positioned(
+                                  right: 8,
+                                  top: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 5, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        _unreadNotificationCount > 9
+                                            ? '9+'
+                                            : '$_unreadNotificationCount',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -2296,8 +2735,18 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                 ],
               ),
             ),
+            ), // end Showcase (mascot)
             // Search & Filter section: punchy white card with quick filters
-            Container(
+            Showcase(
+              key: _showcaseSearch,
+              title: 'Search & Filter',
+              description: 'Search by job title or company. Tap the filter icon to narrow by type, sort, and skills.',
+              targetBorderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+              tooltipBackgroundColor: const Color(0xFF1D4ED8),
+              textColor: Colors.white,
+              titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+              descTextStyle: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white),
+              child: Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(0, 14, 0, 16),
               margin: const EdgeInsets.only(top: 12),
@@ -2311,12 +2760,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                 children: [
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: const Text(
-                      'Find a job',
+                    child: Text(
+                      l10n?.homeFindJobTitle ?? 'Find a job',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: Localizations.localeOf(context).languageCode == 'tl'
+                            ? 21
+                            : 24,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF0F172A),
+                        color: const Color(0xFF0F172A),
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -2368,7 +2819,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   color: const Color(0xFF64748B),
                                   size: 22,
                                 ),
-                                hintText: 'Search jobs, companies...',
+                                hintText: l10n?.searchJobsHint ?? 'Search jobs, companies...',
                                 hintStyle: const TextStyle(
                                   color: Color(0xFF94A3B8),
                                   fontSize: 15,
@@ -2443,6 +2894,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   _selectedEmploymentTypes.add(type);
                                 }
                               });
+                              // Re-fetch from server with updated filter
+                              unawaited(_fetchJobs(showPageLoader: false));
                             },
                             borderRadius: BorderRadius.circular(12),
                             child: AnimatedContainer(
@@ -2480,6 +2933,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                 ],
               ),
             ),
+            ), // end Showcase (search)
 
             const SizedBox(height: 16),
 
@@ -2488,15 +2942,49 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  Text(
-                    '${jobs.length} Jobs Found',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
+                  Expanded(
+                    child: Text(
+                      jobsCountLabel,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      setState(() => _isGridView = !_isGridView);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(7),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.06),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          _isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded,
+                          key: ValueKey(_isGridView),
+                          size: 20,
+                          color: const Color(0xFF2563EB),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () {
                       HapticFeedback.selectionClick();
@@ -2548,7 +3036,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
               child: ValueListenableBuilder<String>(
                 valueListenable: _searchTextNotifier,
                 builder: (context, _, __) {
-                  final jobs = _filteredJobs;
+                  final jobs = _sortedJobs;
                   return Stack(
                     children: [
                       RefreshIndicator(
@@ -2574,7 +3062,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                           ),
                                           const SizedBox(height: 16),
                                           Text(
-                                            'No jobs found',
+                                            l10n?.noJobsFound ?? 'No jobs found',
                                             style: TextStyle(
                                               fontSize: 18,
                                               fontWeight: FontWeight.w700,
@@ -2583,7 +3071,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                           ),
                                           const SizedBox(height: 8),
                                           Text(
-                                            'Try adjusting your search or filters',
+                                            l10n?.tryAdjustingFilters ?? 'Try adjusting your search or filters',
                                             style: TextStyle(
                                               fontSize: 14,
                                               color: Colors.grey[400],
@@ -2595,7 +3083,69 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   ),
                                 ],
                               )
-                            : ListView.builder(
+                            : _isGridView
+                              ? GridView.builder(
+                                  controller: _jobListScrollController,
+                                  physics: const AlwaysScrollableScrollPhysics(
+                                    parent: BouncingScrollPhysics(),
+                                  ),
+                                  padding: EdgeInsets.only(
+                                    left: 20,
+                                    right: 20,
+                                    bottom:
+                                        MediaQuery.paddingOf(context).bottom +
+                                            96,
+                                  ),
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    crossAxisSpacing: 12,
+                                    mainAxisSpacing: 12,
+                                    childAspectRatio: 0.78,
+                                  ),
+                                  itemCount: jobs.length +
+                                      (_isLoadingMoreJobs ? 1 : 0),
+                                  itemBuilder: (context, index) {
+                                    if (index >= jobs.length) {
+                                      return const Center(
+                                        child: SizedBox(
+                                          width: 22,
+                                          height: 22,
+                                          child: CircularProgressIndicator(
+                                              strokeWidth: 2.2),
+                                        ),
+                                      );
+                                    }
+                                    final job = jobs[index];
+                                    final isSaved =
+                                        _jobActionService.isSaved(job.id);
+                                    return RepaintBoundary(
+                                      child: _JobCardCompact(
+                                        key: ValueKey(
+                                            'grid_${job.id}_$_jobListSerial'),
+                                        job: job,
+                                        isSaved: isSaved,
+                                        onTap: () =>
+                                            _showJobDetails(context, job),
+                                        onSave: () => _toggleSaveJob(job),
+                                      )
+                                          .animate()
+                                          .fadeIn(
+                                            duration: 280.ms,
+                                            delay: (index * 30).ms,
+                                            curve: Curves.easeOutCubic,
+                                          )
+                                          .scale(
+                                            begin: const Offset(0.95, 0.95),
+                                            end: const Offset(1, 1),
+                                            duration: 280.ms,
+                                            delay: (index * 30).ms,
+                                            curve: Curves.easeOutCubic,
+                                          ),
+                                    );
+                                  },
+                                )
+                              : ListView.builder(
                                 controller: _jobListScrollController,
                                 physics: const AlwaysScrollableScrollPhysics(
                                   parent: BouncingScrollPhysics(),
@@ -2626,7 +3176,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                       _jobActionService.isSaved(job.id);
                                   final isApplied =
                                       _jobActionService.isApplied(job.id);
-                                  return RepaintBoundary(
+                                  Widget card = RepaintBoundary(
                                     child: _JobCard(
                                       key:
                                           ValueKey('${job.id}_$_jobListSerial'),
@@ -2655,6 +3205,20 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                           curve: Curves.easeOutCubic,
                                         ),
                                   );
+                                  if (index == 0) {
+                                    card = Showcase(
+                                      key: _showcaseJobCard,
+                                      title: 'Job Listings',
+                                      description: 'Tap a job to see details, then Apply. Tap the bookmark icon to save it for later.',
+                                      targetBorderRadius: BorderRadius.circular(16),
+                                      tooltipBackgroundColor: const Color(0xFF1D4ED8),
+                                      textColor: Colors.white,
+                                      titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+                                      descTextStyle: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white),
+                                      child: card,
+                                    );
+                                  }
+                                  return card;
                                 },
                               ),
                       ),
@@ -2961,7 +3525,9 @@ class _JobCardState extends State<_JobCard> {
                           ? const Color(0xFF10B981)
                           : const Color(0xFF2563EB),
                       isSelected: isApplied,
-                      label: isApplied ? 'Applied' : 'Apply',
+                      label: isApplied
+                          ? (S.of(context)?.applied ?? 'Applied')
+                          : (S.of(context)?.apply ?? 'Apply'),
                       onTap: widget.onApply,
                       pulseScale: _applyPulse,
                     ),
@@ -3056,6 +3622,194 @@ class _JobCardState extends State<_JobCard> {
   }
 }
 
+// ─── Compact Job Card (Grid View) ─────────────────────────────────────────────
+class _JobCardCompact extends StatelessWidget {
+  final Job job;
+  final bool isSaved;
+  final VoidCallback onTap;
+  final VoidCallback onSave;
+
+  const _JobCardCompact({
+    super.key,
+    required this.job,
+    required this.isSaved,
+    required this.onTap,
+    required this.onSave,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CompanyLogoBox(
+                      job: job,
+                      size: 36,
+                      borderRadius: 10,
+                    ),
+                    const Spacer(),
+                    if (job.matchPercentage > 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 7, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: const Color(0xFF10B981).withOpacity(0.2)),
+                        ),
+                        child: Text(
+                          '${job.matchPercentage}%',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF059669),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  job.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                    height: 1.25,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  job.company,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.payments_rounded,
+                        size: 11,
+                        color: Color(0xFF2563EB),
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          job.salaryDisplay,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_rounded,
+                        size: 12, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 3),
+                    Expanded(
+                      child: Text(
+                        job.location,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Color(0xFF94A3B8),
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        job.employmentTypeLabel,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: onSave,
+                      child: Icon(
+                        isSaved
+                            ? Icons.bookmark_rounded
+                            : Icons.bookmark_outline_rounded,
+                        size: 20,
+                        color: isSaved
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Map Tab ──────────────────────────────────────────────────────────────────
 class MapTab extends StatefulWidget {
   const MapTab({super.key});
@@ -3108,6 +3862,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   Timer? _mapLoadMoreDebounce;
   bool _bestMatchOnly = false;
   final Set<String> _compareBusinessIds = <String>{};
+  bool _mapTourStarted = false;
 
   // ─── Map animation ─────────────────────────────────────────────────────────
   AnimationController? _moveAnimController;
@@ -3130,6 +3885,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     lc.liveLocation.addListener(_onLocationChanged);
     lc.manualLocation.addListener(_onLocationChanged);
     lc.permission.addListener(_onPermissionChanged);
+    activeHomeTabIndexNotifier.addListener(_onActiveHomeTabChanged);
 
     // Kick off a permission request the first time the user opens the Map
     // tab. If it's already granted this is essentially a no-op and just
@@ -3137,6 +3893,31 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _ensureLocationReady();
     });
+
+    _onActiveHomeTabChanged();
+  }
+
+  void _onActiveHomeTabChanged() {
+    if (!mounted || _mapTourStarted) return;
+    if (activeHomeTabIndexNotifier.value != 1) return;
+    _mapTourStarted = true;
+    unawaited(_maybeStartMapTour());
+  }
+
+  Future<void> _maybeStartMapTour() async {
+    final token = UserSession().token;
+    final done = await OnboardingPrefs.isMapTourDone(token: token);
+    if (done || !mounted) return;
+    // Persist immediately once eligible so hot reload/rebuild timing doesn't
+    // accidentally re-trigger the map tour on the next entry.
+    await OnboardingPrefs.setMapTourDone(token: token);
+    if (!mounted) return;
+    await Future.delayed(const Duration(milliseconds: 2000));
+    if (!mounted || activeHomeTabIndexNotifier.value != 1) return;
+    ShowcaseView.get().startShowCase([
+      _showcaseMapBestMatch,
+      _showcaseMapLocProfiles,
+    ]);
   }
 
   Future<void> _ensureLocationReady() async {
@@ -3643,6 +4424,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   void dispose() {
     mapUserSkillsRevisionNotifier.removeListener(_onMapUserSkillsRevision);
     mapFocusRequestNotifier.removeListener(_onMapFocusRequested);
+    activeHomeTabIndexNotifier.removeListener(_onActiveHomeTabChanged);
     final lc = LocationController.instance;
     lc.liveLocation.removeListener(_onLocationChanged);
     lc.manualLocation.removeListener(_onLocationChanged);
@@ -3958,9 +4740,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     });
   }
 
-  Widget _buildLocationProfilesFab() {
-    return FloatingActionButton.extended(
-      heroTag: 'map_tab_location_profiles',
+  Widget _buildLocationProfilesFab({bool withShowcase = false}) {
+    Widget fab = FloatingActionButton.extended(
+      heroTag: withShowcase ? 'map_tab_location_profiles' : 'map_tab_location_profiles_alt',
       backgroundColor: Colors.white,
       foregroundColor: const Color(0xFF2563EB),
       elevation: 4,
@@ -3971,6 +4753,38 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
       ),
     );
+    if (withShowcase) {
+      fab = Showcase(
+        key: _showcaseMapLocProfiles,
+        title: 'Location Profiles',
+        description: 'Pick an exact location, switch to live GPS, or save reusable places like Home.',
+        tooltipActions: [
+          TooltipActionButton(
+            type: TooltipDefaultActionType.previous,
+            textStyle: TextStyle(color: Colors.white),
+          ),
+          TooltipActionButton(
+            type: TooltipDefaultActionType.next,
+            name: 'Finish',
+            textStyle: const TextStyle(color: Colors.white),
+            onTap: () {
+              ShowcaseView.get().dismiss();
+            },
+          ),
+        ],
+        onTargetClick: () {
+          ShowcaseView.get().dismiss();
+        },
+        disposeOnTap: true,
+        targetBorderRadius: BorderRadius.circular(28),
+        tooltipBackgroundColor: const Color(0xFF1D4ED8),
+        textColor: Colors.white,
+        titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+        descTextStyle: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white),
+        child: fab,
+      );
+    }
+    return fab;
   }
 
   String _formatDistance(double meters) {
@@ -4893,7 +5707,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                 child: ElevatedButton.icon(
                   onPressed: _applySearchThisArea,
                   icon: const Icon(Icons.travel_explore_rounded, size: 16),
-                  label: const Text('Search this area'),
+                  label: Text(
+                    S.of(context)?.mapSearchThisArea ?? 'Search this area',
+                  ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2563EB),
                     foregroundColor: Colors.white,
@@ -4930,7 +5746,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                         controller: _searchController,
                         onChanged: _onSearch,
                         decoration: InputDecoration(
-                          hintText: 'Search businesses...',
+                          hintText: S.of(context)?.searchBusinessesHint ??
+                              'Search businesses...',
                           hintStyle: TextStyle(color: Colors.grey[500]),
                           prefixIcon: const Icon(Icons.search_rounded,
                               color: Color(0xFF2563EB)),
@@ -5058,30 +5875,49 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
                   child: Align(
                     alignment: Alignment.centerLeft,
-                    child: FilterChip(
-                      selected: _bestMatchOnly,
-                      onSelected: (value) {
-                        setState(() {
-                          _bestMatchOnly = value;
-                        });
-                        _onSearch(_searchController.text);
+                    child: Showcase(
+                      key: _showcaseMapBestMatch,
+                      title: 'Best Match Only',
+                      description: 'Toggle to show only employers that match your saved skills.',
+                      onBarrierClick: () {
+                        ShowcaseView.get().next(force: true);
                       },
-                      showCheckmark: false,
-                      label: Icon(
-                        Icons.verified_rounded,
-                        size: 21,
-                        color: _bestMatchOnly
-                            ? const Color(0xFF15803D)
-                            : const Color(0xFF64748B),
-                      ),
-                      labelPadding: EdgeInsets.zero,
-                      padding: const EdgeInsets.all(10),
-                      selectedColor: const Color(0xFFDCFCE7),
-                      backgroundColor: Colors.white,
-                      side: BorderSide(
-                        color: _bestMatchOnly
-                            ? const Color(0xFF16A34A)
-                            : const Color(0xFFE2E8F0),
+                      tooltipActions: const [
+                        TooltipActionButton(
+                          type: TooltipDefaultActionType.next,
+                          textStyle: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                      targetBorderRadius: BorderRadius.circular(20),
+                      tooltipBackgroundColor: const Color(0xFF15803D),
+                      textColor: Colors.white,
+                      titleTextStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
+                      descTextStyle: const TextStyle(fontSize: 13.5, height: 1.4, color: Colors.white),
+                      child: FilterChip(
+                        selected: _bestMatchOnly,
+                        onSelected: (value) {
+                          setState(() {
+                            _bestMatchOnly = value;
+                          });
+                          _onSearch(_searchController.text);
+                        },
+                        showCheckmark: false,
+                        label: Icon(
+                          Icons.verified_rounded,
+                          size: 21,
+                          color: _bestMatchOnly
+                              ? const Color(0xFF15803D)
+                              : const Color(0xFF64748B),
+                        ),
+                        labelPadding: EdgeInsets.zero,
+                        padding: const EdgeInsets.all(10),
+                        selectedColor: const Color(0xFFDCFCE7),
+                        backgroundColor: Colors.white,
+                        side: BorderSide(
+                          color: _bestMatchOnly
+                              ? const Color(0xFF16A34A)
+                              : const Color(0xFFE2E8F0),
+                        ),
                       ),
                     ),
                   ),
@@ -5121,7 +5957,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                   const EdgeInsets.fromLTRB(20, 0, 20, 8),
                               child: Align(
                                 alignment: Alignment.centerLeft,
-                                child: _buildLocationProfilesFab(),
+                                child: _buildLocationProfilesFab(withShowcase: true),
                               ),
                             ),
                           if (!isSearching && cardSource.isNotEmpty)
@@ -5159,8 +5995,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                               const SizedBox(width: 6),
                                               Text(
                                                 _areaSearchReference == null
-                                                    ? 'Closest company near you'
-                                                    : 'Closest company in this area',
+                                                    ? (S.of(context)
+                                                            ?.mapClosestCompanyNearYou ??
+                                                        'Closest company near you')
+                                                    : (S.of(context)
+                                                            ?.mapClosestCompanyInArea ??
+                                                        'Closest company in this area'),
                                                 style: TextStyle(
                                                   fontSize: 13,
                                                   fontWeight: FontWeight.w700,
@@ -6400,9 +7240,9 @@ class _BusinessDetailSheet extends StatelessWidget {
                           const Icon(Icons.work_rounded,
                               size: 22, color: Color(0xFF2563EB)),
                           const SizedBox(width: 10),
-                          const Text(
-                            'Available Jobs',
-                            style: TextStyle(
+                          Text(
+                            S.of(context)?.companyJobs ?? 'Available Jobs',
+                            style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
                               color: Color(0xFF0F172A),
@@ -6509,9 +7349,13 @@ class _BusinessDetailSheet extends StatelessWidget {
       context: context,
       type: AppDialogType.confirm,
       icon: Icons.send_rounded,
-      title: 'Confirm Application',
-      message: 'Apply for ${job.title} at ${job.company}?',
-      confirmLabel: 'Apply',
+      title: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Kumpirmahin ang Aplikasyon'
+          : 'Confirm Application',
+      message: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Mag-apply para sa ${job.title} sa ${job.company}?'
+          : 'Apply for ${job.title} at ${job.company}?',
+      confirmLabel: S.of(context)?.apply ?? 'Apply',
       onConfirm: () => Navigator.pop(context, true),
       onCancel: () => Navigator.pop(context, false),
     );
@@ -7015,9 +7859,13 @@ class _NotificationsTabState extends State<NotificationsTab>
       context: context,
       type: AppDialogType.confirm,
       icon: Icons.send_rounded,
-      title: 'Confirm Application',
-      message: 'Apply for ${job.title} at ${job.company}?',
-      confirmLabel: 'Apply',
+      title: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Kumpirmahin ang Aplikasyon'
+          : 'Confirm Application',
+      message: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Mag-apply para sa ${job.title} sa ${job.company}?'
+          : 'Apply for ${job.title} at ${job.company}?',
+      confirmLabel: S.of(context)?.apply ?? 'Apply',
       onConfirm: () => Navigator.pop(context, true),
       onCancel: () => Navigator.pop(context, false),
     );
@@ -8088,7 +8936,7 @@ class _NotificationsTabState extends State<NotificationsTab>
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: Text(
-          'Notifications',
+          S.of(context)?.notifications ?? 'Notifications',
           style: GoogleFonts.poppins(
             fontSize: 18,
             fontWeight: FontWeight.w900,
@@ -8865,11 +9713,13 @@ class _NotificationsTabState extends State<NotificationsTab>
                                                     ),
                                                     child: Row(
                                                       mainAxisSize: MainAxisSize.min,
-                                                      children: const [
+                                                      children: [
                                                         Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFFDC2626)),
                                                         SizedBox(width: 5),
                                                         Text(
-                                                          'View Details',
+                                                          S.of(context)
+                                                                  ?.viewDetails ??
+                                                              'View Details',
                                                           style: TextStyle(
                                                             fontSize: 11,
                                                             fontWeight: FontWeight.w600,

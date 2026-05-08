@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'main.dart';
 import 'document_open_io.dart' if (dart.library.html) 'document_open_web.dart' as doc_open;
+import 'l10n/app_localizations.dart';
 import 'pdf_picker_result.dart';
 import 'pick_pdf_io.dart' if (dart.library.html) 'pick_pdf_web.dart' as pdf_picker;
 import 'user_session.dart';
@@ -468,9 +469,9 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                 color: _kSlate900,
                 onPressed: () => Navigator.of(context).pop(),
               ),
-              title: const Text(
-                'My documents',
-                style: TextStyle(
+              title: Text(
+                S.of(context)?.myDocuments ?? 'My documents',
+                style: const TextStyle(
                   color: _kSlate900,
                   fontWeight: FontWeight.w800,
                   fontSize: 18,

@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'home_pages.dart' show replayHomeTourNotifier;
+import 'l10n/app_localizations.dart';
 import 'legal_documents.dart';
+import 'locale_service.dart';
 import 'my_documents_page.dart';
+import 'onboarding_prefs.dart';
 import 'settings_page.dart';
+import 'user_session.dart';
 
 typedef _FaqItem = ({String question, String answer});
 
@@ -19,7 +24,98 @@ class _FaqCategory {
   final List<_FaqItem> items;
 }
 
-List<_FaqCategory> _faqCategories() {
+List<_FaqCategory> _faqCategories(BuildContext context) {
+  final isTl = Localizations.localeOf(context).languageCode == 'tl';
+  if (isTl) {
+    return const [
+      _FaqCategory(
+        title: 'Trabaho at aplikasyon',
+        icon: Icons.work_outline_rounded,
+        items: [
+          (
+            question: 'Bakit hindi ako makapag-apply sa trabaho?',
+            answer:
+                'Kailangan ang Resume/CV bago makapag-apply. Pumunta sa Mga Dokumento Ko, mag-upload ng Resume/CV, pagkatapos ay subukan muli.'
+          ),
+          (
+            question: 'Ano ang ibig sabihin ng Processing sa Aking Mga Aplikasyon?',
+            answer:
+                'Ibig sabihin ng Processing ay sinusuri pa ng employer ang iyong aplikasyon. Maaaring may sub-stage gaya ng Shortlisted, Interview, o For Job Offer.'
+          ),
+        ],
+      ),
+      _FaqCategory(
+        title: 'Kasanayan at job matching',
+        icon: Icons.psychology_outlined,
+        items: [
+          (
+            question: 'Paano gamitin ang Skills Profile / Skills Editor?',
+            answer:
+                'Buksan ang Skills Profile mula sa iyong Profile page, idagdag ang iyong pangunahing kasanayan, pagkatapos ay i-tap ang Save Skills. Gamitin ang search at category filters para mas mabilis makahanap ng skills. Ang saved skills ay nagpapaganda ng job match suggestions.'
+          ),
+          (
+            question: 'Ano ang green check icon filter sa mapa?',
+            answer:
+                'Ang green check icon ay para i-toggle ang Best Match Only. Kapag naka-enable, inuuna ng mapa at company list ang mga employer na tugma sa iyong skills o matched-job results.'
+          ),
+        ],
+      ),
+      _FaqCategory(
+        title: 'Mapa at lokasyon',
+        icon: Icons.map_outlined,
+        items: [
+          (
+            question: 'Paano naaapektuhan ng exact location ang resulta ng trabaho sa mapa?',
+            answer:
+                'Kapag naka-set ang Exact Location, ang nearby jobs ay kakalkulahin batay sa napili mong punto, hindi sa live GPS location mo.'
+          ),
+          (
+            question: 'Paano gamitin ang Location Profiles sa mapa?',
+            answer:
+                'I-tap ang Location Profiles sa mapa para pumili ng eksaktong pin, bumalik sa live GPS, o mag-save ng paulit-ulit gamitin na lugar gaya ng Home/Boarding House. Puwedeng palitan ang pangalan o burahin ang saved profiles anumang oras.'
+          ),
+          (
+            question: 'Ano ang ginagawa ng "Search this area" sa mapa?',
+            answer:
+                'Pagkatapos i-pan ang mapa, i-tap ang Search this area para muling kalkulahin ang pinakamalalapit na kumpanya batay sa kasalukuyang sentro ng mapa.'
+          ),
+          (
+            question: 'Pwede ba akong magkumpara ng mga kumpanya sa mapa?',
+            answer:
+                'Oo. Sa company cards section, long-press ang cards para pumili ng hanggang 3 kumpanya, pagkatapos ay i-tap ang Compare para makita sila nang magkatabi.'
+          ),
+        ],
+      ),
+      _FaqCategory(
+        title: 'Account at settings',
+        icon: Icons.person_outline_rounded,
+        items: [
+          (
+            question: 'Paano ko papalitan ang email ko?',
+            answer:
+                'Buksan ang Settings > Change email address. Magpapadala ang app ng OTP sa bagong email mo para sa verification.'
+          ),
+          (
+            question: 'Paano ko papalitan ang password ko?',
+            answer:
+                'Buksan ang Profile > Settings, pagkatapos ay i-tap ang Change password. Ilagay ang kasalukuyang password, bagong password (ayon sa strength rules), at kumpirmahin ang bagong password, pagkatapos ay i-submit.'
+          ),
+        ],
+      ),
+      _FaqCategory(
+        title: 'Mga notipikasyon',
+        icon: Icons.notifications_outlined,
+        items: [
+          (
+            question: 'Mukhang luma o mali ang notifications. Ano ang dapat gawin?',
+            answer:
+                'I-pull down para i-refresh ang Notifications at buksan muli ang item. Ang read state at offer status ay ina-update mula sa pinakabagong server data.'
+          ),
+        ],
+      ),
+    ];
+  }
+
   return const [
     _FaqCategory(
       title: 'Jobs & applications',
@@ -209,12 +305,153 @@ Future<void> _showPesoContactDialog(BuildContext context) {
   );
 }
 
-class HelpSupportPage extends StatelessWidget {
+class HelpSupportPage extends StatefulWidget {
   const HelpSupportPage({super.key});
 
   @override
+  State<HelpSupportPage> createState() => _HelpSupportPageState();
+}
+
+class _HelpSupportPageState extends State<HelpSupportPage> {
+  @override
+  void initState() {
+    super.initState();
+    LocaleService.instance.addListener(_onLocaleChanged);
+  }
+
+  @override
+  void dispose() {
+    LocaleService.instance.removeListener(_onLocaleChanged);
+    super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _showLanguageSelector() {
+    final currentLocale = LocaleService.instance.locale;
+    final l10n = S.of(context);
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              l10n?.languageSelectTitle ?? 'Select Language',
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF0F172A),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              l10n?.languageSelectSubtitle ?? 'Choose your preferred language',
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ...AppLocales.supported.map((locale) {
+              final isSelected = locale == currentLocale;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  color: isSelected ? const Color(0xFFEFF6FF) : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      LocaleService.instance.setLocale(locale);
+                      Navigator.of(ctx).pop();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFF2563EB)
+                              : const Color(0xFFE2E8F0),
+                          width: isSelected ? 2 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Text(
+                            locale.languageCode == 'tl' ? '🇵🇭' : '🇺🇸',
+                            style: const TextStyle(fontSize: 24),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  AppLocales.displayName(locale),
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: isSelected
+                                        ? const Color(0xFF2563EB)
+                                        : const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                Text(
+                                  AppLocales.nativeName(locale),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (isSelected)
+                            const Icon(
+                              Icons.check_circle_rounded,
+                              color: Color(0xFF2563EB),
+                              size: 22,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final categories = _faqCategories();
+    final categories = _faqCategories(context);
+    final currentLocale = LocaleService.instance.locale;
+    final l10n = S.of(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -222,22 +459,29 @@ class HelpSupportPage extends StatelessWidget {
         elevation: 0,
         backgroundColor: const Color(0xFFF1F5F9),
         foregroundColor: const Color(0xFF0F172A),
-        title: const Text(
-          'Help & Support',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        title: Text(
+          l10n?.helpSupport ?? 'Help & Support',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
           _SectionCard(
-            title: 'Quick Help',
+            title: l10n?.quickHelp ?? 'Quick Help',
             child: Column(
               children: [
                 _QuickActionTile(
+                  icon: Icons.language_rounded,
+                  title: l10n?.language ?? 'Language',
+                  subtitle: AppLocales.displayName(currentLocale),
+                  onTap: _showLanguageSelector,
+                ),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                _QuickActionTile(
                   icon: Icons.description_outlined,
-                  title: 'Go to My Documents',
-                  subtitle: 'Upload required files before applying',
+                  title: l10n?.goToMyDocuments ?? 'Go to My Documents',
+                  subtitle: l10n?.goToMyDocumentsSubtitle ?? 'Upload required files before applying',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -249,8 +493,8 @@ class HelpSupportPage extends StatelessWidget {
                 const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _QuickActionTile(
                   icon: Icons.settings_outlined,
-                  title: 'Open Settings',
-                  subtitle: 'Manage account details and email',
+                  title: l10n?.openSettings ?? 'Open Settings',
+                  subtitle: l10n?.openSettingsSubtitle ?? 'Manage account details and email',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -262,22 +506,36 @@ class HelpSupportPage extends StatelessWidget {
                 const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _QuickActionTile(
                   icon: Icons.support_agent_rounded,
-                  title: 'Contact Support',
+                  title: l10n?.contactSupport ?? 'Contact Support',
                   subtitle: kLegalContactEmail,
                   onTap: () => _showPesoContactDialog(context),
+                ),
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                _QuickActionTile(
+                  icon: Icons.play_circle_outline_rounded,
+                  title: l10n?.replayTour ?? 'Replay App Tour',
+                  subtitle: l10n?.replayTourSubtitle ?? 'See the guided walkthrough again',
+                  onTap: () async {
+                    final token = UserSession().token;
+                    await OnboardingPrefs.clearHomeTourDone(token: token);
+                    await OnboardingPrefs.clearMapTourDone(token: token);
+                    if (!context.mounted) return;
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                    replayHomeTourNotifier.value = true;
+                  },
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
           _SectionCard(
-            title: 'Legal',
+            title: l10n?.legal ?? 'Legal',
             child: Column(
               children: [
                 _QuickActionTile(
                   icon: Icons.gavel_rounded,
-                  title: 'Terms & Conditions',
-                  subtitle: 'Rules for using the app',
+                  title: l10n?.termsOfService ?? 'Terms & Conditions',
+                  subtitle: l10n?.termsOfServiceSubtitle ?? 'Rules for using the app',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -289,8 +547,8 @@ class HelpSupportPage extends StatelessWidget {
                 const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _QuickActionTile(
                   icon: Icons.privacy_tip_outlined,
-                  title: 'Privacy Policy',
-                  subtitle: 'How we handle personal data',
+                  title: l10n?.privacyPolicy ?? 'Privacy Policy',
+                  subtitle: l10n?.privacyPolicySubtitle ?? 'How we handle personal data',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -304,31 +562,30 @@ class HelpSupportPage extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _SectionCard(
-            title: 'Application Status Guide',
+            title: l10n?.applicationStatusGuide ?? 'Application Status Guide',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
+              children: [
                 _StatusHint(
-                  title: 'Registration',
-                  description: 'Application submitted and recorded by the system.',
+                  title: l10n?.statusRegistration ?? 'Registration',
+                  description: l10n?.statusRegistrationDesc ?? 'Application submitted and recorded by the system.',
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 _StatusHint(
-                  title: 'Processing',
-                  description:
-                      'Employer review stage. Sub-stages can appear as: • Shortlisted • Interview • For Job Offer',
+                  title: l10n?.statusProcessing ?? 'Processing',
+                  description: l10n?.statusProcessingDesc ?? 'Employer review stage. Sub-stages can appear as: • Shortlisted • Interview • For Job Offer',
                 ),
-                SizedBox(height: 10),
+                const SizedBox(height: 10),
                 _StatusHint(
-                  title: 'Placement/Hired',
-                  description: 'Final stage after hiring decision.',
+                  title: l10n?.statusPlacementHired ?? 'Placement/Hired',
+                  description: l10n?.statusPlacementHiredDesc ?? 'Final stage after hiring decision.',
                 ),
               ],
             ),
           ),
           const SizedBox(height: 12),
           _SectionCard(
-            title: 'Frequently Asked Questions',
+            title: l10n?.faq ?? 'Frequently Asked Questions',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

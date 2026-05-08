@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'api_service.dart';
+import 'l10n/app_localizations.dart';
 import 'password_rules.dart';
 import 'user_session.dart';
 
@@ -33,19 +34,21 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   String? _validateNew(String? v) => PasswordRules.validateStrongPassword(v);
 
   String? _validateConfirm(String? v) {
-    if (v == null || v.isEmpty) return 'Confirm your new password';
-    if (v != _newCtrl.text) return 'Passwords do not match';
+    final l10n = S.of(context);
+    if (v == null || v.isEmpty) return l10n?.confirmYourNewPassword ?? 'Confirm your new password';
+    if (v != _newCtrl.text) return l10n?.passwordsDoNotMatch ?? 'Passwords do not match';
     return null;
   }
 
   Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
+    final l10n = S.of(context);
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Session expired. Please sign in again.'),
+        SnackBar(
+          content: Text(l10n?.sessionExpired ?? 'Session expired. Please log in again.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -69,7 +72,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            (res['message'] as String?)?.trim() ?? 'Password changed successfully.',
+            (res['message'] as String?)?.trim() ?? l10n?.passwordChanged ?? 'Password changed successfully.',
           ),
           behavior: SnackBarBehavior.floating,
         ),
@@ -163,6 +166,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = S.of(context);
     const border = OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(12)),
     );
@@ -173,9 +177,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         elevation: 0,
         backgroundColor: const Color(0xFFF1F5F9),
         foregroundColor: const Color(0xFF0F172A),
-        title: const Text(
-          'Change password',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        title: Text(
+          l10n?.changePassword ?? 'Change password',
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
         ),
       ),
       body: SingleChildScrollView(
@@ -200,7 +204,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 obscureText: _obscureCurrent,
                 autofillHints: const [AutofillHints.password],
                 decoration: InputDecoration(
-                  labelText: 'Current password',
+                  labelText: l10n?.currentPassword ?? 'Current password',
                   border: border,
                   enabledBorder: border,
                   focusedBorder: border.copyWith(
@@ -215,7 +219,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   ),
                 ),
                 validator: (v) {
-                  if (v == null || v.isEmpty) return 'Enter your current password';
+                  if (v == null || v.isEmpty) return l10n?.currentPassword ?? 'Current password';
                   return null;
                 },
                 onChanged: (_) => setState(() {}),
@@ -226,7 +230,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 obscureText: _obscureNew,
                 autofillHints: const [AutofillHints.newPassword],
                 decoration: InputDecoration(
-                  labelText: 'New password',
+                  labelText: l10n?.newPassword ?? 'New password',
                   border: border,
                   enabledBorder: border,
                   focusedBorder: border.copyWith(
@@ -251,7 +255,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 obscureText: _obscureConfirm,
                 autofillHints: const [AutofillHints.newPassword],
                 decoration: InputDecoration(
-                  labelText: 'Confirm new password',
+                  labelText: l10n?.confirmNewPassword ?? 'Confirm new password',
                   border: border,
                   enabledBorder: border,
                   focusedBorder: border.copyWith(
@@ -273,7 +277,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    'Passwords do not match',
+                    l10n?.passwordsDoNotMatch ?? 'Passwords do not match',
                     style: TextStyle(
                       color: Colors.red[700],
                       fontSize: 12.5,
@@ -301,9 +305,9 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                           color: Colors.white,
                         ),
                       )
-                    : const Text(
-                        'Update password',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    : Text(
+                        l10n?.changePassword ?? 'Change password',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                       ),
               ),
             ],
