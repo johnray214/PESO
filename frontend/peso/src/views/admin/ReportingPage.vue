@@ -97,7 +97,17 @@
               <label class="filter-label">Industry</label>
               <select v-model="form.filters.industry" class="filter-select">
                 <option value="">All Industries</option>
-                <option>BPO / Call Center</option><option>IT / Tech</option><option>Healthcare</option><option>Finance</option><option>Retail</option>
+                <option>Agriculture</option>
+                <option>Manufacturing</option>
+                <option>Construction</option>
+                <option>Wholesale and Retail Trade</option>
+                <option>Hotels and Restaurants</option>
+                <option>Transport, Storage and Communication</option>
+                <option>Financial Intermediation</option>
+                <option>Real Estate, Renting and Business Activities</option>
+                <option>Education</option>
+                <option>Health and Social Work</option>
+                <option>Other Community, Social and Personal Service Activities</option>
               </select>
             </div>
           </template>
@@ -165,24 +175,52 @@
               <label class="filter-label">Industry</label>
               <select v-model="form.filters.industry" class="filter-select">
                 <option value="">All Industries</option>
-                <option>BPO / Call Center</option><option>IT / Tech</option><option>Healthcare</option><option>Finance</option><option>Retail</option>
+                <option>Agriculture</option>
+                <option>Manufacturing</option>
+                <option>Construction</option>
+                <option>Wholesale and Retail Trade</option>
+                <option>Hotels and Restaurants</option>
+                <option>Transport, Storage and Communication</option>
+                <option>Financial Intermediation</option>
+                <option>Real Estate, Renting and Business Activities</option>
+                <option>Education</option>
+                <option>Health and Social Work</option>
+                <option>Other Community, Social and Personal Service Activities</option>
               </select>
             </div>
           </template>
 
-          <template v-else-if="form.reportType === 'skillmatch'">
+          <template v-else-if="form.reportType === 'jobposting'">
             <div class="filter-row">
-              <label class="filter-label">Min Match %</label>
-              <div class="range-row">
-                <input v-model="form.filters.minMatch" type="range" min="0" max="100" step="5" class="range-input"/>
-                <span class="range-val">{{ form.filters.minMatch || 0 }}%</span>
-              </div>
+              <label class="filter-label">Group By</label>
+              <select v-model="form.filters.groupBy" class="filter-select">
+                <option value="">All Listings</option>
+                <option value="Per Company">Per Company</option>
+                <option value="Per Industry">Per Industry</option>
+              </select>
             </div>
             <div class="filter-row">
-              <label class="filter-label">Job Category</label>
-              <select v-model="form.filters.jobCategory" class="filter-select">
-                <option value="">All Categories</option>
-                <option>IT / Tech</option><option>Healthcare</option><option>Finance</option><option>Customer Service</option>
+              <label class="filter-label">Status</label>
+              <select v-model="form.filters.jobStatus" class="filter-select">
+                <option value="">All Statuses</option>
+                <option>Open</option>
+                <option>Closed</option>
+              </select>
+            </div>
+            <div class="filter-row">
+              <label class="filter-label">Industry</label>
+              <select v-model="form.filters.industry" class="filter-select">
+                <option value="">All Industries</option>
+                <option>Agriculture</option>
+                <option>Manufacturing</option>
+                <option>Construction</option>
+                <option>Wholesale and Retail Trade</option>
+                <option>Hotels and Restaurants</option>
+                <option>BPO</option>
+                <option>IT</option>
+                <option>Healthcare</option>
+                <option>Finance</option>
+                <option>Education</option>
               </select>
             </div>
           </template>
@@ -287,6 +325,7 @@
         </div>
 
         <div v-else class="report-preview">
+          <!-- Preview Header -->
           <div class="preview-header">
             <div>
               <div class="preview-badge" :style="{ background: activeReportType?.bg, color: activeReportType?.color }">
@@ -296,7 +335,7 @@
               <p class="preview-meta">
                 <template v-if="form.datePreset !== 'none'">{{ form.dateFrom }} — {{ form.dateTo }} · </template>
                 <template v-else>All dates · </template>
-                 Grouped by month · {{ previewRows.length }} records
+                {{ previewRows.length }} records
               </p>
             </div>
             <div class="preview-export-btns">
@@ -312,65 +351,129 @@
             </div>
           </div>
 
-          <div class="preview-summary">
-            <div v-for="s in previewSummary" :key="s.label" class="preview-sum-item">
-              <span class="preview-sum-val" :style="{ color: s.color }">{{ s.value }}</span>
-              <span class="preview-sum-label">{{ s.label }}</span>
-            </div>
-          </div>
+          <!-- ═══ PDF MODE: Rich Summary ═══ -->
+          <template v-if="form.exportFormat === 'pdf'">
 
-          <div class="preview-chart-wrap" v-if="previewBars.length">
-            <div class="preview-bar-chart">
-              <div v-for="(bar, i) in visibleBars" :key="i" class="preview-bar-col">
-                <span class="preview-bar-val">{{ bar.value }}</span>
-                <div class="preview-bar-inner">
-                  <div class="preview-bar-fill" :style="{ height: (bar.value / maxBarValue * 100) + '%', background: activeReportType?.color || '#2563eb' }"></div>
+            <!-- Stat Cards -->
+            <div class="pdf-stat-cards">
+              <div v-for="s in previewSummary" :key="s.label" class="pdf-stat-card">
+                <div class="pdf-stat-icon" :style="{ background: s.color + '18', color: s.color }">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 </div>
-                <span class="preview-bar-label">{{ bar.label }}</span>
+                <div>
+                  <div class="pdf-stat-val" :style="{ color: s.color }">{{ s.value }}</div>
+                  <div class="pdf-stat-label">{{ s.label }}</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- ✅ FIXED: empty state when no rows match the filter -->
-          <div v-if="previewRows.length === 0" class="preview-no-results">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <p>No records match the selected filters.</p>
-          </div>
+            <!-- Charts Row -->
+            <div class="pdf-charts-row" v-if="previewRows.length">
 
-          <div v-else class="preview-table-wrap">
-            <table class="preview-table">
-              <thead>
-                <tr>
-                  <th>No.</th>
-                  <th v-for="col in selectedColumns" :key="col.key">{{ col.label }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, i) in previewRows" :key="i">
-                  <td style="font-weight: 600; color: #64748b; font-size: 12px; padding-left: 18px;">{{ i + 1 }}</td>
-                  <td v-for="col in selectedColumns" :key="col.key">
-                    <template v-if="col.key === 'status' || col.key === 'verificationStatus'">
-                      <span class="tbl-badge" :class="badgeClass(row[col.key])">{{ row[col.key] }}</span>
-                    </template>
-                    <template v-else-if="col.key === 'rate' || col.key === 'matchScore'">
-                      <span class="tbl-badge" :class="rateClass(row[col.key])">{{ row[col.key] }}%</span>
-                    </template>
-                    <template v-else-if="col.key === 'rating'">
-                      <span class="star-rating">{{ '★'.repeat(row[col.key]) }}{{ '☆'.repeat(5 - row[col.key]) }}</span>
-                    </template>
-                    <!-- ✅ FIXED: skills may come back as array of objects from API -->
-                    <template v-else-if="col.key === 'skills'">
-                      <template v-if="Array.isArray(row[col.key])">
-                        <span v-for="(sk, si) in row[col.key]" :key="si" class="skill-tag">{{ typeof sk === 'object' ? sk.skill : sk }}</span>
-                      </template>
-                      <template v-else>{{ row[col.key] }}</template>
-                    </template>
-                    <template v-else>{{ row[col.key] }}</template>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+              <!-- Bar Chart -->
+              <div class="pdf-chart-box" v-if="visibleBars.length">
+                <div class="pdf-chart-title">Trend Overview</div>
+                <div class="pdf-bar-chart">
+                  <div v-for="(bar, i) in visibleBars" :key="i" class="pdf-bar-col">
+                    <span class="pdf-bar-val" v-if="['placement', 'registration'].includes(form.reportType)">{{ bar.value }} (Total)</span>
+                    <div class="pdf-bar-track">
+                      <div class="pdf-bar-grouped">
+                        <template v-if="bar.segments">
+                          <div v-for="(seg, sIdx) in bar.segments" :key="sIdx" class="pdf-bar-segment-wrapper">
+                            <span class="pdf-bar-segment-val">{{ seg.val }}</span>
+                            <div class="pdf-bar-segment" 
+                                 :style="{ height: (seg.val / maxBarValue * 100) + '%', background: seg.color }"
+                                 :title="seg.name + ': ' + seg.val">
+                            </div>
+                          </div>
+                        </template>
+                        <template v-else>
+                          <div class="pdf-bar-segment-wrapper">
+                            <span class="pdf-bar-segment-val">{{ bar.value }}</span>
+                            <div class="pdf-bar-segment" :style="{ height: (bar.value / maxBarValue * 100) + '%', background: activeReportType?.color || '#2563eb' }"></div>
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                    <span class="pdf-bar-label" :title="bar.fullTitle || bar.label">{{ bar.label }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Donut Chart -->
+              <div class="pdf-chart-box" v-if="donutSegments.length">
+                <div class="pdf-chart-title">Breakdown</div>
+                <div class="pdf-donut-wrap">
+                  <svg viewBox="0 0 100 100" class="pdf-donut-svg">
+                    <path v-for="(seg, i) in donutPath" :key="i" :d="seg.d" :fill="seg.color" opacity="0.9"/>
+                    <circle cx="50" cy="50" r="22" fill="white"/>
+                    <text x="50" y="47" text-anchor="middle" font-size="11" font-weight="700" fill="#1e293b">{{ previewRows.length }}</text>
+                    <text x="50" y="58" text-anchor="middle" font-size="6" fill="#94a3b8">records</text>
+                  </svg>
+                  <div class="pdf-donut-legend">
+                    <div v-for="seg in donutSegments" :key="seg.label" class="pdf-legend-item">
+                      <span class="pdf-legend-dot" :style="{ background: seg.color }"></span>
+                      <span class="pdf-legend-label">{{ seg.label }}</span>
+                      <span class="pdf-legend-val">{{ seg.value }}<span v-if="seg.pct" class="pdf-legend-pct"> ({{ seg.pct }}%)</span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty state -->
+            <div v-if="previewRows.length === 0" class="preview-no-results">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <p>No records match the selected filters.</p>
+            </div>
+
+          </template>
+
+          <!-- ═══ EXCEL MODE: Plain Table Only ═══ -->
+          <template v-else>
+            <div v-if="previewRows.length === 0" class="preview-no-results">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <p>No records match the selected filters.</p>
+            </div>
+            <div v-else>
+              <div class="excel-notice">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                Excel export will contain a structured data table.
+              </div>
+              <div class="preview-table-wrap">
+                <table class="preview-table">
+                  <thead><tr>
+                    <th>No.</th>
+                    <th v-for="col in selectedColumns" :key="col.key">{{ col.label }}</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr v-for="(row, i) in previewRows" :key="i">
+                      <td style="font-weight:600;color:#64748b;font-size:12px;padding-left:18px">{{ i + 1 }}</td>
+                      <td v-for="col in selectedColumns" :key="col.key">
+                        <template v-if="col.key === 'status' || col.key === 'verificationStatus'">
+                          <span class="tbl-badge" :class="badgeClass(row[col.key])">{{ row[col.key] }}</span>
+                        </template>
+                        <template v-else-if="col.key === 'rate' || col.key === 'matchScore'">
+                          <span class="tbl-badge" :class="rateClass(row[col.key])">{{ row[col.key] }}%</span>
+                        </template>
+                        <template v-else-if="col.key === 'rating'">
+                          <span class="star-rating">{{ '★'.repeat(row[col.key]) }}{{ '☆'.repeat(5 - row[col.key]) }}</span>
+                        </template>
+                        <template v-else-if="col.key === 'skills'">
+                          <template v-if="Array.isArray(row[col.key])">
+                            <span v-for="(sk, si) in row[col.key]" :key="si" class="skill-tag">{{ typeof sk === 'object' ? sk.skill : sk }}</span>
+                          </template>
+                          <template v-else>{{ row[col.key] }}</template>
+                        </template>
+                        <template v-else>{{ row[col.key] }}</template>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+
         </div>
       </div>
 
@@ -423,7 +526,7 @@ export default {
         datePreset:   '1y',
         filters:      {},
         columns:      [],
-        exportFormat: 'xlsx',
+        exportFormat: 'pdf',
       },
 
       datePresets: [
@@ -440,7 +543,7 @@ export default {
         { value: 'skills',       label: 'Skills & Gaps', bg: '#faf5ff', color: '#8b5cf6', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>` },
         { value: 'events',       label: 'Events',        bg: '#f0fdf4', color: '#22c55e', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>` },
         { value: 'employer',     label: 'Employers',     bg: '#eff6ff', color: '#3b82f6', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>` },
-        { value: 'skillmatch',   label: 'Skill Match',   bg: '#ecfdf5', color: '#10b981', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>` },
+        { value: 'jobposting',   label: 'Job Posting',   bg: '#ecfdf5', color: '#10b981', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>` },
         { value: 'feedback',     label: 'Feedback',      bg: '#fdf4ff', color: '#a855f7', icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>` },
       ],
 
@@ -455,7 +558,7 @@ export default {
         skills:       [{ key:'skill',label:'Skill' },{ key:'demand',label:'Demand %' },{ key:'supply',label:'Supply %' },{ key:'gap',label:'Gap' },{ key:'trend',label:'Trend' },{ key:'postings',label:'Postings' }],
         events:       [{ key:'title',label:'Event' },{ key:'type',label:'Type' },{ key:'date',label:'Date' },{ key:'sex',label:'Sex' },{ key:'location',label:'Location' },{ key:'slots',label:'Slots' },{ key:'attended',label:'Attended' },{ key:'status',label:'Status' }],
         employer:     [{ key:'company',label:'Company' },{ key:'industry',label:'Industry' },{ key:'city',label:'City' },{ key:'verificationStatus',label:'Status' },{ key:'vacancies',label:'Vacancies' },{ key:'date',label:'Registered' }],
-        skillmatch:   [{ key:'name',label:'Applicant' },{ key:'topSkill',label:'Top Skill' },{ key:'matchScore',label:'Match %' },{ key:'bestFor',label:'Best For' },{ key:'city',label:'City' }],
+        jobposting:   [{ key:'title',label:'Job Title' },{ key:'company',label:'Company' },{ key:'industry',label:'Industry' },{ key:'vacancies',label:'Vacancies' },{ key:'status',label:'Status' },{ key:'date',label:'Date Posted' }],
         feedback:     [{ key:'name',label:'Submitted By' },{ key:'type',label:'User Type' },{ key:'rating',label:'Rating' },{ key:'comment',label:'Comment' },{ key:'category',label:'Category' },{ key:'date',label:'Date' }],
       },
 
@@ -472,20 +575,20 @@ export default {
       // Fallback sample data shown only on initial empty state (never used after first API success)
       sampleData: {
         placement: [
-          { month:'January',  name:'Maria Santos',    company:'Accenture PH',    position:'CSR',              industry:'BPO',       status:'Placed',     date:'Jan 14, 2026' },
-          { month:'January',  name:'Juan dela Cruz',  company:'Nexus Tech',      position:'Web Developer',    industry:'IT',        status:'Processing', date:'Jan 18, 2026' },
-          { month:'February', name:'Ana Reyes',       company:'MediCare Diag.', position:'Registered Nurse', industry:'Healthcare', status:'Placed',     date:'Feb 02, 2026' },
-          { month:'February', name:'Pedro Lim',       company:'SM Supermalls',   position:'Sales Associate',  industry:'Retail',    status:'Placed',     date:'Feb 10, 2026' },
-          { month:'March',    name:'Rosa Garcia',     company:'BrightPath BPO',  position:'Team Leader',      industry:'BPO',       status:'Processing', date:'Mar 05, 2026' },
-          { month:'March',    name:'Marco Dela Cruz', company:'Ayala Corp',      position:'Accountant',       industry:'Finance',   status:'Placed',     date:'Mar 08, 2026' },
+          { month:'January',  name:'Maria Santos',    company:'Accenture PH',    position:'CSR',              industry:'BPO',       status:'Hired',      date:'Jan 14, 2026' },
+          { month:'January',  name:'Juan dela Cruz',  company:'Nexus Tech',      position:'Web Developer',    industry:'IT',        status:'Rejected',   date:'Jan 18, 2026' },
+          { month:'February', name:'Ana Reyes',       company:'MediCare Diag.',  position:'Registered Nurse', industry:'Healthcare', status:'Hired',      date:'Feb 02, 2026' },
+          { month:'February', name:'Pedro Lim',       company:'SM Supermalls',   position:'Sales Associate',  industry:'Retail',    status:'Hired',      date:'Feb 10, 2026' },
+          { month:'March',    name:'Rosa Garcia',     company:'BrightPath BPO',  position:'Team Leader',      industry:'BPO',       status:'Rejected',   date:'Mar 05, 2026' },
+          { month:'March',    name:'Marco Dela Cruz', company:'Ayala Corp',      position:'Accountant',       industry:'Finance',   status:'Hired',      date:'Mar 08, 2026' },
         ],
         registration: [
-          { month:'January',  name:'Maria Santos',  sex:'Female', type:'Jobseeker', city:'Quezon City', skills:'Accounting',   date:'Jan 05, 2026' },
-          { month:'January',  name:'Nexus Tech',    sex:'—',      type:'Employer',  city:'Pasig',       skills:'IT / Dev',     date:'Jan 12, 2026' },
-          { month:'February', name:'Ana Reyes',     sex:'Female', type:'Jobseeker', city:'Marikina',    skills:'Nursing',      date:'Feb 01, 2026' },
-          { month:'February', name:'FreshMart',     sex:'—',      type:'Employer',  city:'Marikina',    skills:'Retail',       date:'Feb 15, 2026' },
-          { month:'March',    name:'Pedro Lim',     sex:'Male',   type:'Jobseeker', city:'Caloocan',    skills:'Electrical',   date:'Mar 03, 2026' },
-          { month:'March',    name:'BuildRight Co.',sex:'—',      type:'Employer',  city:'Valenzuela',  skills:'Construction', date:'Mar 07, 2026' },
+          { month:'January',  name:'Maria Santos',  sex:'Female', type:'Jobseeker', city:'Quezon City', skills:'Accounting',   status:'Reviewing',  date:'Jan 05, 2026' },
+          { month:'January',  name:'Nexus Tech',    sex:'—',      type:'Employer',  city:'Pasig',       skills:'IT / Dev',     status:'Reviewing',  date:'Jan 12, 2026' },
+          { month:'February', name:'Ana Reyes',     sex:'Female', type:'Jobseeker', city:'Marikina',    skills:'Nursing',      status:'Processing', date:'Feb 01, 2026' },
+          { month:'February', name:'FreshMart',     sex:'—',      type:'Employer',  city:'Marikina',    skills:'Retail',       status:'Processing', date:'Feb 15, 2026' },
+          { month:'March',    name:'Pedro Lim',     sex:'Male',   type:'Jobseeker', city:'Caloocan',    skills:'Electrical',   status:'Processing', date:'Mar 03, 2026' },
+          { month:'March',    name:'BuildRight Co.',sex:'—',      type:'Employer',  city:'Valenzuela',  skills:'Construction', status:'Reviewing',  date:'Mar 07, 2026' },
         ],
         skills: [
           { skill:'Customer Service',    demand:85, supply:80, gap:'-5%',  trend:'↑ 18%', postings:214 },
@@ -509,12 +612,13 @@ export default {
           { company:'MediCare Diagnostics', industry:'Healthcare',     city:'Caloocan',    verificationStatus:'Rejected',  vacancies:0,  date:'Feb 20, 2026' },
           { company:'BuildRight Const.',    industry:'Construction',   city:'Valenzuela',  verificationStatus:'Suspended', vacancies:0,  date:'Mar 7, 2026'  },
         ],
-        skillmatch: [
-          { name:'Maria Santos',  topSkill:'Vue.js',       matchScore:96, bestFor:'Software Developer',   city:'Quezon City' },
-          { name:'Juan dela Cruz',topSkill:'Encoding',     matchScore:91, bestFor:'Data Entry Clerk',     city:'Marikina'    },
-          { name:'Ana Reyes',     topSkill:'Patient Care', matchScore:88, bestFor:'Registered Nurse',     city:'Pasig'       },
-          { name:'Rosa Garcia',   topSkill:'QuickBooks',   matchScore:85, bestFor:'Bookkeeper',           city:'Taguig'      },
-          { name:'Pedro Lim',     topSkill:'English',      matchScore:82, bestFor:'Customer Service Rep', city:'Caloocan'    },
+        jobposting: [
+          { title:'Customer Service Rep',  company:'BrightPath BPO',    industry:'BPO',           vacancies:10, status:'Open',   date:'Jan 10, 2026' },
+          { title:'Web Developer',          company:'Nexus Tech',         industry:'IT',            vacancies:3,  status:'Open',   date:'Jan 15, 2026' },
+          { title:'Registered Nurse',       company:'MediCare Diag.',     industry:'Healthcare',    vacancies:5,  status:'Open',   date:'Feb 02, 2026' },
+          { title:'Sales Associate',        company:'SM Supermalls',      industry:'Retail',        vacancies:8,  status:'Open',   date:'Feb 10, 2026' },
+          { title:'Accounting Staff',       company:'Ayala Corp',         industry:'Finance',       vacancies:2,  status:'Closed', date:'Mar 05, 2026' },
+          { title:'Security Guard',         company:'BuildRight Const.',  industry:'Construction',  vacancies:4,  status:'Open',   date:'Mar 08, 2026' },
         ],
         feedback: [
           { name:'Maria Santos',   type:'Jobseeker', rating:5, comment:'Very helpful and easy to use!',        category:'System',     date:'Jan 10' },
@@ -527,12 +631,22 @@ export default {
       },
 
       summaryDefs: {
-        placement:    [{ label:'Total Records',   color:'#1e293b', key:'total'     }, { label:'Placed',          color:'#22c55e', key:'placed'     }, { label:'Processing',       color:'#f97316', key:'processing' }],
-        registration: [{ label:'Total Records',   color:'#1e293b', key:'total'     }, { label:'Jobseekers',      color:'#2563eb', key:'jobseeker'  }, { label:'Employers',        color:'#f97316', key:'employer'   }],
-        skills:       [{ label:'Skills Tracked',  color:'#1e293b', key:'total'     }, { label:'In Demand',       color:'#2563eb', key:'demand'     }, { label:'Skill Gaps',       color:'#ef4444', key:'gaps'       }],
+        // Placement = applications that are Hired/Placed; also show Rejected
+        placement:    [
+          { label:'Total Applications', color:'#1e293b', key:'total'      },
+          { label:'Hired / Placed',     color:'#22c55e', key:'placed'     },
+          { label:'Rejected',           color:'#ef4444', key:'rejected'   },
+        ],
+        // Registration = all registrations; Reviewing = pending/under review; Processing = all except hired
+        registration: [
+          { label:'Total Registrations', color:'#1e293b', key:'total'      },
+          { label:'Reviewing',           color:'#f97316', key:'reviewing'  },
+          { label:'Processing',          color:'#2563eb', key:'processing' },
+        ],
+        skills:       [{ label:'Skills Tracked',  color:'#1e293b', key:'total'     }, { label:'Have Job Postings', color:'#2563eb', key:'demand'     }, { label:'Critical Gaps (D>S)', color:'#ef4444', key:'gaps'       }],
         events:       [{ label:'Total Events',    color:'#1e293b', key:'total'     }, { label:'Completed',       color:'#22c55e', key:'completed'  }, { label:'Upcoming',         color:'#2563eb', key:'upcoming'   }],
         employer:     [{ label:'Total Employers', color:'#1e293b', key:'total'     }, { label:'Verified',        color:'#22c55e', key:'verified'   }, { label:'Pending',          color:'#f59e0b', key:'pending'    }],
-        skillmatch:   [{ label:'Applicants',      color:'#1e293b', key:'total'     }, { label:'Avg Match',       color:'#10b981', key:'avg'        }, { label:'High Match (90+)', color:'#22c55e', key:'high'       }],
+        jobposting:   [{ label:'Total Listings', color:'#1e293b', key:'total' }, { label:'Open / Active', color:'#22c55e', key:'open' }, { label:'Filled Out (Closed)', color:'#ef4444', key:'closed' }, { label:'Total Vacancies', color:'#3b82f6', key:'vacancies' }],
         feedback:     [{ label:'Total Feedback',  color:'#1e293b', key:'total'     }, { label:'Avg Rating',      color:'#a855f7', key:'avgRating'  }, { label:'5-Star Reviews',   color:'#22c55e', key:'fiveStar'   }],
       },
     }
@@ -562,7 +676,7 @@ export default {
         skills:       'Skills & Gaps Report',
         events:       'Events Report',
         employer:     'Employer Report',
-        skillmatch:   'Skill Match Report',
+        jobposting:   'Job Posting Report',
         feedback:     'Feedback Report',
       }
       return n[this.form.reportType] || 'Report'
@@ -585,18 +699,21 @@ export default {
       return defs.map(d => {
         let v
         if      (d.key === 'total')      v = rows.length
-        else if (d.key === 'placed')     v = rows.filter(r => r.status === 'Placed').length
+        // Placement: placed = Hired status; rejected = Rejected status
+        else if (d.key === 'placed')     v = rows.filter(r => ['Hired','Placed'].includes(r.status)).length
+        else if (d.key === 'rejected')   v = rows.filter(r => r.status === 'Rejected').length
+        // Registration: reviewing = Reviewing status; processing = Processing status
+        else if (d.key === 'reviewing')  v = rows.filter(r => r.status === 'Reviewing').length
         else if (d.key === 'processing') v = rows.filter(r => r.status === 'Processing').length
-        else if (d.key === 'jobseeker')  v = rows.filter(r => r.type === 'Jobseeker').length
-        else if (d.key === 'employer')   v = rows.filter(r => r.type === 'Employer').length
-        else if (d.key === 'demand')     v = rows.filter(r => r.demand >= 70).length
-        else if (d.key === 'gaps')       v = rows.filter(r => (r.demand - r.supply) >= 20).length
+        else if (d.key === 'demand')     v = rows.filter(r => r.postings > 0).length
+        else if (d.key === 'gaps')       v = rows.filter(r => r.postings > r.supply).length
         else if (d.key === 'completed')  v = rows.filter(r => r.status === 'Completed').length
         else if (d.key === 'upcoming')   v = rows.filter(r => r.status === 'Upcoming').length
         else if (d.key === 'verified')   v = rows.filter(r => r.verificationStatus === 'Verified').length
         else if (d.key === 'pending')    v = rows.filter(r => r.verificationStatus === 'Pending').length
-        else if (d.key === 'avg')        v = rows.length ? Math.round(rows.reduce((s, r) => s + (r.matchScore || 0), 0) / rows.length) + '%' : '0%'
-        else if (d.key === 'high')       v = rows.filter(r => r.matchScore >= 90).length
+        else if (d.key === 'open')       v = rows.filter(r => r.status === 'Open').length
+        else if (d.key === 'closed')     v = rows.filter(r => r.status === 'Closed').length
+        else if (d.key === 'vacancies')  v = rows.reduce((s, r) => s + (r.vacancies || 0), 0)
         else if (d.key === 'avgRating')  v = rows.length ? (rows.reduce((s, r) => s + (r.rating || 0), 0) / rows.length).toFixed(1) + '★' : '0★'
         else if (d.key === 'fiveStar')   v = rows.filter(r => r.rating === 5).length
         else v = '—'
@@ -607,21 +724,164 @@ export default {
     previewBars() {
       const rows = this.previewRows
       if (!rows.length) return []
-      if (['placement', 'registration'].includes(this.form.reportType)) {
+      if (this.form.reportType === 'placement') {
         const months = [...new Set(rows.map(r => r.month))]
-        return months.map(m => ({ label: m.slice(0, 3), value: rows.filter(r => r.month === m).length }))
+        return months.map(m => {
+          const mRows = rows.filter(r => r.month === m)
+          const hired = mRows.filter(r => ['Hired','Placed'].includes(r.status)).length
+          const rejected = mRows.filter(r => r.status === 'Rejected').length
+          const processing = mRows.length - hired - rejected
+          return {
+            label: m.slice(0, 3),
+            value: mRows.length,
+            segments: [
+              { val: hired, color: '#22c55e', name: 'Hired' },
+              { val: processing, color: '#3b82f6', name: 'Processing' },
+              { val: rejected, color: '#ef4444', name: 'Rejected' }
+            ].filter(s => s.val > 0)
+          }
+        })
       }
-      if (this.form.reportType === 'skills')     return rows.map(r => ({ label: r.skill.split(' ')[0], value: r.postings }))
-      if (this.form.reportType === 'events')     return rows.map(r => ({ label: r.title.slice(0, 6),   value: r.attended || r.slots }))
-      if (this.form.reportType === 'skillmatch') return rows.map(r => ({ label: r.name.split(' ')[0],  value: r.matchScore }))
+      if (this.form.reportType === 'registration') {
+        const months = [...new Set(rows.map(r => r.month))]
+        return months.map(m => {
+          const mRows = rows.filter(r => r.month === m)
+          const js = mRows.filter(r => r.type === 'Jobseeker').length
+          const emp = mRows.filter(r => r.type === 'Employer').length
+          return {
+            label: m.slice(0, 3),
+            value: mRows.length,
+            segments: [
+              { val: js, color: '#3b82f6', name: 'Jobseeker' },
+              { val: emp, color: '#f59e0b', name: 'Employer' }
+            ].filter(s => s.val > 0)
+          }
+        })
+      }
+      if (this.form.reportType === 'skills') {
+        return rows.map(r => {
+          return {
+            label: r.skill.split(' ')[0],
+            value: Math.max(r.supply, r.postings), // scaling basis
+            segments: [
+              { val: r.postings, color: '#3b82f6', name: 'Postings (Demand)' },
+              { val: r.supply, color: '#f59e0b', name: 'Jobseekers (Supply)' }
+            ]
+          }
+        })
+      }
+      if (this.form.reportType === 'events') {
+        return rows
+          .filter(r => (r.status || '').toLowerCase() === 'completed')
+          .map(r => ({
+            label: (r.title || '').split(' ').slice(0, 2).join(' '),
+            value: r.attended || 0,
+            fullTitle: r.title,
+          }))
+      }
+      if (this.form.reportType === 'jobposting') {
+        const groupBy = this.form.filters.groupBy || ''
+        if (groupBy === 'Per Company') {
+          const g = {}; rows.forEach(r => { const k = r.company || 'Unknown'; g[k] = (g[k] || 0) + (r.vacancies || 0) })
+          return Object.entries(g).map(([k, v]) => ({ label: k.split(' ')[0], value: v, fullTitle: k }))
+        }
+        if (groupBy === 'Per Industry') {
+          const g = {}; rows.forEach(r => { const k = r.industry || 'Unknown'; g[k] = (g[k] || 0) + (r.vacancies || 0) })
+          return Object.entries(g).map(([k, v]) => ({ label: k.split(' ')[0], value: v, fullTitle: k }))
+        }
+        const months = [...new Set(rows.map(r => r.month || (r.date ? new Date(r.date).toLocaleString('default',{month:'long'}) : '')))]
+        return months.map(m => {
+          const mRows = rows.filter(r => (r.month || (r.date ? new Date(r.date).toLocaleString('default',{month:'long'}) : '')) === m)
+          const open = mRows.filter(r => (r.status||'').toLowerCase() === 'open').reduce((s,r)=>s+(r.vacancies||1),0)
+          const closed = mRows.filter(r => (r.status||'').toLowerCase() === 'closed').reduce((s,r)=>s+(r.vacancies||1),0)
+          return {
+            label: m.slice(0, 3),
+            value: mRows.reduce((s,r)=>s+(r.vacancies||1),0),
+            segments: [
+              { val: open, color: '#22c55e', name: 'Open / Active' },
+              { val: closed, color: '#ef4444', name: 'Closed' }
+            ].filter(s => s.val > 0)
+          }
+        })
+      }
       if (this.form.reportType === 'feedback')   return rows.map(r => ({ label: r.name.split(' ')[0],  value: r.rating }))
+      if (this.form.reportType === 'employer')   return rows.map(r => ({ label: (r.industry || 'Other').split(' ')[0], value: r.vacancies || 1 }))
       return []
     },
 
     maxBarValue() { return Math.max(...this.previewBars.map(b => b.value), 1) },
-
-    // ✅ Cap to 12 bars max so the chart never overflows the container
     visibleBars() { return this.previewBars.slice(0, 12) },
+
+    // Donut chart segments for PDF summary
+    donutSegments() {
+      const rows = this.previewRows
+      if (!rows.length) return []
+      const COLORS = ['#2563eb','#22c55e','#f97316','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4']
+      let groups = {}
+      const rt = this.form.reportType
+      if (rt === 'placement') {
+        const hired = rows.filter(r => ['Hired','Placed'].includes(r.status)).length
+        const rejected = rows.filter(r => r.status === 'Rejected').length
+        const processing = rows.length - hired - rejected
+        return [
+          { label: 'Hired / Placed', value: hired, color: '#22c55e' },
+          { label: 'Processing', value: processing, color: '#3b82f6' },
+          { label: 'Rejected', value: rejected, color: '#ef4444' },
+        ].map(s => ({ ...s, pct: rows.length ? Math.round(s.value / rows.length * 100) : 0 })).filter(s => s.value > 0)
+      } else if (rt === 'registration') {
+        const js = rows.filter(r => r.type === 'Jobseeker').length
+        const emp = rows.filter(r => r.type === 'Employer').length
+        return [
+          { label: 'Jobseekers', value: js, color: '#3b82f6' },
+          { label: 'Employers', value: emp, color: '#f59e0b' },
+        ].map(s => ({ ...s, pct: rows.length ? Math.round(s.value / rows.length * 100) : 0 })).filter(s => s.value > 0)
+      } else if (rt === 'employer') {
+        groups = rows.reduce((a, r) => { const k = r.verificationStatus || 'Unknown'; a[k] = (a[k]||0)+1; return a }, {})
+      } else if (rt === 'events') {
+        groups = rows.reduce((a, r) => { const k = r.type || 'Other'; a[k] = (a[k]||0)+1; return a }, {})
+      } else if (rt === 'feedback') {
+        groups = rows.reduce((a, r) => { const k = r.category || 'Other'; a[k] = (a[k]||0)+1; return a }, {})
+      } else if (rt === 'skills') {
+        const gap = rows.filter(r => r.postings > r.supply).length
+        const over = rows.filter(r => r.supply > r.postings).length
+        const bal = rows.filter(r => r.supply === r.postings).length
+        return [
+          { label: 'Skill Gap (Demand > Supply)', value: gap, color: '#ef4444' },
+          { label: 'Oversupplied (Supply > Demand)', value: over, color: '#f59e0b' },
+          { label: 'Balanced', value: bal, color: '#22c55e' },
+        ].filter(s => s.value > 0)
+      } else if (rt === 'jobposting') {
+        const open   = rows.filter(r => r.status === 'Open').length
+        const closed = rows.filter(r => r.status === 'Closed').length
+        return [
+          { label: 'Open / Active', value: open,   color: '#22c55e', pct: rows.length ? Math.round(open/rows.length*100) : 0 },
+          { label: 'Closed',        value: closed, color: '#ef4444', pct: rows.length ? Math.round(closed/rows.length*100) : 0 },
+        ].filter(s => s.value > 0)
+      } else {
+        return []
+      }
+      const total = Object.values(groups).reduce((s,v)=>s+v, 0)
+      return Object.entries(groups).map(([k,v], i) => ({ label: k, value: v, pct: total ? Math.round(v/total*100) : 0, color: COLORS[i % COLORS.length] }))
+    },
+
+    donutPath() {
+      const segs = this.donutSegments
+      if (!segs.length) return []
+      const total = segs.reduce((s, g) => s + g.value, 0)
+      if (!total) return []
+      const r = 40, cx = 50, cy = 50
+      let cumAngle = -Math.PI / 2
+      return segs.map(seg => {
+        const angle = (seg.value / total) * 2 * Math.PI
+        const x1 = cx + r * Math.cos(cumAngle)
+        const y1 = cy + r * Math.sin(cumAngle)
+        cumAngle += angle
+        const x2 = cx + r * Math.cos(cumAngle)
+        const y2 = cy + r * Math.sin(cumAngle)
+        const large = angle > Math.PI ? 1 : 0
+        return { d: `M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large},1 ${x2.toFixed(2)},${y2.toFixed(2)} Z`, color: seg.color }
+      })
+    },
   },
 
   methods: {
@@ -687,7 +947,7 @@ export default {
         datePreset:   '1y',
         filters:      {},
         columns:      [],
-        exportFormat: 'xlsx',
+        exportFormat: 'pdf',
       }
       this.reportGenerated = false
       this.isGenerating    = false
@@ -909,4 +1169,41 @@ export default {
 .badge-orange { background:#fff7ed; color:#f97316; }
 .star-rating { color:#f59e0b; font-size:13px; letter-spacing:1px; }
 .skill-tag { display:inline-block; background:#f1f5f9; color:#475569; font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:4px; margin:1px 2px 1px 0; }
+
+/* ── PDF Summary ──────────────────────────────────────────── */
+.pdf-stat-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; padding:18px 20px 4px; }
+.pdf-stat-card { display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #f1f5f9; border-radius:12px; padding:14px 16px; }
+.pdf-stat-icon { width:36px; height:36px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.pdf-stat-val { font-size:22px; font-weight:900; line-height:1; letter-spacing:-0.02em; }
+.pdf-stat-label { font-size:11px; color:#94a3b8; font-weight:600; margin-top:3px; }
+
+.pdf-charts-row { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px 20px; }
+.pdf-chart-box { background:#f8fafc; border:1px solid #f1f5f9; border-radius:12px; padding:16px; min-height:200px; }
+.pdf-chart-title { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; margin-bottom:14px; }
+
+/* PDF Bar Chart */
+.pdf-bar-chart { display:flex; align-items:stretch; justify-content:space-evenly; gap:16px; height:150px; padding:0 10px; }
+.pdf-bar-col { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1; max-width:70px; height:100%; min-width:0; }
+.pdf-bar-val { font-size:10px; font-weight:700; color:#475569; }
+.pdf-bar-track { flex:1; width:100%; max-width:60px; height:100%; position:relative; overflow:hidden; border-bottom:1px solid #e2e8f0; }
+.pdf-bar-grouped { width:100%; height:100%; display:flex; align-items:flex-end; justify-content:center; gap:4px; }
+.pdf-bar-segment-wrapper { flex:1; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:3px; }
+.pdf-bar-segment-val { font-size:8px; font-weight:700; color:#64748b; line-height:1; }
+.pdf-bar-segment { width:100%; border-radius:4px 4px 0 0; transition:height 0.4s ease; box-shadow:0 2px 8px rgba(0,0,0,0.05); min-height:4px; }
+.pdf-bar-label { font-size:10px; font-weight:600; color:#94a3b8; text-align:center; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* PDF Donut Chart */
+.pdf-donut-wrap { display:flex; align-items:center; gap:16px; }
+.pdf-donut-svg { width:110px; height:110px; flex-shrink:0; }
+.pdf-donut-legend { display:flex; flex-direction:column; gap:6px; flex:1; min-width:0; }
+.pdf-legend-item { display:flex; align-items:center; gap:7px; font-size:11.5px; }
+.pdf-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.pdf-legend-label { color:#475569; font-weight:500; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pdf-legend-val { font-weight:700; color:#1e293b; white-space:nowrap; }
+.pdf-legend-pct { font-weight:500; color:#94a3b8; font-size:10.5px; }
+
+.pdf-section-title { font-size:11px; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:.06em; padding:12px 20px 8px; }
+
+/* Excel Notice */
+.excel-notice { display:flex; align-items:center; gap:8px; margin:16px 20px 0; padding:10px 14px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; font-size:12px; font-weight:600; color:#16a34a; }
 </style>

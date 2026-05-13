@@ -255,6 +255,8 @@ Route::middleware(['auth:employer', \App\Http\Middleware\EnsureEmployer::class])
     Route::post('/notifications/mark-all-read', [EmployerNotificationController::class, 'markAllAsRead']);
     Route::post('/notifications/{id}/mark-read', [EmployerNotificationController::class, 'markRead']);
     Route::get('/notifications/{id}', [EmployerNotificationController::class, 'show']);
+    Route::delete('/notifications', [EmployerNotificationController::class, 'destroyAll']);
+    Route::delete('/notifications/{id}', [EmployerNotificationController::class, 'destroy']);
 
 
      Route::get('events',      [EmployerEventController::class, 'index']);

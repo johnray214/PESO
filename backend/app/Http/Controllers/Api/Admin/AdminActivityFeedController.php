@@ -19,13 +19,13 @@ class AdminActivityFeedController extends Controller
 {
     public function index(Request $request)
     {
-        $limit = (int) $request->get('limit', 30);
+        $limit = (int) $request->get('limit', 500);
         $feed  = collect();
 
         // 1. New jobseeker registrations
         Jobseeker::select('id', 'first_name', 'last_name', 'created_at', 'status')
             ->orderByDesc('created_at')
-            ->limit(5)
+            ->limit(100)
             ->get()
             ->each(function ($j) use (&$feed) {
                 $name = trim($j->first_name . ' ' . $j->last_name);
@@ -42,7 +42,7 @@ class AdminActivityFeedController extends Controller
         // 2. New employer registrations
         Employer::select('id', 'company_name', 'status', 'created_at')
             ->orderByDesc('created_at')
-            ->limit(5)
+            ->limit(100)
             ->get()
             ->each(function ($e) use (&$feed) {
                 $isPending = $e->status === 'pending';
@@ -60,14 +60,19 @@ class AdminActivityFeedController extends Controller
         \App\Models\JobListing::withTrashed()->with('employer:id,company_name')
             ->select('id', 'employer_id', 'title', 'created_at', 'status', 'deleted_at')
             ->orderByDesc('created_at')
-            ->limit(5)
+            ->limit(100)
             ->get()
             ->each(function ($jl) use (&$feed) {
-                $empName = $jl->employer->company_name ?? 'An employer';
+                if (is_null($jl->employer_id)) {
+                    $empName = 'PESO Staff';
+                } else {
+                    $empName = $jl->employer->company_name ?? 'An employer';
+                }
+
                 $feed->push([
                     'id'      => 'jl_' . $jl->id,
-                    'type'    => 'System',
-                    'title'=> 'New Job Listing posted',
+                    'type'    => 'Job', // Show proper green job icon
+                    'title'   => 'New Job Listing',
                     'message' => "{$empName} posted a new job listing for {$jl->title}.",
                     'time'    => $jl->created_at,
                     'read'    => false,
@@ -83,7 +88,7 @@ class AdminActivityFeedController extends Controller
             ])
             ->select('id', 'jobseeker_id', 'job_listing_id', 'status', 'applied_at', 'updated_at', 'created_at')
             ->orderByDesc('updated_at')
-            ->limit(10)
+            ->limit(100)
             ->get()
             ->each(function ($app) use (&$feed) {
                 $js   = $app->jobseeker;
@@ -115,7 +120,7 @@ class AdminActivityFeedController extends Controller
         // 6. Events (upcoming and recent)
         Event::select('id', 'title', 'location', 'event_date', 'created_at', 'status')
             ->orderByDesc('created_at')
-            ->limit(5)
+            ->limit(100)
             ->get()
             ->each(function ($ev) use (&$feed) {
                 try {

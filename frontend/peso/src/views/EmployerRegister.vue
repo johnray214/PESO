@@ -182,20 +182,11 @@
 
             <div class="form-row-2">
               <div class="form-group">
-                <label class="form-label">Industry</label>
-                <div class="autocomplete-wrap">
-                  <input class="form-input" type="text" v-model="form.industry"
-                    placeholder="Type to search..."
-                    @input="showIndustrySuggestions = true"
-                    @blur="hideIndustrySuggestions"
-                    autocomplete="off"/>
-                  <div v-if="showIndustrySuggestions && filteredIndustries.length" class="autocomplete-dropdown">
-                    <div v-for="ind in filteredIndustries" :key="ind" class="autocomplete-item"
-                      @mousedown.prevent="selectIndustry(ind)">
-                      {{ ind }}
-                    </div>
-                  </div>
-                </div>
+                <label class="form-label">Industry Classification</label>
+                <select class="form-select" v-model="form.industry">
+                  <option value="">Select industry…</option>
+                  <option v-for="ind in industries" :key="ind" :value="ind">{{ ind }}</option>
+                </select>
               </div>
               <div class="form-group">
                 <label class="form-label">Company Size</label>
@@ -438,11 +429,17 @@ export default {
       ],
 
       industries: [
-        'IT / Software', 'BPO / Call Center', 'Retail / Commerce',
-        'Healthcare', 'Finance / Banking', 'Manufacturing',
-        'Education', 'Food & Beverage', 'Construction',
-        'Government', 'Logistics / Transport', 'Real Estate',
-        'Tourism / Hospitality', 'Agriculture', 'Other',
+        'Agriculture',
+        'Manufacturing',
+        'Construction',
+        'Wholesale and Retail Trade',
+        'Hotels and Restaurants',
+        'Transport, Storage and Communication',
+        'Financial Intermediation',
+        'Real Estate, Renting and Business Activities',
+        'Education',
+        'Health and Social Work',
+        'Other Community, Social and Personal Service Activities',
       ],
     }
   },

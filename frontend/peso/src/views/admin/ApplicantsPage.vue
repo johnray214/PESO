@@ -191,7 +191,7 @@
               <tr><th>No.</th><th>Jobseeker</th><th>Matched Skills</th><th>Matches Listing</th><th>Match Score</th><th>Location</th><th>Status</th><th style="width:80px">Actions</th></tr>
             </thead>
             <tbody>
-              <tr v-for="(a, index) in pagedPotential" :key="a.id" class="table-row" @click="openDrawer(a, true)">
+              <tr v-for="(a, index) in pagedPotential" :key="a.id + '-' + a.bestJobId" class="table-row" @click="openDrawer(a, true)">
                 <td @click.stop style="font-weight:600;color:#64748b;font-size:12px;padding-left:18px;">{{ filteredPotential.length - ((potentialPage - 1) * 15) - index }}</td>
                 <td>
                   <div class="person-cell">
@@ -406,9 +406,12 @@
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 Cancel
               </button>
-              <button class="cmodal-ok blue" @click="confirmModal.onConfirm">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                Yes, Send as PESO
+              <button class="cmodal-ok green" @click="confirmModal.onConfirm" :disabled="inviting">
+                <span v-if="inviting" class="spinner-invite"></span>
+                <template v-else>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:6px"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                </template>
+                {{ inviting ? 'Sending…' : 'Yes, Send as PESO' }}
               </button>
             </div>
           </div>
@@ -433,14 +436,13 @@ const COLORS = ['#2563eb','#f97316','#22c55e','#06b6d4','#a855f7','#ef4444','#3b
 export default {
   name: 'ApplicantsPage',
   async mounted() {
-    // Fetch applied data + tab counts in parallel (awaited — blocks until ready)
+    // Fetch all three in parallel — skeleton stays until all are ready,
+    // which ensures the potential applicants badge count is correct from the start.
     await Promise.all([
       this.fetchApplicants(),
       this.fetchTabCounts(),
+      this.fetchPotentialApplicants(),
     ])
-    // Pre-fetch potential applicants in the background so the tab badge count
-    // is correct immediately without blocking the applied tab from loading.
-    this.fetchPotentialApplicants()
   },
   data() {
     return {
@@ -473,6 +475,7 @@ export default {
       history: [], historyLoading: false,
       // Confirm modal
       confirmModal: { show: false, name: '', jobTitle: '', employer: '', matchScore: 0, onConfirm: null },
+      inviting: false,
       // Toast
       toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
     }
@@ -569,6 +572,8 @@ export default {
           t.count = counts[t.value] ?? 0
           this.tabCounts[t.value] = counts[t.value] ?? 0
         })
+        // Pin the total badge to the real DB total, not search-filtered total
+        this.totalApplicants = counts['all'] ?? this.totalApplicants
       } catch (e) { console.error('fetchTabCounts error:', e) }
       finally { this.tabsLoading = false }
     },
@@ -587,7 +592,9 @@ export default {
         const payload = data.data || {}
         this.currentPage = payload.current_page || 1
         this.lastPage    = payload.last_page    || 1
-        this.totalApplicants = payload.total    || 0
+        if (!this.search && !this.filterStatus && !this.filterSkill && !this.filterDate) {
+          this.totalApplicants = payload.total || 0
+        }
 
         this.applicants = (payload.data || []).map((a, i) => {
           const js = a.jobseeker || {}, jl = a.job_listing || {}
@@ -719,11 +726,12 @@ export default {
       if (!jobListingId) { this.showToastMsg('No job listing found.', 'error'); return }
       this.confirmModal = {
         show: true, name, jobTitle, employer, matchScore,
-        onConfirm: () => { this.confirmModal.show = false; this.sendPesoInvite(jobseekerId, jobListingId, _ref) },
+        onConfirm: () => { this.sendPesoInvite(jobseekerId, jobListingId, _ref) },
       }
     },
 
     async sendPesoInvite(jobseekerId, jobListingId, _ref) {
+      this.inviting = true
       try {
         await api.post(`/admin/invite/${jobseekerId}`, { job_listing_id: jobListingId })
         // Mark invited in applied list
@@ -734,9 +742,12 @@ export default {
         if (pidx !== -1) this.potentialApplicants[pidx].invited = true
         if (_ref) _ref.invited = true
         if (this.selected?.id === jobseekerId || this.selected?.jobseekerId === jobseekerId) this.selected.invited = true
+        this.confirmModal.show = false
         this.showToastMsg('PESO invitation sent!', 'success')
       } catch (e) {
         this.showToastMsg(e?.response?.data?.message || 'Failed to send invitation.', 'error')
+      } finally {
+        this.inviting = false
       }
     },
 
@@ -975,9 +986,13 @@ export default {
 .cmodal-footer { display: flex; gap: 8px; padding: 16px 20px 22px; }
 .cmodal-cancel { flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #fff; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .cmodal-cancel:hover { background: #f8fafc; }
-.cmodal-ok { flex: 1.5; padding: 10px 14px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }
-.cmodal-ok.blue { background: linear-gradient(135deg,#064e3b,#16a34a); }
-.cmodal-ok.blue:hover { filter: brightness(1.08); }
+.cmodal-ok { flex: 1.5; padding: 10px 14px; border-radius: 10px; border: none; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; gap: 7px; transition: filter 0.15s; }
+.cmodal-ok.blue  { background: linear-gradient(135deg,#064e3b,#16a34a); }
+.cmodal-ok.blue:hover:not(:disabled)  { filter: brightness(1.08); }
+.cmodal-ok.green { background: linear-gradient(135deg,#16a34a,#22c55e); }
+.cmodal-ok.green:hover:not(:disabled) { filter: brightness(1.08); }
+.cmodal-ok:disabled { opacity: 0.7; cursor: not-allowed; }
+.spinner-invite { width: 13px; height: 13px; flex-shrink: 0; border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff; border-radius: 50%; animation: spin-s 0.7s linear infinite; }
 
 /* TOAST */
 .toast { position: fixed; top: 20px; right: 24px; z-index: 9999; display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 30px rgba(0,0,0,0.12); min-width: 240px; max-width: 380px; font-family: 'Plus Jakarta Sans', sans-serif; }

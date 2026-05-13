@@ -57,7 +57,8 @@
             </template>
 
             <template v-else>
-              <table class="data-table">
+              <div style="overflow-x: auto;">
+              <table class="data-table" style="min-width: 900px;">
                 <thead>
                   <tr>
                     <th>No.</th>
@@ -142,6 +143,7 @@
                   </tr>
                 </tbody>
               </table>
+              </div>
             </template>
 
             <!-- Pagination -->

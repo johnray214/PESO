@@ -67,7 +67,8 @@
         </template>
 
         <template v-else>
-          <table class="data-table">
+          <div style="overflow-x: auto;">
+          <table class="data-table" style="min-width: 860px;">
             <thead>
               <tr>
                 <th>No.</th>
@@ -135,6 +136,7 @@
               </tr>
             </tbody>
           </table>
+          </div>
         </template>
 
         <!-- Pagination — always visible -->
@@ -260,7 +262,19 @@ export default {
       tabsLoading: true,
       pageLoading: false,
       drawerTabList: ['Info', 'Job Listings', 'Hired'],
-      industryOptions: ['Information Technology', 'Food & Beverage', 'Retail', 'Real Estate', 'Healthcare', 'Manufacturing', 'Banking & Finance', 'Telecommunications', 'Utilities', 'Aviation'],
+      industryOptions: [
+        'Agriculture',
+        'Manufacturing',
+        'Construction',
+        'Wholesale and Retail Trade',
+        'Hotels and Restaurants',
+        'Transport, Storage and Communication',
+        'Financial Intermediation',
+        'Real Estate, Renting and Business Activities',
+        'Education',
+        'Health and Social Work',
+        'Other Community, Social and Personal Service Activities'
+      ],
       tabCounts: { all: 0, verified: 0, pending: 0, suspended: 0, rejected: 0 },
       statusTabs: [
         { label: 'All',       value: 'all',       count: 0, cls: '' },
@@ -353,22 +367,22 @@ export default {
         if (this.activeTab !== 'all') params.status   = this.activeTab.toLowerCase()
 
         const response = await api.get('/admin/employers', { params })
-        const payload  = response.data.data || response.data
-
+        
         let dataList = []
-        if (Array.isArray(payload)) {
-          // Flat array response: { success, data: [...] }
-          dataList = payload
+        if (response.data.meta || response.data.current_page) {
+          // Paginated response
+          const meta = response.data.meta || response.data
+          this.currentPage    = meta.current_page || 1
+          this.lastPage       = meta.last_page    || 1
+          this.totalEmployers = meta.total        || 0
+          dataList = response.data.data || []
+        } else {
+          // Flat array response
+          const payload = response.data.data || response.data
+          dataList = Array.isArray(payload) ? payload : []
           this.currentPage    = 1
           this.lastPage       = 1
-          this.totalEmployers = payload.length
-        } else {
-          // Paginated response
-          const meta = payload.meta || {}
-          this.currentPage    = meta.current_page || payload.current_page || 1
-          this.lastPage       = meta.last_page    || payload.last_page    || 1
-          this.totalEmployers = meta.total        || payload.total        || 0
-          dataList = payload.data || []
+          this.totalEmployers = dataList.length
         }
 
         this.employers = dataList.map(emp => ({

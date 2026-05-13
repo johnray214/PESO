@@ -72,10 +72,8 @@ class AdminEmployerController extends Controller
             return $emp;
         });
 
-        return response()->json([
+        return EmployerResource::collection($employers)->additional([
             'success' => true,
-            // EmployerResource builds biz_permit_url / bir_cert_url via Storage::url()
-            'data' => EmployerResource::collection($employers),
         ]);
     }
 

@@ -106,11 +106,29 @@ class EventSeeder extends Seeder
             ]
         ];
 
+        $createdEvents = [];
         foreach ($events as $eventData) {
-            Event::updateOrCreate(
+            $createdEvents[] = Event::updateOrCreate(
                 ['title' => $eventData['title'], 'event_date' => $eventData['event_date']],
                 $eventData
             );
+        }
+
+        // Add registrations so events are not empty
+        $jobseekers = \App\Models\Jobseeker::inRandomOrder()->limit(100)->get();
+        if ($jobseekers->isNotEmpty()) {
+            foreach ($createdEvents as $event) {
+                // Determine how many people to register
+                $numToRegister = rand(5, min(50, $jobseekers->count(), $event->max_participants));
+                $selectedSeekers = $jobseekers->random($numToRegister);
+                
+                foreach ($selectedSeekers as $seeker) {
+                    \App\Models\EventRegistration::firstOrCreate([
+                        'event_id' => $event->id,
+                        'jobseeker_id' => $seeker->id,
+                    ]);
+                }
+            }
         }
     }
 }

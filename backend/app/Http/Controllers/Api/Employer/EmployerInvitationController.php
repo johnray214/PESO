@@ -20,7 +20,7 @@ class EmployerInvitationController extends Controller
         ]);
 
         // Ensure the job listing belongs to this employer
-        $job = JobListing::where('id', $validated['job_listing_id'])
+        $job = JobListing::with('skills')->where('id', $validated['job_listing_id'])
             ->where('employer_id', $employer->id)
             ->firstOrFail();
 
@@ -55,9 +55,14 @@ class EmployerInvitationController extends Controller
         try {
             $mj = new \Mailjet\Client(env('MAILJET_API_KEY'), env('MAILJET_SECRET_KEY'), true, ['version' => 'v3.1']);
 
-            $applyUrl   = env('FRONTEND_URL', 'http://localhost:5173') . '/jobseeker/jobs/' . $job->id;
-            $topSkills  = $jobseeker->skills ? $jobseeker->skills->pluck('skill')->take(3)->implode(', ') : 'your listed skills';
-            $matchScore = \App\Models\Application::calculateMatchScore($jobseeker, $job);
+            $applyUrl          = env('FRONTEND_URL', 'http://localhost:5173') . '/jobseeker/jobs/' . $job->id;
+            $jobRequiredSkills = $job->skills->pluck('skill')->map(fn($s) => strtolower($s))->toArray();
+            $jobseekerSkills   = $jobseeker->skills->pluck('skill')->toArray();
+            $matchedSkills     = array_values(array_filter($jobseekerSkills, fn($s) => in_array(strtolower($s), $jobRequiredSkills)));
+            $topSkills         = count($matchedSkills) > 0
+                ? implode(', ', array_slice($matchedSkills, 0, 5))
+                : ($jobseekerSkills ? implode(', ', array_slice($jobseekerSkills, 0, 3)) : 'your listed skills');
+            $matchScore        = \App\Models\Application::calculateMatchScore($jobseeker, $job);
 
             // Dynamic sender variables — employer is the inviter
             $invitedBy      = $company;

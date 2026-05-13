@@ -18,7 +18,7 @@ class ApplicationSeeder extends Seeder
         $jobs = JobListing::with(['employer', 'skills'])->get();
 
         $statuses    = ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'];
-        $statusWeights = [50, 20, 15, 10, 5]; // % distribution
+        $statusWeights = [15, 15, 10, 50, 10]; // % distribution (Increased 'hired' to 50%)
 
         foreach ($jobs as $job) {
             $jobSkills = $job->skills->pluck('skill')->map(fn($s) => strtolower($s))->toArray();
