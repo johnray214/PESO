@@ -57,8 +57,8 @@
             </template>
 
             <template v-else>
-              <div style="overflow-x: auto;">
-              <table class="data-table" style="min-width: 900px;">
+              <div style="width: 100%;">
+              <table class="data-table">
                 <thead>
                   <tr>
                     <th>No.</th>
@@ -74,7 +74,7 @@
                 </thead>
                 <tbody>
                   <tr v-for="(e, index) in filteredEmployers" :key="e.id" class="table-row" @click="viewEmployer(e)">
-                    <td @click.stop style="font-weight: 600; color: #64748b; font-size: 12px; padding-left: 18px;">{{ (currentPage - 1) * 15 + index + 1 }}</td>
+                    <td @click.stop style="font-weight: 600; color: #64748b; font-size: 12px; padding-left: 10px;">{{ (currentPage - 1) * 15 + index + 1 }}</td>
                     <td>
                       <div class="company-cell">
                         <div class="company-avatar" :style="{ background: e.avatarBg }">
@@ -515,19 +515,24 @@ export default {
         if (this.filterStatus) params.status = this.filterStatus.toLowerCase()
         const { data } = await api.get('/admin/employers', { params })
         const avatarColors = ['#2563eb', '#22c55e', '#f97316', '#ef4444', '#8b5cf6', '#06b6d4', '#14b8a6']
-        const payload = data.data || data
         let list = []
-        if (Array.isArray(payload)) {
-          list = payload
+        if (data.meta) {
+          this.currentPage    = data.meta.current_page || 1
+          this.lastPage       = data.meta.last_page    || 1
+          this.totalEmployers = data.meta.total        || 0
+          list = data.data || []
+        } else if (data.data && Array.isArray(data.data)) {
+          this.currentPage    = data.current_page || 1
+          this.lastPage       = data.last_page    || 1
+          this.totalEmployers = data.total        || data.data.length
+          list = data.data
+        } else if (Array.isArray(data)) {
+          list = data
           this.currentPage    = 1
           this.lastPage       = 1
-          this.totalEmployers = payload.length
+          this.totalEmployers = data.length
         } else {
-          const meta = payload.meta || {}
-          this.currentPage    = meta.current_page || payload.current_page || 1
-          this.lastPage       = meta.last_page    || payload.last_page    || 1
-          this.totalEmployers = meta.total        || payload.total        || 0
-          list = payload.data || []
+          list = []
         }
         this.employers = (Array.isArray(list) ? list : []).map((e, i) => {
           const bizPermitUrl = e.biz_permit_url || (e.biz_permit_path ? `/storage/${e.biz_permit_path}` : null)
@@ -774,12 +779,12 @@ export default {
 .search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .table-card { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .data-table thead tr { background: #f8fafc; }
-.data-table th { text-align: left; padding: 11px 14px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+.data-table th { text-align: left; padding: 8px 6px; font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
 .table-row { cursor: pointer; transition: background 0.12s; }
 .table-row:hover { background: #f8fafc; }
-.data-table td { padding: 12px 14px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+.data-table td { padding: 8px 6px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
 
 .empty-state {
   display: flex; flex-direction: column; align-items: center; justify-content: center;

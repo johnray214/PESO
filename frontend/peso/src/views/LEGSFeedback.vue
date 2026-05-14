@@ -295,7 +295,7 @@
     </main>
 
     <footer class="footer">
-      Public Employment Service Office &nbsp;·&nbsp; Landline: (078) 305-2758
+      Public Employment Service Office &nbsp;·&nbsp; Contact Number: 0975-558-6122 | 0955-573-8736 &nbsp;·&nbsp; pesosantiago@yahoo.com.ph
     </footer>
   </div>
 </template>
