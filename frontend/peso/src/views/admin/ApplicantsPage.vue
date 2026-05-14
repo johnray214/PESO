@@ -354,6 +354,18 @@
                 </div>
               </div>
 
+              <!-- Status Tab -->
+              <div v-if="drawerTab === 'Status'">
+                <div class="section-label">Update Status</div>
+                <div class="status-options">
+                  <button v-for="st in statusOptionsFor(selected)" :key="st" :class="['status-option', { active: selected?.status === st }]" @click="selected.status = st">{{ st }}</button>
+                </div>
+                <button class="btn-blue-full mt12" @click="handleDrawerSave" :disabled="savingStatus">
+                  <span v-if="savingStatus" class="spinner-invite" style="border-top-color:#fff; border-color:rgba(255,255,255,0.4); margin-right:6px;"></span>
+                  {{ savingStatus ? 'Saving…' : 'Save Changes' }}
+                </button>
+              </div>
+
               <!-- History Tab -->
               <div v-if="drawerTab === 'History'">
                 <div v-if="historyLoading" class="history-loading">
@@ -466,7 +478,7 @@ export default {
       potentialSearchApplied: '', potentialPage: 1, potentialEmployerFilter: '',
       // Drawer
       drawerOpen: false, drawerTab: 'Profile', selected: null,
-      drawerTabList: ['Profile', 'Files', 'History'],
+      drawerTabList: ['Profile', 'Files', 'Status', 'History'],
       fileList: [
         { label:'Resume / CV', key:'resume' },
         { label:'Certificate / Diploma', key:'cert' },
@@ -476,6 +488,7 @@ export default {
       // Confirm modal
       confirmModal: { show: false, name: '', jobTitle: '', employer: '', matchScore: 0, onConfirm: null },
       inviting: false,
+      savingStatus: false,
       // Toast
       toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
     }
@@ -677,10 +690,40 @@ export default {
       if (a === 'reviewing')       return 'reviewing'
       if (a === 'shortlisted')     return 'shortlisted'
       if (a === 'interview')       return 'interview'
+      if (a.includes('for_job_offer') || a.includes('for job offer')) return 'for_job_offer'
       if (a === 'hired')               return 'hired'
-      if (a.includes('for_job_offer')) return 'for_job_offer'
       if (a === 'rejected')            return 'rejected'
       return 'default'
+    },
+
+    statusOptionsFor(applicant) {
+      const base = ['Reviewing', 'Shortlisted', 'Interview', 'For Job Offer']
+      if (applicant?.status === 'For Job Offer' || applicant?.status === 'Hired') base.push('Hired')
+      base.push('Rejected')
+      return base
+    },
+
+    async handleDrawerSave() {
+      if (!this.selected || this.selected._isPotential) return
+      this.savingStatus = true
+      try {
+        const payload = {
+          status: this.selected.status.toLowerCase().replace(/ /g, '_')
+        }
+        await api.patch(`/admin/applications/${this.selected.id}/status`, payload)
+        
+        // Update local list
+        const idx = this.applicants.findIndex(a => a.id === this.selected.id)
+        if (idx !== -1) {
+          this.applicants[idx].status = this.selected.status
+        }
+        
+        this.showToastMsg('Status updated successfully!')
+      } catch (e) {
+        this.showToastMsg(e?.response?.data?.message || 'Failed to update status', 'error')
+      } finally {
+        this.savingStatus = false
+      }
     },
 
     openDrawer(applicant, isPotential) {
@@ -926,6 +969,15 @@ export default {
 .btn-invite-full { width: 100%; background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 11px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; transition: filter 0.15s; }
 .btn-invite-full:hover:not(:disabled) { filter: brightness(1.1); }
 .btn-invite-full:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* STATUS CHANGER */
+.status-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.status-option { padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; transition: all 0.15s; }
+.status-option:hover { border-color: #cbd5e1; background: #f8fafc; }
+.status-option.active { border-color: #2872A1; background: #eff8ff; color: #2872A1; }
+.btn-blue-full { width: 100%; background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
+.btn-blue-full:hover:not(:disabled) { background: #1a5f8a; }
+.btn-blue-full:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* FILES */
 .files-list { display: flex; flex-direction: column; gap: 10px; }

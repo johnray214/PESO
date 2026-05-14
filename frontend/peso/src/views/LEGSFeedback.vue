@@ -370,7 +370,7 @@ const programOptions = {
     'Company Accreditation Services',
   ],
   talbos: [
-    'LEGP (Livelihood Enhancement and Growth Program)',
+    'LEGP (Local Employment Generation Program)',
     'TUPAD (Tulong Panghanapbuhay sa Ating Disadvantaged/Displaced Workers)',
     'GIP (Government Internship Program)',
     'SPES (Special Program for Employment of Students)',
