@@ -191,11 +191,13 @@
               </button>
               <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
                 <span class="cta__info">Step 4 of 5</span>
-                <button class="btn btn-next" type="button" @click="submitForm">
-                  Submit &amp; {{ hasCertificate ? 'Get Certificate' : 'Finish' }}
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                <button class="btn btn-next" type="button" @click="submitForm" :disabled="isSubmitting">
+                  <span v-if="isSubmitting">Submitting...</span>
+                  <span v-else>Submit &amp; {{ hasCertificate ? 'Get Certificate' : 'Finish' }}</span>
+                  <svg v-if="!isSubmitting" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
                 </button>
               </div>
+              <p v-if="submitError" style="color:#ef4444; width:100%; text-align:right; margin-top:0.5rem; font-size:0.875rem">{{ submitError }}</p>
             </div>
           </div>
         </transition>
@@ -303,6 +305,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import pesoLogo from '@/assets/PESOLOGO.jpg'
+import api from '@/services/api'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -469,7 +472,37 @@ function goToStep2() {
   if (validateStep1()) currentStep.value = 2
 }
 
-function submitForm() { currentStep.value = 4 }
+const isSubmitting = ref(false)
+const submitError = ref('')
+
+async function submitForm() {
+  isSubmitting.value = true
+  submitError.value = ''
+  
+  try {
+    const payload = {
+      first_name: form.value.firstName,
+      last_name: form.value.lastName,
+      middle_initial: form.value.middleInitial || null,
+      program: form.value.program,
+      venue: form.value.venue || null,
+      activity_date: form.value.activityDate || null,
+      rating_program_content: Math.max(1, ratings.value.progContent),
+      rating_interaction: Math.max(1, ratings.value.interact),
+      rating_mastery: Math.max(1, ratings.value.mastery),
+      rating_overall: Math.max(1, ratings.value.overall),
+      remarks: form.value.remarks || null
+    }
+    
+    await api.post('/legs-feedback', payload)
+    currentStep.value = 4
+  } catch (error) {
+    console.error('Failed to submit feedback:', error)
+    submitError.value = 'Failed to submit feedback. Please try again.'
+  } finally {
+    isSubmitting.value = false
+  }
+}
 
 function resetForm() {
   currentStep.value = 0
