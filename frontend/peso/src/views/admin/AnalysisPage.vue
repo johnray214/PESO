@@ -1,1636 +1,1019 @@
 <template>
-  <div class="pa-page">
-    <!-- Toast notifications -->
+  <div class="lma-page">
+
+    <!-- Toast -->
     <div class="toast-stack" role="status" aria-live="polite">
       <transition-group name="toast">
-        <div
-          v-for="t in toasts"
-          :key="t.id"
-          :class="['toast', 'toast-' + t.type]"
-          role="alert"
-        >
-          <span class="toast-icon" aria-hidden="true">
-            <svg v-if="t.type === 'success'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            <svg v-else-if="t.type === 'error'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div v-for="t in toasts" :key="t.id" :class="['toast', 'toast-' + t.type]">
+          <span class="toast-icon">
+            <svg v-if="t.type==='success'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
           </span>
           <span class="toast-msg">{{ t.message }}</span>
-          <button class="toast-close" @click="dismissToast(t.id)" aria-label="Dismiss notification">&times;</button>
+          <button class="toast-close" @click="dismissToast(t.id)">&times;</button>
         </div>
       </transition-group>
     </div>
 
-    <!-- ============================== HEADER ============================== -->
-    <header class="pa-header">
-      <div class="header-main">
-        <div class="title-row">
-          <span class="ai-icon" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-            </svg>
-          </span>
-          <h1 class="page-title">Predictive Analytics</h1>
-          <span class="ai-tag">AI Powered</span>
-          <span v-if="lastUpdatedAt" class="last-updated" :title="lastUpdatedFull">
-            <span class="lu-dot" aria-hidden="true"></span>
-            Updated {{ lastUpdatedRelative }}
-          </span>
+    <!-- Header -->
+    <header class="lma-header">
+      <div class="header-left">
+        <div class="header-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
         </div>
-        <p class="page-sub">
-          Employment trend forecasting and skill demand prediction based on live PESO data
-        </p>
-      </div>
-
-      <div class="header-actions">
-        <div class="period-pills" role="group" aria-label="Forecast period">
-          <button
-            v-for="p in periodOptions"
-            :key="p.value"
-            type="button"
-            :class="['period-pill', { active: activePeriod === p.value }]"
-            :aria-pressed="activePeriod === p.value"
-            @click="setPeriod(p.value)"
-          >{{ p.label }}</button>
+        <div>
+          <h1 class="page-title">LMA Report Generator</h1>
+          <p class="page-sub">Upload both Excel files to auto-generate the complete LMA summary</p>
         </div>
-
-        <button
-          type="button"
-          class="btn btn-secondary"
-          :disabled="analyzing || loading"
-          @click="runPrediction"
-        >
-          <svg v-if="!analyzing" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.85 3.36L1 14"/></svg>
-          <span v-else class="btn-spinner" aria-hidden="true"></span>
-          {{ analyzing ? 'Predicting...' : 'Re-predict' }}
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-primary"
-          :disabled="!hasData || exporting"
-          :title="!hasData ? 'Run a prediction first to enable export' : 'Download PDF report'"
-          @click="exportReport"
-        >
-          <svg v-if="!exporting" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          <span v-else class="btn-spinner" aria-hidden="true"></span>
-          {{ exporting ? 'Exporting...' : 'Export Report' }}
-        </button>
       </div>
+      <button
+        v-if="summary"
+        class="btn btn-primary"
+        :disabled="downloading"
+        @click="downloadReport"
+      >
+        <svg v-if="!downloading" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span v-else class="btn-spinner"></span>
+        {{ downloading ? 'Generating...' : 'Download Excel Report' }}
+      </button>
     </header>
 
-    <!-- ============================== SKELETON ============================== -->
-    <template v-if="loading">
-      <div class="kpi-grid">
-        <div v-for="i in 4" :key="i" class="kpi-card">
-          <div class="skel" style="width:38px;height:38px;border-radius:10px;margin-bottom:14px"></div>
-          <div class="skel" style="width:72px;height:26px;border-radius:6px;margin-bottom:8px"></div>
-          <div class="skel" style="width:120px;height:12px;border-radius:4px;margin-bottom:6px"></div>
-          <div class="skel" style="width:80px;height:11px;border-radius:4px"></div>
-        </div>
-      </div>
-      <div class="main-row">
-        <div class="skel" style="height:340px;border-radius:14px;flex:1"></div>
-        <div class="skel" style="height:340px;border-radius:14px;width:280px"></div>
-      </div>
-      <div class="skel" style="height:280px;border-radius:14px"></div>
-      <div class="skel" style="height:240px;border-radius:14px"></div>
-    </template>
-
-    <!-- ============================== CONTENT ============================== -->
-    <template v-else>
-
-      <!-- ───────────── KPI CARDS ───────────── -->
-      <section class="kpi-grid" aria-label="Key forecast indicators">
-        <article
-          v-for="(kpi, i) in kpis"
-          :key="kpi.label"
-          class="kpi-card"
-          :style="{ animationDelay: (i * 0.06) + 's' }"
+    <!-- Dual upload zones -->
+    <template v-if="!summary">
+      <div class="dual-upload-grid">
+        <!-- JV File -->
+        <div
+          class="upload-zone upload-half"
+          :class="{ dragging: dragging.jv, 'has-file': files.jv }"
+          @dragover.prevent="dragging.jv = true"
+          @dragleave.prevent="dragging.jv = false"
+          @drop.prevent="onDrop($event, 'jv')"
+          @click="$refs.jvInput.click()"
         >
-          <div class="kpi-icon" :style="{ background: kpi.iconBg }" aria-hidden="true">
-            <span v-html="kpi.icon" :style="{ color: kpi.iconColor }"></span>
+          <input ref="jvInput" type="file" accept=".xlsx,.xls" hidden @change="onFileChange($event, 'jv')" />
+          <div class="upload-step">Step 1</div>
+          <div class="upload-inner">
+            <div class="upload-icon-wrap" :class="{ 'upload-icon-ready': !!files.jv }">
+              <svg v-if="!files.jv" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/></svg>
+              <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <template v-if="!files.jv">
+              <p class="upload-title">Job Vacancies Solicited</p>
+              <p class="upload-sub">Drop or click — provides Tables 1, 4 &amp; 5</p>
+              <p class="upload-hint">Required sheets: <strong>JV</strong> · <strong>Form 2</strong></p>
+            </template>
+            <template v-else>
+              <p class="upload-title" style="color:#7c3aed">{{ files.jv.name }}</p>
+              <p class="upload-sub">{{ formatBytes(files.jv.size) }} · Ready</p>
+              <button class="btn-link" @click.stop="resetSlot('jv')" :disabled="processing">Choose different file</button>
+            </template>
           </div>
-          <h2 class="kpi-value">{{ kpiAnimValues[i] || kpi.value }}</h2>
-          <p class="kpi-label">
-            {{ kpi.label }}
-            <span v-if="kpi.tooltip" class="kpi-info" :title="kpi.tooltip" aria-hidden="true">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            </span>
-          </p>
-          <span class="kpi-trend" :class="trendClass(kpi)">
-            <svg v-if="trendDirection(kpi) === 'up'" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
-            <svg v-else-if="trendDirection(kpi) === 'down'" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-            <svg v-else width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            {{ kpi.trend }} {{ kpi.trendLabel || 'vs last period' }}
+        </div>
+
+        <!-- F1 File -->
+        <div
+          class="upload-zone upload-half"
+          :class="{ dragging: dragging.f1, 'has-file': files.f1 }"
+          @dragover.prevent="dragging.f1 = true"
+          @dragleave.prevent="dragging.f1 = false"
+          @drop.prevent="onDrop($event, 'f1')"
+          @click="$refs.f1Input.click()"
+        >
+          <input ref="f1Input" type="file" accept=".xlsx,.xls" hidden @change="onFileChange($event, 'f1')" />
+          <div class="upload-step">Step 2</div>
+          <div class="upload-inner">
+            <div class="upload-icon-wrap" :class="{ 'upload-icon-ready': !!files.f1 }">
+              <svg v-if="!files.f1" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+              <svg v-else width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <template v-if="!files.f1">
+              <p class="upload-title">F1 SANTIAGO Form</p>
+              <p class="upload-sub">Drop or click — provides Tables 2 &amp; 3</p>
+              <p class="upload-hint">Required sheets: <strong>reg.*</strong> · <strong>ref.*</strong> · <strong>placed*</strong></p>
+            </template>
+            <template v-else>
+              <p class="upload-title" style="color:#7c3aed">{{ files.f1.name }}</p>
+              <p class="upload-sub">{{ formatBytes(files.f1.size) }} · Ready</p>
+              <button class="btn-link" @click.stop="resetSlot('f1')" :disabled="processing">Choose different file</button>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action bar -->
+      <div class="action-bar" v-if="files.jv || files.f1">
+        <div class="action-bar-left">
+          <div class="action-status" :class="{ ready: bothReady, partial: !bothReady && (files.jv || files.f1) }">
+            <svg v-if="bothReady" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/></svg>
+            <span>{{ bothReady ? 'Both files ready' : 'Upload both files for the complete report (Tables 1-5)' }}</span>
+          </div>
+        </div>
+        <div class="action-bar-right">
+          <button
+            class="btn btn-primary"
+            :disabled="!files.jv || processing"
+            @click="processFile"
+          >
+            <span v-if="processing" class="btn-spinner"></span>
+            <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/></svg>
+            {{ processing ? 'Processing...' : (bothReady ? 'Process Both Files' : 'Process JV Only') }}
+          </button>
+        </div>
+      </div>
+    </template>
+
+    <!-- Processing skeleton -->
+    <template v-if="processing">
+      <div class="kpi-grid">
+        <div v-for="i in 3" :key="i" class="kpi-card">
+          <div class="skel" style="width:40px;height:40px;border-radius:10px;margin-bottom:12px"></div>
+          <div class="skel" style="width:80px;height:28px;border-radius:6px;margin-bottom:8px"></div>
+          <div class="skel" style="width:130px;height:12px;border-radius:4px"></div>
+        </div>
+      </div>
+      <div class="skel" style="height:260px;border-radius:14px"></div>
+      <div class="skel" style="height:220px;border-radius:14px"></div>
+    </template>
+
+    <!-- Summary -->
+    <template v-else-if="summary">
+
+      <!-- Re-upload bar -->
+      <div class="reupload-bar">
+        <div class="reupload-left">
+          <span v-if="files.jv" class="reupload-chip">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/></svg>
+            <span class="reupload-filename">{{ files.jv.name }}</span>
+            <span class="reupload-size">{{ formatBytes(files.jv.size) }}</span>
           </span>
+          <span v-if="files.f1" class="reupload-chip">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><circle cx="9" cy="7" r="4"/><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/></svg>
+            <span class="reupload-filename">{{ files.f1.name }}</span>
+            <span class="reupload-size">{{ formatBytes(files.f1.size) }}</span>
+          </span>
+        </div>
+        <button class="btn-link" @click="resetFile">Upload different files</button>
+      </div>
+
+      <!-- KPI Cards -->
+      <section class="kpi-grid">
+        <article class="kpi-card" style="animation-delay:0s">
+          <div class="kpi-icon" style="background:#eff6ff">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/></svg>
+          </div>
+          <h2 class="kpi-value">{{ formatNumber(summary.grandTotal) }}</h2>
+          <p class="kpi-label">Total Job Vacancies Solicited</p>
+          <span class="kpi-sub">Local + Overseas · {{ summary.period }}</span>
+        </article>
+        <article class="kpi-card" style="animation-delay:0.06s">
+          <div class="kpi-icon" style="background:#f0fdf4">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+          </div>
+          <h2 class="kpi-value">{{ formatNumber(summary.localTotal) }}</h2>
+          <p class="kpi-label">Local Vacancies</p>
+          <span class="kpi-sub trend-up">{{ summary.localPct }}% of total</span>
+        </article>
+        <article class="kpi-card" style="animation-delay:0.12s">
+          <div class="kpi-icon" style="background:#faf5ff">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8b5cf6" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
+          </div>
+          <h2 class="kpi-value">{{ formatNumber(summary.overseasTotal) }}</h2>
+          <p class="kpi-label">Overseas Vacancies</p>
+          <span class="kpi-sub trend-purple">{{ summary.overseasPct }}% of total</span>
         </article>
       </section>
 
-      <!-- ───────────── CHART + CONFIDENCE ───────────── -->
-      <section class="main-row">
-
-        <!-- Trend chart -->
-        <article class="card chart-card">
-          <header class="card-header">
-            <div>
-              <h3>Employment Trend Forecast</h3>
-              <p class="card-sub">Historical placements + AI-predicted trend for the next {{ predictedTrendData.length }} months</p>
-            </div>
-            <div class="legend" role="list">
-              <span class="leg-item" role="listitem"><span class="leg-line" style="background:#2563eb"></span>Actual</span>
-              <span class="leg-item" role="listitem"><span class="leg-line leg-dashed" style="border-color:#8b5cf6"></span>Predicted</span>
-              <span class="leg-item" role="listitem"><span class="leg-swatch" style="background:#8b5cf615"></span>Confidence band</span>
-            </div>
-          </header>
-
-          <!-- Empty state -->
-          <div v-if="!hasData" class="chart-empty">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-            <p>No forecast data available for this period.</p>
-            <button class="btn btn-secondary btn-sm" @click="fetchData">Retry</button>
-          </div>
-
-          <div
-            v-else
-            class="svg-wrap"
-            ref="trendWrap"
-            @mousemove="onTrendMove"
-            @mouseleave="trendTip = null"
-            role="img"
-            :aria-label="`Employment trend: ${actualTrendData.length} months actual, ${predictedTrendData.length} months predicted`"
-          >
-            <transition name="tip">
-              <div
-                v-if="trendTip"
-                class="chart-tip"
-                :style="{ left: trendTip.x + 'px', top: trendTip.y + 'px' }"
-              >
-                <div class="tip-label">{{ trendTip.label }}</div>
-                <div class="tip-row" v-if="trendTip.actual !== null">
-                  <span class="tip-dot" style="background:#2563eb"></span>Actual
-                  <strong>{{ formatNumber(trendTip.actual) }}</strong>
-                </div>
-                <div class="tip-row" v-if="trendTip.predicted !== null">
-                  <span class="tip-dot" style="background:#8b5cf6"></span>Predicted
-                  <strong>{{ formatNumber(trendTip.predicted) }}</strong>
-                </div>
-                <div class="tip-row tip-muted" v-if="trendTip.isPredicted && trendTip.low !== null">
-                  <span></span>95% CI {{ formatNumber(trendTip.low) }}–{{ formatNumber(trendTip.high) }}
-                </div>
-              </div>
-            </transition>
-
-            <svg
-              ref="trendSvg"
-              viewBox="0 0 640 200"
-              preserveAspectRatio="xMidYMid meet"
-              class="chart-svg"
-              aria-hidden="true"
-            >
-              <defs>
-                <linearGradient id="paGActual" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#2563eb" stop-opacity="0.18"/>
-                  <stop offset="100%" stop-color="#2563eb" stop-opacity="0"/>
-                </linearGradient>
-                <linearGradient id="paGPred" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.14"/>
-                  <stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/>
-                </linearGradient>
-                <clipPath id="paTrendClip">
-                  <rect
-                    x="52"
-                    y="0"
-                    height="175"
-                    :width="trendAnimated ? 578 : 0"
-                    style="transition: width 1.1s cubic-bezier(.4,0,.2,1);"
-                  />
-                </clipPath>
-              </defs>
-
-              <!-- Forecast zone background -->
-              <rect
-                v-if="splitX > 52"
-                :x="splitX"
-                y="10"
-                :width="630 - splitX"
-                height="158"
-                fill="#faf5ff"
-                opacity="0.55"
-              />
-
-              <!-- Grid -->
-              <line
-                v-for="gl in trendGrid"
-                :key="'g' + gl.y"
-                :x1="52" :y1="gl.y" :x2="630" :y2="gl.y"
-                stroke="#f1f5f9" stroke-width="1"
-              />
-              <text
-                v-for="gl in trendGrid"
-                :key="'gl' + gl.y"
-                :x="46" :y="gl.y + 4"
-                text-anchor="end" font-size="9" fill="#cbd5e1"
-                font-family="Plus Jakarta Sans,sans-serif"
-              >{{ formatNumber(gl.label) }}</text>
-
-              <g clip-path="url(#paTrendClip)">
-                <!-- Confidence band -->
-                <path :d="confidenceBandPath" fill="#8b5cf615"/>
-                <!-- Actual area + line -->
-                <path :d="actualAreaPath" fill="url(#paGActual)"/>
-                <path
-                  :d="actualLinePath"
-                  fill="none"
-                  stroke="#2563eb"
-                  stroke-width="2.5"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-                <!-- Predicted dashed line -->
-                <path
-                  :d="predictedLinePath"
-                  fill="none"
-                  stroke="#8b5cf6"
-                  stroke-width="2"
-                  stroke-dasharray="5 3"
-                  stroke-linecap="round"
-                />
-                <!-- Forecast divider -->
-                <line
-                  v-if="splitX > 52"
-                  :x1="splitX" y1="10"
-                  :x2="splitX" y2="168"
-                  stroke="#c4b5fd" stroke-width="1.5"
-                  stroke-dasharray="4 3"
-                />
-                <text
-                  v-if="splitX > 52"
-                  :x="splitX + 5" y="16"
-                  font-size="9" font-weight="700"
-                  fill="#7c3aed"
-                  font-family="Plus Jakarta Sans,sans-serif"
-                >FORECAST →</text>
-              </g>
-
-              <!-- X labels (density-aware) -->
-              <text
-                v-for="(pt, i) in visibleTrendPoints"
-                :key="'xl' + i"
-                :x="pt.x" :y="188"
-                text-anchor="middle"
-                font-size="9"
-                :fill="pt.isPredicted ? '#8b5cf6' : '#94a3b8'"
-                :font-weight="pt.isPredicted ? '600' : '500'"
-                font-family="Plus Jakarta Sans,sans-serif"
-              >{{ pt.label }}</text>
-
-              <!-- Hover dots -->
-              <circle
-                v-for="(pt, i) in actualDots"
-                :key="'ad' + i"
-                :cx="pt.x" :cy="pt.y"
-                :r="trendTip && trendTip.i === i ? 5 : 3.5"
-                fill="#fff" stroke="#2563eb" stroke-width="2"
-                pointer-events="none"
-                style="transition: r .12s"
-              />
-              <circle
-                v-for="(pt, i) in predictedDots"
-                :key="'pd' + i"
-                :cx="pt.x" :cy="pt.y"
-                :r="trendTip && trendTip.i === (actualTrendData.length + i) ? 5 : 3.5"
-                fill="#fff" stroke="#8b5cf6" stroke-width="2"
-                pointer-events="none"
-                style="transition: r .12s"
-              />
-
-              <!-- Hit areas (full column) -->
-              <rect
-                v-for="(pt, i) in allTrendPoints"
-                :key="'h' + i"
-                :x="pt.x - trendColW / 2"
-                y="0"
-                :width="trendColW"
-                height="175"
-                fill="transparent"
-                style="cursor: crosshair"
-              />
-            </svg>
-          </div>
-        </article>
-
-        <!-- Confidence panel -->
-        <aside class="card confidence-card">
-          <header class="card-header">
-            <div>
-              <h3>Model Confidence</h3>
-              <p class="card-sub">Prediction reliability scores</p>
-            </div>
-            <span class="live-badge">AI</span>
-          </header>
-
-          <div class="confidence-list">
-            <div v-for="mc in modelConfidence" :key="mc.label" class="conf-item">
-              <div class="conf-row">
-                <span class="conf-label">{{ mc.label }}</span>
-                <span class="conf-pct" :style="{ color: confidenceColor(mc.pct) }">{{ mc.pct }}%</span>
-              </div>
-              <div class="conf-track" :aria-label="`${mc.label}: ${mc.pct} percent`">
-                <div
-                  class="conf-fill"
-                  :style="{
-                    width: confAnimated ? mc.pct + '%' : '0%',
-                    background: confidenceColor(mc.pct),
-                  }"
-                ></div>
-              </div>
-              <span class="conf-note">{{ mc.note }}</span>
-            </div>
-          </div>
-
-          <div class="conf-footer">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <span>Based on {{ formatNumber(modelDataPoints) }} historical data points</span>
-          </div>
-        </aside>
-      </section>
-
-      <!-- ───────────── HEATMAP ───────────── -->
-      <section class="card heatmap-card">
+      <!-- Table 1 -->
+      <section class="card">
         <header class="card-header">
           <div>
-            <h3>Skill Demand Forecast Heatmap</h3>
-            <p class="card-sub">Predicted demand intensity per skill — next {{ forecastMonths.length }} months</p>
+            <h3>Table 1. Job Vacancies Solicited</h3>
+            <p class="card-sub">Nature of vacancy breakdown · {{ summary.period }}</p>
           </div>
-          <div class="heatmap-legend">
-            <span class="heatmap-legend-label">Low</span>
-            <div class="heatmap-legend-strip" aria-hidden="true">
-              <span class="hl-tick" style="left:0">0</span>
-              <span class="hl-tick" style="left:50%">50</span>
-              <span class="hl-tick" style="left:100%">100</span>
-            </div>
-            <span class="heatmap-legend-label">High</span>
-          </div>
+          <span class="table-badge">PESO Santiago City</span>
         </header>
-
-        <div class="heatmap-wrap">
-          <div class="heatmap-table" role="grid" aria-label="Skill demand forecast">
-            <div class="hm-header-row" role="row">
-              <div class="hm-skill-col" role="columnheader" aria-label="Skill"></div>
-              <div
-                v-for="m in forecastMonths"
-                :key="m"
-                class="hm-month-col"
-                role="columnheader"
-              >{{ m }}</div>
-            </div>
-
-            <div
-              v-for="(row, ri) in heatmapData"
-              :key="row.skill"
-              class="hm-row"
-              role="row"
-            >
-              <div class="hm-skill-name" role="rowheader">
-                <span class="hm-skill-dot" :style="{ background: row.color }" aria-hidden="true"></span>
-                <span class="hm-skill-text">{{ row.skill }}</span>
-              </div>
-              <div
-                v-for="(val, ci) in row.values"
-                :key="ci"
-                class="hm-cell"
-                role="gridcell"
-                tabindex="0"
-                :style="{
-                  background: heatmapAnimated ? heatColor(val) : '#f8fafc',
-                  transitionDelay: (ri * 0.04 + ci * 0.02) + 's',
-                }"
-                :aria-label="`${row.skill} ${forecastMonths[ci]}: ${val} percent`"
-                :title="`${row.skill} · ${forecastMonths[ci]}: ${val}% predicted demand`"
-              >
-                <span
-                  class="hm-val"
-                  :style="{ color: heatmapAnimated && val >= 60 ? '#fff' : '#475569' }"
-                >{{ val }}%</span>
-              </div>
-            </div>
-          </div>
+        <div class="table-wrap">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th>Nature of Vacancy</th>
+                <th class="num">No. of Vacancies Solicited</th>
+                <th class="num">Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Local</td>
+                <td class="num">{{ formatNumber(summary.localTotal) }}</td>
+                <td class="num">{{ summary.localPct }}%</td>
+              </tr>
+              <tr>
+                <td>Overseas</td>
+                <td class="num">{{ formatNumber(summary.overseasTotal) }}</td>
+                <td class="num">{{ summary.overseasPct }}%</td>
+              </tr>
+              <tr class="total-row">
+                <td><strong>Total</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.grandTotal) }}</strong></td>
+                <td class="num"><strong>100%</strong></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
-      <!-- ───────────── SKILL PREDICTIONS ───────────── -->
-      <section class="predictions-section">
-        <div class="section-head">
-          <div>
-            <div class="section-title-row">
-              <h2 class="section-title">Skill Demand Predictions</h2>
-              <span class="section-badge">Next 90 days · AI Forecast</span>
-            </div>
-            <p class="section-sub">
-              Predicted skill demand based on current job postings, applicant profiles, employer growth, and seasonal hiring patterns
-            </p>
-          </div>
-          <label class="sort-control">
-            <span class="sort-label">Sort:</span>
-            <select v-model="predictionSort" class="sort-select" aria-label="Sort predictions by">
-              <option value="growth">Highest growth</option>
-              <option value="decline">Highest decline</option>
-              <option value="confidence">By confidence</option>
-              <option value="alpha">A–Z</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="pred-grid">
-          <article
-            v-for="(pred, i) in sortedPredictions"
-            :key="pred.skill"
-            class="pred-card"
-            :style="{ animationDelay: (i * 0.05) + 's' }"
-          >
-            <header class="pred-top">
-              <div class="pred-icon" :style="{ background: pred.iconBg }" aria-hidden="true">
-                <span v-html="pred.icon" :style="{ color: pred.iconColor }"></span>
-              </div>
-              <span class="pred-conf-badge" :class="pred.confClass">{{ pred.confidence }} confidence</span>
-            </header>
-            <div class="pred-body">
-              <p class="pred-skill">{{ pred.skill }}</p>
-              <p class="pred-industry">{{ pred.industry }}</p>
-              <div class="pred-change-row">
-                <span class="pred-change" :class="pred.change >= 0 ? 'change-pos' : 'change-neg'">
-                  <svg v-if="pred.change >= 0" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>
-                  <svg v-else width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-                  {{ pred.change >= 0 ? '+' : '' }}{{ pred.change }}% projected
-                </span>
-              </div>
-            </div>
-            <div class="pred-bar-track" :aria-label="`${pred.pct} percent demand intensity`">
-              <div
-                class="pred-bar-fill"
-                :style="{
-                  width: predsAnimated ? pred.pct + '%' : '0%',
-                  background: pred.iconColor,
-                }"
-              ></div>
-            </div>
-            <p class="pred-note">{{ pred.note }}</p>
-          </article>
-        </div>
-      </section>
-
-      <!-- ───────────── AI INSIGHT ───────────── -->
-      <section class="card ai-insight-card" aria-live="polite">
+      <!-- Table 2: Registered Applicants -->
+      <section v-if="summary.table2 && summary.table2.total > 0" class="card">
         <header class="card-header">
-          <div class="ai-header-left">
-            <span class="ai-pulse" :class="{ pulsing: analyzing }" aria-hidden="true"></span>
-            <h3>AI Insight Summary</h3>
-            <span class="claude-badge">Claude AI</span>
+          <div>
+            <h3>Table 2. Registered Applicants</h3>
+            <p class="card-sub">Through PESO Employment Information System (PEIS) · {{ summary.period }}</p>
           </div>
-          <span class="ai-period-tag">{{ periodLabel }}</span>
+          <span class="table-badge">{{ formatNumber(summary.table2.total) }} Registered</span>
         </header>
-
-        <!-- Analyzing -->
-        <div v-if="analyzing" class="ai-loading">
-          <div class="ai-spinner" aria-hidden="true">
-            <div class="spin-ring"></div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          </div>
-          <p class="ai-loading-title">Analyzing employment trends...</p>
-          <p class="ai-loading-sub">Processing jobseeker profiles, employer data, skill gaps, and seasonal patterns</p>
+        <div class="table-wrap">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th>Gender</th>
+                <th class="num">Number of Registered Applicants</th>
+                <th class="num">Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Male</td>
+                <td class="num">{{ formatNumber(summary.table2.male) }}</td>
+                <td class="num">{{ summary.table2.total ? ((summary.table2.male / summary.table2.total) * 100).toFixed(2) : 0 }}%</td>
+              </tr>
+              <tr>
+                <td>Female</td>
+                <td class="num">{{ formatNumber(summary.table2.female) }}</td>
+                <td class="num">{{ summary.table2.total ? ((summary.table2.female / summary.table2.total) * 100).toFixed(2) : 0 }}%</td>
+              </tr>
+              <tr class="total-row">
+                <td><strong>Total</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table2.total) }}</strong></td>
+                <td class="num"><strong>100%</strong></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
-        <!-- Error -->
-        <div v-else-if="insightError" class="ai-empty">
-          <div class="ai-empty-icon ai-empty-icon-error" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          </div>
-          <p class="ai-empty-title">Unable to generate insight</p>
-          <p class="ai-empty-sub">{{ insightError }}</p>
-          <button type="button" class="btn-run" @click="runPrediction">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M23 4v6h-6"/><path d="M3.51 15a9 9 0 0014.85 3.36L23 14"/></svg>
-            Try Again
-          </button>
-        </div>
-
-        <!-- Empty -->
-        <div v-else-if="!insightText" class="ai-empty">
-          <div class="ai-empty-icon" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#c4b5fd" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-          </div>
-          <p class="ai-empty-title">No AI insight generated yet</p>
-          <p class="ai-empty-sub">Click "Run Prediction" to generate employment trend forecasts and skill demand insights from live data.</p>
-          <button type="button" class="btn-run" @click="runPrediction" :disabled="!hasData">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Run Prediction
-          </button>
-        </div>
-
-        <!-- Result -->
-        <div v-else class="ai-result">
-          <div class="insight-meta-row">
-            <span class="meta-item">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M3 21a9 9 0 0118 0"/></svg>
-              {{ formatNumber(insightMeta.jobseekers) }} jobseekers
-            </span>
-            <span class="meta-item">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/></svg>
-              {{ formatNumber(insightMeta.openings) }} openings
-            </span>
-            <span class="meta-item">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" aria-hidden="true"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              {{ insightMeta.placementRate }} placement rate
-            </span>
-          </div>
-
-          <div v-if="insightChips.length" class="insight-chips">
-            <span
-              v-for="chip in insightChips"
-              :key="chip.text"
-              class="chip"
-              :class="chip.cls"
-            >{{ chip.text }}</span>
-          </div>
-
-          <div class="insight-divider"></div>
-          <div class="insight-text" v-html="formattedInsight"></div>
-          <div class="insight-divider"></div>
-
-          <div class="ai-footer">
-            <span class="ai-gen-at">Generated {{ insightGeneratedAt }}</span>
-            <div class="ai-footer-actions">
-              <button type="button" class="btn-sm-outline" @click="runPrediction" :disabled="analyzing">
-                Refresh
-              </button>
-              <button type="button" class="btn-sm-primary" @click="exportReport" :disabled="exporting">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Export PDF
-              </button>
-            </div>
-          </div>
+        <!-- Age breakdown (Youth / Non-Youth) -->
+        <div v-if="(summary.table2.youth + summary.table2.nonYouth) > 0" class="table-wrap" style="margin-top:12px">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th>Age Bracket</th>
+                <th class="num">Count</th>
+                <th class="num">Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Youth (24 and below)</td>
+                <td class="num">{{ formatNumber(summary.table2.youth) }}</td>
+                <td class="num">{{ ((summary.table2.youth / (summary.table2.youth + summary.table2.nonYouth)) * 100).toFixed(2) }}%</td>
+              </tr>
+              <tr>
+                <td>Non-Youth (25 and above)</td>
+                <td class="num">{{ formatNumber(summary.table2.nonYouth) }}</td>
+                <td class="num">{{ ((summary.table2.nonYouth / (summary.table2.youth + summary.table2.nonYouth)) * 100).toFixed(2) }}%</td>
+              </tr>
+              <tr class="total-row">
+                <td><strong>Total</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table2.youth + summary.table2.nonYouth) }}</strong></td>
+                <td class="num"><strong>100%</strong></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
+
+      <!-- Table 3: Referred & Placed -->
+      <section v-if="summary.table3 && summary.table3.ref.total > 0" class="card">
+        <header class="card-header">
+          <div>
+            <h3>Table 3. Referred and Placed Applicants by Gender and Work Location</h3>
+            <p class="card-sub">Placement rate · {{ summary.table3.placementRate }}%</p>
+          </div>
+          <span class="table-badge">{{ formatNumber(summary.table3.placed.total) }} Placed</span>
+        </header>
+        <div class="table-wrap">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th rowspan="2">Gender</th>
+                <th class="num" rowspan="2">Referred</th>
+                <th class="num" rowspan="2">Placed</th>
+                <th class="num" rowspan="2">Placement Rate</th>
+                <th class="num" colspan="4" style="text-align:center">Placed Distribution by Work Location</th>
+              </tr>
+              <tr>
+                <th class="num">Local</th>
+                <th class="num">Rate</th>
+                <th class="num">Overseas</th>
+                <th class="num">Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="g in ['male','female']" :key="g">
+                <td style="text-transform:capitalize">{{ g }}</td>
+                <td class="num">{{ formatNumber(summary.table3.ref[g]) }}</td>
+                <td class="num">{{ formatNumber(summary.table3.placed[g]) }}</td>
+                <td class="num">{{ summary.table3.ref.total ? ((summary.table3.placed[g] / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</td>
+                <td class="num">{{ formatNumber(summary.table3.placedLocal[g]) }}</td>
+                <td class="num">{{ summary.table3.ref.total ? ((summary.table3.placedLocal[g] / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</td>
+                <td class="num">{{ formatNumber(summary.table3.placedOverseas[g]) }}</td>
+                <td class="num">{{ summary.table3.ref.total ? ((summary.table3.placedOverseas[g] / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</td>
+              </tr>
+              <tr class="total-row">
+                <td><strong>Total</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table3.ref.total) }}</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table3.placed.total) }}</strong></td>
+                <td class="num"><strong>{{ summary.table3.placementRate }}%</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table3.placedLocal.total) }}</strong></td>
+                <td class="num"><strong>{{ summary.table3.ref.total ? ((summary.table3.placedLocal.total / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.table3.placedOverseas.total) }}</strong></td>
+                <td class="num"><strong>{{ summary.table3.ref.total ? ((summary.table3.placedOverseas.total / summary.table3.ref.total) * 100).toFixed(2) : 0 }}%</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Table 4 -->
+      <section class="card">
+        <header class="card-header">
+          <div>
+            <h3>Table 4. Top Commonly Solicited Job Vacancies</h3>
+            <p class="card-sub">Ranked by total count · Local and Overseas combined</p>
+          </div>
+          <span class="table-badge">Top {{ summary.topPositions.length }}</span>
+        </header>
+        <div class="table-wrap">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th class="rank-col">#</th>
+                <th>Position</th>
+                <th class="num">Local</th>
+                <th class="num">Overseas</th>
+                <th class="num">Total</th>
+                <th class="num">%</th>
+                <th>Industry</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(pos, i) in summary.topPositions"
+                :key="pos.name"
+                :class="{ 'top5-row': i < 5 }"
+              >
+                <td class="rank-col">
+                  <span class="rank-badge" :class="i < 5 ? 'rank-top' : 'rank-other'">{{ i + 1 }}</span>
+                </td>
+                <td class="pos-name">{{ pos.name }}</td>
+                <td class="num">{{ formatNumber(pos.local) }}</td>
+                <td class="num">{{ formatNumber(pos.overseas) }}</td>
+                <td class="num"><strong>{{ formatNumber(pos.total) }}</strong></td>
+                <td class="num">
+                  <div class="pct-cell">
+                    <span>{{ pos.pct }}%</span>
+                    <div class="pct-bar-track">
+                      <div class="pct-bar-fill" :style="{ width: pos.pct + '%' }"></div>
+                    </div>
+                  </div>
+                </td>
+                <td class="industry-cell">{{ pos.industry }}</td>
+              </tr>
+              <!-- Others row -->
+              <tr v-if="summary.others" class="others-row">
+                <td class="rank-col"><span class="rank-badge rank-other">—</span></td>
+                <td class="pos-name" colspan="1">
+                  <span class="others-label">Others</span>
+                  <span class="others-detail">{{ summary.others.names }}</span>
+                </td>
+                <td class="num">{{ formatNumber(summary.others.local) }}</td>
+                <td class="num">{{ formatNumber(summary.others.overseas) }}</td>
+                <td class="num"><strong>{{ formatNumber(summary.others.total) }}</strong></td>
+                <td class="num">{{ summary.others.pct }}%</td>
+                <td class="industry-cell">—</td>
+              </tr>
+              <!-- Grand Total -->
+              <tr class="total-row">
+                <td></td>
+                <td><strong>Grand Total</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.localTotal) }}</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.overseasTotal) }}</strong></td>
+                <td class="num"><strong>{{ formatNumber(summary.grandTotal) }}</strong></td>
+                <td class="num"><strong>100%</strong></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- LMI section -->
+      <section class="card">
+        <header class="card-header">
+          <div>
+            <h3>Table 5. Institutions Reached (LMI)</h3>
+            <p class="card-sub">Labor Market Information · {{ summary.period }}</p>
+          </div>
+          <span class="table-badge">{{ summary.lmiInstitutions }} Institutions</span>
+        </header>
+        <div class="table-wrap">
+          <table class="lma-table">
+            <thead>
+              <tr>
+                <th class="num">No. of Institutions</th>
+                <th>Partner Agencies</th>
+                <th>Type of LMI</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(lmi, i) in summary.lmiBreakdown" :key="i">
+                <td class="num">{{ lmi.count }}</td>
+                <td>{{ lmi.type }}</td>
+                <td><span class="lmi-tag">{{ lmi.lmiType }}</span></td>
+              </tr>
+              <tr class="total-row">
+                <td class="num"><strong>{{ summary.lmiInstitutions }}</strong></td>
+                <td><strong>Total</strong></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Download CTA -->
+      <div class="download-cta">
+        <div class="cta-left">
+          <div class="cta-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <div>
+            <p class="cta-title">Ready to download</p>
+            <p class="cta-sub">Formatted in the stephen LMA template · Excel format</p>
+          </div>
+        </div>
+        <button class="btn btn-primary" :disabled="downloading" @click="downloadReport">
+          <svg v-if="!downloading" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span v-else class="btn-spinner"></span>
+          {{ downloading ? 'Generating...' : 'Download Excel Report' }}
+        </button>
+      </div>
 
     </template>
+
   </div>
 </template>
 
 <script>
+import * as XLSX from 'xlsx'
 import api from '@/services/api'
 
-const MIN_LOADING_MS = 400
-const TOAST_TTL_MS = 6000
-
-/* ───────────── helpers ───────────── */
-
-function generateMonthLabels(count, startOffset = 0) {
-  const out = []
-  const now = new Date()
-  for (let i = 0; i < count; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + startOffset + i, 1)
-    const m = d.toLocaleString('en-US', { month: 'short' })
-    const showYear = i === 0 || d.getMonth() === 0
-    out.push(showYear ? `${m} '${String(d.getFullYear()).slice(2)}` : m)
-  }
-  return out
+const INDUSTRY_MAP = {
+  'DOMESTIC HELPER':              'Other community, social and personal service activities',
+  'DOMESTIC CLEANER':             'Other community, social and personal service activities',
+  'HOUSEMAID':                    'Other community, social and personal service activities',
+  'CAREGIVER (HOME-BASED)':       'Health and Social Work',
+  'CARETAKER (HOME-BASE)':        'Health and Social Work',
+  'STAFF NURSE':                  'Health and Social Work',
+  'PHYSICAL THERAPIST':           'Health and Social Work',
+  'DERMATOLOGIST':                'Health and Social Work',
+  'RADIOLOGIC TECHNOLOGIST':      'Health and Social Work',
+  'SERVICE CREW':                 'Hotel and Restaurant',
+  'KITCHEN CREW':                 'Hotel and Restaurant',
+  'KITCHEN HELPER':               'Hotel and Restaurant',
+  'COOK (GENERAL)':               'Hotel and Restaurant',
+  'WAITER (GENERAL)':             'Hotel and Restaurant',
+  'CASHIER':                      'Wholesale and Retail Trade',
+  'MERCHANDISER':                 'Wholesale and Retail Trade',
+  'SALES ASSOCIATE PROFESSIONAL': 'Wholesale and Retail Trade',
+  'SALES CLERK':                  'Wholesale and Retail Trade',
+  'SALESMAN':                     'Wholesale and Retail Trade',
+  'SALESLADY':                    'Wholesale and Retail Trade',
+  'DELIVERY DRIVER':              'Wholesale and Retail Trade',
+  'DELIVERY HELPER':              'Wholesale and Retail Trade',
+  'WAREHOUSEMAN':                 'Wholesale and Retail Trade',
+  'WAREHOUSE HELPER':             'Wholesale and Retail Trade',
+  'PROMO SALESPERSON':            'Wholesale and Retail Trade',
+  'CUSTOMER SERVICE ASSISTANT':   'Other community, social and personal service activities',
+  'SECURITY GUARD':               'Other community, social and personal service activities',
+  'LADY GUARD':                   'Other community, social and personal service activities',
+  'SKILLED WORKER (FIELD CROPS)': 'Agriculture',
+  'MANICURIST/PEDICURIST':        'Other community, social and personal service activities',
+  'HAIRDRESSER':                  'Other community, social and personal service activities',
+  'PRODUCTION WORKER':            'Manufacturing',
+  'ACCOUNTING STAFF':             'Financial Intermediation',
+  'ACCOUNTING CLERK':             'Financial Intermediation',
+  'ACCOUNTING ASSISTANT':         'Financial Intermediation',
+  'ACCOUNTANT (GENERAL)':         'Financial Intermediation',
 }
 
-function clamp(v, lo, hi) {
-  return Math.max(lo, Math.min(hi, v))
-}
-
-function isFiniteNumber(n) {
-  return typeof n === 'number' && Number.isFinite(n)
-}
-
-/* allowlist sanitizer for AI-generated insight HTML */
-function sanitizeInsightHtml(raw) {
-  if (!raw) return ''
-  const allowed = new Set(['p', 'strong', 'em', 'br'])
-  const div = document.createElement('div')
-  div.innerHTML = raw
-  const walk = (node) => {
-    const kids = Array.from(node.children)
-    kids.forEach(child => {
-      const tag = child.tagName.toLowerCase()
-      if (!allowed.has(tag)) {
-        const text = document.createTextNode(child.textContent || '')
-        node.replaceChild(text, child)
-        return
-      }
-      [...child.attributes].forEach(a => child.removeAttribute(a.name))
-      walk(child)
-    })
-  }
-  walk(div)
-  return div.innerHTML
-}
+const TOAST_TTL = 6000
 
 export default {
-  name: 'PredictiveAnalytics',
+  name: 'LmaConverter',
 
   data() {
     return {
-      /* state */
-      loading: true,
-      analyzing: false,
-      exporting: false,
-      activePeriod: 'monthly',
-      sourcePeriod: '',
-      lastUpdatedAt: null,
-      lastUpdatedTick: 0,
-
-      /* animations */
-      trendAnimated: false,
-      confAnimated: false,
-      heatmapAnimated: false,
-      predsAnimated: false,
-      kpiAnimValues: ['—', '—', '—', '—'],
-
-      /* chart interaction */
-      trendTip: null,
-
-      /* AI insight */
-      insightText: '',
-      insightError: '',
-      insightGeneratedAt: '',
-      insightChips: [],
-      insightMeta: { jobseekers: 0, openings: 0, placementRate: '0%' },
-      modelDataPoints: 0,
-
-      /* sorting */
-      predictionSort: 'growth',
-
-      /* toasts */
+      files: { jv: null, f1: null },
+      dragging: { jv: false, f1: false },
+      processing: false,
+      downloading: false,
+      summary: null,
       toasts: [],
       toastSeq: 0,
-
-      /* periods */
-      periodOptions: [
-        { label: 'Weekly',  value: 'weekly'  },
-        { label: 'Monthly', value: 'monthly' },
-        { label: 'Yearly',  value: 'yearly'  },
-      ],
-
-      /* KPIs */
-      kpis: [
-        {
-          label: 'Predicted Placements (next 30d)', value: '—', trend: '—', up: true,
-          trendLabel: 'vs last period',
-          tooltip: 'Forecasted number of jobseeker placements in the next 30 days based on hiring momentum and pipeline depth.',
-          iconBg: '#eff6ff', iconColor: '#2563eb',
-          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
-        },
-        {
-          label: 'Forecast Employment Rate', value: '—', trend: '—', up: true,
-          trendLabel: 'vs last period',
-          tooltip: 'Projected share of registered jobseekers expected to be employed by the end of this period.',
-          iconBg: '#f0fdf4', iconColor: '#16a34a',
-          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>',
-        },
-        {
-          label: 'Top Emerging Skill', value: '—', trend: '—', up: true,
-          trendLabel: 'projected demand',
-          tooltip: 'Skill with the highest projected demand growth based on job postings and employer signals.',
-          iconBg: '#faf5ff', iconColor: '#8b5cf6',
-          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>',
-        },
-        {
-          label: 'Skill-Gap Risk Score', value: '—', trend: '—', up: false,
-          trendLabel: 'change vs last period',
-          tooltip: 'Composite risk score of mismatch between in-demand skills and current jobseeker profiles. Lower is better.',
-          iconBg: '#fff7ed', iconColor: '#f97316',
-          icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
-        },
-      ],
-
-      /* data */
-      actualTrendData: [],
-      predictedTrendData: [],
-      forecastMonths: [],
-      heatmapData: [],
-      skillPredictions: [],
-      modelConfidence: [],
-
-      /* internal lifecycle handles */
-      observers: [],
-      resizeObserver: null,
-      luTimer: null,
     }
   },
 
   computed: {
-    hasData() {
-      return this.actualTrendData.length > 0 && this.predictedTrendData.length > 0
+    bothReady() {
+      return !!this.files.jv && !!this.files.f1
     },
-
-    periodLabel() {
-      const map = {
-        weekly: 'This week',
-        monthly: new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }),
-        yearly: 'This year',
-      }
-      return map[this.activePeriod] || ''
-    },
-
-    lastUpdatedFull() {
-      if (!this.lastUpdatedAt) return ''
-      return this.lastUpdatedAt.toLocaleString('en-US', {
-        weekday: 'short', month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      })
-    },
-
-    lastUpdatedRelative() {
-      if (!this.lastUpdatedAt) return ''
-      void this.lastUpdatedTick // reactive trigger
-      const diff = Math.floor((Date.now() - this.lastUpdatedAt.getTime()) / 1000)
-      if (diff < 10) return 'just now'
-      if (diff < 60) return `${diff}s ago`
-      if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-      if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`
-      return `${Math.floor(diff / 86400)}d ago`
-    },
-
-    /* chart geometry */
-    chartW() { return 578 },
-    chartH() { return 158 },
-    chartYBottom() { return 168 },
-
-    chartScale() {
-      const all = [...this.actualTrendData, ...this.predictedTrendData]
-      if (!all.length) return { nice: 1 }
-      const max = Math.max(
-        ...all.map(d => Math.max(
-          isFiniteNumber(d.value) ? d.value : 0,
-          isFiniteNumber(d.high) ? d.high : 0,
-        )),
-        1,
-      )
-      return { nice: this._niceMax(max) }
-    },
-
-    allTrendPoints() {
-      const all = [...this.actualTrendData, ...this.predictedTrendData]
-      const n = all.length
-      if (!n) return []
-      const { nice } = this.chartScale
-      return all.map((d, i) => {
-        const x = 52 + i * (this.chartW / Math.max(n - 1, 1))
-        const y = this.chartYBottom - ((d.value / nice) * this.chartH)
-        return {
-          x, y,
-          label: d.label,
-          isPredicted: i >= this.actualTrendData.length,
-          i,
-          value: d.value,
-          low:  isFiniteNumber(d.low)  ? d.low  : null,
-          high: isFiniteNumber(d.high) ? d.high : null,
-        }
-      })
-    },
-
-    /* density-aware label visibility */
-    visibleTrendPoints() {
-      const pts = this.allTrendPoints
-      if (pts.length <= 12) return pts
-      const step = Math.ceil(pts.length / 12)
-      return pts.filter((_, i) => i % step === 0 || i === pts.length - 1)
-    },
-
-    actualDots()    { return this.allTrendPoints.filter(p => !p.isPredicted) },
-    predictedDots() { return this.allTrendPoints.filter(p =>  p.isPredicted) },
-
-    trendColW() {
-      const n = this.allTrendPoints.length
-      return n > 1 ? this.chartW / (n - 1) : this.chartW
-    },
-
-    splitX() {
-      const idx = this.actualTrendData.length - 1
-      if (idx < 0 || !this.allTrendPoints.length) return 52
-      return this.allTrendPoints[idx]?.x ?? 52
-    },
-
-    trendGrid() {
-      const { nice } = this.chartScale
-      const steps = 4
-      return Array.from({ length: steps + 1 }, (_, i) => ({
-        y: 10 + (i / steps) * this.chartH,
-        label: Math.round((nice / steps) * (steps - i)),
-      }))
-    },
-
-    actualLinePath() { return this._smooth(this.actualDots) },
-
-    actualAreaPath() {
-      const pts = this.actualDots
-      if (!pts.length) return ''
-      return this._smooth(pts) +
-        ` L${pts[pts.length - 1].x},${this.chartYBottom}` +
-        ` L${pts[0].x},${this.chartYBottom} Z`
-    },
-
-    predictedLinePath() {
-      const last = this.actualDots[this.actualDots.length - 1]
-      const pred = this.predictedDots
-      if (!pred.length) return ''
-      const all = last ? [last, ...pred] : pred
-      return this._smooth(all)
-    },
-
-    confidenceBandPath() {
-      const preds = this.predictedTrendData
-      if (!preds.length) return ''
-      const { nice } = this.chartScale
-      const all = [...this.actualTrendData, ...this.predictedTrendData]
-      const n = all.length
-      const toY = v => this.chartYBottom - ((v / nice) * this.chartH)
-      const toX = i => 52 + i * (this.chartW / Math.max(n - 1, 1))
-      const startIdx = this.actualTrendData.length
-
-      const top = preds.map((d, i) => ({
-        x: toX(startIdx + i),
-        y: toY(isFiniteNumber(d.high) ? d.high : d.value),
-      }))
-      const bot = [...preds].reverse().map((d, i) => {
-        const ri = preds.length - 1 - i
-        return {
-          x: toX(startIdx + ri),
-          y: toY(isFiniteNumber(d.low) ? d.low : d.value),
-        }
-      })
-
-      const lastActual = this.actualDots[this.actualDots.length - 1]
-      const lastActualVal = this.actualTrendData[this.actualTrendData.length - 1]?.value ?? 0
-      const startPt = lastActual ? [{ x: lastActual.x, y: toY(lastActualVal) }] : []
-
-      const allTop = [...startPt, ...top]
-      if (!allTop.length) return ''
-
-      let path = `M${allTop[0].x},${allTop[0].y}`
-      allTop.slice(1).forEach(p => { path += ` L${p.x},${p.y}` })
-      bot.forEach(p => { path += ` L${p.x},${p.y}` })
-      if (startPt.length) path += ` L${startPt[0].x},${startPt[0].y}`
-      path += ' Z'
-      return path
-    },
-
-    sortedPredictions() {
-      const list = [...this.skillPredictions]
-      const confRank = c => ({ High: 3, Medium: 2, Low: 1 }[c] || 0)
-      switch (this.predictionSort) {
-        case 'decline':    return list.sort((a, b) => a.change - b.change)
-        case 'confidence': return list.sort((a, b) => confRank(b.confidence) - confRank(a.confidence))
-        case 'alpha':      return list.sort((a, b) => a.skill.localeCompare(b.skill))
-        case 'growth':
-        default:           return list.sort((a, b) => b.change - a.change)
-      }
-    },
-
-    formattedInsight() {
-      if (!this.insightText) return ''
-      const raw = this.insightText
-        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-        .replace(/\n\n/g, '</p><p>')
-        .replace(/^/, '<p>')
-        .replace(/$/, '</p>')
-      return sanitizeInsightHtml(raw)
-    },
-  },
-
-  async mounted() {
-    await this.$nextTick()
-    await this.fetchData()
-    this.luTimer = setInterval(() => { this.lastUpdatedTick++ }, 30000)
-  },
-
-  beforeUnmount() {
-    this.observers.forEach(o => o.disconnect())
-    this.observers = []
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect()
-      this.resizeObserver = null
-    }
-    if (this.luTimer) {
-      clearInterval(this.luTimer)
-      this.luTimer = null
-    }
-    this.toasts.forEach(t => clearTimeout(t.timer))
   },
 
   methods: {
 
-    /* ───────────── data fetch ───────────── */
+    /* ─── File handling ─── */
 
-    setPeriod(p) {
-      if (this.activePeriod === p) return
-      this.activePeriod = p
-      this.fetchData()
+    onDrop(e, slot) {
+      this.dragging[slot] = false
+      const file = e.dataTransfer.files[0]
+      if (file) this.setFile(file, slot)
     },
 
-    async fetchData() {
-      this.loading = true
-      this._resetAnims()
-      const startedAt = Date.now()
+    onFileChange(e, slot) {
+      const file = e.target.files[0]
+      if (file) this.setFile(file, slot)
+    },
+
+    setFile(file, slot) {
+      if (!file.name.match(/\.(xlsx|xls)$/i)) {
+        this.notify('error', 'Please upload an Excel file (.xlsx or .xls)')
+        return
+      }
+      this.files[slot] = file
+      this.summary = null
+    },
+
+    resetSlot(slot) {
+      this.files[slot] = null
+      this.summary = null
+      const ref = slot === 'jv' ? 'jvInput' : 'f1Input'
+      if (this.$refs[ref]) this.$refs[ref].value = ''
+    },
+
+    resetFile() {
+      this.files = { jv: null, f1: null }
+      this.summary = null
+      if (this.$refs.jvInput) this.$refs.jvInput.value = ''
+      if (this.$refs.f1Input) this.$refs.f1Input.value = ''
+    },
+
+    /* ─── Process ─── */
+
+    async processFile() {
+      if (!this.files.jv || this.processing) return
+      this.processing = true
       try {
-        const { data } = await api.get('/admin/predictive-analytics/data', {
-          params: { period: this.activePeriod },
-        })
-        const ok = this._applyData(data?.data)
-        if (!ok) {
-          this._applyMockData()
-          this.notify('warning', 'Live data unavailable. Showing reference forecast.')
+        const jvData = await this.readExcel(this.files.jv)
+        let f1Data = { regRows: [], refRows: [], placedRows: [] }
+        if (this.files.f1) {
+          f1Data = await this.readExcel(this.files.f1)
         }
-        this._applyPeriodView()
-        this.lastUpdatedAt = new Date()
+
+        // Merge: JV file provides jvRows + form2Rows; F1 file provides reg/ref/placed
+        const merged = {
+          jvRows:    jvData.jvRows,
+          form2Rows: jvData.form2Rows.length ? jvData.form2Rows : f1Data.form2Rows,
+          regRows:   f1Data.regRows.length    ? f1Data.regRows    : jvData.regRows,
+          refRows:   f1Data.refRows.length    ? f1Data.refRows    : jvData.refRows,
+          placedRows: f1Data.placedRows.length ? f1Data.placedRows : jvData.placedRows,
+        }
+
+        this.summary = this.buildSummary(merged)
+        this.notify(
+          'success',
+          this.files.f1
+            ? 'Both files processed — full report ready!'
+            : 'JV file processed — upload F1 file for Tables 2 & 3.'
+        )
       } catch (e) {
-        console.warn('[PredictiveAnalytics] fetch failed, using mock:', e?.message || e)
-        this._applyMockData()
-        this._applyPeriodView()
-        this.lastUpdatedAt = new Date()
-        this.notify('warning', 'Could not reach analytics service. Showing reference forecast.')
+        console.error(e)
+        this.notify('error', 'Could not read file. Make sure both files are the correct format.')
       } finally {
-        const elapsed = Date.now() - startedAt
-        if (elapsed < MIN_LOADING_MS) {
-          await new Promise(r => setTimeout(r, MIN_LOADING_MS - elapsed))
-        }
-        this.loading = false
-        await this.$nextTick()
-        this._setupObservers()
-        this._startKpiAnimations()
+        this.processing = false
       }
     },
 
-    /* ───────────── AI prediction ───────────── */
+    readExcel(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          try {
+            const wb = XLSX.read(e.target.result, { type: 'array' })
 
-    async runPrediction() {
-      if (this.analyzing || !this.hasData) return
-      this.analyzing = true
-      this.insightError = ''
-      this.insightText = ''
-      this.insightChips = []
-      try {
-        const { data } = await api.post('/admin/predictive-analytics/generate', {
-          period:         this.activePeriod,
-          actualTrend:    this.actualTrendData,
-          predictedTrend: this.predictedTrendData,
-          heatmap:        this.heatmapData,
-          predictions:    this.skillPredictions,
-          kpis:           this.kpis.map(k => ({ label: k.label, value: k.value })),
-        })
-        this.insightText = data?.insight || ''
-        this.insightChips = Array.isArray(data?.chips) ? data.chips : this._autoChips()
-        this.insightGeneratedAt = this._formatTime(new Date())
-        if (!this.insightText) {
-          this.insightError = 'The AI did not return a result. Please try again.'
-          this.notify('error', 'AI insight returned empty result.')
-        } else {
-          this.notify('success', 'AI insight generated.')
+            const findSheet = (patterns) => {
+              for (const name of wb.SheetNames) {
+                const upper = name.toUpperCase().trim()
+                for (const p of patterns) {
+                  if (typeof p === 'string') {
+                    if (upper === p.toUpperCase()) return wb.Sheets[name]
+                  } else if (p.test(upper)) {
+                    return wb.Sheets[name]
+                  }
+                }
+              }
+              return null
+            }
+
+            const sheetToRows = (s) =>
+              s ? XLSX.utils.sheet_to_json(s, { header: 1, defval: null }) : []
+
+            // JV sheet ('JV' or 'Job Vac.' or any "JOB VAC..." sheet)
+            const jvSheet = findSheet(['JV', 'Job Vac.', /^JOB\s*VAC/, /VACANC/]) || wb.Sheets[wb.SheetNames[0]]
+            const jvRows = sheetToRows(jvSheet)
+
+            // Form 2 / LMI sheet
+            const form2Sheet = findSheet(['Form 2', 'Sheet2', /^F2[\W_]*LMI/, /LMI.*FORM\s*2/, /^F[12].?LMI/])
+            const form2Rows = sheetToRows(form2Sheet)
+
+            // Registered applicants
+            const regSheet = findSheet([/^REG\.?/, /REGISTRATION/, /REGISTERED/])
+            const regRows = sheetToRows(regSheet)
+
+            // Referred applicants
+            const refSheet = findSheet([/^REF\.?/, /REFERRAL/, /REFERRED/])
+            const refRows = sheetToRows(refSheet)
+
+            // Placed applicants
+            const placedSheet = findSheet([/^PLACED/, /PLACEMENT/])
+            const placedRows = sheetToRows(placedSheet)
+
+            resolve({
+              jvRows,
+              form2Rows,
+              regRows,
+              refRows,
+              placedRows,
+              sheetNames: wb.SheetNames,
+            })
+          } catch (err) {
+            reject(err)
+          }
         }
-      } catch (e) {
-        console.error('[PredictiveAnalytics] generate failed:', e)
-        this.insightError = 'AI service is temporarily unavailable. Please try again in a moment.'
-        this.notify('error', 'Could not generate AI insight.')
-      } finally {
-        this.analyzing = false
+        reader.onerror = reject
+        reader.readAsArrayBuffer(file)
+      })
+    },
+
+    buildSummary({ jvRows, form2Rows, regRows, refRows, placedRows }) {
+      // ── Detect LOCAL section ──
+      // Find header row with "NO.", "COMPANY NAME", "POSITION", "VACANCY COUNT"
+      let localHeaderRow = -1
+      let overseasHeaderRow = -1
+
+      for (let i = 0; i < jvRows.length; i++) {
+        const row = jvRows[i].map(c => String(c ?? '').trim().toUpperCase())
+        const joined = row.join('|')
+        if (localHeaderRow === -1 && joined.includes('COMPANY NAME') && joined.includes('VACANCY COUNT')) {
+          localHeaderRow = i
+        } else if (localHeaderRow !== -1 && joined.includes('COMPANY NAME') && joined.includes('VACANCY COUNT')) {
+          overseasHeaderRow = i
+          break
+        }
+      }
+
+      if (localHeaderRow === -1) throw new Error('Could not find data headers in JV sheet')
+
+      // Detect column indices from header row
+      const headerRow = jvRows[localHeaderRow].map(c => String(c ?? '').trim().toUpperCase())
+      const posCol   = headerRow.findIndex(h => h.includes('POSITION'))
+      const countCol = headerRow.findIndex(h => h.includes('VACANCY') && h.includes('COUNT'))
+
+      if (posCol === -1 || countCol === -1) throw new Error('Could not find POSITION or VACANCY COUNT columns')
+
+      // ── Parse LOCAL rows ──
+      const localEnd = overseasHeaderRow !== -1 ? overseasHeaderRow : jvRows.length
+      const localRows = jvRows.slice(localHeaderRow + 1, localEnd)
+      const localMap  = this.aggregatePositions(localRows, posCol, countCol)
+
+      // ── Parse OVERSEAS rows ──
+      const overseasMap = {}
+      if (overseasHeaderRow !== -1) {
+        const overseasRows = jvRows.slice(overseasHeaderRow + 1)
+        Object.assign(overseasMap, this.aggregatePositions(overseasRows, posCol, countCol))
+      }
+
+      // ── Totals ──
+      const localTotal    = Object.values(localMap).reduce((s, v) => s + v, 0)
+      const overseasTotal = Object.values(overseasMap).reduce((s, v) => s + v, 0)
+      const grandTotal    = localTotal + overseasTotal
+
+      // ── Combined top positions ──
+      const allPositions = new Set([...Object.keys(localMap), ...Object.keys(overseasMap)])
+      const combined = []
+      allPositions.forEach(pos => {
+        const local    = localMap[pos]    || 0
+        const overseas = overseasMap[pos] || 0
+        const total    = local + overseas
+        combined.push({ name: pos, local, overseas, total })
+      })
+      combined.sort((a, b) => b.total - a.total)
+
+      // Top 10 + others
+      const top10 = combined.slice(0, 10)
+      const rest  = combined.slice(10)
+
+      const topPositions = top10.map(p => ({
+        ...p,
+        pct:      grandTotal ? +((p.total / grandTotal) * 100).toFixed(1) : 0,
+        industry: INDUSTRY_MAP[p.name] || 'Wholesale and Retail Trade',
+      }))
+
+      const othersLocal    = rest.reduce((s, p) => s + p.local, 0)
+      const othersOverseas = rest.reduce((s, p) => s + p.overseas, 0)
+      const othersTotal    = othersLocal + othersOverseas
+      const others = othersTotal > 0 ? {
+        local:    othersLocal,
+        overseas: othersOverseas,
+        total:    othersTotal,
+        pct:      grandTotal ? +((othersTotal / grandTotal) * 100).toFixed(1) : 0,
+        names:    rest.slice(0, 6).map(p => p.name).join(', ') + (rest.length > 6 ? ', etc.' : ''),
+      } : null
+
+      // ── LMI from Form 2 ──
+      const lmiData  = this.parseLmi(form2Rows)
+
+      // ── Table 2: Registered Applicants by gender ──
+      const table2 = this.parseRegistered(regRows || [])
+
+      // ── Table 3: Referred & Placed by gender + work location ──
+      const table3 = this.parsePlacement(refRows || [], placedRows || [])
+
+      // ── Period from filename or sheet ──
+      const refName = (this.files.jv && this.files.jv.name) || (this.files.f1 && this.files.f1.name) || ''
+      const period = this.detectPeriod(refName, jvRows)
+
+      return {
+        period,
+        localTotal,
+        overseasTotal,
+        grandTotal,
+        localPct:    grandTotal ? +((localTotal / grandTotal) * 100).toFixed(1) : 0,
+        overseasPct: grandTotal ? +((overseasTotal / grandTotal) * 100).toFixed(1) : 0,
+        topPositions,
+        others,
+        table2,
+        table3,
+        lmiInstitutions: lmiData.total,
+        lmiBreakdown:    lmiData.breakdown,
       }
     },
 
-    /* ───────────── export ───────────── */
+    /* ── Table 2: Registered Applicants ── */
+    parseRegistered(rows) {
+      // Detect sub-header row that contains "Male" and "Female"
+      let subHeaderRow = -1
+      for (let i = 0; i < Math.min(rows.length, 30); i++) {
+        const r = rows[i].map(c => String(c ?? '').trim().toUpperCase())
+        if (r.includes('MALE') && r.includes('FEMALE')) {
+          subHeaderRow = i
+          break
+        }
+      }
+      if (subHeaderRow === -1) return { male: 0, female: 0, total: 0, youth: 0, nonYouth: 0 }
 
-    async exportReport() {
-      if (!this.hasData || this.exporting) return
-      this.exporting = true
+      const header = rows[subHeaderRow].map(c => String(c ?? '').trim().toUpperCase())
+      const maleCol     = header.findIndex(h => h === 'MALE')
+      const femaleCol   = header.findIndex(h => h === 'FEMALE')
+      // "Youth (age 24 and below)" / "Non-Youth (age 25 and above)" — match
+      // non-youth first (more specific) so it doesn't get stolen by /YOUTH/.
+      const nonYouthCol = header.findIndex(h => h.includes('NON-YOUTH') || h.includes('NON YOUTH'))
+      const youthCol    = header.findIndex((h, i) => i !== nonYouthCol && h.includes('YOUTH'))
+
+      let male = 0, female = 0, youth = 0, nonYouth = 0
+      for (let i = subHeaderRow + 1; i < rows.length; i++) {
+        const row = rows[i] || []
+        const m = parseFloat(row[maleCol])
+        const f = parseFloat(row[femaleCol])
+        if (!isNaN(m) && m > 0) male += m
+        if (!isNaN(f) && f > 0) female += f
+        if (youthCol >= 0) {
+          const y = parseFloat(row[youthCol])
+          if (!isNaN(y) && y > 0) youth += y
+        }
+        if (nonYouthCol >= 0) {
+          const n = parseFloat(row[nonYouthCol])
+          if (!isNaN(n) && n > 0) nonYouth += n
+        }
+      }
+      return { male, female, total: male + female, youth, nonYouth }
+    },
+
+    /* ── Table 3: Referred & Placed ── */
+    parsePlacement(refRows, placedRows) {
+      // Locate sub-header (row containing both MALE and FEMALE)
+      const findSubHeader = (rows) => {
+        for (let i = 0; i < Math.min(rows.length, 30); i++) {
+          const r = (rows[i] || []).map(c => String(c ?? '').trim().toUpperCase())
+          if (r.includes('MALE') && r.includes('FEMALE')) return i
+        }
+        return -1
+      }
+
+      // Look up a column index across the sub-header AND the row above it.
+      // Some F-forms put gender on row N+1 and Local/Overseas on row N.
+      const findCol = (rows, subRow, predicate) => {
+        for (const r of [subRow, subRow - 1]) {
+          if (r < 0 || !rows[r]) continue
+          const cells = rows[r].map(c => String(c ?? '').trim().toUpperCase())
+          const idx = cells.findIndex(predicate)
+          if (idx >= 0) return idx
+        }
+        return -1
+      }
+
+      // Referred: only need male/female
+      let ref = { male: 0, female: 0 }
+      const refSub = findSubHeader(refRows)
+      if (refSub >= 0) {
+        const mC = findCol(refRows, refSub, h => h === 'MALE')
+        const fC = findCol(refRows, refSub, h => h === 'FEMALE')
+        for (let i = refSub + 1; i < refRows.length; i++) {
+          const row = refRows[i] || []
+          if (mC >= 0 && parseFloat(row[mC]) > 0) ref.male++
+          if (fC >= 0 && parseFloat(row[fC]) > 0) ref.female++
+        }
+      }
+
+      // Placed: need male/female AND local/overseas (cross-tabulated per row)
+      let pml = 0, pfl = 0, pmo = 0, pfo = 0
+      const plcSub = findSubHeader(placedRows)
+      if (plcSub >= 0) {
+        const mC = findCol(placedRows, plcSub, h => h === 'MALE')
+        const fC = findCol(placedRows, plcSub, h => h === 'FEMALE')
+        const lC = findCol(placedRows, plcSub, h => h.includes('LOCAL'))
+        const oC = findCol(placedRows, plcSub, h => h.includes('OVERSEAS'))
+        for (let i = plcSub + 1; i < placedRows.length; i++) {
+          const row = placedRows[i] || []
+          const isM = mC >= 0 && parseFloat(row[mC]) > 0
+          const isF = fC >= 0 && parseFloat(row[fC]) > 0
+          const isL = lC >= 0 && parseFloat(row[lC]) > 0
+          const isO = oC >= 0 && parseFloat(row[oC]) > 0
+          if (isM && isL) pml++
+          if (isF && isL) pfl++
+          if (isM && isO) pmo++
+          if (isF && isO) pfo++
+        }
+      }
+
+      const placedMale     = pml + pmo
+      const placedFemale   = pfl + pfo
+      const refTotal       = ref.male + ref.female
+      const placedTotal    = placedMale + placedFemale
+      const placedLocal    = pml + pfl
+      const placedOverseas = pmo + pfo
+
+      return {
+        ref:            { male: ref.male,    female: ref.female,   total: refTotal },
+        placed:         { male: placedMale,  female: placedFemale, total: placedTotal },
+        placedLocal:    { male: pml,         female: pfl,          total: placedLocal },
+        placedOverseas: { male: pmo,         female: pfo,          total: placedOverseas },
+        placementRate:  refTotal ? +((placedTotal / refTotal) * 100).toFixed(2) : 0,
+      }
+    },
+
+    aggregatePositions(rows, posCol, countCol) {
+      const map = {}
+      for (const row of rows) {
+        const pos   = String(row[posCol] ?? '').trim().replace(/^\t/, '')
+        const count = parseFloat(row[countCol])
+        if (!pos || isNaN(count) || count <= 0) continue
+        // Skip total rows
+        if (pos.toUpperCase().includes('TOTAL') || pos.toUpperCase().includes('GRAND')) continue
+        map[pos.toUpperCase()] = (map[pos.toUpperCase()] || 0) + count
+      }
+      return map
+    },
+
+    parseLmi(rows) {
+      if (!rows.length) return { total: 0, breakdown: [] }
+      const typeCounts = {}
+      let total = 0
+      for (const row of rows) {
+        const cells = row.map(c => String(c ?? '').trim())
+        // Look for rows that have a number in first cell and institution name
+        const num = parseInt(cells[0])
+        const type = cells.slice(3).find(c => c.length > 2) || ''
+        if (!isNaN(num) && num > 0 && type) {
+          typeCounts[type] = (typeCounts[type] || 0) + 1
+        }
+      }
+      // Find total row
+      for (const row of rows) {
+        const cells = row.map(c => String(c ?? '').trim().toUpperCase())
+        if (cells.includes('TOTAL') || cells.includes('GRAND TOTAL')) {
+          const num = row.map(c => parseInt(c)).find(n => !isNaN(n) && n > 0)
+          if (num) { total = num; break }
+        }
+      }
+      if (!total) total = Object.values(typeCounts).reduce((s, v) => s + v, 0)
+
+      const breakdown = Object.entries(typeCounts).map(([lmiType, count]) => ({
+        count,
+        type: 'Public & Private Agencies',
+        lmiType,
+      }))
+      if (!breakdown.length) breakdown.push({ count: total, type: 'Public & Private Agencies', lmiType: 'Job Posting' })
+
+      return { total, breakdown }
+    },
+
+    detectPeriod(filename, rows) {
+      // Try to extract from filename e.g. FEBRUARY_2026
+      const months = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE',
+                      'JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER']
+      const upper = filename.toUpperCase()
+      for (const m of months) {
+        if (upper.includes(m)) {
+          const yearMatch = filename.match(/20\d{2}/)
+          return yearMatch ? `${m.charAt(0) + m.slice(1).toLowerCase()} ${yearMatch[0]}` : m.charAt(0) + m.slice(1).toLowerCase()
+        }
+      }
+      // Try to find from sheet rows
+      for (const row of rows.slice(0, 15)) {
+        const text = row.map(c => String(c ?? '')).join(' ').toUpperCase()
+        for (const m of months) {
+          if (text.includes(m)) {
+            const yearMatch = text.match(/20\d{2}/)
+            return yearMatch
+              ? `${m.charAt(0) + m.slice(1).toLowerCase()} ${yearMatch[0]}`
+              : m.charAt(0) + m.slice(1).toLowerCase()
+          }
+        }
+      }
+      return 'Current Period'
+    },
+
+    /* ─── Download via Laravel ─── */
+
+    async downloadReport() {
+      if (!this.summary || this.downloading) return
+      this.downloading = true
       try {
-        const { data } = await api.post('/admin/predictive-analytics/export-pdf', {
-          period:      this.activePeriod,
-          kpis:        this.kpis,
-          insightText: this.insightText,
-          predictions: this.skillPredictions,
-          heatmap:     this.heatmapData,
-          generatedAt: this.insightGeneratedAt,
-        }, { responseType: 'blob' })
-        const blob = new Blob([data], { type: 'application/pdf' })
+        const response = await api.post(
+          '/lma/generate-excel',
+          { summary: this.summary },
+          { responseType: 'blob' }
+        )
+        const blob = new Blob([response.data], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        })
         const url  = URL.createObjectURL(blob)
         const link = document.createElement('a')
         link.href = url
-        link.download = `predictive-analytics-${this.activePeriod}-${new Date().toISOString().split('T')[0]}.pdf`
+        link.download = `LMA_Report_${this.summary.period.replace(/\s+/g, '_')}.xlsx`
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
         URL.revokeObjectURL(url)
-        this.notify('success', 'Report downloaded.')
+        this.notify('success', 'Report downloaded!')
       } catch (e) {
-        console.error('[PredictiveAnalytics] export failed:', e)
-        this.notify('error', 'Failed to export report.')
+        console.error(e)
+        this.notify('error', 'Failed to generate Excel. Please check your connection.')
       } finally {
-        this.exporting = false
+        this.downloading = false
       }
     },
 
-    /* ───────────── data application + validation ───────────── */
-
-    _applyData(d) {
-      if (!d || typeof d !== 'object') return false
-
-      try {
-        this.sourcePeriod = String(d.period || d.timeframe || '').toLowerCase()
-        if (Array.isArray(d.kpis)) {
-          d.kpis.forEach((k, i) => {
-            if (this.kpis[i] && k && typeof k === 'object') {
-              const safe = {}
-              if (typeof k.value !== 'undefined') safe.value = String(k.value)
-              if (typeof k.trend !== 'undefined') safe.trend = String(k.trend)
-              if (typeof k.up    !== 'undefined') safe.up    = !!k.up
-              Object.assign(this.kpis[i], safe)
-            }
-          })
-        }
-
-        const validTrend = arr => Array.isArray(arr) && arr.every(x =>
-          x && typeof x === 'object' &&
-          typeof x.label === 'string' &&
-          isFiniteNumber(Number(x.value)),
-        )
-
-        if (validTrend(d.actualTrend)) {
-          this.actualTrendData = d.actualTrend.map(x => ({
-            label: x.label, value: Number(x.value),
-          }))
-        }
-        if (validTrend(d.predictedTrend)) {
-          this.predictedTrendData = d.predictedTrend.map(x => ({
-            label: x.label,
-            value: Number(x.value),
-            low:   isFiniteNumber(Number(x.low))  ? Number(x.low)  : undefined,
-            high:  isFiniteNumber(Number(x.high)) ? Number(x.high) : undefined,
-          }))
-        }
-
-        if (Array.isArray(d.forecastMonths) && d.forecastMonths.every(m => typeof m === 'string')) {
-          this.forecastMonths = d.forecastMonths
-        }
-
-        if (Array.isArray(d.heatmap)) {
-          const cols = this.forecastMonths.length || 6
-          this.heatmapData = d.heatmap.filter(r =>
-            r && typeof r.skill === 'string' &&
-            Array.isArray(r.values) &&
-            r.values.length === cols &&
-            r.values.every(v => isFiniteNumber(Number(v))),
-          ).map(r => ({
-            skill:  r.skill,
-            color:  typeof r.color === 'string' ? r.color : '#2563eb',
-            values: r.values.map(v => clamp(Number(v), 0, 100)),
-          }))
-        }
-
-        if (Array.isArray(d.predictions)) {
-          this.skillPredictions = d.predictions.filter(p =>
-            p && typeof p.skill === 'string' &&
-            isFiniteNumber(Number(p.change)) &&
-            isFiniteNumber(Number(p.pct)),
-          ).map(p => ({
-            skill:      p.skill,
-            industry:   String(p.industry || ''),
-            change:     Number(p.change),
-            pct:        clamp(Number(p.pct), 0, 100),
-            confidence: ['High','Medium','Low'].includes(p.confidence) ? p.confidence : 'Medium',
-            confClass:  p.confClass || 'conf-med',
-            note:       String(p.note || ''),
-            iconBg:     p.iconBg     || '#f1f5f9',
-            iconColor:  p.iconColor  || '#64748b',
-            icon:       typeof p.icon === 'string' ? p.icon : '',
-          }))
-        }
-
-        if (Array.isArray(d.modelConfidence)) {
-          this.modelConfidence = d.modelConfidence.filter(m =>
-            m && typeof m.label === 'string' &&
-            isFiniteNumber(Number(m.pct)),
-          ).map(m => ({
-            label: m.label,
-            pct:   clamp(Number(m.pct), 0, 100),
-            note:  String(m.note || ''),
-            color: m.color,
-          }))
-        }
-
-        if (d.insightMeta && typeof d.insightMeta === 'object') {
-          this.insightMeta = {
-            jobseekers:     Number(d.insightMeta.jobseekers)     || 0,
-            openings:       Number(d.insightMeta.openings)       || 0,
-            placementRate:  String(d.insightMeta.placementRate || '0%'),
-          }
-        }
-
-        this.modelDataPoints = Number(d.modelDataPoints) || 0
-
-        if (!this.hasData) return false
-        return true
-      } catch (err) {
-        console.error('[PredictiveAnalytics] apply data failed:', err)
-        return false
-      }
-    },
-
-    _applyMockData() {
-      this.sourcePeriod = 'monthly'
-      const histLabels = generateMonthLabels(12, -11)
-      const futLabels  = generateMonthLabels(6, 1)
-
-      this.kpis[0].value = '342';       this.kpis[0].trend = '+8%';   this.kpis[0].up = true
-      this.kpis[1].value = '64.3%';     this.kpis[1].trend = '+2.1%'; this.kpis[1].up = true
-      this.kpis[2].value = 'IT Support';this.kpis[2].trend = '+23%';  this.kpis[2].up = true
-      this.kpis[3].value = 'Medium';    this.kpis[3].trend = '-5%';   this.kpis[3].up = false
-
-      this.insightMeta = { jobseekers: 4821, openings: 1349, placementRate: '38.4%' }
-      this.modelDataPoints = 12840
-
-      const histValues = [210, 245, 230, 268, 255, 290, 310, 285, 320, 298, 342, 365]
-      this.actualTrendData = histLabels.map((label, i) => ({ label, value: histValues[i] }))
-
-      const futValues = [
-        { v: 380, l: 355, h: 408 },
-        { v: 395, l: 362, h: 430 },
-        { v: 412, l: 372, h: 455 },
-        { v: 428, l: 380, h: 478 },
-        { v: 448, l: 390, h: 508 },
-        { v: 465, l: 400, h: 532 },
-      ]
-      this.predictedTrendData = futLabels.map((label, i) => ({
-        label, value: futValues[i].v, low: futValues[i].l, high: futValues[i].h,
-      }))
-
-      this.forecastMonths = futLabels
-
-      this.heatmapData = [
-        { skill: 'IT / Tech Support',     color: '#2563eb', values: [72, 78, 84, 88, 91, 93] },
-        { skill: 'Healthcare Aide',       color: '#16a34a', values: [55, 60, 65, 68, 72, 75] },
-        { skill: 'BPO / Call Center',     color: '#8b5cf6', values: [80, 82, 79, 77, 75, 73] },
-        { skill: 'Construction',          color: '#f59e0b', values: [60, 58, 62, 68, 72, 70] },
-        { skill: 'Food Service',          color: '#f97316', values: [70, 68, 65, 64, 63, 61] },
-        { skill: 'Accounting / Finance',  color: '#06b6d4', values: [45, 48, 50, 52, 55, 58] },
-        { skill: 'Logistics / Driving',   color: '#ef4444', values: [50, 46, 42, 40, 38, 35] },
-      ]
-
-      this.skillPredictions = [
-        { skill: 'IT / Tech Support', industry: 'Technology', change: 23, pct: 88, confidence: 'High', confClass: 'conf-high',
-          note: 'BPO expansion and digital transformation driving consistent growth.',
-          iconBg: '#eff6ff', iconColor: '#2563eb',
-          icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><polyline points="8 21 12 17 16 21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>' },
-        { skill: 'Healthcare Aide', industry: 'Healthcare', change: 17, pct: 72, confidence: 'High', confClass: 'conf-high',
-          note: 'Aging population and hospital expansion in NCR sustaining demand.',
-          iconBg: '#f0fdf4', iconColor: '#16a34a',
-          icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>' },
-        { skill: 'Construction Trades', industry: 'Construction', change: 9, pct: 55, confidence: 'Medium', confClass: 'conf-med',
-          note: 'Infrastructure projects increasing demand for skilled tradespeople.',
-          iconBg: '#fffbeb', iconColor: '#f59e0b',
-          icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>' },
-        { skill: 'BPO / Call Center', industry: 'Business Process', change: 4, pct: 42, confidence: 'Medium', confClass: 'conf-med',
-          note: 'Stable growth with new international accounts being onboarded.',
-          iconBg: '#faf5ff', iconColor: '#8b5cf6',
-          icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07"/></svg>' },
-        { skill: 'Food Service', industry: 'Hospitality', change: -3, pct: 28, confidence: 'Medium', confClass: 'conf-med',
-          note: 'Slight decline as automation enters fast food operations.',
-          iconBg: '#fff7ed', iconColor: '#f97316',
-          icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 010 8h-1"/><path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/></svg>' },
-        { skill: 'Logistics / Driving', industry: 'Transport', change: -8, pct: 18, confidence: 'Low', confClass: 'conf-low',
-          note: 'Route optimization and automation reducing driver headcount.',
-          iconBg: '#fef2f2', iconColor: '#ef4444',
-          icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 5v3h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>' },
-      ]
-
-      this.modelConfidence = [
-        { label: 'Short-term (1 month)',  pct: 91, note: 'Very reliable — based on current pipeline' },
-        { label: 'Mid-term (3 months)',   pct: 78, note: 'Good confidence — seasonal patterns applied' },
-        { label: 'Long-term (6 months)',  pct: 62, note: 'Moderate — subject to policy changes' },
-        { label: 'Skill gap prediction',  pct: 84, note: 'High confidence — employer data correlated' },
-      ]
-    },
-
-    _applyPeriodView() {
-      const p = this.activePeriod
-      if (this.sourcePeriod && this.sourcePeriod === p) {
-        this._refreshKpiTrendLabels()
-        return
-      }
-      if (p === 'weekly') this._transformToWeekly()
-      if (p === 'yearly') this._transformToYearly()
-      if (p === 'monthly') this._transformToMonthly()
-      this._refreshKpiTrendLabels()
-    },
-
-    _transformToMonthly() {
-      // Keep monthly as baseline when source has no explicit period.
-    },
-
-    _transformToWeekly() {
-      const baseActual = [...this.actualTrendData]
-      const weeklyActualValues = this._resampleValues(baseActual.map(x => Number(x.value) || 0), 10, 0.26)
-      const weeklyPredValues = this._buildForwardProjection(weeklyActualValues, 6, 1.03)
-
-      this.actualTrendData = weeklyActualValues.map((v, i) => ({
-        label: this._weekLabel(-9 + i),
-        value: Math.max(1, Math.round(v)),
-      }))
-      this.predictedTrendData = weeklyPredValues.map((v, i) => {
-        const spread = Math.max(4, Math.round(v * 0.09))
-        return {
-          label: this._weekLabel(1 + i),
-          value: Math.max(1, Math.round(v)),
-          low: Math.max(1, Math.round(v - spread)),
-          high: Math.max(1, Math.round(v + spread)),
-        }
-      })
-      this.forecastMonths = this.predictedTrendData.map(x => x.label)
-
-      this.heatmapData = this.heatmapData.map(row => {
-        const vals = this._resampleValues(row.values.map(Number), 6, 1)
-        return { ...row, values: vals.map(v => clamp(Math.round(v), 0, 100)) }
-      })
-
-      this.skillPredictions = this.skillPredictions.map(pred => ({
-        ...pred,
-        change: this._scaledPercent(pred.change, 0.35),
-        pct: clamp(Math.round(pred.pct * 0.75), 0, 100),
-      }))
-
-      this.modelConfidence = this.modelConfidence.map((m, i) => ({
-        ...m,
-        label: ['Now to 2 weeks', '2–6 weeks', '6–12 weeks', 'Weekly skill match'][i] || m.label,
-        pct: clamp(Math.round(m.pct + (i === 0 ? 3 : i === 2 ? -3 : 0)), 0, 100),
-      }))
-
-      this.insightMeta = {
-        ...this.insightMeta,
-        openings: Math.max(1, Math.round(this.insightMeta.openings / 4)),
-      }
-      this._recomputeKpis()
-    },
-
-    _transformToYearly() {
-      const yearlyActualValues = this._resampleValues(this.actualTrendData.map(x => Number(x.value) || 0), 5, 12)
-      const yearlyPredValues = this._buildForwardProjection(yearlyActualValues, 3, 1.06)
-      const nowYear = new Date().getFullYear()
-
-      this.actualTrendData = yearlyActualValues.map((v, i) => ({
-        label: String(nowYear - (yearlyActualValues.length - 1 - i)),
-        value: Math.max(1, Math.round(v)),
-      }))
-      this.predictedTrendData = yearlyPredValues.map((v, i) => {
-        const spread = Math.max(60, Math.round(v * 0.12))
-        return {
-          label: String(nowYear + i + 1),
-          value: Math.max(1, Math.round(v)),
-          low: Math.max(1, Math.round(v - spread)),
-          high: Math.max(1, Math.round(v + spread)),
-        }
-      })
-      this.forecastMonths = this.predictedTrendData.map(x => x.label)
-
-      this.heatmapData = this.heatmapData.map(row => {
-        const vals = this._resampleValues(row.values.map(Number), 3, 1)
-        return { ...row, values: vals.map(v => clamp(Math.round(v), 0, 100)) }
-      })
-
-      this.skillPredictions = this.skillPredictions.map(pred => ({
-        ...pred,
-        change: this._scaledPercent(pred.change, 2.2),
-        pct: clamp(Math.round(pred.pct * 1.12), 0, 100),
-      }))
-
-      this.modelConfidence = this.modelConfidence.map((m, i) => ({
-        ...m,
-        label: ['1-year horizon', '2-year horizon', '3-year horizon', 'Long-term skill alignment'][i] || m.label,
-        pct: clamp(Math.round(m.pct - (i < 2 ? 8 : 10)), 0, 100),
-      }))
-
-      this.insightMeta = {
-        ...this.insightMeta,
-        openings: Math.max(1, Math.round(this.insightMeta.openings * 12)),
-      }
-      this._recomputeKpis()
-    },
-
-    _recomputeKpis() {
-      const latestActual = this.actualTrendData[this.actualTrendData.length - 1]?.value || 0
-      const firstPred = this.predictedTrendData[0]?.value || latestActual
-      const predGrowthPct = latestActual ? ((firstPred - latestActual) / latestActual) * 100 : 0
-      const avgPred = this.predictedTrendData.length
-        ? this.predictedTrendData.reduce((s, x) => s + (x.value || 0), 0) / this.predictedTrendData.length
-        : 0
-
-      const topSkill = [...this.skillPredictions].sort((a, b) => b.change - a.change)[0]
-      const avgConf = this.modelConfidence.length
-        ? this.modelConfidence.reduce((s, x) => s + (x.pct || 0), 0) / this.modelConfidence.length
-        : 70
-      const riskScore = avgConf >= 82 ? 'Low' : avgConf >= 66 ? 'Medium' : 'High'
-
-      this.kpis[0].value = this.formatNumber(Math.round(avgPred))
-      this.kpis[0].trend = `${predGrowthPct >= 0 ? '+' : ''}${Math.round(predGrowthPct)}%`
-      this.kpis[0].up = predGrowthPct >= 0
-
-      const employmentRate = clamp(28 + avgConf * 0.45, 0, 100)
-      this.kpis[1].value = `${employmentRate.toFixed(1)}%`
-      this.kpis[1].trend = `${predGrowthPct >= 0 ? '+' : ''}${(predGrowthPct * 0.35).toFixed(1)}%`
-      this.kpis[1].up = predGrowthPct >= 0
-
-      if (topSkill) {
-        this.kpis[2].value = topSkill.skill
-        this.kpis[2].trend = `${topSkill.change >= 0 ? '+' : ''}${topSkill.change}%`
-        this.kpis[2].up = topSkill.change >= 0
-      }
-
-      this.kpis[3].value = riskScore
-      this.kpis[3].trend = `${Math.round(100 - avgConf)}%`
-      this.kpis[3].up = riskScore === 'Low'
-    },
-
-    _refreshKpiTrendLabels() {
-      const labelMap = {
-        weekly: 'vs last week',
-        monthly: 'vs last month',
-        yearly: 'vs last year',
-      }
-      this.kpis[0].trendLabel = labelMap[this.activePeriod]
-      this.kpis[1].trendLabel = labelMap[this.activePeriod]
-      this.kpis[2].trendLabel = 'projected demand'
-      this.kpis[3].trendLabel = `change ${labelMap[this.activePeriod]}`
-    },
-
-    _resampleValues(values, targetLen, multiplier = 1) {
-      const src = (values || []).filter(v => Number.isFinite(Number(v))).map(Number)
-      if (!src.length) return Array.from({ length: targetLen }, () => 0)
-      if (src.length === targetLen) return src.map(v => v * multiplier)
-      const maxIdx = src.length - 1
-      return Array.from({ length: targetLen }, (_, i) => {
-        const pos = (i / Math.max(targetLen - 1, 1)) * maxIdx
-        const lo = Math.floor(pos)
-        const hi = Math.ceil(pos)
-        const t = pos - lo
-        const interp = src[lo] + (src[hi] - src[lo]) * t
-        return interp * multiplier
-      })
-    },
-
-    _buildForwardProjection(actualVals, count, growthFactor = 1.03) {
-      const out = []
-      if (!actualVals.length) return Array.from({ length: count }, () => 0)
-      const lookback = actualVals.slice(-3)
-      const baseTrend = lookback.length > 1
-        ? (lookback[lookback.length - 1] - lookback[0]) / (lookback.length - 1)
-        : 0
-      let last = actualVals[actualVals.length - 1]
-      for (let i = 0; i < count; i++) {
-        const trendBoost = baseTrend * (0.7 + i * 0.18)
-        last = Math.max(1, last * growthFactor + trendBoost)
-        out.push(last)
-      }
-      return out
-    },
-
-    _scaledPercent(value, factor) {
-      const v = Number(value) || 0
-      const scaled = v * factor
-      return scaled >= 0 ? Math.round(scaled) : -Math.round(Math.abs(scaled))
-    },
-
-    _weekLabel(weekOffset) {
-      const now = new Date()
-      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + weekOffset * 7)
-      return d.toLocaleString('en-US', { month: 'short', day: '2-digit' })
-    },
-
-    /* ───────────── animations ───────────── */
-
-    _resetAnims() {
-      this.trendAnimated   = false
-      this.confAnimated    = false
-      this.heatmapAnimated = false
-      this.predsAnimated   = false
-      this.trendTip        = null
-      this.kpiAnimValues   = ['—', '—', '—', '—']
-    },
-
-    _setupObservers() {
-      this.observers.forEach(o => o.disconnect())
-      this.observers = []
-
-      const observe = (selector, flag, delay = 80) => {
-        const el = this.$el && this.$el.querySelector(selector)
-        if (!el) {
-          setTimeout(() => { this[flag] = true }, delay)
-          return
-        }
-        const obs = new IntersectionObserver(([entry]) => {
-          if (entry.isIntersecting) {
-            setTimeout(() => { this[flag] = true }, delay)
-            obs.disconnect()
-          }
-        }, { threshold: 0.15 })
-        obs.observe(el)
-        this.observers.push(obs)
-      }
-
-      observe('.svg-wrap',        'trendAnimated',   100)
-      observe('.confidence-list', 'confAnimated',    120)
-      observe('.heatmap-wrap',    'heatmapAnimated', 150)
-      observe('.pred-grid',       'predsAnimated',   100)
-    },
-
-    _startKpiAnimations() {
-      this.kpis.forEach((kpi, i) => {
-        const raw = String(kpi.value)
-        const match = raw.match(/^([\d,]+(?:\.\d+)?)/)
-        if (!match) {
-          this.kpiAnimValues[i] = raw
-          return
-        }
-        const numStr   = match[1].replace(/,/g, '')
-        const target   = parseFloat(numStr)
-        if (!Number.isFinite(target)) {
-          this.kpiAnimValues[i] = raw
-          return
-        }
-        const suffix   = raw.slice(match[1].length)
-        const decimals = (numStr.split('.')[1] || '').length
-        const start    = performance.now()
-        const duration = 850
-
-        const tick = (now) => {
-          const t = Math.min(1, (now - start) / duration)
-          const eased = 1 - Math.pow(1 - t, 3)
-          const cur = target * eased
-          this.kpiAnimValues[i] = cur.toFixed(decimals) + suffix
-          if (t < 1) requestAnimationFrame(tick)
-          else this.kpiAnimValues[i] = raw
-        }
-        requestAnimationFrame(tick)
-      })
-    },
-
-    /* ───────────── chart helpers ───────────── */
-
-    _niceMax(raw) {
-      if (raw <= 0) return 1
-      const mag = Math.pow(10, Math.floor(Math.log10(raw)))
-      for (const s of [1, 2, 2.5, 5, 10]) {
-        const c = Math.ceil(raw / (mag * s)) * (mag * s)
-        if (c >= raw) return c
-      }
-      return Math.ceil(raw / mag) * mag
-    },
-
-    _smooth(pts) {
-      if (!pts.length) return ''
-      if (pts.length === 1) return `M${pts[0].x},${pts[0].y}`
-      const tension = 0.32
-      let d = `M${pts[0].x},${pts[0].y}`
-      for (let i = 1; i < pts.length; i++) {
-        const prev = pts[i - 1]
-        const cur  = pts[i]
-        const dx   = cur.x - prev.x
-        const cp1x = prev.x + dx * tension
-        const cp2x = cur.x  - dx * tension
-        d += ` C${cp1x},${prev.y} ${cp2x},${cur.y} ${cur.x},${cur.y}`
-      }
-      return d
-    },
-
-    onTrendMove(evt) {
-      if (!this.allTrendPoints.length) return
-      const svg = this.$refs.trendSvg
-      const wrap = this.$refs.trendWrap
-      if (!svg || !wrap) return
-
-      const pt = svg.createSVGPoint()
-      pt.x = evt.clientX
-      pt.y = evt.clientY
-      const ctm = svg.getScreenCTM()
-      if (!ctm) return
-      const svgPt = pt.matrixTransform(ctm.inverse())
-
-      let best = null, bestDist = Infinity
-      this.allTrendPoints.forEach((p, i) => {
-        const dist = Math.abs(svgPt.x - p.x)
-        if (dist < bestDist) { bestDist = dist; best = i }
-      })
-      if (best === null || bestDist > this.trendColW / 2 + 4) {
-        this.trendTip = null
-        return
-      }
-
-      const p = this.allTrendPoints[best]
-      const rect = wrap.getBoundingClientRect()
-      const TIP_W = 180, TIP_H = 90
-      let x = evt.clientX - rect.left + 14
-      let y = evt.clientY - rect.top - 12
-      if (x + TIP_W > rect.width)  x = evt.clientX - rect.left - TIP_W - 10
-      if (x < 0)                   x = 4
-      if (y + TIP_H > rect.height) y = rect.height - TIP_H - 4
-      if (y < 0)                   y = 4
-
-      const isActual = best < this.actualTrendData.length
-      this.trendTip = {
-        i: best,
-        label: p.label,
-        isPredicted: p.isPredicted,
-        actual:    isActual    ? p.value : null,
-        predicted: p.isPredicted ? p.value : null,
-        low:  p.low,
-        high: p.high,
-        x, y,
-      }
-    },
-
-    /* ───────────── color helpers ───────────── */
-
-    heatColor(val) {
-      const stops = [
-        [0,   '#f1f5fb'],
-        [25,  '#dbeafe'],
-        [50,  '#93c5fd'],
-        [75,  '#3b82f6'],
-        [100, '#1e3a8a'],
-      ]
-      const v = clamp(val, 0, 100)
-      for (let i = 0; i < stops.length - 1; i++) {
-        if (v >= stops[i][0] && v <= stops[i + 1][0]) {
-          const t = (v - stops[i][0]) / (stops[i + 1][0] - stops[i][0])
-          return this._mixColors(stops[i][1], stops[i + 1][1], t)
-        }
-      }
-      return stops[stops.length - 1][1]
-    },
-
-    confidenceColor(pct) {
-      if (pct >= 85) return '#16a34a'
-      if (pct >= 70) return '#2563eb'
-      if (pct >= 55) return '#f59e0b'
-      return '#ef4444'
-    },
-
-    _mixColors(c1, c2, t) {
-      const h = s => parseInt(s.slice(1), 16)
-      const r1 = h(c1) >> 16, g1 = (h(c1) >> 8) & 255, b1 = h(c1) & 255
-      const r2 = h(c2) >> 16, g2 = (h(c2) >> 8) & 255, b2 = h(c2) & 255
-      const r = Math.round(r1 + (r2 - r1) * t)
-      const g = Math.round(g1 + (g2 - g1) * t)
-      const b = Math.round(b1 + (b2 - b1) * t)
-      return `rgb(${r},${g},${b})`
-    },
-
-    /* ───────────── KPI trend visuals ───────────── */
-
-    trendDirection(kpi) {
-      const m = String(kpi.trend).match(/-?[\d.]+/)
-      if (!m) return kpi.up ? 'up' : 'down'
-      const v = parseFloat(m[0])
-      if (Math.abs(v) < 1) return 'flat'
-      return kpi.up ? 'up' : 'down'
-    },
-
-    trendClass(kpi) {
-      const dir = this.trendDirection(kpi)
-      if (dir === 'flat') return 'trend-flat'
-      return dir === 'up' ? 'trend-up' : 'trend-down'
-    },
-
-    /* ───────────── insight chips ───────────── */
-
-    _autoChips() {
-      const chips = []
-      const top = this.skillPredictions.find(p => p.change >= 15)
-      if (top) chips.push({ text: `↑ ${top.skill} +${top.change}%`, cls: 'chip-green' })
-      const dec = this.skillPredictions.find(p => p.change < 0)
-      if (dec) chips.push({ text: `↓ ${dec.skill} ${dec.change}%`, cls: 'chip-red' })
-      if (this.kpis[0]?.value) chips.push({ text: `${this.kpis[0].value} predicted placements`, cls: 'chip-blue' })
-      if (this.kpis[3]?.value) chips.push({ text: `${this.kpis[3].value} risk score`, cls: 'chip-amber' })
-      return chips
-    },
-
-    /* ───────────── formatting ───────────── */
+    /* ─── Helpers ─── */
 
     formatNumber(n) {
-      if (n === null || n === undefined || !Number.isFinite(Number(n))) return '—'
+      if (n == null || isNaN(n)) return '—'
       return Number(n).toLocaleString('en-US')
     },
 
-    _formatTime(d) {
-      return d.toLocaleString('en-US', {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-      })
+    formatBytes(bytes) {
+      if (bytes < 1024) return bytes + ' B'
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'
+      return (bytes / 1048576).toFixed(1) + ' MB'
     },
 
-    /* ───────────── toasts ───────────── */
+    /* ─── Toasts ─── */
 
     notify(type, message) {
       const id = ++this.toastSeq
-      const toast = { id, type, message, timer: null }
-      toast.timer = setTimeout(() => this.dismissToast(id), TOAST_TTL_MS)
-      this.toasts.push(toast)
+      const timer = setTimeout(() => this.dismissToast(id), TOAST_TTL)
+      this.toasts.push({ id, type, message, timer })
     },
 
     dismissToast(id) {
@@ -1640,15 +1023,18 @@ export default {
       this.toasts.splice(idx, 1)
     },
   },
+
+  beforeUnmount() {
+    this.toasts.forEach(t => clearTimeout(t.timer))
+  },
 }
 </script>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-.pa-page {
+.lma-page {
   font-family: 'Plus Jakarta Sans', sans-serif;
   flex: 1;
   overflow-y: auto;
@@ -1658,910 +1044,138 @@ export default {
   gap: 16px;
   background: #f1eeff;
   position: relative;
+  min-height: 100%;
 }
 
-button { font-family: inherit; }
-button:focus-visible {
-  outline: 2px solid #7c3aed;
-  outline-offset: 2px;
-  border-radius: 8px;
-}
-
-/* ──────── Skeleton ──────── */
-@keyframes shimmer {
-  0%   { background-position: -600px 0; }
-  100% { background-position:  600px 0; }
-}
-.skel {
-  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-  background-size: 600px 100%;
-  animation: shimmer 1.4s infinite linear;
-  border-radius: 6px;
-  display: block;
-}
-
-/* ──────── Toast ──────── */
-.toast-stack {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  z-index: 1000;
-  max-width: 360px;
-  pointer-events: none;
-}
-.toast {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-left-width: 4px;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: #334155;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
-  pointer-events: auto;
-}
-.toast-success { border-left-color: #16a34a; }
-.toast-error   { border-left-color: #ef4444; }
-.toast-warning { border-left-color: #f59e0b; }
-.toast-info    { border-left-color: #2563eb; }
-.toast-success .toast-icon { color: #16a34a; }
-.toast-error   .toast-icon { color: #ef4444; }
-.toast-warning .toast-icon { color: #f59e0b; }
-.toast-info    .toast-icon { color: #2563eb; }
+/* ── Toast ── */
+.toast-stack { position: fixed; top: 18px; right: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; max-width: 360px; pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #e2e8f0; border-left-width: 4px; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; font-weight: 600; color: #334155; box-shadow: 0 8px 20px rgba(15,23,42,.08); pointer-events: auto; }
+.toast-success { border-left-color: #16a34a; } .toast-success .toast-icon { color: #16a34a; }
+.toast-error   { border-left-color: #ef4444; } .toast-error   .toast-icon { color: #ef4444; }
 .toast-icon { display: flex; flex-shrink: 0; }
-.toast-msg  { flex: 1; line-height: 1.4; }
-.toast-close {
-  border: none;
-  background: transparent;
-  color: #94a3b8;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 0 2px;
-}
-.toast-close:hover { color: #1e293b; }
-.toast-enter-active,
-.toast-leave-active { transition: all .25s ease; }
-.toast-enter-from   { opacity: 0; transform: translateX(20px); }
-.toast-leave-to     { opacity: 0; transform: translateX(20px); }
+.toast-msg  { flex: 1; }
+.toast-close { border: none; background: transparent; color: #94a3b8; font-size: 18px; cursor: pointer; padding: 0 2px; }
+.toast-enter-active, .toast-leave-active { transition: all .25s ease; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateX(20px); }
 
-/* ──────── Header ──────── */
-.pa-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  background: #fff;
-  border: 1px solid #f1f5f9;
-  border-radius: 14px;
-  padding: 14px 18px;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.header-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.ai-icon {
-  width: 30px; height: 30px;
-  background: #faf5ff;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #e9d5ff;
-  flex-shrink: 0;
-}
+/* ── Skeleton ── */
+@keyframes shimmer { 0% { background-position:-600px 0 } 100% { background-position:600px 0 } }
+.skel { background: linear-gradient(90deg,#f1f5f9 25%,#e2e8f0 50%,#f1f5f9 75%); background-size: 600px 100%; animation: shimmer 1.4s infinite linear; border-radius: 6px; display: block; }
+
+/* ── Header ── */
+.lma-header { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #f1f5f9; border-radius: 14px; padding: 14px 18px; gap: 16px; flex-wrap: wrap; }
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-icon { width: 38px; height: 38px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .page-title { font-size: 16px; font-weight: 800; color: #1e293b; }
-.ai-tag {
-  font-size: 10px; font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: #faf5ff;
-  color: #7c3aed;
-  border: 1px solid #e9d5ff;
-}
-.last-updated {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 10.5px;
-  font-weight: 600;
-  color: #64748b;
-  margin-left: 4px;
-  padding: 3px 8px;
-  background: #f1f5f9;
-  border-radius: 99px;
-}
-.lu-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #16a34a;
-  box-shadow: 0 0 0 3px rgba(22,163,74,0.18);
-  animation: pulseDot 2s infinite;
-}
-@keyframes pulseDot {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(22,163,74,0.18); }
-  50%      { box-shadow: 0 0 0 5px rgba(22,163,74,0.05); }
-}
-.page-sub {
-  font-size: 11.5px;
-  color: #94a3b8;
-}
+.page-sub   { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
 
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.period-pills {
-  display: flex;
-  background: #f8fafc;
-  border-radius: 10px;
-  padding: 3px;
-  gap: 2px;
-}
-.period-pill {
-  padding: 5px 12px;
-  border-radius: 7px;
-  border: none;
-  background: transparent;
-  font-size: 12px;
-  font-weight: 600;
-  color: #64748b;
-  cursor: pointer;
-  transition: all .15s;
-}
-.period-pill:hover { color: #1e293b; }
-.period-pill.active {
-  background: #fff;
-  color: #2563eb;
-  box-shadow: 0 1px 3px rgba(15,23,42,0.08);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all .15s;
-  border: 1.5px solid transparent;
-  white-space: nowrap;
-}
+/* ── Buttons ── */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all .15s; border: 1.5px solid transparent; white-space: nowrap; font-family: inherit; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
-.btn-secondary {
-  border-color: #e9d5ff;
-  background: #faf5ff;
-  color: #7c3aed;
-}
+.btn-primary  { background: #2563eb; color: #fff; border-color: #2563eb; }
+.btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+.btn-secondary { background: #faf5ff; color: #7c3aed; border-color: #e9d5ff; }
 .btn-secondary:hover:not(:disabled) { background: #f3e8ff; }
-.btn-primary {
-  background: #2563eb;
-  color: #fff;
-  border-color: #2563eb;
-}
-.btn-primary:hover:not(:disabled) { background: #1d4ed8; border-color: #1d4ed8; }
 .btn-sm { padding: 5px 12px; font-size: 11.5px; }
-
-.btn-spinner {
-  width: 12px; height: 12px;
-  border: 1.8px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  display: inline-block;
-}
+.btn-link { background: none; border: none; color: #7c3aed; font-size: 11.5px; font-weight: 600; cursor: pointer; padding: 4px 0; text-decoration: underline; font-family: inherit; }
+.btn-link:hover { color: #5b21b6; }
+.btn-link:disabled { opacity: .5; cursor: not-allowed; }
+.btn-spinner { width: 12px; height: 12px; border: 1.8px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; display: inline-block; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ──────── KPI Cards ──────── */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-}
-.kpi-card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 18px;
-  border: 1px solid #f1f5f9;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-  animation: slideUp .38s ease both;
-  transition: box-shadow .15s, transform .15s;
-}
-.kpi-card:hover {
-  box-shadow: 0 4px 14px rgba(15,23,42,0.06);
-  transform: translateY(-1px);
-}
-.kpi-icon {
-  width: 38px; height: 38px;
-  border-radius: 10px;
-  display: flex; align-items: center; justify-content: center;
-  margin-bottom: 12px;
-}
-.kpi-icon span { display: flex; }
-.kpi-value {
-  font-size: 24px;
-  font-weight: 800;
-  color: #1e293b;
-  margin-bottom: 4px;
-  font-variant-numeric: tabular-nums;
-}
-.kpi-label {
-  font-size: 12px;
-  color: #64748b;
-  font-weight: 500;
-  margin-bottom: 5px;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.kpi-info {
-  display: inline-flex;
-  color: #cbd5e1;
-  cursor: help;
-}
-.kpi-info:hover { color: #94a3b8; }
-.kpi-trend {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11px;
-  font-weight: 700;
-}
-.trend-up   { color: #16a34a; }
-.trend-down { color: #ef4444; }
-.trend-flat { color: #94a3b8; }
+/* ── Upload ── */
+.upload-zone { background: #fff; border: 2px dashed #e2e8f0; border-radius: 14px; cursor: pointer; transition: all .2s; position: relative; }
+.upload-zone:hover, .upload-zone.dragging { border-color: #7c3aed; background: #faf5ff; }
+.upload-zone.has-file { border-color: #a78bfa; background: #faf5ff; }
+.upload-inner { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 32px 20px; text-align: center; }
+.upload-icon-wrap { width: 56px; height: 56px; background: #f8fafc; border-radius: 14px; display: flex; align-items: center; justify-content: center; color: #94a3b8; margin-bottom: 4px; transition: all .2s; }
+.upload-icon-ready { background: #faf5ff; color: #7c3aed; }
+.upload-title { font-size: 14px; font-weight: 700; color: #1e293b; }
+.upload-sub   { font-size: 12px; color: #94a3b8; }
+.upload-hint  { font-size: 11px; color: #94a3b8; background: #f8fafc; padding: 5px 10px; border-radius: 6px; border: 1px solid #f1f5f9; }
 
-/* ──────── Layout ──────── */
-.main-row {
-  display: flex;
-  gap: 14px;
-  align-items: stretch;
-}
-.flex-1 { flex: 1; min-width: 0; }
+/* ── Dual upload grid ── */
+.dual-upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.upload-half { min-height: 200px; }
+.upload-step { position: absolute; top: 12px; left: 14px; font-size: 10.5px; font-weight: 800; color: #7c3aed; background: #faf5ff; border: 1px solid #e9d5ff; padding: 3px 9px; border-radius: 99px; letter-spacing: .4px; text-transform: uppercase; }
 
-.card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 18px;
-  border: 1px solid #f1f5f9;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-}
-.chart-card { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.confidence-card {
-  width: 280px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-}
-.card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+/* ── Action bar ── */
+.action-bar { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 12px 16px; gap: 12px; flex-wrap: wrap; }
+.action-bar-left { flex: 1; min-width: 220px; }
+.action-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 99px; }
+.action-status.ready   { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.action-status.partial { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+
+/* ── Reupload bar ── */
+.reupload-bar { display: flex; align-items: center; justify-content: space-between; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 8px 14px; flex-wrap: wrap; gap: 8px; }
+.reupload-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.reupload-chip { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e9d5ff; padding: 4px 10px; border-radius: 99px; }
+.reupload-filename { font-size: 11.5px; font-weight: 700; color: #5b21b6; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reupload-size { font-size: 10.5px; color: #a78bfa; }
+
+/* ── KPI ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.kpi-card { background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #f1f5f9; animation: slideUp .38s ease both; }
+.kpi-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; }
+.kpi-value { font-size: 26px; font-weight: 800; color: #1e293b; margin-bottom: 4px; font-variant-numeric: tabular-nums; }
+.kpi-label { font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+.kpi-sub   { font-size: 11px; font-weight: 600; color: #94a3b8; }
+.trend-up     { color: #16a34a !important; }
+.trend-purple { color: #7c3aed !important; }
+
+/* ── Card ── */
+.card { background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #f1f5f9; }
+.card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; gap: 10px; flex-wrap: wrap; }
 .card-header h3 { font-size: 13.5px; font-weight: 700; color: #1e293b; }
-.card-sub      { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.card-sub { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.table-badge { font-size: 10.5px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; white-space: nowrap; flex-shrink: 0; }
 
-/* ──────── Legend ──────── */
-.legend {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  font-size: 11px;
-  color: #64748b;
-  flex-shrink: 0;
-}
-.leg-item   { display: inline-flex; align-items: center; gap: 5px; }
-.leg-line   { display: inline-block; width: 22px; height: 3px; border-radius: 2px; }
-.leg-dashed { border: none; border-top: 2px dashed; height: 0; background: transparent; }
-.leg-swatch { display: inline-block; width: 16px; height: 10px; border-radius: 3px; }
+/* ── Table ── */
+.table-wrap { overflow-x: auto; }
+.lma-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.lma-table th { background: #f8fafc; font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: .3px; padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.lma-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+.lma-table tr:last-child td { border-bottom: none; }
+.lma-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.lma-table .rank-col { width: 48px; text-align: center; }
+.rank-badge { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.rank-top   { background: #faf5ff; color: #7c3aed; }
+.rank-other { background: #f1f5f9; color: #94a3b8; }
+.top5-row { background: #fafafe; }
+.total-row { background: #f8fafc; }
+.total-row td { font-size: 12.5px; }
 
-/* ──────── Chart ──────── */
-.svg-wrap   { width: 100%; position: relative; flex: 1; }
-.chart-svg  { width: 100%; height: 220px; display: block; overflow: visible; cursor: crosshair; }
+.pos-name { font-weight: 600; color: #1e293b; }
+.pct-cell { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 60px; }
+.pct-bar-track { width: 50px; height: 4px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
+.pct-bar-fill  { height: 100%; background: #7c3aed; border-radius: 99px; transition: width .6s ease; }
+.industry-cell { font-size: 11px; color: #64748b; max-width: 180px; }
 
-.chart-empty {
-  text-align: center;
-  padding: 50px 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.chart-empty p {
-  font-size: 12.5px;
-  color: #94a3b8;
-}
+.others-row td { background: #f8fafc; }
+.others-label  { font-weight: 600; color: #64748b; margin-right: 6px; }
+.others-detail { font-size: 11px; color: #94a3b8; }
 
-/* ──────── Tooltip ──────── */
-.chart-tip {
-  position: absolute;
-  pointer-events: none;
-  background: #1e293b;
-  color: #f8fafc;
-  border-radius: 10px;
-  padding: 10px 14px;
-  font-size: 11.5px;
-  min-width: 158px;
-  box-shadow: 0 8px 24px rgba(0,0,0,.22);
-  z-index: 50;
-  white-space: nowrap;
-}
-.tip-enter-active { transition: opacity .12s ease, transform .12s ease; }
-.tip-leave-active { transition: opacity .08s ease; }
-.tip-enter-from   { opacity: 0; transform: translateY(4px) scale(.97); }
-.tip-leave-to     { opacity: 0; }
-.tip-label {
-  font-weight: 700;
-  font-size: 10px;
-  color: #94a3b8;
-  margin-bottom: 6px;
-  letter-spacing: .5px;
-  text-transform: uppercase;
-}
-.tip-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  line-height: 2;
-}
-.tip-row strong {
-  margin-left: auto;
-  padding-left: 12px;
-  font-weight: 700;
-  color: #fff;
-  font-variant-numeric: tabular-nums;
-}
-.tip-dot {
-  display: inline-block;
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.tip-muted { font-size: 10.5px; color: #94a3b8; }
+.lmi-tag { font-size: 11px; font-weight: 600; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; padding: 2px 8px; border-radius: 99px; }
 
-/* ──────── Confidence ──────── */
-.live-badge {
-  background: #faf5ff;
-  color: #7c3aed;
-  font-size: 10px; font-weight: 700;
-  padding: 3px 8px;
-  border-radius: 99px;
-  border: 1px solid #e9d5ff;
-  flex-shrink: 0;
-}
-.confidence-list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  flex: 1;
-}
-.conf-item { display: flex; flex-direction: column; gap: 5px; }
-.conf-row  { display: flex; align-items: center; justify-content: space-between; }
-.conf-label{ font-size: 12px; font-weight: 600; color: #475569; }
-.conf-pct  { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.conf-track{ height: 7px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
-.conf-fill { height: 100%; border-radius: 99px; width: 0%; transition: width .8s cubic-bezier(.4,0,.2,1); }
-.conf-note { font-size: 10.5px; color: #94a3b8; }
-.conf-footer {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid #f1f5f9;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: #94a3b8;
-}
+/* ── Download CTA ── */
+.download-cta { display: flex; align-items: center; justify-content: space-between; background: linear-gradient(135deg, #faf5ff, #eff6ff); border: 1.5px solid #e9d5ff; border-radius: 14px; padding: 18px 20px; gap: 16px; flex-wrap: wrap; }
+.cta-left { display: flex; align-items: center; gap: 14px; }
+.cta-icon { width: 44px; height: 44px; background: #fff; border-radius: 12px; border: 1px solid #e9d5ff; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.cta-title { font-size: 14px; font-weight: 800; color: #1e293b; }
+.cta-sub   { font-size: 11.5px; color: #94a3b8; margin-top: 2px; }
 
-/* ──────── Heatmap ──────── */
-.heatmap-legend {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.heatmap-legend-strip {
-  position: relative;
-  width: 96px;
-  height: 10px;
-  border-radius: 99px;
-  background: linear-gradient(to right, #dbeafe, #1e3a8a);
-}
-.hl-tick {
-  display: none;
-}
-.heatmap-legend-label { font-size: 10.5px; color: #94a3b8; }
+/* ── Animations ── */
+@keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
 
-.heatmap-wrap {
-  overflow-x: auto;
-  margin: -2px -2px;
-  padding: 2px 2px;
-}
-.heatmap-table {
-  min-width: 600px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.hm-header-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 4px;
-  padding-left: 0;
-}
-.hm-skill-col {
-  width: 160px;
-  flex-shrink: 0;
-  background: #fff;
-  position: sticky;
-  left: 0;
-  z-index: 2;
-}
-.hm-month-col {
-  flex: 1;
-  text-align: center;
-  font-size: 11px;
-  font-weight: 600;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: .3px;
-}
-.hm-row {
-  display: flex;
-  align-items: center;
-}
-.hm-skill-name {
-  width: 160px;
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-right: 10px;
-  background: #fff;
-  position: sticky;
-  left: 0;
-  z-index: 1;
-}
-.hm-skill-dot {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.hm-skill-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.hm-cell {
-  flex: 1;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  margin: 0 2px;
-  transition: background .5s ease, transform .15s, box-shadow .15s;
-  cursor: default;
-  min-width: 60px;
-}
-.hm-cell:hover {
-  transform: scale(1.06);
-  z-index: 3;
-  position: relative;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.18);
-}
-.hm-cell:focus-visible {
-  outline: 2px solid #7c3aed;
-  outline-offset: 1px;
-  z-index: 3;
-  position: relative;
-}
-.hm-val {
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  transition: color .3s ease;
-}
-
-/* ──────── Section header ──────── */
-.section-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  margin-bottom: 14px;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.section-title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.section-title { font-size: 15px; font-weight: 800; color: #1e293b; }
-.section-badge {
-  font-size: 10.5px;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 99px;
-  background: #faf5ff;
-  color: #7c3aed;
-  border: 1px solid #e9d5ff;
-}
-.section-sub {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-top: 4px;
-  max-width: 720px;
-  line-height: 1.5;
-}
-
-.sort-control {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11.5px;
-  color: #64748b;
-}
-.sort-label { font-weight: 600; }
-.sort-select {
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: #1e293b;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-  padding: 5px 26px 5px 10px;
-  cursor: pointer;
-  appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round'><polyline points='6 9 12 15 18 9'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-  transition: border-color .15s;
-}
-.sort-select:hover { border-color: #94a3b8; }
-.sort-select:focus { outline: 2px solid #7c3aed; outline-offset: 1px; }
-
-/* ──────── Predictions ──────── */
-.pred-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-.pred-card {
-  background: #fff;
-  border: 1px solid #f1f5f9;
-  border-radius: 14px;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  animation: slideUp .38s ease both;
-  transition: box-shadow .15s, border-color .15s, transform .15s;
-}
-.pred-card:hover {
-  box-shadow: 0 6px 18px rgba(15,23,42,0.07);
-  border-color: #e2e8f0;
-  transform: translateY(-1px);
-}
-.pred-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.pred-icon {
-  width: 32px; height: 32px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.pred-icon span { display: flex; }
-.pred-body { display: flex; flex-direction: column; gap: 5px; }
-.pred-skill    { font-size: 13px; font-weight: 800; color: #1e293b; }
-.pred-industry { font-size: 11px; color: #94a3b8; }
-.pred-change-row { display: flex; align-items: center; }
-.pred-change {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.change-pos { color: #16a34a; }
-.change-neg { color: #ef4444; }
-.pred-bar-track {
-  height: 6px;
-  background: #f1f5f9;
-  border-radius: 99px;
-  overflow: hidden;
-  margin-top: 2px;
-}
-.pred-bar-fill {
-  height: 100%;
-  border-radius: 99px;
-  width: 0%;
-  transition: width .85s cubic-bezier(.4,0,.2,1);
-}
-.pred-note {
-  font-size: 11px;
-  color: #94a3b8;
-  line-height: 1.5;
-}
-.pred-conf-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 99px;
-  white-space: nowrap;
-}
-.conf-high { background: #f0fdf4; color: #15803d; }
-.conf-med  { background: #fffbeb; color: #b45309; }
-.conf-low  { background: #fef2f2; color: #dc2626; }
-
-/* ──────── AI Insight ──────── */
-.ai-insight-card {
-  border: 1.5px solid #e9d5ff !important;
-  background: linear-gradient(135deg, #ffffff 0%, #fafaff 100%);
-}
-.ai-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.ai-header-left h3 { margin: 0; }
-.ai-pulse {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  background: #c4b5fd;
-  flex-shrink: 0;
-}
-.ai-pulse.pulsing {
-  background: #7c3aed;
-  animation: pulse 1.6s infinite;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50%      { opacity: .25; }
-}
-.claude-badge {
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: #7c3aed;
-  color: #fff;
-}
-.ai-period-tag {
-  font-size: 11px;
-  color: #a78bfa;
-  font-weight: 600;
-}
-
-.ai-loading {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 28px 0;
-  text-align: center;
-}
-.ai-spinner {
-  width: 50px; height: 50px;
-  background: #faf5ff;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-}
-.spin-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2.5px solid #e9d5ff;
-  border-top-color: #7c3aed;
-  animation: spin 1s linear infinite;
-}
-.ai-loading-title {
-  font-size: 13.5px;
-  font-weight: 700;
-  color: #5b21b6;
-}
-.ai-loading-sub {
-  font-size: 11.5px;
-  color: #a78bfa;
-  max-width: 280px;
-  line-height: 1.5;
-}
-
-.ai-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 32px 0;
-  text-align: center;
-}
-.ai-empty-icon {
-  width: 56px; height: 56px;
-  background: #faf5ff;
-  border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.ai-empty-icon-error { background: #fef2f2; }
-.ai-empty-title { font-size: 14px; font-weight: 700; color: #475569; }
-.ai-empty-sub {
-  font-size: 12px;
-  color: #94a3b8;
-  max-width: 320px;
-  line-height: 1.6;
-}
-.btn-run {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 9px 18px;
-  background: #7c3aed;
-  color: #fff;
-  border: none;
-  border-radius: 9px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  margin-top: 4px;
-  transition: background .15s;
-}
-.btn-run:hover:not(:disabled) { background: #6d28d9; }
-.btn-run:disabled { opacity: .5; cursor: not-allowed; }
-
-.insight-meta-row {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-.meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: #64748b;
-  font-weight: 600;
-}
-.insight-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  margin-bottom: 10px;
-}
-.chip {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 99px;
-  border: 1px solid;
-}
-.chip-green  { background: #f0fdf4; color: #15803d; border-color: #bbf7d0; }
-.chip-red    { background: #fef2f2; color: #dc2626; border-color: #fecaca; }
-.chip-blue   { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-.chip-amber  { background: #fffbeb; color: #b45309; border-color: #fde68a; }
-.chip-purple { background: #faf5ff; color: #7c3aed; border-color: #e9d5ff; }
-
-.insight-divider {
-  height: 1px;
-  background: #f1f5f9;
-  margin: 12px 0;
-}
-.insight-text {
-  font-size: 12.5px;
-  color: #475569;
-  line-height: 1.8;
-}
-.insight-text :deep(p) { margin: 0 0 10px; }
-.insight-text :deep(p:last-child) { margin-bottom: 0; }
-.insight-text :deep(strong) { font-weight: 700; color: #1e293b; }
-
-.ai-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.ai-gen-at { font-size: 11px; color: #94a3b8; }
-.ai-footer-actions { display: flex; gap: 6px; }
-.btn-sm-outline {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  color: #64748b;
-  cursor: pointer;
-  transition: all .15s;
-}
-.btn-sm-outline:hover:not(:disabled) { background: #f1f5f9; }
-.btn-sm-outline:disabled { opacity: .5; cursor: not-allowed; }
-.btn-sm-primary {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 700;
-  background: #7c3aed;
-  border: none;
-  color: #fff;
-  cursor: pointer;
-  transition: background .15s;
-}
-.btn-sm-primary:hover:not(:disabled) { background: #6d28d9; }
-.btn-sm-primary:disabled { opacity: .5; cursor: not-allowed; }
-
-/* ──────── Animations ──────── */
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* ──────── Responsive ──────── */
-@media (max-width: 1280px) {
-  .pred-grid { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 1024px) {
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .main-row { flex-direction: column; }
-  .confidence-card { width: 100%; }
-  .pred-grid { grid-template-columns: repeat(2, 1fr); }
-}
+/* ── Responsive ── */
 @media (max-width: 768px) {
-  .pa-page { padding: 16px; }
-  .pa-header { flex-direction: column; align-items: stretch; }
-  .header-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
-  .period-pills { flex: 1; }
-  .period-pill  { flex: 1; text-align: center; }
-  .legend       { font-size: 10.5px; gap: 8px; }
-  .chart-svg    { height: 200px; }
-  .heatmap-table { min-width: 540px; }
+  .lma-page { padding: 14px; }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .lma-header { flex-direction: column; align-items: stretch; }
+  .dual-upload-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 540px) {
+@media (max-width: 480px) {
   .kpi-grid { grid-template-columns: 1fr; }
-  .pred-grid { grid-template-columns: 1fr; }
-  .kpi-value { font-size: 22px; }
-  .section-head { flex-direction: column; align-items: stretch; }
-  .ai-footer { flex-direction: column; align-items: stretch; }
-  .ai-footer-actions { justify-content: flex-end; }
-  .toast-stack { left: 12px; right: 12px; max-width: none; }
-  .header-actions .btn { flex: 1; justify-content: center; }
+  .download-cta { flex-direction: column; align-items: stretch; }
 }
 </style>

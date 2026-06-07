@@ -26,9 +26,15 @@
 
       <!-- Filters Bar -->
       <div class="filters-bar" style="justify-content: space-between;">
-        <div class="search-box">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input v-model="search" type="text" placeholder="Search by title, employer, location…" class="search-input"/>
+        <div style="display: flex; gap: 8px; flex: 1; max-width: 480px;">
+          <div class="search-box" style="flex: 1;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input v-model="searchInput" type="text" placeholder="Search by title, employer, location…" class="search-input" @keyup.enter="applySearch"/>
+          </div>
+          <button class="search-btn" @click="applySearch" :disabled="isLoading">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Search
+          </button>
         </div>
         <div class="filter-group">
           <button class="btn-primary" @click="openModal(null)" style="height: 42px; border-radius: 8px;">
@@ -56,17 +62,17 @@
         <button :class="['listing-main-tab', { active: listingTab === 'active' }]" @click="listingTab = 'active'">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           Active
-          <span class="ltab-pill">{{ activeJobs.length }}</span>
+          <span class="ltab-pill">{{ allActiveJobs.length }}</span>
         </button>
         <button :class="['listing-main-tab', { active: listingTab === 'drafts' }]" @click="listingTab = 'drafts'">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           Drafts
-          <span class="ltab-pill">{{ draftJobs.length }}</span>
+          <span class="ltab-pill">{{ allDraftJobs.length }}</span>
         </button>
         <button :class="['listing-main-tab', 'archived-tab', { active: listingTab === 'archived' }]" @click="listingTab = 'archived'">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
           Closed
-          <span class="ltab-pill archived-pill" style="background: #fee2e2; color: #ef4444;">{{ archivedJobs.length }}</span>
+          <span class="ltab-pill archived-pill" style="background: #fee2e2; color: #ef4444;">{{ allArchivedJobs.length }}</span>
         </button>
       </div>
 
@@ -672,7 +678,7 @@ export default {
     return {
       isLoading: true,
       listingTab: 'active',
-      search: '', filterType: '', filterStatus: '', filterProgram: '',
+      searchInput: '', search: '', filterType: '', filterStatus: '', filterProgram: '',
       drawerOpen: false, selected: null,
       drawerTab: 'Overview',
       hiredApplicants: [], hiredLoading: false,
@@ -695,6 +701,7 @@ export default {
       skillQuery: '', showSkillSuggestions: false,
       showCatalogBrowser: false, catalogSearch: '', catalogCategory: '',
       jobs: [],
+      tabCounts: { active: null, drafts: null, archived: null },
       toast: { show: false, text: '', type: 'success', icon: '', _timer: null },
       currentPage: 1, hasMorePages: false, isLoadingMore: false, searchTimeout: null,
       closingJobId: null,
@@ -733,19 +740,40 @@ export default {
     }
   },
   computed: {
-    activeJobs() {
+    allActiveJobs() {
       return this.jobs.filter(j => !['Closed'].includes(j.status) && j.status !== 'Draft' && j.daysLeft > 0)
     },
-    draftJobs() {
+    allDraftJobs() {
       return this.jobs.filter(j => j.status === 'Draft' && j.daysLeft > 0)
     },
-    archivedJobs() {
+    allArchivedJobs() {
       return this.jobs.filter(j => j.status === 'Closed' || j.daysLeft <= 0)
     },
+    activeJobs() {
+      return this.filteredJobs
+    },
+    draftJobs() {
+      return this.allDraftJobs.filter(j => {
+        const matchSearch  = !this.search || j.title.toLowerCase().includes(this.search.toLowerCase()) || (j.employer || '').toLowerCase().includes(this.search.toLowerCase())
+        const matchType    = !this.filterType  || j.type === this.filterType
+        const matchStatus  = !this.filterStatus || j.status === this.filterStatus
+        const matchProgram = !this.filterProgram || j.program === this.filterProgram
+        return matchSearch && matchType && matchStatus && matchProgram
+      })
+    },
+    archivedJobs() {
+      return this.allArchivedJobs.filter(j => {
+        const matchSearch  = !this.search || j.title.toLowerCase().includes(this.search.toLowerCase()) || (j.employer || '').toLowerCase().includes(this.search.toLowerCase())
+        const matchType    = !this.filterType  || j.type === this.filterType
+        const matchStatus  = !this.filterStatus || j.status === this.filterStatus
+        const matchProgram = !this.filterProgram || j.program === this.filterProgram
+        return matchSearch && matchType && matchStatus && matchProgram
+      })
+    },
     filteredJobs() {
-      const source = this.listingTab === 'archived' ? this.archivedJobs
-                   : this.listingTab === 'drafts'   ? this.draftJobs
-                   : this.activeJobs
+      const source = this.listingTab === 'archived' ? this.allArchivedJobs
+                   : this.listingTab === 'drafts'   ? this.allDraftJobs
+                   : this.allActiveJobs
       return source.filter(j => {
         const matchSearch  = !this.search      || j.title.toLowerCase().includes(this.search.toLowerCase()) || (j.employer || '').toLowerCase().includes(this.search.toLowerCase())
         const matchType    = !this.filterType  || j.type === this.filterType
@@ -771,14 +799,15 @@ export default {
     },
   },
   watch: {
-    search() {
-      clearTimeout(this.searchTimeout)
-      this.searchTimeout = setTimeout(() => { this.currentPage = 1; this.fetchJobs() }, 500)
-    },
     filterType()   { this.currentPage = 1; this.fetchJobs() },
     filterStatus() { this.currentPage = 1; this.fetchJobs() },
   },
   methods: {
+    applySearch() {
+      this.search = this.searchInput
+      this.currentPage = 1
+      this.fetchJobs()
+    },
     programCount(programValue) {
       return this.jobs.filter(j => j.program === programValue).length
     },
@@ -1143,6 +1172,10 @@ export default {
 .job-tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .job-tag { font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; background: #f1f5f9; color: #64748b; }
 .type-tag { background: #eff6ff; color: #2563eb; }
+.search-btn { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; white-space: nowrap; }
+.search-btn:hover:not(:disabled) { background: #1d4ed8; }
+.search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
 .job-salary { font-size: 13px; font-weight: 700; color: #2872A1; }
 .job-desc { font-size: 12px; color: #64748b; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .job-skills { display: flex; gap: 5px; flex-wrap: wrap; }

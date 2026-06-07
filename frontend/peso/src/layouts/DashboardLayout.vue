@@ -49,7 +49,7 @@
                   </div>
                   <div v-for="notif in appStore.notifications" :key="notif.id"
                     :class="['notif-item', { unread: !notif.read }]"
-                    @click="appStore.markRead(notif.id)">
+                    @click="navigateNotif(notif)">
                     <div class="notif-icon-wrap" :style="{ background: notifTypeColor(notif.type).bg }">
                       <span v-html="notifTypeIcon(notif.type)" :style="{ color: notifTypeColor(notif.type).text }"></span>
                     </div>
@@ -113,7 +113,7 @@
 
 <script>
 import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAppStore } from '@/stores/adminAppStore'
 import AppSidebar from '@/components/AppSidebar.vue'
@@ -123,6 +123,7 @@ export default {
   components: { AppSidebar },
   setup() {
     const route     = useRoute()
+    const router    = useRouter()
     const authStore = useAuthStore()
     const appStore  = useAdminAppStore()
 
@@ -157,7 +158,7 @@ export default {
       return r.charAt(0).toUpperCase() + r.slice(1)
     })
 
-    return { handleLogout, pageTitle, pageSubtitle, authStore, appStore, userName, userInitial, userRole, loggingOut }
+    return { handleLogout, pageTitle, pageSubtitle, authStore, appStore, userName, userInitial, userRole, loggingOut, router }
   },
 
   data() {
@@ -192,9 +193,35 @@ export default {
   methods: {
     markAsRead(notif)  { this.appStore.markRead(notif.id) },
     markAllRead()      { this.appStore.markAllRead() },
+
+    navigateNotif(notif) {
+      // Mark as read first
+      this.appStore.markRead(notif.id)
+      this.showNotifications = false
+
+      const type  = (notif.type  || '').toLowerCase()
+      const title = (notif.title || '').toLowerCase()
+
+      // Route based on type/title keywords
+      if (type === 'registration' || title.includes('jobseeker') || title.includes('registered')) {
+        this.router.push('/dashboard/jobseekers')
+      } else if (title.includes('application') || title.includes('applied') || type === 'status') {
+        this.router.push('/dashboard/applicants')
+      } else if (type === 'event' || title.includes('event')) {
+        this.router.push('/dashboard/events')
+      } else if (title.includes('job') || title.includes('listing') || type === 'match') {
+        this.router.push('/dashboard/joblisting')
+      } else if (title.includes('employer')) {
+        this.router.push('/dashboard/employers')
+      } else {
+        this.router.push('/dashboard/notifications')
+      }
+    },
+
     notifTypeIcon(type) {
       const typeKey = (type || '').toLowerCase()
       const icons = {
+        'job':          `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
         'match':        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
         'registration': `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>`,
         'event':        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
@@ -206,6 +233,7 @@ export default {
     notifTypeColor(type) {
       const typeKey = (type || '').toLowerCase()
       const colors = {
+        'job':          { bg: '#f0fdf4', text: '#22c55e' },
         'match':        { bg: '#dcfce7', text: '#22c55e' },
         'registration': { bg: '#dbeafe', text: '#2563eb' },
         'event':        { bg: '#fff7ed', text: '#f97316' },

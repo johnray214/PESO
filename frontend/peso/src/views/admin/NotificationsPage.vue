@@ -1,102 +1,292 @@
 <template>
   <div class="page">
+
     <!-- SKELETON -->
     <template v-if="loading">
-      <div class="notifications-header" style="display: flex; justify-content: space-between; align-items: center;">
-        <div class="main-tabs" style="display: flex; gap: 10px;">
-          <div class="skel" style="width: 120px; height: 38px; border-radius: 8px;"></div>
-          <div class="skel" style="width: 140px; height: 38px; border-radius: 8px;"></div>
+      <div class="page-header">
+        <div class="skel" style="width:180px;height:22px;border-radius:8px;"></div>
+        <div style="display:flex;gap:8px;">
+          <div class="skel" style="width:120px;height:36px;border-radius:10px;"></div>
+          <div class="skel" style="width:140px;height:36px;border-radius:10px;"></div>
         </div>
-        <div class="skel" style="width: 160px; height: 38px; border-radius: 10px;"></div>
       </div>
-      <div class="tab-content" style="margin-top: 12px;">
-        <div class="notif-list" style="padding: 16px;">
-          <div v-for="i in 5" :key="i" class="skel" style="width: 100%; height: 70px; border-radius: 10px; margin-bottom: 10px;"></div>
+      <div class="notif-card">
+        <div v-for="i in 7" :key="i" style="display:flex;align-items:flex-start;gap:12px;padding:16px 18px;border-bottom:1px solid #f8fafc;">
+          <div class="skel" style="width:38px;height:38px;border-radius:10px;flex-shrink:0;"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;justify-content:space-between;">
+              <div class="skel" style="width:55%;height:14px;border-radius:6px;"></div>
+              <div class="skel" style="width:60px;height:12px;border-radius:6px;"></div>
+            </div>
+            <div class="skel" style="width:85%;height:12px;border-radius:6px;"></div>
+            <div class="skel" style="width:60px;height:18px;border-radius:6px;"></div>
+          </div>
         </div>
       </div>
     </template>
 
     <!-- ACTUAL CONTENT -->
     <template v-else>
-    <div class="notifications-header" style="display: flex; justify-content: space-between; align-items: center;">
-      <h2 style="font-size: 20px; font-weight: 800; color: #1e293b;">Activity Feed</h2>
-    </div>
 
-    <!-- NOTIFICATIONS LIST -->
-      <div class="tab-content" style="margin-top: 12px;">
-        
-        <!-- ACTIVITY FEED -->
-      <div class="notif-list">
-        <div v-if="feedNotifs.length === 0" style="padding: 30px; text-align: center; color: #94a3b8; font-size: 13px;">No recent activity found.</div>
-        <div v-for="notif in feedNotifs" :key="notif.id" :class="['notif-row', { unread: !notif.read }]">
-          <div class="notif-icon-wrap" :style="getIconStyle(notif.type)" v-html="getIconPath(notif.type)"></div>
-          <div class="notif-body">
-            <div class="notif-top">
-              <span class="notif-title">{{ notif.title }}</span>
-              <span class="notif-time">{{ notif.time }}</span>
-            </div>
-            <p class="notif-message">{{ notif.message }}</p>
-            <div class="notif-tags">
-              <span class="notif-type-tag" :style="getTagStyle(notif.type)">{{ notif.type }}</span>
-            </div>
-          </div>
-          <div v-if="!notif.read" class="unread-dot" @click.stop="markAsRead(notif)" title="Mark as read"></div>
+      <!-- Header -->
+      <div class="page-header">
+        <div>
+          <h2 class="page-title">Notifications</h2>
+          <p class="page-sub">{{ store.notifications.length }} total · {{ store.unreadCount }} unread</p>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn-mark-all" @click="store.markAllRead()" :disabled="store.unreadCount === 0">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+            Mark all read
+          </button>
+          <button class="btn-delete-all" @click="showDeleteConfirm = true" :disabled="store.notifications.length === 0">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            Clear all
+          </button>
         </div>
       </div>
 
+      <!-- Filter tabs -->
+      <div class="filter-tabs">
+        <button :class="['ftab', { active: activeFilter === 'all' }]" @click="activeFilter = 'all'">
+          All <span class="ftab-count">{{ store.notifications.length }}</span>
+        </button>
+        <button :class="['ftab', { active: activeFilter === 'unread' }]" @click="activeFilter = 'unread'">
+          Unread <span class="ftab-count unread-c">{{ store.unreadCount }}</span>
+        </button>
+      </div>
 
+      <!-- Notifications list -->
+      <div class="notif-card">
+        <div v-if="filtered.length === 0" class="notif-empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+          <p>{{ activeFilter === 'unread' ? 'No unread notifications' : 'No notifications yet' }}</p>
+        </div>
+
+        <div
+          v-for="notif in filtered"
+          :key="notif.id"
+          :class="['notif-item', { unread: !notif.read, clickable: !notif.read }]"
+          @click="handleClick(notif)"
+        >
+          <!-- Icon -->
+          <div class="notif-icon-wrap" :style="{ background: typeColor(notif.type).bg }">
+            <span v-html="typeIcon(notif.type)" :style="{ color: typeColor(notif.type).text }"></span>
+          </div>
+
+          <!-- Content -->
+          <div class="notif-content">
+            <div class="notif-top">
+              <h4 class="notif-title">{{ notif.title }}</h4>
+              <span class="notif-time">{{ notif.time }}</span>
+            </div>
+            <p class="notif-message">{{ notif.message }}</p>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+              <span class="notif-type-tag" :style="{ background: typeColor(notif.type).bg, color: typeColor(notif.type).text }">
+                {{ notif.type }}
+              </span>
+              <span v-if="!notif.read" class="read-hint">Click to navigate</span>
+              <span v-else class="read-badge">Read</span>
+            </div>
+          </div>
+
+          <!-- Right side actions -->
+          <div class="notif-actions" @click.stop>
+            <!-- Unread dot: click to mark read -->
+            <span
+              v-if="!notif.read"
+              class="unread-dot"
+              @click.stop="store.markRead(notif.id)"
+              title="Mark as read"
+            ></span>
+            <!-- Delete button: only show if read -->
+            <button v-if="notif.read" class="btn-del-item" @click.stop="promptDeleteSingle(notif)" title="Delete">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+            </button>
+          </div>
+        </div>
       </div>
     </template>
 
+    <!-- DELETE ALL CONFIRM MODAL -->
+    <transition name="modal-pop">
+      <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
+        <div class="confirm-modal">
+          <div class="confirm-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </div>
+          <h3 class="confirm-title">Clear all read notifications?</h3>
+          <p class="confirm-desc">This will permanently remove all read notifications from the feed. Unread notifications will be kept.</p>
+          <div class="confirm-btns">
+            <button class="confirm-cancel" @click="showDeleteConfirm = false">Cancel</button>
+            <button class="confirm-ok" @click="confirmDeleteAll">Clear All</button>
+          </div>
+        </div>
+      </div>
+    </transition>
+
+    <!-- DELETE SINGLE CONFIRM MODAL -->
+    <transition name="modal-pop">
+      <div v-if="showDeleteSingleConfirm" class="modal-overlay" @click.self="showDeleteSingleConfirm = false">
+        <div class="confirm-modal">
+          <div class="confirm-icon">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </div>
+          <h3 class="confirm-title">Delete this notification?</h3>
+          <p class="confirm-desc">This will permanently remove the notification from your feed. This cannot be undone.</p>
+          <div class="confirm-btns">
+            <button class="confirm-cancel" @click="showDeleteSingleConfirm = false">Cancel</button>
+            <button class="confirm-ok" @click="confirmDeleteSingle">Delete</button>
+          </div>
+        </div>
+      </div>
+    </transition>
 
   </div>
 </template>
 
 <script>
 import { useAdminAppStore } from '@/stores/adminAppStore'
+import { useRouter } from 'vue-router'
 
 export default {
   name: 'NotificationsPage',
+
   async mounted() {
-    const store = useAdminAppStore()
-    await store.fetchNotifications()
+    this.store = useAdminAppStore()
+    this.router = useRouter()
+    await this.store.fetchNotifications(true)
     this.loading = false
   },
-  computed: {
-    feedNotifs() {
-      return useAdminAppStore().notifications
-    }
-  },
+
   data() {
     return {
-      loading: true
+      loading: true,
+      activeFilter: 'all',
+      showDeleteConfirm: false,
+      showDeleteSingleConfirm: false,
+      singleDeleteTargetId: null,
+      store: null,
+      router: null,
     }
   },
+
+  computed: {
+    filtered() {
+      if (!this.store) return []
+      if (this.activeFilter === 'unread') return this.store.notifications.filter(n => !n.read)
+      return this.store.notifications
+    },
+  },
+
   methods: {
-    markAsRead(notif) {
-      if (notif.read) return;
-      const store = useAdminAppStore()
-      store.markRead(notif.id)
+    handleClick(notif) {
+      // Only navigate if the notification is unread
+      if (notif.read) return
+
+      this.store.markRead(notif.id)
+
+      const type  = (notif.type  || '').toLowerCase()
+      const title = (notif.title || '').toLowerCase()
+
+      if (type === 'registration' || title.includes('jobseeker') || title.includes('registered')) {
+        this.router.push('/dashboard/jobseekers')
+      } else if (title.includes('application') || title.includes('applied') || type === 'status') {
+        this.router.push('/dashboard/applicants')
+      } else if (type === 'event' || title.includes('event')) {
+        this.router.push('/dashboard/events')
+      } else if (title.includes('job') || title.includes('listing') || type === 'match') {
+        this.router.push('/dashboard/joblisting')
+      } else if (title.includes('employer')) {
+        this.router.push('/dashboard/employers')
+      }
+      // read notifications: don't navigate, just stay
     },
-    getIconStyle(type) {
-      if (type === 'Registration') return { background: '#dbeafe', color: '#2563eb' }
-      if (type === 'Status') return { background: '#fef9c3', color: '#ca8a04' }
-      if (type === 'Event') return { background: '#dcfce7', color: '#16a34a' }
-      return { background: '#f8fafc', color: '#64748b' }
+
+    confirmDeleteAll() {
+      // Direct assignment instead of method call in case Pinia actions didn't HMR properly
+      if (typeof this.store.deleteAll === 'function') {
+        this.store.deleteAll()
+      } else {
+        try {
+          const authUser = JSON.parse(localStorage.getItem('admin_user') || '{}')
+          const delKey = 'admin_del_notifs_' + (authUser?.id || 'guest')
+          const delIds = JSON.parse(localStorage.getItem(delKey) || '[]')
+          
+          const unreadNotifs = []
+          this.store.notifications.forEach(n => {
+            if (n.read) {
+              if (!delIds.includes(n.id)) delIds.push(n.id)
+            } else {
+              unreadNotifs.push(n)
+            }
+          })
+          localStorage.setItem(delKey, JSON.stringify(delIds))
+          
+          this.store.notifications = unreadNotifs
+          localStorage.setItem('admin_notifications', JSON.stringify(unreadNotifs))
+        } catch(e) {
+          console.warn('Delete persistence error:', e)
+        }
+      }
+      this.showDeleteConfirm = false
     },
-    getTagStyle(type) {
-      if (type === 'Registration') return { background: '#eff6ff', color: '#2563eb' }
-      if (type === 'Status') return { background: '#fefce8', color: '#ca8a04' }
-      if (type === 'Event') return { background: '#f0fdf4', color: '#16a34a' }
-      return { background: '#f8fafc', color: '#64748b' }
+
+    promptDeleteSingle(notif) {
+      this.singleDeleteTargetId = notif.id
+      this.showDeleteSingleConfirm = true
     },
-    getIconPath(type) {
-      if (type === 'Registration') return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`
-      if (type === 'Status') return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>`
-      if (type === 'Event') return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`
-      return `<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
-    }
-  }
+
+    confirmDeleteSingle() {
+      if (typeof this.store.deleteNotif === 'function') {
+        this.store.deleteNotif(this.singleDeleteTargetId)
+      } else {
+        this.store.notifications = this.store.notifications.filter(n => n.id !== this.singleDeleteTargetId)
+        localStorage.setItem('admin_notifications', JSON.stringify(this.store.notifications))
+        
+        // Also persist the deletion manually in case store wasn't updated
+        try {
+          const authUser = JSON.parse(localStorage.getItem('admin_user') || '{}')
+          const delKey = 'admin_del_notifs_' + (authUser?.id || 'guest')
+          const delIds = JSON.parse(localStorage.getItem(delKey) || '[]')
+          if (!delIds.includes(this.singleDeleteTargetId)) {
+            delIds.push(this.singleDeleteTargetId)
+            localStorage.setItem(delKey, JSON.stringify(delIds))
+          }
+        } catch(e) {
+          console.warn('Delete persistence error:', e)
+        }
+      }
+      this.showDeleteSingleConfirm = false
+      this.singleDeleteTargetId = null
+    },
+
+    typeIcon(type) {
+      const t = (type || '').toLowerCase()
+      const icons = {
+        'job':          `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>`,
+        'match':        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+        'registration': `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>`,
+        'event':        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+        'status':       `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
+        'system':       `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+      }
+      return icons[t] || icons['system']
+    },
+
+    typeColor(type) {
+      const t = (type || '').toLowerCase()
+      const colors = {
+        'job':          { bg: '#f0fdf4', text: '#22c55e' },
+        'match':        { bg: '#dcfce7', text: '#22c55e' },
+        'registration': { bg: '#dbeafe', text: '#2563eb' },
+        'event':        { bg: '#fff7ed', text: '#f97316' },
+        'status':       { bg: '#fdf4ff', text: '#a21caf' },
+        'system':       { bg: '#f1f5f9', text: '#64748b' },
+      }
+      return colors[t] || colors['system']
+    },
+  },
 }
 </script>
 
@@ -111,113 +301,105 @@ export default {
   border-radius: 6px; flex-shrink: 0;
 }
 
-.page { font-family: 'Plus Jakarta Sans', sans-serif; padding: 24px; background: #f8fafc; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
-.btn-primary { display: flex; align-items: center; gap: 6px; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
-.btn-primary:hover { background: #1d4ed8; }
-.btn-ghost { background: #f1f5f9; color: #64748b; border: none; border-radius: 10px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; }
-
-.stats-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 14px;
+.page {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  padding: 24px; background: #f8fafc;
+  min-height: 100vh; display: flex; flex-direction: column; gap: 16px;
 }
-.strip-stat {
-  background: #fff;
-  border-radius: 0;
-  padding: 18px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  border: 1px solid #e2e8f0;
-  border-left: 4px solid var(--accent, #94a3b8);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+
+/* HEADER */
+.page-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.page-title  { font-size: 20px; font-weight: 800; color: #1e293b; }
+.page-sub    { font-size: 12px; color: #94a3b8; margin-top: 3px; }
+
+.btn-mark-all {
+  display: flex; align-items: center; gap: 7px;
+  background: #fff; border: 1.5px solid #e2e8f0; border-radius: 10px;
+  padding: 8px 14px; font-size: 12.5px; font-weight: 600; color: #2563eb;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
 }
-.strip-stat:hover {
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
-  border-color: #cbd5e1;
+.btn-mark-all:hover:not(:disabled) { background: #eff6ff; border-color: #93c5fd; }
+.btn-mark-all:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-delete-all {
+  display: flex; align-items: center; gap: 7px;
+  background: #fff; border: 1.5px solid #fecaca; border-radius: 10px;
+  padding: 8px 14px; font-size: 12.5px; font-weight: 600; color: #ef4444;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
 }
-.strip-val { font-size: 24px; font-weight: 800; line-height: 1.2; letter-spacing: -0.02em; }
-.strip-label { font-size: 11.5px; color: #64748b; margin-top: 6px; font-weight: 500; }
+.btn-delete-all:hover:not(:disabled) { background: #fef2f2; border-color: #ef4444; }
+.btn-delete-all:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.main-tabs { display: flex; gap: 4px; background: #fff; border-radius: 12px; padding: 6px; border: 1px solid #f1f5f9; width: fit-content; }
-.main-tab { display: flex; align-items: center; gap: 8px; background: none; border: none; padding: 9px 18px; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; border-radius: 8px; font-family: inherit; transition: all 0.15s; }
-.main-tab.active { background: #2563eb; color: #fff; }
-.tab-icon { display: flex; align-items: center; }
-.tab-badge { background: #ef4444; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 99px; }
-.main-tab.active .tab-badge { background: rgba(255,255,255,0.3); }
+/* FILTER TABS */
+.filter-tabs { display: flex; gap: 6px; }
+.ftab {
+  display: flex; align-items: center; gap: 7px;
+  background: #fff; border: 1.5px solid #e2e8f0; border-radius: 9px;
+  padding: 7px 14px; font-size: 12.5px; font-weight: 600; color: #64748b;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.ftab:hover { border-color: #94a3b8; color: #1e293b; }
+.ftab.active { background: #eff6ff; border-color: #2563eb; color: #2563eb; }
+.ftab-count { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: #f1f5f9; color: #64748b; }
+.unread-c   { background: #dbeafe; color: #2563eb; }
 
-.tab-content { display: flex; flex-direction: column; gap: 12px; }
+/* NOTIFICATION CARD */
+.notif-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
 
-.filters-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.search-box { display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 12px; flex: 1; max-width: 360px; }
-.search-input { border: none; outline: none; font-size: 13px; color: #1e293b; background: none; width: 100%; font-family: inherit; }
-.search-input::placeholder { color: #cbd5e1; }
-.filter-group { display: flex; align-items: center; gap: 8px; }
-.filter-select { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; outline: none; font-family: inherit; }
-.btn-ghost-sm { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 12.5px; color: #475569; cursor: pointer; font-family: inherit; }
-
-/* NOTIFICATIONS */
-.notif-list { background: #fff; border-radius: 14px; overflow: hidden; border: 1px solid #f1f5f9; }
-.notif-row { display: flex; align-items: flex-start; gap: 14px; padding: 16px 18px; border-bottom: 1px solid #f8fafc; cursor: pointer; transition: background 0.12s; position: relative; }
-.notif-row:last-child { border-bottom: none; }
-.notif-row:hover { background: #f8fafc; }
-.notif-row.unread { background: #f8faff; }
+.notif-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 16px 18px; transition: background 0.15s;
+  position: relative; border-bottom: 1px solid #f8fafc;
+}
+.notif-item:last-child { border-bottom: none; }
+.notif-item:hover { background: #f8fafc; }
+.notif-item.unread { background: #eff6ff; }
+.notif-item.unread:hover { background: #dbeafe; }
+.notif-item.clickable { cursor: pointer; }
+.notif-item:not(.clickable) { cursor: default; }
 
 .notif-icon-wrap { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.notif-body { flex: 1; min-width: 0; }
-.notif-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 4px; gap: 8px; }
-.notif-title { font-size: 13.5px; font-weight: 700; color: #1e293b; }
-.notif-time { font-size: 11px; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
-.notif-message { font-size: 12.5px; color: #64748b; line-height: 1.5; margin-bottom: 8px; }
-.notif-tags { display: flex; gap: 6px; }
-.notif-type-tag { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 5px; text-transform: capitalize; }
-.unread-dot { width: 8px; height: 8px; background: #2563eb; border-radius: 50%; flex-shrink: 0; margin-top: 6px; }
 
-/* SENT */
-.sent-list { display: flex; flex-direction: column; gap: 12px; }
-.sent-card { background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #f1f5f9; }
-.sent-header { margin-bottom: 10px; }
-.sent-title-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-.sent-subject { font-size: 15px; font-weight: 700; color: #1e293b; }
-.status-badge { padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.sent-s { background: #dcfce7; color: #22c55e; }
-.sched-s { background: #fff7ed; color: #f97316; }
-.sent-time { font-size: 11px; color: #94a3b8; }
-.sent-message { font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 12px; }
-.sent-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
-.sent-recipients { display: flex; gap: 6px; flex-wrap: wrap; }
-.recip-chip { background: #eff6ff; color: #2563eb; font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 6px; }
-.sent-stats { display: flex; gap: 8px; }
-.stat-chip { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: #64748b; background: #f1f5f9; padding: 4px 10px; border-radius: 6px; }
-.read-chip { color: #2563eb; background: #eff6ff; }
+.notif-content { flex: 1; min-width: 0; }
+.notif-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.notif-title   { font-size: 13px; font-weight: 700; color: #1e293b; line-height: 1.3; margin: 0; }
+.notif-time    { font-size: 11px; color: #94a3b8; white-space: nowrap; flex-shrink: 0; }
+.notif-message { font-size: 12px; color: #64748b; line-height: 1.5; margin: 0 0 2px 0; }
+.notif-type-tag { display: inline-block; font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; text-transform: capitalize; }
+.read-hint  { font-size: 10px; color: #2563eb; font-weight: 500; }
+.read-badge { font-size: 10px; color: #94a3b8; font-weight: 500; }
 
-/* MODAL */
-.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
-.modal { background: #fff; border-radius: 16px; width: 540px; max-width: 95vw; box-shadow: 0 20px 60px rgba(0,0,0,0.15); }
-.modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid #f1f5f9; }
-.modal-header h3 { font-size: 16px; font-weight: 800; color: #1e293b; }
-.modal-close { background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 16px; padding: 4px; border-radius: 6px; }
-.modal-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; max-height: 65vh; overflow-y: auto; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 20px; border-top: 1px solid #f1f5f9; }
+/* Right-side actions */
+.notif-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-top: 2px; }
 
-.form-group { display: flex; flex-direction: column; gap: 6px; }
-.form-label { font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
-.form-input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; background: #f8fafc; }
-.form-input:focus { border-color: #93c5fd; background: #fff; }
-.form-textarea { border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; color: #1e293b; font-family: inherit; outline: none; resize: vertical; background: #f8fafc; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.unread-dot {
+  width: 9px; height: 9px; border-radius: 50%; background: #2563eb; flex-shrink: 0;
+  cursor: pointer; transition: transform 0.15s;
+}
+.unread-dot:hover { transform: scale(1.4); }
 
-.recipient-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.recip-option { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; border: 2px solid #e2e8f0; cursor: pointer; font-size: 12.5px; color: #475569; font-weight: 500; transition: all 0.15s; background: #f8fafc; }
-.recip-option.selected { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
-.recip-icon { display: flex; align-items: center; }
+.btn-del-item {
+  width: 26px; height: 26px; border-radius: 7px; border: 1px solid #f1f5f9;
+  background: #fff; color: #cbd5e1; display: flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+}
+.btn-del-item:hover { background: #fef2f2; border-color: #fecaca; color: #ef4444; }
 
-.schedule-options { display: flex; gap: 10px; }
-.sched-opt { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 8px; border: 2px solid #e2e8f0; cursor: pointer; font-size: 13px; color: #475569; font-family: inherit; transition: all 0.15s; }
-.sched-opt.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
-.sched-opt input { accent-color: #2563eb; }
+.notif-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 52px 24px; gap: 12px; color: #94a3b8; font-size: 13px; font-weight: 500; }
 
-.modal-enter-active, .modal-leave-active { transition: opacity 0.2s; }
-.modal-enter-from, .modal-leave-to { opacity: 0; }
+/* CONFIRM MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; backdrop-filter: blur(3px); }
+.confirm-modal { background: #fff; border-radius: 20px; width: 100%; max-width: 380px; padding: 32px 28px 24px; box-shadow: 0 24px 64px rgba(0,0,0,0.2); display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; }
+.confirm-icon  { width: 58px; height: 58px; border-radius: 50%; background: #fef2f2; border: 2px solid #fecaca; display: flex; align-items: center; justify-content: center; }
+.confirm-title { font-size: 16px; font-weight: 800; color: #1e293b; }
+.confirm-desc  { font-size: 13px; color: #64748b; line-height: 1.6; max-width: 300px; }
+.confirm-btns  { display: flex; gap: 10px; width: 100%; margin-top: 6px; }
+.confirm-cancel { flex: 1; padding: 10px; border-radius: 10px; border: 1.5px solid #e2e8f0; background: #fff; font-size: 13px; font-weight: 600; color: #64748b; cursor: pointer; font-family: inherit; }
+.confirm-cancel:hover { background: #f8fafc; }
+.confirm-ok { flex: 1.5; padding: 10px; border-radius: 10px; border: none; background: linear-gradient(135deg,#ef4444,#dc2626); font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; font-family: inherit; }
+.confirm-ok:hover { filter: brightness(1.08); }
+
+.modal-pop-enter-active { transition: all 0.22s cubic-bezier(0.34,1.56,0.64,1); }
+.modal-pop-leave-active { transition: all 0.15s ease-in; }
+.modal-pop-enter-from, .modal-pop-leave-to { opacity: 0; transform: scale(0.9); }
 </style>

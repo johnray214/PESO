@@ -460,7 +460,10 @@ class EmployerApplicationController extends Controller
     {
         $employer = $request->user();
         
-        $jobListings = $employer->jobListings()->with('skills')->get();
+        $jobListings = $employer->jobListings()
+            ->whereIn('status', ['open', 'Open'])
+            ->with('skills')
+            ->get();
         $jobSkills = $jobListings->pluck('skills')->flatten()->pluck('skill')->unique();
         
         $query = \App\Models\Jobseeker::with(['skills', 'applications'])
@@ -482,34 +485,32 @@ class EmployerApplicationController extends Controller
 
         $jobseekers = $query->orderByDesc('created_at')->get();
 
-        $processed = $jobseekers->map(function ($jobseeker) use ($jobListings) {
-            $maxScore = 0;
-            $bestJob  = null;
+        $processed = [];
+        foreach ($jobseekers as $jobseeker) {
             foreach ($jobListings as $job) {
                 if ($jobseeker->applications->contains('job_listing_id', $job->id)) continue;
 
                 $score = \App\Models\Application::calculateMatchScore($jobseeker, $job);
-                if ($score > $maxScore) {
-                    $maxScore = $score;
-                    $bestJob  = $job;
+                if ($score > 0) {
+                    $js = clone $jobseeker;
+                    $js->match_score    = $score;
+                    $js->best_job_match = $job->title;
+                    $js->best_job_skills = $job->skills->pluck('skill')->values();
+                    $js->best_job_id = $job->id;
+                    $js->education_level = ucwords(str_replace('_', ' ', $js->education_level ?? 'Not specified'));
+                    $processed[] = $js;
                 }
             }
-            $jobseeker->match_score    = $maxScore;
-            $jobseeker->best_job_match = $bestJob?->title ?? null;
-            $jobseeker->best_job_skills = $bestJob ? $bestJob->skills->pluck('skill')->values() : [];
-            $jobseeker->best_job_id = $bestJob?->id ?? null;
-            $jobseeker->education_level = ucwords(str_replace('_', ' ', $jobseeker->education_level ?? 'Not specified'));
-            return $jobseeker;
-        })->filter(function ($jobseeker) {
-            return $jobseeker->match_score > 0;
-        })->values();
+        }
+
+        $processedCollection = collect($processed)->sortByDesc('match_score')->values();
 
         $page = \Illuminate\Pagination\Paginator::resolveCurrentPage('page') ?: 1;
         $perPage = 15;
         
         $paginated = new \Illuminate\Pagination\LengthAwarePaginator(
-            $processed->forPage($page, $perPage)->values(),
-            $processed->count(),
+            $processedCollection->forPage($page, $perPage)->values(),
+            $processedCollection->count(),
             $perPage,
             $page,
             [

@@ -1,0 +1,23 @@
+:root {
+  --ink: #0f1923;
+  --paper: #f4f7fb;
+  --cream: #eaf0f8;
+  --navy: #1a3a5c;
+  --navy2: #2a5285;
+  --navydk: #0e2540;
+  --line: #d0dbe8;
+  --muted: #7a90a8;
+  --white: #ffffff;
+  --green: #1a7a4a;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  background: var(--paper);
+}

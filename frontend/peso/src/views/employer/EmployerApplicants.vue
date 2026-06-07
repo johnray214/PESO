@@ -139,7 +139,7 @@
                     </tr>
                   </template>
                   <template v-else>
-                      <tr v-for="(a, index) in pagedPotential" :key="a.name" class="table-row" style="cursor:pointer;" @click="openPotentialDrawer(a)">
+                      <tr v-for="(a, index) in pagedPotential" :key="a.name + '-' + a.bestFor" class="table-row" style="cursor:pointer;" @click="openPotentialDrawer(a)">
                       <td @click.stop style="font-weight:600;color:#64748b;font-size:12px;padding-left:18px;">{{ filteredPotential.length - ((potentialPage - 1) * perPage) - index }}</td>
                       <td><div class="person-cell"><div class="avatar" :style="{ background: a.color }">{{ a.name[0] }}</div><div><p class="person-name">{{ a.name }}</p><p class="person-meta">{{ a.education }}</p></div></div></td>
                       <td><div class="skill-tags"><span v-for="sk in a.skills" :key="sk" class="skill-tag matched-tag">{{ sk }}</span></div></td>

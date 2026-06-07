@@ -27,11 +27,13 @@ export const employerApi = {
   getApplicationHistory: (id) => api.get(`/employer/applications/${id}/history`),
 
   // Notifications
-  getNotifications:       (params) => api.get('/employer/notifications', { params }),
-  getNotification:        (id)     => api.get(`/employer/notifications/${id}`),
-  getUnreadCount:         ()       => api.get('/employer/notifications/unread-count'),
-  markNotificationRead:   (id)     => api.post(`/employer/notifications/${id}/mark-read`),
-  markAllAsRead:          ()       => api.post('/employer/notifications/mark-all-read'),
+  getNotifications:            (params) => api.get('/employer/notifications', { params }),
+  getNotification:             (id)     => api.get(`/employer/notifications/${id}`),
+  getUnreadCount:              ()       => api.get('/employer/notifications/unread-count'),
+  markNotificationRead:        (id)     => api.post(`/employer/notifications/${id}/mark-read`),
+  markAllAsRead:               ()       => api.post('/employer/notifications/mark-all-read'),
+  deleteNotification:          (id)     => api.delete(`/employer/notifications/${id}`),
+  deleteAllNotifications:      ()       => api.delete('/employer/notifications'),
 
   // Profile
   getProfile: () => api.get('/employer/profile'),

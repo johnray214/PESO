@@ -46,8 +46,7 @@ class AdminJobListingController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
                   ->orWhere('location', 'like', "%{$search}%")
-                  ->orWhereHas('employer', fn($q2) => $q2->where('company_name', 'like', "%{$search}%"))
-                  ->orWhere('employer_name', 'like', "%{$search}%");
+                  ->orWhereHas('employer', fn($q2) => $q2->where('company_name', 'like', "%{$search}%"));
             });
         }
 
@@ -73,7 +72,7 @@ class AdminJobListingController extends Controller
                 'applications as hired_count' => fn ($q) => $q->where('status', 'hired'),
             ])
             ->orderByDesc('created_at')
-            ->paginate(50);
+            ->get();
 
         return response()->json([
             'success' => true,

@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             NotificationSeeder::class,  // PESO notifications for employers & jobseekers
             EventSeeder::class,         // PESO events (job fairs, trainings, etc.)
             SkillCatalogSeeder::class,  // Skill catalog (auto-built from job_skills & jobseeker_skills)
+            LegsFeedbackSeeder::class,  // LEGS Feedback records for reporting
         ]);
     }
 }

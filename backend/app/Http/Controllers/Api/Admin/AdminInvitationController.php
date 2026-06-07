@@ -26,7 +26,13 @@ class AdminInvitationController extends Controller
             ->firstOrFail();
 
         $company   = $job->employer->company_name ?? 'Employer';
-        $topSkills = $jobseeker->skills ? $jobseeker->skills->pluck('skill')->take(3)->implode(', ') : 'your listed skills';
+        $jobRequiredSkills   = $job->skills->pluck('skill')->map(fn($s) => strtolower($s))->toArray();
+        $jobseekerSkills     = $jobseeker->skills->pluck('skill')->toArray();
+        // Only skills the jobseeker has that the job actually requires
+        $matchedSkills       = array_values(array_filter($jobseekerSkills, fn($s) => in_array(strtolower($s), $jobRequiredSkills)));
+        $topSkills           = count($matchedSkills) > 0
+            ? implode(', ', array_slice($matchedSkills, 0, 5))
+            : ($jobseekerSkills ? implode(', ', array_slice($jobseekerSkills, 0, 3)) : 'your listed skills');
         $applyUrl  = env('FRONTEND_URL', 'http://localhost:5173') . '/jobseeker/jobs/' . $job->id;
 
         // Calculate match score

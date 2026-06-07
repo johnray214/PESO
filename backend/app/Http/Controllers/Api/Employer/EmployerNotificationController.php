@@ -53,18 +53,14 @@ class EmployerNotificationController extends Controller
             }
         }
 
-        $paginated = $query->orderByDesc('created_at')->paginate(50);
-
-        $items = $paginated->getCollection()->map(fn ($nr) => $this->formatNotification($nr));
+        $items = $query->orderByDesc('created_at')
+            ->with('notification')
+            ->get()
+            ->map(fn ($nr) => $this->formatNotification($nr));
 
         return response()->json([
             'success' => true,
-            'data'    => [
-                'data'         => $items,
-                'total'        => $paginated->total(),
-                'current_page' => $paginated->currentPage(),
-                'last_page'    => $paginated->lastPage(),
-            ],
+            'data'    => $items,
         ]);
     }
 
@@ -133,5 +129,29 @@ class EmployerNotificationController extends Controller
             'success' => true,
             'message' => 'All notifications marked as read',
         ]);
+    }
+
+    public function destroy(Request $request, $id)
+    {
+        $employer = $request->user();
+
+        $nr = NotificationRead::where('recipient_type', 'employer')
+            ->where('recipient_id', $employer->id)
+            ->findOrFail($id);
+
+        $nr->delete();
+
+        return response()->json(['success' => true, 'message' => 'Notification deleted.']);
+    }
+
+    public function destroyAll(Request $request)
+    {
+        $employer = $request->user();
+
+        NotificationRead::where('recipient_type', 'employer')
+            ->where('recipient_id', $employer->id)
+            ->delete();
+
+        return response()->json(['success' => true, 'message' => 'All notifications deleted.']);
     }
 }

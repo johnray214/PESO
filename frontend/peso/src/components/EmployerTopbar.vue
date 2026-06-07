@@ -41,9 +41,9 @@
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
                 <p>No notifications yet</p>
               </div>
-              <div v-for="n in notifStore.recentNotifs" :key="n.id"
+              <div v-for="n in notifStore.notifications" :key="n.id"
                 :class="['panel-item', { unread: !n.read }]"
-                @click="markRead(n)">
+                @click="navigateNotif(n)">
                 <div class="panel-icon" :style="{ background: typeColors[n.type]?.bg || typeColors.system.bg }">
                   <span v-html="typeColors[n.type]?.icon || typeColors.system.icon"
                         :style="{ color: typeColors[n.type]?.color || typeColors.system.color }"></span>
@@ -176,6 +176,21 @@ export default {
     toggleUserMenu() {
       this.showUserMenu = !this.showUserMenu
       this.showPanel    = false
+    },
+    async navigateNotif(n) {
+      await this.notifStore.markRead(n)
+      this.showPanel = false
+      const type  = (n.type  || '').toLowerCase()
+      const title = (n.title || '').toLowerCase()
+      if (title.includes('application') || title.includes('applied') || type === 'applicant') {
+        this.$router.push('/employer/applicants')
+      } else if (title.includes('job') || type === 'job') {
+        this.$router.push('/employer/job-listings')
+      } else if (type === 'match' || title.includes('match') || title.includes('potential')) {
+        this.$router.push('/employer/applicants')
+      } else {
+        this.$router.push('/employer/notifications')
+      }
     },
     async markRead(n)  { await this.notifStore.markRead(n) },
     async markAllRead(){ await this.notifStore.markAllRead() },

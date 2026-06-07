@@ -13,22 +13,19 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
 
   getters: {
     recentNotifs: (state) => state.notifications.slice(0, 5),
+    allNotifs:    (state) => state.notifications,
     hasUnread: (state) => state.unreadCount > 0,
   },
 
   actions: {
     async fetch() {
-      // Guard: only do the HTTP fetch once per session
-      if (this.loaded) return
-      if (this.loading) return
-
-      // Show cached notifications instantly while fresh data loads in background
+      // Show cached notifications instantly while fresh data loads
       const cachedNotifs = localStorage.getItem('employer_notifications')
       const cachedCount  = localStorage.getItem('employer_unread_count')
-      if (cachedNotifs) {
+      if (cachedNotifs && !this.notifications.length) {
         try { this.notifications = JSON.parse(cachedNotifs) } catch { this.notifications = [] }
       }
-      if (cachedCount !== null) this.unreadCount = Number(cachedCount)
+      if (cachedCount !== null && !this.unreadCount) this.unreadCount = Number(cachedCount)
 
       await this._load()
     },
@@ -46,7 +43,10 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
         ])
 
         if (notifRes.data.success) {
-          const raw = notifRes.data.data?.data || notifRes.data.data || []
+          // Backend now returns a flat array (no pagination)
+          const raw = Array.isArray(notifRes.data.data)
+            ? notifRes.data.data
+            : (notifRes.data.data?.data || [])
           this.notifications = raw.map((n) => ({
             id:         n.id,
             type:       n.type    || 'system',
@@ -147,6 +147,30 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
         this.unreadCount = prevUnread
         localStorage.setItem('employer_unread_count', prevUnread)
         console.error('[NotificationStore] markAllRead error:', e)
+      }
+    },
+
+    async deleteNotif(notifId) {
+      this.notifications = this.notifications.filter(n => n.id !== notifId)
+      this.unreadCount = this.notifications.filter(n => !n.read).length
+      localStorage.setItem('employer_notifications', JSON.stringify(this.notifications))
+      localStorage.setItem('employer_unread_count', this.unreadCount)
+      try {
+        await employerApi.deleteNotification(notifId)
+      } catch (e) {
+        console.warn('[NotificationStore] deleteNotif error:', e?.message)
+      }
+    },
+
+    async deleteAll() {
+      this.notifications = []
+      this.unreadCount = 0
+      localStorage.setItem('employer_notifications', JSON.stringify([]))
+      localStorage.setItem('employer_unread_count', 0)
+      try {
+        await employerApi.deleteAllNotifications()
+      } catch (e) {
+        console.warn('[NotificationStore] deleteAll error:', e?.message)
       }
     },
 

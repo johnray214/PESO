@@ -38,9 +38,10 @@ export const useAdminAppStore = defineStore('adminApp', {
       }
     },
 
-    async fetchNotifications() {
+    async fetchNotifications(forceRefresh = false) {
       // Guard: only fetch once per session, Pusher handles updates after that
-      if (this.notificationsLoaded) return
+      // Pass forceRefresh=true to bypass (e.g. full notifications page)
+      if (this.notificationsLoaded && !forceRefresh) return
 
       // Show cached notifications instantly while fresh data loads
       const cached = localStorage.getItem('admin_notifications')
@@ -54,9 +55,13 @@ export const useAdminAppStore = defineStore('adminApp', {
 
         const authStore = useAuthStore()
         const readKey = 'admin_read_notifs_' + (authStore.user?.id || 'guest')
+        const delKey  = 'admin_del_notifs_'  + (authStore.user?.id || 'guest')
         const readIds = JSON.parse(localStorage.getItem(readKey) || '[]')
+        const delIds  = JSON.parse(localStorage.getItem(delKey)  || '[]')
 
-        this.notifications = list.map((n, i) => {
+        const activeList = list.filter(n => !delIds.includes(n.id))
+
+        this.notifications = activeList.map((n, i) => {
           const id = n.id ?? i
           const isRead = n.read ?? n.is_read ?? false
           return {
@@ -143,6 +148,38 @@ export const useAdminAppStore = defineStore('adminApp', {
       localStorage.setItem(readKey, JSON.stringify(readIds))
       localStorage.setItem('admin_notifications', JSON.stringify(this.notifications))
       api.post('/admin/activity-feed/read-all').catch(() => {})
+    },
+    // ── Delete single ─────────────────────────────────────────────────────────
+    deleteNotif(notifId) {
+      this.notifications = this.notifications.filter(n => n.id !== notifId)
+      localStorage.setItem('admin_notifications', JSON.stringify(this.notifications))
+      const authStore = useAuthStore()
+      const delKey = 'admin_del_notifs_' + (authStore.user?.id || 'guest')
+      const delIds = JSON.parse(localStorage.getItem(delKey) || '[]')
+      if (!delIds.includes(notifId)) {
+        delIds.push(notifId)
+        localStorage.setItem(delKey, JSON.stringify(delIds))
+      }
+    },
+
+    // ── Delete all ────────────────────────────────────────────────────────────
+    deleteAll() {
+      const authStore = useAuthStore()
+      const delKey = 'admin_del_notifs_' + (authStore.user?.id || 'guest')
+      const delIds = JSON.parse(localStorage.getItem(delKey) || '[]')
+      
+      const unreadNotifs = []
+      this.notifications.forEach(n => {
+        if (n.read) {
+          if (!delIds.includes(n.id)) delIds.push(n.id)
+        } else {
+          unreadNotifs.push(n)
+        }
+      })
+      localStorage.setItem(delKey, JSON.stringify(delIds))
+
+      this.notifications = unreadNotifs
+      localStorage.setItem('admin_notifications', JSON.stringify(this.notifications))
     },
   },
 })

@@ -195,9 +195,9 @@ class AdminApplicationController extends Controller
     public function potentialApplicants(Request $request)
     {
         // Get ALL active job listings (across all employers) with their required skills
-        $jobListings = \Illuminate\Support\Facades\Cache::remember('open_job_listings_with_skills', 60, function() {
-            return \App\Models\JobListing::with(['employer', 'skills'])->whereRaw('LOWER(status) = ?', ['open'])->get();
-        });
+        $jobListings = \App\Models\JobListing::with(['employer', 'skills'])
+            ->whereIn('status', ['open', 'Open'])
+            ->get();
 
         if ($jobListings->isEmpty()) {
             return response()->json(['success' => true, 'data' => []]);
@@ -222,30 +222,31 @@ class AdminApplicationController extends Controller
 
         $jobseekers = $query->orderByDesc('created_at')->get();
 
-        $processed = $jobseekers->map(function ($jobseeker) use ($jobListings) {
-            $maxScore = 0;
-            $bestJob  = null;
+        $processed = [];
+        foreach ($jobseekers as $jobseeker) {
             foreach ($jobListings as $job) {
                 // Skip jobs the jobseeker already applied to
                 if ($jobseeker->applications->contains('job_listing_id', $job->id)) continue;
+                
                 $score = \App\Models\Application::calculateMatchScore($jobseeker, $job);
-                if ($score > $maxScore) {
-                    $maxScore = $score;
-                    $bestJob  = $job;
+                if ($score > 0) {
+                    $js = clone $jobseeker;
+                    $js->match_score      = $score;
+                    $js->best_job_title   = $job->title;
+                    $js->best_job_id      = $job->id;
+                    $js->best_employer    = $job->employer?->company_name;
+                    $js->best_job_skills  = $job->skills->pluck('skill')->values()->toArray();
+                    $js->education_display = ucwords(str_replace('_', ' ', $js->education_level ?? ''));
+                    $processed[] = $js;
                 }
             }
-            $jobseeker->match_score      = $maxScore;
-            $jobseeker->best_job_title   = $bestJob?->title;
-            $jobseeker->best_job_id      = $bestJob?->id;
-            $jobseeker->best_employer    = $bestJob?->employer?->company_name;
-            $jobseeker->best_job_skills  = $bestJob ? $bestJob->skills->pluck('skill')->values()->toArray() : [];
-            $jobseeker->education_display = ucwords(str_replace('_', ' ', $jobseeker->education_level ?? ''));
-            return $jobseeker;
-        })->filter(fn ($js) => $js->match_score > 0)->values();
+        }
+
+        $processedCollection = collect($processed)->sortByDesc('match_score')->values();
 
         return response()->json([
             'success' => true,
-            'data'    => $processed,
+            'data'    => $processedCollection,
         ]);
     }
 

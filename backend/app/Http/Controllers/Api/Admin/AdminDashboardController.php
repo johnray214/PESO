@@ -288,19 +288,19 @@ class AdminDashboardController extends Controller
         $buckets = $this->buildBuckets($period, $from, $to);
         foreach ($buckets as &$b) {
             $b['placement'] = Application::where('status', 'hired')
-                ->whereBetween('updated_at', [$b['start'], $b['end']])
+                ->whereBetween('applied_at', [$b['start'], $b['end']])
                 ->count();
                 
             $b['processing'] = Application::whereIn('status', ['shortlisted', 'interview'])
-                ->whereBetween('updated_at', [$b['start'], $b['end']])
+                ->whereBetween('applied_at', [$b['start'], $b['end']])
                 ->count();
                 
             $b['registration'] = Application::where('status', 'reviewing')
-                ->whereBetween('updated_at', [$b['start'], $b['end']])
+                ->whereBetween('applied_at', [$b['start'], $b['end']])
                 ->count();
                 
             $b['rejection'] = Application::where('status', 'rejected')
-                ->whereBetween('updated_at', [$b['start'], $b['end']])
+                ->whereBetween('applied_at', [$b['start'], $b['end']])
                 ->count();
                 
             unset($b['start'], $b['end']);
