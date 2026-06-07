@@ -33,6 +33,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   bool _isSaving = false;
   bool _hasChanges = false;
   List<String> _lastSavedSkills = [];
+
   /// When false, selected chips have no remove (X); browse/search add is locked too.
   /// New users with no skills yet can always browse/add (`_canChangeSkills`).
   bool _editingSelectedSkills = false;
@@ -73,6 +74,14 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   final GlobalKey _guideEditKey = GlobalKey();
   final GlobalKey _guideSaveKey = GlobalKey();
   final GlobalKey _guideMatchesTabKey = GlobalKey();
+
+  /// Visible tab body (0 = skills, 1 = matches). Kept in sync with [TabController]
+  /// without using [TabBarView], which keeps a [PageView] and both pages alive and
+  /// can assert/crash if the route is popped mid-transition.
+  int _bodyTabIndex = 0;
+
+  /// Prevents overlapping system-back confirm flows with [PopScope].
+  bool _popConfirmInFlight = false;
 
   @override
   void initState() {
@@ -167,14 +176,19 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   Future<void> _completeSkillsGuide() async {
     final token = UserSession().token;
-    await OnboardingPrefs.setSkillsProfileGuideDone(token: token);
-    await OnboardingPrefs.clearSkillsProfileGuidePending(token: token);
+    try {
+      await OnboardingPrefs.setSkillsProfileGuideDone(token: token);
+      await OnboardingPrefs.clearSkillsProfileGuidePending(token: token);
+    } finally {
+      try {
+        ShowcaseView.get().dismiss();
+      } catch (_) {}
+    }
     if (!mounted) return;
     setState(() {
       _skillsGuideDone = true;
       _skillsGuideActive = false;
     });
-    ShowcaseView.get().dismiss();
   }
 
   bool _isActionAllowedDuringGuide(String action) {
@@ -228,7 +242,21 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     return shouldLeave == true;
   }
 
+  void _syncBodyTabFromController() {
+    if (!mounted) return;
+    final anim = _tabController.animation;
+    final next = (anim != null ? anim.value : _tabController.index.toDouble())
+        .round()
+        .clamp(0, 1);
+    if (next != _bodyTabIndex) {
+      setState(() => _bodyTabIndex = next);
+    }
+  }
+
   void _onSkillsProfileTabChanged() {
+    if (!mounted) return;
+    _syncBodyTabFromController();
+
     if (!_skillsGuideActive) return;
     if (_tabController.index != 1) return;
     if (_isActionAllowedDuringGuide('job_matches')) return;
@@ -240,11 +268,15 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _tabController.removeListener(_onSkillsProfileTabChanged);
+    // Do NOT call ShowcaseView.get().dismiss() here: Skills Profile shares the
+    // same ShowcaseView scope as Home. Dismiss would run Home's onDismiss,
+    // tear down the global overlay during route pop, and race with TabBar —
+    // intermittent crashes when leaving Job Matches quickly.
     _tabController.dispose();
     _searchController.dispose();
     _skillsScrollController.dispose();
-    _searchDebounce?.cancel();
     super.dispose();
   }
 
@@ -299,7 +331,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     if (result['success'] == true) {
       final list = result['data'] as List<dynamic>? ?? [];
       final names = list
-          .map((e) => (e as Map<String, dynamic>)['name']?.toString().trim() ?? '')
+          .map((e) =>
+              (e as Map<String, dynamic>)['name']?.toString().trim() ?? '')
           .where((s) => s.isNotEmpty)
           .toList();
 
@@ -322,6 +355,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
 
+    if (!mounted) return;
     setState(() => _isLoadingMatched = true);
     final result = await ApiService.getMatchedJobs(
       token,
@@ -332,7 +366,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     if (result['success'] == true) {
       final list = result['data'] as List<dynamic>? ?? [];
       setState(() {
-        _matchedJobs = list.map((e) => Job.fromJson(e as Map<String, dynamic>)).toList();
+        _matchedJobs =
+            list.map((e) => Job.fromJson(e as Map<String, dynamic>)).toList();
         _isLoadingMatched = false;
       });
     } else {
@@ -344,7 +379,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     List<Job> jobs = _matchedJobs.where((job) {
       String normType(String s) => s.toLowerCase().replaceAll(' ', '').trim();
       final matchesType = _selectedEmploymentTypes.isEmpty ||
-          _selectedEmploymentTypes.map(normType).contains(normType(job.employmentType));
+          _selectedEmploymentTypes
+              .map(normType)
+              .contains(normType(job.employmentType));
       final matchesSkill = _selectedSkillFilters.isEmpty ||
           _selectedSkillFilters.any((selected) =>
               job.skills.any((s) => s.toLowerCase() == selected.toLowerCase()));
@@ -373,7 +410,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
         if (s.isNotEmpty) unique.add(s);
       }
     }
-    final list = unique.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final list = unique.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return list.take(30).toList();
   }
 
@@ -429,7 +467,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                   },
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
                       color: isSelected
                           ? const Color(0xFF2563EB).withOpacity(0.08)
@@ -448,7 +487,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           opt,
                           style: TextStyle(
                             fontSize: 15,
-                            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            fontWeight:
+                                isSelected ? FontWeight.w700 : FontWeight.w500,
                             color: isSelected
                                 ? const Color(0xFF2563EB)
                                 : const Color(0xFF0F172A),
@@ -546,7 +586,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                     spacing: 8,
                     runSpacing: 8,
                     children: _employmentTypes.map((type) {
-                      final isSelected = _selectedEmploymentTypes.contains(type);
+                      final isSelected =
+                          _selectedEmploymentTypes.contains(type);
                       return GestureDetector(
                         onTap: () {
                           setSheetState(() {
@@ -559,7 +600,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           setState(() {});
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 9),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? const Color(0xFFDBEAFE)
@@ -577,7 +619,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFF0F172A),
+                              color: isSelected
+                                  ? const Color(0xFF1D4ED8)
+                                  : const Color(0xFF0F172A),
                             ),
                           ),
                         ),
@@ -641,7 +685,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           setState(() {});
                         },
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 9),
                           decoration: BoxDecoration(
                             color: isSelected
                                 ? const Color(0xFFDBEAFE)
@@ -659,7 +704,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: isSelected ? const Color(0xFF1D4ED8) : const Color(0xFF0F172A),
+                              color: isSelected
+                                  ? const Color(0xFF1D4ED8)
+                                  : const Color(0xFF0F172A),
                             ),
                           ),
                         ),
@@ -675,12 +722,14 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2563EB),
                         foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
                         elevation: 0,
                       ),
                       child: const Text(
                         'Apply Filters',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
@@ -706,9 +755,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
 
     final currentSkills = List<String>.from(_lastSavedSkills);
     final previouslySaved = Set<String>.from(_lastSavedSkills);
-    final newlyAdded = _selectedSkills
-        .where((s) => !previouslySaved.contains(s))
-        .toList();
+    final newlyAdded =
+        _selectedSkills.where((s) => !previouslySaved.contains(s)).toList();
 
     String summarize(List<String> items, {int max = 10}) {
       if (items.isEmpty) return 'None';
@@ -759,6 +807,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     if (result['success'] == true) {
       // Refresh profile so UserSession().skills matches what backend stored.
       final refreshed = await ApiService.getUser(token);
+      if (!mounted) return;
       final userData = refreshed['data'] as Map<String, dynamic>? ?? {};
       if (refreshed['success'] == true) {
         UserSession().updateFromUser(userData);
@@ -802,7 +851,9 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       return;
     }
     if (!_canChangeSkills) return;
-    if (_skillsGuideActive && _skillsGuideStep == 2 && _selectedSkills.contains(skill)) {
+    if (_skillsGuideActive &&
+        _skillsGuideStep == 2 &&
+        _selectedSkills.contains(skill)) {
       _showToast('Add at least one skill to continue.', type: ToastType.info);
       return;
     }
@@ -832,7 +883,10 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     );
 
     // Tutorial: if we added a skill during step 2, advance to Save step
-    if (_skillsGuideActive && _skillsGuideStep == 2 && added && _selectedSkills.isNotEmpty) {
+    if (_skillsGuideActive &&
+        _skillsGuideStep == 2 &&
+        added &&
+        _selectedSkills.isNotEmpty) {
       Future<void>.delayed(const Duration(milliseconds: 400), () {
         if (mounted && _skillsGuideActive && _skillsGuideStep == 2) {
           _advanceGuideStep();
@@ -848,7 +902,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       type: AppDialogType.confirm,
       icon: Icons.edit_rounded,
       title: 'Edit Skills?',
-      message: 'Skill editing is currently disabled. Do you want to switch to edit mode?',
+      message:
+          'Skill editing is currently disabled. Do you want to switch to edit mode?',
       confirmLabel: 'Edit',
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
@@ -872,8 +927,10 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   List<MapEntry<String, List<String>>> get _sortedFilteredCatalog {
     final q = _searchQuery.toLowerCase();
     final entries = _skillCatalog.entries
-        .where((entry) => _activeCategoryFilter == null || entry.key == _activeCategoryFilter)
-        .map((entry) => MapEntry<String, List<String>>(entry.key, List<String>.from(entry.value)))
+        .where((entry) =>
+            _activeCategoryFilter == null || entry.key == _activeCategoryFilter)
+        .map((entry) => MapEntry<String, List<String>>(
+            entry.key, List<String>.from(entry.value)))
         .toList();
 
     if (q.isEmpty) return entries;
@@ -892,7 +949,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
           : cat.contains(q)
               ? 2
               : 0;
-      final skillMatches = entry.value.map(skillScore).fold<int>(0, (a, b) => a + b);
+      final skillMatches =
+          entry.value.map(skillScore).fold<int>(0, (a, b) => a + b);
       return catMatch + skillMatches;
     }
 
@@ -946,13 +1004,63 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     });
   }
 
+  /// Matches [PreferredSize] height under the AppBar TabBar (padding included).
+  static const double _jobMatchesTabSlotHeight = 49;
+
+  Widget _jobMatchesTabTitleRow(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Icon(Icons.work_outline_rounded, size: 18),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            S.of(context)?.jobMatchesTab ?? 'Job Matches',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (_matchedJobs.isNotEmpty) ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '${_matchedJobs.length}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF10B981),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final jobMatchesGuideLocked =
         _skillsGuideActive && !_isActionAllowedDuringGuide('job_matches');
 
-    return WillPopScope(
-      onWillPop: _confirmLeaveWithUnsavedChanges,
+    return PopScope(
+      canPop: !_hasChanges,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (didPop) return;
+        if (_popConfirmInFlight) return;
+        _popConfirmInFlight = true;
+        _confirmLeaveWithUnsavedChanges().then((shouldLeave) {
+          _popConfirmInFlight = false;
+          if (!context.mounted) return;
+          if (shouldLeave) {
+            Navigator.of(context).pop();
+          }
+        });
+      },
       child: Scaffold(
         resizeToAvoidBottomInset: false,
         backgroundColor: const Color(0xFFF8FAFC),
@@ -964,9 +1072,14 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded),
             onPressed: () async {
+              if (!_hasChanges) {
+                if (context.mounted) Navigator.of(context).pop();
+                return;
+              }
               final shouldLeave = await _confirmLeaveWithUnsavedChanges();
-              if (!mounted || !shouldLeave) return;
-              Navigator.of(context).pop();
+              if (context.mounted && shouldLeave) {
+                Navigator.of(context).pop();
+              }
             },
           ),
           title: Text(
@@ -985,10 +1098,12 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                   controller: _tabController,
                   onTap: (index) {
                     if (!_skillsGuideActive) return;
-                    final canOpenMatches = index == 1 && _isActionAllowedDuringGuide('job_matches');
+                    final canOpenMatches = index == 1 &&
+                        _isActionAllowedDuringGuide('job_matches');
                     final canOpenSkills = index == 0;
                     if (canOpenMatches || canOpenSkills) return;
-                    _showToast('Follow the tutorial step first.', type: ToastType.info);
+                    _showToast('Follow the tutorial step first.',
+                        type: ToastType.info);
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       if (!mounted) return;
                       _tabController.index = 0;
@@ -996,8 +1111,10 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                   },
                   labelColor: const Color(0xFF2563EB),
                   unselectedLabelColor: const Color(0xFF94A3B8),
-                  labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-                  unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                  labelStyle: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 14),
+                  unselectedLabelStyle: const TextStyle(
+                      fontWeight: FontWeight.w500, fontSize: 14),
                   indicatorColor: const Color(0xFF2563EB),
                   indicatorWeight: 3,
                   tabs: [
@@ -1011,14 +1128,16 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                           if (_selectedSkills.isNotEmpty) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 2),
                               decoration: BoxDecoration(
                                 color: const Color(0xFF2563EB).withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 '${_selectedSkills.length}',
-                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                                style: const TextStyle(
+                                    fontSize: 11, fontWeight: FontWeight.w700),
                               ),
                             ),
                           ],
@@ -1030,60 +1149,36 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                         absorbing: jobMatchesGuideLocked,
                         child: Opacity(
                           opacity: jobMatchesGuideLocked ? 0.45 : 1,
-                          child: SizedBox.expand(
-                            child: Showcase(
-                              key: _guideMatchesTabKey,
-                              title: 'Job Matches',
-                              description:
-                                  'Tap this tab after saving to view jobs matched to your skills.',
-                              tooltipActions: const [],
-                              disableBarrierInteraction: true,
-                              disposeOnTap: true,
-                              onTargetClick: () {
-                                if (!_isActionAllowedDuringGuide('job_matches')) return;
-                                if (_tabController.index != 1) {
-                                  _tabController.animateTo(1);
-                                }
-                                _completeSkillsGuide();
-                              },
-                              child: Center(
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.work_outline_rounded, size: 18),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        S.of(context)?.jobMatchesTab ??
-                                            'Job Matches',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
+                          child: SizedBox(
+                            height: _jobMatchesTabSlotHeight,
+                            width: double.infinity,
+                            child: _skillsGuideActive && _skillsGuideStep == 4
+                                ? Showcase(
+                                    key: _guideMatchesTabKey,
+                                    title: 'Job Matches',
+                                    description:
+                                        'Tap this tab after saving to view jobs matched to your skills.',
+                                    tooltipActions: const [],
+                                    disableBarrierInteraction: true,
+                                    disposeOnTap: true,
+                                    onTargetClick: () {
+                                      if (!mounted) return;
+                                      if (!_isActionAllowedDuringGuide(
+                                          'job_matches')) {
+                                        return;
+                                      }
+                                      if (_tabController.index != 1) {
+                                        _tabController.animateTo(1);
+                                      }
+                                      unawaited(_completeSkillsGuide());
+                                    },
+                                    child: Center(
+                                      child: _jobMatchesTabTitleRow(context),
                                     ),
-                                    if (_matchedJobs.isNotEmpty) ...[
-                                      const SizedBox(width: 6),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 7, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color:
-                                              const Color(0xFF10B981).withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Text(
-                                          '${_matchedJobs.length}',
-                                          style: const TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                            color: Color(0xFF10B981),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ),
+                                  )
+                                : Center(
+                                    child: _jobMatchesTabTitleRow(context),
+                                  ),
                           ),
                         ),
                       ),
@@ -1094,16 +1189,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
             ),
           ),
         ),
-        body: TabBarView(
-          controller: _tabController,
-          physics: (_skillsGuideActive && !_isActionAllowedDuringGuide('job_matches'))
-              ? const NeverScrollableScrollPhysics()
-              : null,
-          children: [
-            _buildSkillsTab(),
-            _buildMatchedJobsTab(),
-          ],
-        ),
+        body: _bodyTabIndex == 0 ? _buildSkillsTab() : _buildMatchedJobsTab(),
       ),
     );
   }
@@ -1120,613 +1206,707 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       children: [
         Column(
           children: [
-        Container(
-            margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFEFF6FF),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: const Color(0xFFDBEAFE)),
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFDBEAFE)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.tips_and_updates_outlined,
+                      color: Color(0xFF2563EB)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _skillsGuideDone
+                          ? (S.of(context)?.replayTourSubtitle ??
+                              'Need a refresher? Replay the Skills Profile tutorial.')
+                          : (Localizations.localeOf(context).languageCode ==
+                                  'tl'
+                              ? 'Bago ka ba? Kumpletuhin ang Profile ng Kasanayan para sa mas magandang job matches.'
+                              : 'New here? Complete your Skills Profile to unlock better matches.'),
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0F172A),
+                        height: 1.25,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _startSkillsGuide(force: true),
+                    child: Text(
+                      _skillsGuideDone
+                          ? (S.of(context)?.replayTour ?? 'Replay')
+                          : (Localizations.localeOf(context).languageCode ==
+                                  'tl'
+                              ? 'Simulan'
+                              : 'Start'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              children: [
-                const Icon(Icons.tips_and_updates_outlined,
-                    color: Color(0xFF2563EB)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    _skillsGuideDone
-                        ? (S.of(context)?.replayTourSubtitle ??
-                            'Need a refresher? Replay the Skills Profile tutorial.')
-                        : (Localizations.localeOf(context).languageCode == 'tl'
-                            ? 'Bago ka ba? Kumpletuhin ang Profile ng Kasanayan para sa mas magandang job matches.'
-                            : 'New here? Complete your Skills Profile to unlock better matches.'),
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                      height: 1.25,
+            // Persistent search bar
+            Showcase(
+              key: _guideSearchKey,
+              title: 'Search Skills',
+              description:
+                  'Use the search bar to find specific skills by keyword. Tap anywhere on the screen to continue.',
+              tooltipActions: const [],
+              disableBarrierInteraction: false,
+              onBarrierClick: () {
+                if (!mounted || !_skillsGuideActive || _skillsGuideStep != 0)
+                  return;
+                _advanceGuideStep();
+              },
+              disposeOnTap: true,
+              onTargetClick: () {
+                if (!mounted || !_skillsGuideActive || _skillsGuideStep != 0)
+                  return;
+                _advanceGuideStep();
+              },
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: _onSearchChanged,
+                  decoration: InputDecoration(
+                    hintText: S.of(context)?.searchSkills ?? 'Search skills...',
+                    hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                    prefixIcon: const Icon(Icons.search_rounded,
+                        color: Color(0xFF94A3B8), size: 22),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? GestureDetector(
+                            onTap: () {
+                              _searchDebounce?.cancel();
+                              _searchController.clear();
+                              setState(() => _searchQuery = '');
+                            },
+                            child: const Icon(Icons.close_rounded,
+                                color: Color(0xFF94A3B8), size: 20),
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: const Color(0xFFF1F5F9),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide:
+                          const BorderSide(color: Color(0xFF2563EB), width: 2),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 13),
+                  ),
+                ),
+              ),
+            ),
+            Container(height: 1, color: const Color(0xFFE2E8F0)),
+            if (_hasChanges)
+              Container(
+                width: double.infinity,
+                color: const Color(0xFFFFFBEB),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.edit_note_rounded,
+                        size: 16, color: Color(0xFFD97706)),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Unsaved changes',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.orange[800],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            Expanded(
+              child: _isLoadingCatalog
+                  ? const _SkillsCatalogSkeleton()
+                  : SingleChildScrollView(
+                      controller: _skillsScrollController,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(
+                        20,
+                        16,
+                        20,
+                        120 + MediaQuery.viewInsetsOf(context).bottom,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Your selected skills — always visible when not searching (incl. empty state)
+                          if (!isSearching) ...[
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: _buildSectionHeader(
+                                    'Your Selected Skills',
+                                    Icons.check_circle_outline_rounded,
+                                    subtitle: _selectedSkills.isEmpty
+                                        ? 'None yet — tap skills under Browse to add them here'
+                                        : _editingSelectedSkills
+                                            ? '${_selectedSkills.length} skill${_selectedSkills.length == 1 ? '' : 's'} — tap × to remove, keep browsing to add more, then tap Done'
+                                            : '${_selectedSkills.length} skill${_selectedSkills.length == 1 ? '' : 's'} added · Tap Edit to change',
+                                  ),
+                                ),
+                                ...[
+                                  const SizedBox(width: 8),
+                                  Showcase(
+                                    key: _guideEditKey,
+                                    title: 'Step 1: Tap Edit',
+                                    description:
+                                        'Tap Edit to unlock adding/removing skills.',
+                                    tooltipActions: const [],
+                                    disableBarrierInteraction: true,
+                                    disposeOnTap: true,
+                                    onTargetClick: () {
+                                      if (!mounted ||
+                                          !_skillsGuideActive ||
+                                          _skillsGuideStep != 1) return;
+                                      setState(() {
+                                        _editingSelectedSkills = true;
+                                      });
+                                      _advanceGuideStep();
+                                    },
+                                    child: TextButton.icon(
+                                      onPressed: () {
+                                        if (_skillsGuideActive &&
+                                            _skillsGuideStep == 1) {
+                                          setState(() {
+                                            _editingSelectedSkills = true;
+                                          });
+                                          _advanceGuideStep();
+                                        } else if (_skillsGuideActive) {
+                                          _showToast(
+                                              'Follow the tutorial step first.',
+                                              type: ToastType.info);
+                                        } else {
+                                          setState(() {
+                                            _editingSelectedSkills =
+                                                !_editingSelectedSkills;
+                                          });
+                                        }
+                                      },
+                                      style: TextButton.styleFrom(
+                                        foregroundColor:
+                                            const Color(0xFF2563EB),
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 8),
+                                        minimumSize: Size.zero,
+                                        tapTargetSize:
+                                            MaterialTapTargetSize.shrinkWrap,
+                                      ),
+                                      icon: Icon(
+                                        _editingSelectedSkills
+                                            ? Icons.check_rounded
+                                            : Icons.edit_rounded,
+                                        size: 18,
+                                      ),
+                                      label: Text(
+                                        _editingSelectedSkills
+                                            ? 'Done'
+                                            : 'Edit',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (_selectedSkills.isEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 20),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                      color: const Color(0xFFE2E8F0)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.add_task_rounded,
+                                        size: 22, color: Colors.grey[400]),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        'Start by adding 3-5 key skills to improve match quality. Open a category below and tap skills to add them here.',
+                                        style: TextStyle(
+                                          fontSize: 13,
+                                          color: Colors.grey[600],
+                                          height: 1.35,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: _selectedSkills.map((skill) {
+                                  return _SelectedSkillChip(
+                                    skill: skill,
+                                    onRemove: _editingSelectedSkills
+                                        ? () => _toggleSkill(skill)
+                                        : null,
+                                  );
+                                }).toList(),
+                              ),
+                            const SizedBox(height: 24),
+                          ],
+
+                          // Header card (hidden while searching)
+                          if (!isSearching) ...[
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF2563EB),
+                                    Color(0xFF1D4ED8)
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF2563EB)
+                                        .withOpacity(0.3),
+                                    blurRadius: 20,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 50,
+                                    height: 50,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                    child: const Icon(
+                                      Icons.auto_awesome_rounded,
+                                      color: Colors.white,
+                                      size: 26,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          Localizations.localeOf(context)
+                                                      .languageCode ==
+                                                  'tl'
+                                              ? 'Buuin ang Profile ng Kasanayan'
+                                              : 'Build Your Skills Profile',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                        SizedBox(height: 4),
+                                        Text(
+                                          Localizations.localeOf(context)
+                                                      .languageCode ==
+                                                  'tl'
+                                              ? 'Maghanap o mag-browse ng mga kasanayan sa ibaba at hahanapan ka namin ng pinakaangkop na oportunidad sa trabaho.'
+                                              : 'Search or browse skills below and we\'ll match you with the best job opportunities.',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white70,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                          ],
+
+                          // Search results summary
+                          if (isSearching) ...[
+                            if (_selectedSkills.isNotEmpty && !_canChangeSkills)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: Material(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 10),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.lock_outline_rounded,
+                                            size: 18, color: Color(0xFF2563EB)),
+                                        const SizedBox(width: 10),
+                                        const Expanded(
+                                          child: Text(
+                                            'Editing is locked. Tap Edit to add or remove skills from search or categories.',
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                color: Color(0xFF1E40AF),
+                                                height: 1.35),
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => setState(() =>
+                                              _editingSelectedSkills = true),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor:
+                                                const Color(0xFF2563EB),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 10, vertical: 4),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize
+                                                .shrinkWrap,
+                                          ),
+                                          child: const Text('Edit',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.w800)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            Row(
+                              children: [
+                                const Icon(Icons.filter_list_rounded,
+                                    size: 18, color: Color(0xFF2563EB)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: RichText(
+                                    text: TextSpan(
+                                      style: const TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF64748B)),
+                                      children: [
+                                        TextSpan(
+                                          text:
+                                              '${suggestions.length} skill${suggestions.length == 1 ? '' : 's'} ',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF2563EB)),
+                                        ),
+                                        const TextSpan(text: 'matching "'),
+                                        TextSpan(
+                                          text: _searchQuery,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF0F172A)),
+                                        ),
+                                        const TextSpan(text: '" in '),
+                                        TextSpan(
+                                          text:
+                                              '${filteredCatalog.length} categor${filteredCatalog.length == 1 ? 'y' : 'ies'}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF2563EB)),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+
+                            // Quick-add suggestion chips when searching
+                            if (suggestions.isNotEmpty) ...[
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: suggestions.take(10).map((skill) {
+                                  return GestureDetector(
+                                    onTap: _canChangeSkills
+                                        ? () => _toggleSkill(skill)
+                                        : null,
+                                    child: Opacity(
+                                      opacity: _canChangeSkills ? 1 : 0.45,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF10B981)
+                                              .withOpacity(0.08),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          border: Border.all(
+                                              color: const Color(0xFF10B981)
+                                                  .withOpacity(0.25)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(
+                                                Icons
+                                                    .add_circle_outline_rounded,
+                                                size: 14,
+                                                color: Color(0xFF10B981)),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              skill,
+                                              style: const TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF10B981),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              if (!_canChangeSkills &&
+                                  suggestions.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Tap Edit above to add these skills.',
+                                  style: TextStyle(
+                                      fontSize: 12, color: Color(0xFF94A3B8)),
+                                ),
+                              ],
+                              const SizedBox(height: 20),
+                            ],
+                          ],
+
+                          // Skill categories (sorted and filtered)
+                          if (!isSearching)
+                            _buildSectionHeader(
+                              'Browse Skills by Category',
+                              Icons.category_outlined,
+                              subtitle:
+                                  'Skills sourced from available job listings',
+                            ),
+                          if (!isSearching) const SizedBox(height: 16),
+                          if (!isSearching && _skillCatalog.isNotEmpty) ...[
+                            SizedBox(
+                              height: 38,
+                              child: ListView(
+                                scrollDirection: Axis.horizontal,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: ChoiceChip(
+                                      label: const Text('All categories'),
+                                      selected: _activeCategoryFilter == null,
+                                      onSelected: (_) {
+                                        setState(
+                                            () => _activeCategoryFilter = null);
+                                      },
+                                    ),
+                                  ),
+                                  ..._skillCatalog.keys.map((category) {
+                                    final isActive =
+                                        _activeCategoryFilter == category;
+                                    return Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: ChoiceChip(
+                                        label: Text(category),
+                                        selected: isActive,
+                                        onSelected: (_) {
+                                          setState(() =>
+                                              _activeCategoryFilter = category);
+                                          final key = _categoryKeys[category];
+                                          final ctx = key?.currentContext;
+                                          if (ctx != null) {
+                                            WidgetsBinding.instance
+                                                .addPostFrameCallback((_) {
+                                              Scrollable.ensureVisible(
+                                                ctx,
+                                                duration: const Duration(
+                                                    milliseconds: 280),
+                                                curve: Curves.easeOutCubic,
+                                                alignment: 0.02,
+                                              );
+                                            });
+                                          }
+                                        },
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+
+                          if (isSearching && filteredCatalog.isEmpty)
+                            Center(
+                              child: Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 40),
+                                child: Column(
+                                  children: [
+                                    Icon(Icons.search_off_rounded,
+                                        size: 48, color: Colors.grey[300]),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No skills found for "$_searchQuery"',
+                                      style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF64748B)),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Try a different keyword',
+                                      style: TextStyle(
+                                          fontSize: 13,
+                                          color: Color(0xFF94A3B8)),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                          ...(isSearching
+                                  ? filteredCatalog
+                                  : _skillCatalog.entries
+                                      .where((entry) =>
+                                          _activeCategoryFilter == null ||
+                                          entry.key == _activeCategoryFilter)
+                                      .toList())
+                              .map((entry) {
+                            final key = _categoryKeys.putIfAbsent(
+                                entry.key, () => GlobalKey());
+                            return KeyedSubtree(
+                              key: key,
+                              child: _SkillCategoryCard(
+                                category: entry.key,
+                                skills: entry.value,
+                                selectedSkillSet: selectedSkillSet,
+                                onToggle: _toggleSkill,
+                                onDisabledTap: _confirmEnableSkillEditing,
+                                searchQuery: _searchQuery,
+                                forceExpanded: isSearching,
+                                allowExpandCollapse: !_skillsGuideActive ||
+                                    _skillsGuideStep == 2,
+                                skillsEditable: _canChangeSkills,
+                                onExpandedChanged: (expanded) {
+                                  if (!expanded) return;
+                                },
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+            ),
+
+            // Save button
+            if (_hasChanges)
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 16,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  top: false,
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: Showcase(
+                      key: _guideSaveKey,
+                      title: 'Step 3: Save skills',
+                      description:
+                          'Tap Save Skills to store your selected skills.',
+                      tooltipActions: const [],
+                      disableBarrierInteraction: true,
+                      disposeOnTap: true,
+                      onTargetClick: () {
+                        if (!_isActionAllowedDuringGuide('save') || _isSaving)
+                          return;
+                        _saveSkills();
+                      },
+                      child: ElevatedButton(
+                        onPressed: _isSaving
+                            ? null
+                            : () {
+                                if (_skillsGuideActive &&
+                                    !_isActionAllowedDuringGuide('save')) {
+                                  _showToast('Follow the tutorial step first.',
+                                      type: ToastType.info);
+                                  return;
+                                }
+                                _saveSkills();
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2563EB),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor:
+                              const Color(0xFF2563EB).withOpacity(0.6),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        child: _isSaving
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2.5),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.save_rounded, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Save Skills & Find Matches (${_selectedSkills.length})',
+                                    style: const TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                ],
+                              ),
+                      ),
                     ),
                   ),
                 ),
-                TextButton(
-                  onPressed: () => _startSkillsGuide(force: true),
-                  child: Text(
-                    _skillsGuideDone
-                        ? (S.of(context)?.replayTour ?? 'Replay')
-                        : (Localizations.localeOf(context).languageCode == 'tl'
-                            ? 'Simulan'
-                            : 'Start'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        // Persistent search bar
-        Showcase(
-          key: _guideSearchKey,
-          title: 'Search Skills',
-          description: 'Use the search bar to find specific skills by keyword. Tap anywhere on the screen to continue.',
-          tooltipActions: const [],
-          disableBarrierInteraction: false,
-          onBarrierClick: () {
-            if (!mounted || !_skillsGuideActive || _skillsGuideStep != 0) return;
-            _advanceGuideStep();
-          },
-          disposeOnTap: true,
-          onTargetClick: () {
-            if (!mounted || !_skillsGuideActive || _skillsGuideStep != 0) return;
-            _advanceGuideStep();
-          },
-          child: Container(
-            color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
-              decoration: InputDecoration(
-                hintText: S.of(context)?.searchSkills ?? 'Search skills...',
-                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF94A3B8), size: 22),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? GestureDetector(
-                        onTap: () {
-                          _searchDebounce?.cancel();
-                          _searchController.clear();
-                          setState(() => _searchQuery = '');
-                        },
-                        child: const Icon(Icons.close_rounded, color: Color(0xFF94A3B8), size: 20),
-                      )
-                    : null,
-                filled: true,
-                fillColor: const Color(0xFFF1F5F9),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               ),
-            ),
-          ),
+          ],
         ),
-        Container(height: 1, color: const Color(0xFFE2E8F0)),
-        if (_hasChanges)
-          Container(
-            width: double.infinity,
-            color: const Color(0xFFFFFBEB),
-            padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-            child: Row(
-              children: [
-                const Icon(Icons.edit_note_rounded, size: 16, color: Color(0xFFD97706)),
-                const SizedBox(width: 8),
-                Text(
-                  'Unsaved changes',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.orange[800],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-        Expanded(
-          child: _isLoadingCatalog
-              ? const Center(
-                  child: CircularProgressIndicator(color: Color(0xFF2563EB)),
-                )
-              : SingleChildScrollView(
-                  controller: _skillsScrollController,
-                  physics: const BouncingScrollPhysics(),
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    16,
-                    20,
-                    120 + MediaQuery.viewInsetsOf(context).bottom,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Your selected skills — always visible when not searching (incl. empty state)
-                      if (!isSearching) ...[
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: _buildSectionHeader(
-                                'Your Selected Skills',
-                                Icons.check_circle_outline_rounded,
-                                subtitle: _selectedSkills.isEmpty
-                                    ? 'None yet — tap skills under Browse to add them here'
-                                    : _editingSelectedSkills
-                                        ? '${_selectedSkills.length} skill${_selectedSkills.length == 1 ? '' : 's'} — tap × to remove, keep browsing to add more, then tap Done'
-                                        : '${_selectedSkills.length} skill${_selectedSkills.length == 1 ? '' : 's'} added · Tap Edit to change',
-                              ),
-                            ),
-                            ...[
-                              const SizedBox(width: 8),
-                              Showcase(
-                                key: _guideEditKey,
-                                title: 'Step 1: Tap Edit',
-                                description: 'Tap Edit to unlock adding/removing skills.',
-                                tooltipActions: const [],
-                                disableBarrierInteraction: true,
-                                disposeOnTap: true,
-                                onTargetClick: () {
-                                  if (!mounted || !_skillsGuideActive || _skillsGuideStep != 1) return;
-                                  setState(() {
-                                    _editingSelectedSkills = true;
-                                  });
-                                  _advanceGuideStep();
-                                },
-                                child: TextButton.icon(
-                                onPressed: () {
-                                  if (_skillsGuideActive && _skillsGuideStep == 1) {
-                                    setState(() {
-                                      _editingSelectedSkills = true;
-                                    });
-                                    _advanceGuideStep();
-                                  } else if (_skillsGuideActive) {
-                                    _showToast('Follow the tutorial step first.', type: ToastType.info);
-                                  } else {
-                                    setState(() {
-                                      _editingSelectedSkills = !_editingSelectedSkills;
-                                    });
-                                  }
-                                },
-                                style: TextButton.styleFrom(
-                                  foregroundColor: const Color(0xFF2563EB),
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                                  minimumSize: Size.zero,
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                icon: Icon(
-                                  _editingSelectedSkills ? Icons.check_rounded : Icons.edit_rounded,
-                                  size: 18,
-                                ),
-                                label: Text(
-                                  _editingSelectedSkills ? 'Done' : 'Edit',
-                                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                                ),
-                              ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        if (_selectedSkills.isEmpty)
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF8FAFC),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: const Color(0xFFE2E8F0)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.add_task_rounded, size: 22, color: Colors.grey[400]),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Text(
-                                    'Start by adding 3-5 key skills to improve match quality. Open a category below and tap skills to add them here.',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: Colors.grey[600],
-                                      height: 1.35,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _selectedSkills.map((skill) {
-                              return _SelectedSkillChip(
-                                skill: skill,
-                                onRemove: _editingSelectedSkills ? () => _toggleSkill(skill) : null,
-                              );
-                            }).toList(),
-                          ),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // Header card (hidden while searching)
-                      if (!isSearching) ...[
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF2563EB).withOpacity(0.3),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: const Icon(
-                                  Icons.auto_awesome_rounded,
-                                  color: Colors.white,
-                                  size: 26,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      Localizations.localeOf(context).languageCode ==
-                                              'tl'
-                                          ? 'Buuin ang Profile ng Kasanayan'
-                                          : 'Build Your Skills Profile',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w800,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      Localizations.localeOf(context)
-                                                  .languageCode ==
-                                              'tl'
-                                          ? 'Maghanap o mag-browse ng mga kasanayan sa ibaba at hahanapan ka namin ng pinakaangkop na oportunidad sa trabaho.'
-                                          : 'Search or browse skills below and we\'ll match you with the best job opportunities.',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.white70,
-                                        height: 1.4,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-
-                      // Search results summary
-                      if (isSearching) ...[
-                        if (_selectedSkills.isNotEmpty && !_canChangeSkills)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Material(
-                              color: const Color(0xFFEFF6FF),
-                              borderRadius: BorderRadius.circular(12),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.lock_outline_rounded, size: 18, color: Color(0xFF2563EB)),
-                                    const SizedBox(width: 10),
-                                    const Expanded(
-                                      child: Text(
-                                        'Editing is locked. Tap Edit to add or remove skills from search or categories.',
-                                        style: TextStyle(fontSize: 12, color: Color(0xFF1E40AF), height: 1.35),
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => setState(() => _editingSelectedSkills = true),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: const Color(0xFF2563EB),
-                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                        minimumSize: Size.zero,
-                                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.w800)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        Row(
-                          children: [
-                            const Icon(Icons.filter_list_rounded, size: 18, color: Color(0xFF2563EB)),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: RichText(
-                                text: TextSpan(
-                                  style: const TextStyle(fontSize: 13, color: Color(0xFF64748B)),
-                                  children: [
-                                    TextSpan(
-                                      text: '${suggestions.length} skill${suggestions.length == 1 ? '' : 's'} ',
-                                      style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF2563EB)),
-                                    ),
-                                    const TextSpan(text: 'matching "'),
-                                    TextSpan(
-                                      text: _searchQuery,
-                                      style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF0F172A)),
-                                    ),
-                                    const TextSpan(text: '" in '),
-                                    TextSpan(
-                                      text: '${filteredCatalog.length} categor${filteredCatalog.length == 1 ? 'y' : 'ies'}',
-                                      style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF2563EB)),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Quick-add suggestion chips when searching
-                        if (suggestions.isNotEmpty) ...[
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: suggestions.take(10).map((skill) {
-                              return GestureDetector(
-                                onTap: _canChangeSkills ? () => _toggleSkill(skill) : null,
-                                child: Opacity(
-                                  opacity: _canChangeSkills ? 1 : 0.45,
-                                  child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981).withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: const Color(0xFF10B981).withOpacity(0.25)),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.add_circle_outline_rounded, size: 14, color: Color(0xFF10B981)),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        skill,
-                                        style: const TextStyle(
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w600,
-                                          color: Color(0xFF10B981),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                              );
-                            }).toList(),
-                          ),
-                          if (!_canChangeSkills && suggestions.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Tap Edit above to add these skills.',
-                              style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                            ),
-                          ],
-                          const SizedBox(height: 20),
-                        ],
-                      ],
-
-                      // Skill categories (sorted and filtered)
-                      if (!isSearching)
-                        _buildSectionHeader(
-                          'Browse Skills by Category',
-                          Icons.category_outlined,
-                          subtitle: 'Skills sourced from available job listings',
-                        ),
-                      if (!isSearching) const SizedBox(height: 16),
-                      if (!isSearching && _skillCatalog.isNotEmpty) ...[
-                        SizedBox(
-                          height: 38,
-                          child: ListView(
-                            scrollDirection: Axis.horizontal,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: ChoiceChip(
-                                  label: const Text('All categories'),
-                                  selected: _activeCategoryFilter == null,
-                                  onSelected: (_) {
-                                    setState(() => _activeCategoryFilter = null);
-                                  },
-                                ),
-                              ),
-                              ..._skillCatalog.keys.map((category) {
-                                final isActive = _activeCategoryFilter == category;
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: ChoiceChip(
-                                    label: Text(category),
-                                    selected: isActive,
-                                    onSelected: (_) {
-                                      setState(() => _activeCategoryFilter = category);
-                                      final key = _categoryKeys[category];
-                                      final ctx = key?.currentContext;
-                                      if (ctx != null) {
-                                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                                          Scrollable.ensureVisible(
-                                            ctx,
-                                            duration: const Duration(milliseconds: 280),
-                                            curve: Curves.easeOutCubic,
-                                            alignment: 0.02,
-                                          );
-                                        });
-                                      }
-                                    },
-                                  ),
-                                );
-                              }),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-
-                      if (isSearching && filteredCatalog.isEmpty)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 40),
-                            child: Column(
-                              children: [
-                                Icon(Icons.search_off_rounded, size: 48, color: Colors.grey[300]),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No skills found for "$_searchQuery"',
-                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF64748B)),
-                                ),
-                                const SizedBox(height: 4),
-                                const Text(
-                                  'Try a different keyword',
-                                  style: TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                      ...(isSearching
-                              ? filteredCatalog
-                              : _skillCatalog.entries
-                                  .where((entry) =>
-                                      _activeCategoryFilter == null ||
-                                      entry.key == _activeCategoryFilter)
-                                  .toList())
-                          .map((entry) {
-                        final key = _categoryKeys.putIfAbsent(entry.key, () => GlobalKey());
-                        return KeyedSubtree(
-                          key: key,
-                          child: _SkillCategoryCard(
-                            category: entry.key,
-                            skills: entry.value,
-                            selectedSkillSet: selectedSkillSet,
-                            onToggle: _toggleSkill,
-                            onDisabledTap: _confirmEnableSkillEditing,
-                            searchQuery: _searchQuery,
-                            forceExpanded: isSearching,
-                            allowExpandCollapse: !_skillsGuideActive || _skillsGuideStep == 2,
-                            skillsEditable: _canChangeSkills,
-                            onExpandedChanged: (expanded) {
-                              if (!expanded) return;
-                            },
-                          ),
-                        );
-                      }),
-                    ],
-                  ),
-                ),
-        ),
-
-        // Save button
-        if (_hasChanges)
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 16,
-                  offset: const Offset(0, -4),
-                ),
-              ],
-            ),
-            child: SafeArea(
-              top: false,
-              child: SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: Showcase(
-                  key: _guideSaveKey,
-                  title: 'Step 3: Save skills',
-                  description: 'Tap Save Skills to store your selected skills.',
-                  tooltipActions: const [],
-                  disableBarrierInteraction: true,
-                  disposeOnTap: true,
-                  onTargetClick: () {
-                    if (!_isActionAllowedDuringGuide('save') || _isSaving) return;
-                    _saveSkills();
-                  },
-                  child: ElevatedButton(
-                  onPressed: _isSaving
-                      ? null
-                      : () {
-                          if (_skillsGuideActive && !_isActionAllowedDuringGuide('save')) {
-                            _showToast('Follow the tutorial step first.', type: ToastType.info);
-                            return;
-                          }
-                          _saveSkills();
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFF2563EB).withOpacity(0.6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 0,
-                  ),
-                  child: _isSaving
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                        )
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.save_rounded, size: 20),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Save Skills & Find Matches (${_selectedSkills.length})',
-                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
-                            ),
-                          ],
-                        ),
-                ),
-                ),
-              ),
-            ),
-          ),
-      ],
-    ),
         if (_skillsGuideActive && _skillsGuideStep == 2)
           Positioned(
             top: 0,
@@ -1777,7 +1957,8 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                  style:
+                      const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                 ),
               ],
             ],
@@ -1833,9 +2014,11 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 ),
               ),
             ],
@@ -1845,9 +2028,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     }
 
     if (_isLoadingMatched) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF2563EB)),
-      );
+      return const _SkillsMatchesSkeleton();
     }
 
     if (_matchedJobs.isEmpty && !_hasChanges) {
@@ -1922,9 +2103,11 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF2563EB),
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                 ),
               ),
             ],
@@ -1939,173 +2122,364 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       children: [
         Column(
           children: [
-        // Sort + Filter row
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-          child: Row(
-            children: [
-              Text(
-                '${jobs.length} Match${jobs.length == 1 ? '' : 'es'}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              const Spacer(),
-              // Filter button
-              GestureDetector(
-                onTap: _showMatchFilterSheet,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: _hasActiveMatchFilters
-                        ? const Color(0xFF2563EB)
-                        : Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: _hasActiveMatchFilters
-                          ? const Color(0xFF2563EB)
-                          : const Color(0xFFE2E8F0),
+            // Sort + Filter row
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: Row(
+                children: [
+                  Text(
+                    '${jobs.length} Match${jobs.length == 1 ? '' : 'es'}',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.tune_rounded,
-                        size: 16,
+                  const Spacer(),
+                  // Filter button
+                  GestureDetector(
+                    onTap: _showMatchFilterSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
                         color: _hasActiveMatchFilters
-                            ? Colors.white
-                            : const Color(0xFF64748B),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        _hasActiveMatchFilters ? 'Filtered' : 'Filter',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                            ? const Color(0xFF2563EB)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
                           color: _hasActiveMatchFilters
-                              ? Colors.white
-                              : const Color(0xFF64748B),
+                              ? const Color(0xFF2563EB)
+                              : const Color(0xFFE2E8F0),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Sort button
-              GestureDetector(
-                onTap: _showMatchSortSheet,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _sortOption,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2563EB),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 18,
-                        color: Color(0xFF2563EB),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Container(height: 1, color: const Color(0xFFE2E8F0)),
-
-        // Job list
-        Expanded(
-          child: jobs.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(40),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.filter_alt_off_rounded, size: 56, color: Colors.grey[300]),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'No matches for current filters',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.tune_rounded,
+                            size: 16,
+                            color: _hasActiveMatchFilters
+                                ? Colors.white
+                                : const Color(0xFF64748B),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Try changing your sort or filter options.',
-                          style: TextStyle(fontSize: 14, color: Colors.grey[500]),
-                          textAlign: TextAlign.center,
-                        ),
-                        if (_hasActiveMatchFilters) ...[
-                          const SizedBox(height: 16),
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _selectedEmploymentTypes.clear();
-                                _selectedSkillFilters.clear();
-                                _skillFilterQuery = '';
-                              });
-                            },
-                            child: const Text(
-                              'Clear All Filters',
-                              style: TextStyle(
-                                color: Color(0xFF2563EB),
-                                fontWeight: FontWeight.w700,
-                              ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _hasActiveMatchFilters ? 'Filtered' : 'Filter',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: _hasActiveMatchFilters
+                                  ? Colors.white
+                                  : const Color(0xFF64748B),
                             ),
                           ),
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                )
-              : RefreshIndicator(
-                  color: const Color(0xFF2563EB),
-                  onRefresh: _loadMatchedJobs,
-                  child: Builder(
-                    builder: (context) {
-                      final normalizedUserSkills =
-                          SkillMatchUtils.normalizeSkillTerms(_selectedSkills);
-                      return ListView.builder(
-                        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                        itemCount: jobs.length,
-                        itemBuilder: (context, index) {
-                          return _MatchedJobCard(
-                            job: jobs[index],
-                            normalizedUserSkills: normalizedUserSkills,
+                  const SizedBox(width: 8),
+                  // Sort button
+                  GestureDetector(
+                    onTap: _showMatchSortSheet,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            _sortOption,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF2563EB),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 18,
+                            color: Color(0xFF2563EB),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(height: 1, color: const Color(0xFFE2E8F0)),
+
+            // Job list
+            Expanded(
+              child: jobs.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(40),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.filter_alt_off_rounded,
+                                size: 56, color: Colors.grey[300]),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No matches for current filters',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Try changing your sort or filter options.',
+                              style: TextStyle(
+                                  fontSize: 14, color: Colors.grey[500]),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (_hasActiveMatchFilters) ...[
+                              const SizedBox(height: 16),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() {
+                                    _selectedEmploymentTypes.clear();
+                                    _selectedSkillFilters.clear();
+                                    _skillFilterQuery = '';
+                                  });
+                                },
+                                child: const Text(
+                                  'Clear All Filters',
+                                  style: TextStyle(
+                                    color: Color(0xFF2563EB),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      color: const Color(0xFF2563EB),
+                      onRefresh: _loadMatchedJobs,
+                      child: Builder(
+                        builder: (context) {
+                          final normalizedUserSkills =
+                              SkillMatchUtils.normalizeSkillTerms(
+                                  _selectedSkills);
+                          return ListView.builder(
+                            physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics()),
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                            itemCount: jobs.length,
+                            itemBuilder: (context, index) {
+                              return _MatchedJobCard(
+                                job: jobs[index],
+                                normalizedUserSkills: normalizedUserSkills,
+                              );
+                            },
                           );
                         },
-                      );
-                    },
-                  ),
-                ),
-        ),
+                      ),
+                    ),
+            ),
           ],
         ),
       ],
     );
+  }
+}
+
+class _SkillsSkeletonBox extends StatelessWidget {
+  final double width;
+  final double height;
+  final double radius;
+
+  const _SkillsSkeletonBox({
+    required this.width,
+    required this.height,
+    this.radius = 10,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+class _SkillsCatalogSkeleton extends StatelessWidget {
+  const _SkillsCatalogSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 110,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.all(20),
+            child: const Row(
+              children: [
+                _SkillsSkeletonBox(width: 50, height: 50, radius: 14),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _SkillsSkeletonBox(width: 180, height: 18),
+                      SizedBox(height: 10),
+                      _SkillsSkeletonBox(width: double.infinity, height: 14),
+                      SizedBox(height: 8),
+                      _SkillsSkeletonBox(width: 210, height: 14),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          const _SkillsSkeletonBox(width: 200, height: 18),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: List.generate(
+              6,
+              (index) => const _SkillsSkeletonBox(
+                width: 96,
+                height: 34,
+                radius: 18,
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          ...List.generate(
+            4,
+            (_) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SkillsSkeletonBox(width: 180, height: 16),
+                    SizedBox(height: 14),
+                    _SkillsSkeletonBox(width: double.infinity, height: 14),
+                    SizedBox(height: 10),
+                    _SkillsSkeletonBox(width: 220, height: 14),
+                    SizedBox(height: 16),
+                    _SkillsSkeletonBox(
+                        width: double.infinity, height: 38, radius: 12),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(
+          begin: 0.58,
+          end: 1,
+          duration: 900.ms,
+        );
+  }
+}
+
+class _SkillsMatchesSkeleton extends StatelessWidget {
+  const _SkillsMatchesSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      children: [
+        Row(
+          children: const [
+            _SkillsSkeletonBox(width: 110, height: 18),
+            Spacer(),
+            _SkillsSkeletonBox(width: 82, height: 34, radius: 17),
+            SizedBox(width: 8),
+            _SkillsSkeletonBox(width: 82, height: 34, radius: 17),
+          ],
+        ),
+        const SizedBox(height: 16),
+        ...List.generate(
+          4,
+          (_) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      _SkillsSkeletonBox(width: 52, height: 52, radius: 14),
+                      SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _SkillsSkeletonBox(
+                                width: double.infinity, height: 18),
+                            SizedBox(height: 8),
+                            _SkillsSkeletonBox(width: 160, height: 14),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      _SkillsSkeletonBox(width: 56, height: 56, radius: 14),
+                    ],
+                  ),
+                  SizedBox(height: 14),
+                  _SkillsSkeletonBox(width: double.infinity, height: 14),
+                  SizedBox(height: 8),
+                  _SkillsSkeletonBox(width: 220, height: 14),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    ).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(
+          begin: 0.58,
+          end: 1,
+          duration: 900.ms,
+        );
   }
 }
 
@@ -2114,7 +2488,8 @@ class _Step2GuideFloatingCard extends StatefulWidget {
   const _Step2GuideFloatingCard();
 
   @override
-  State<_Step2GuideFloatingCard> createState() => _Step2GuideFloatingCardState();
+  State<_Step2GuideFloatingCard> createState() =>
+      _Step2GuideFloatingCardState();
 }
 
 class _Step2GuideFloatingCardState extends State<_Step2GuideFloatingCard>
@@ -2242,7 +2617,8 @@ class _SelectedSkillChip extends StatelessWidget {
                   color: const Color(0xFF2563EB).withOpacity(0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close_rounded, size: 12, color: Color(0xFF2563EB)),
+                child: const Icon(Icons.close_rounded,
+                    size: 12, color: Color(0xFF2563EB)),
               ),
             ),
           ],
@@ -2339,6 +2715,7 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
         if (k.contains(q)) return 2;
         return 0;
       }
+
       sortedSkills.sort((a, b) {
         final byScore = score(b).compareTo(score(a));
         if (byScore != 0) return byScore;
@@ -2350,7 +2727,8 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
       });
     }
 
-    final selectedInCat = widget.skills.where((s) => widget.selectedSkillSet.contains(s)).length;
+    final selectedInCat =
+        widget.skills.where((s) => widget.selectedSkillSet.contains(s)).length;
     final matchingCount = isSearching
         ? widget.skills.where((s) => s.toLowerCase().contains(q)).length
         : 0;
@@ -2395,7 +2773,8 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                       color: color.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(_categoryIcon(widget.category), color: color, size: 22),
+                    child: Icon(_categoryIcon(widget.category),
+                        color: color, size: 22),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -2416,10 +2795,12 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                               : '${widget.skills.length} skills${selectedInCat > 0 ? ' · $selectedInCat selected' : ''}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: (isSearching && matchingCount > 0) || selectedInCat > 0
+                            color: (isSearching && matchingCount > 0) ||
+                                    selectedInCat > 0
                                 ? color
                                 : const Color(0xFF94A3B8),
-                            fontWeight: (isSearching && matchingCount > 0) || selectedInCat > 0
+                            fontWeight: (isSearching && matchingCount > 0) ||
+                                    selectedInCat > 0
                                 ? FontWeight.w600
                                 : FontWeight.w400,
                           ),
@@ -2449,7 +2830,8 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                 runSpacing: 8,
                 children: sortedSkills.map((skill) {
                   final isSelected = widget.selectedSkillSet.contains(skill);
-                  final isSearchMatch = isSearching && skill.toLowerCase().contains(q);
+                  final isSearchMatch =
+                      isSearching && skill.toLowerCase().contains(q);
                   final canTap = widget.skillsEditable;
                   return GestureDetector(
                     onTap: canTap
@@ -2458,51 +2840,58 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                     child: Opacity(
                       opacity: canTap ? 1.0 : 0.55,
                       child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? color.withOpacity(0.12)
-                            : isSearchMatch
-                                ? const Color(0xFFFFFBEB)
-                                : const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
+                        duration: const Duration(milliseconds: 200),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 9),
+                        decoration: BoxDecoration(
                           color: isSelected
-                              ? color.withOpacity(0.4)
+                              ? color.withOpacity(0.12)
                               : isSearchMatch
-                                  ? const Color(0xFFF59E0B).withOpacity(0.4)
-                                  : const Color(0xFFE2E8F0),
-                          width: (isSelected || isSearchMatch) ? 1.5 : 1,
+                                  ? const Color(0xFFFFFBEB)
+                                  : const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? color.withOpacity(0.4)
+                                : isSearchMatch
+                                    ? const Color(0xFFF59E0B).withOpacity(0.4)
+                                    : const Color(0xFFE2E8F0),
+                            width: (isSelected || isSearchMatch) ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isSelected)
+                              Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: Icon(Icons.check_rounded,
+                                    size: 14, color: color),
+                              )
+                            else if (isSearchMatch)
+                              const Padding(
+                                padding: EdgeInsets.only(right: 6),
+                                child: Icon(Icons.add_rounded,
+                                    size: 14, color: Color(0xFFF59E0B)),
+                              ),
+                            if (isSearchMatch && !isSelected)
+                              _HighlightedText(text: skill, query: q)
+                            else
+                              Text(
+                                skill,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.w500,
+                                  color: isSelected
+                                      ? color
+                                      : const Color(0xFF475569),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (isSelected)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: Icon(Icons.check_rounded, size: 14, color: color),
-                            )
-                          else if (isSearchMatch)
-                            const Padding(
-                              padding: EdgeInsets.only(right: 6),
-                              child: Icon(Icons.add_rounded, size: 14, color: Color(0xFFF59E0B)),
-                            ),
-                          if (isSearchMatch && !isSelected)
-                            _HighlightedText(text: skill, query: q)
-                          else
-                            Text(
-                              skill,
-                              style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                                color: isSelected ? color : const Color(0xFF475569),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
                     ),
                   );
                 }).toList(),
@@ -2526,7 +2915,11 @@ class _HighlightedText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (query.isEmpty) {
-      return Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF475569)));
+      return Text(text,
+          style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF475569)));
     }
 
     final lowerText = text.toLowerCase();
@@ -2534,18 +2927,28 @@ class _HighlightedText extends StatelessWidget {
     final start = lowerText.indexOf(lowerQuery);
 
     if (start == -1) {
-      return Text(text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF475569)));
+      return Text(text,
+          style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF475569)));
     }
 
     final end = start + query.length;
     return RichText(
       text: TextSpan(
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Color(0xFF475569)),
+        style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF475569)),
         children: [
           if (start > 0) TextSpan(text: text.substring(0, start)),
           TextSpan(
             text: text.substring(start, end),
-            style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFFD97706), backgroundColor: Color(0xFFFEF3C7)),
+            style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: Color(0xFFD97706),
+                backgroundColor: Color(0xFFFEF3C7)),
           ),
           if (end < text.length) TextSpan(text: text.substring(end)),
         ],
@@ -2592,7 +2995,8 @@ class _MatchedJobCard extends StatelessWidget {
 
   Future<void> _confirmAndApply(
       BuildContext context, JobActionService jobActionService) async {
-    final canApply = await _ensureResumeReadyForApply(context, jobActionService);
+    final canApply =
+        await _ensureResumeReadyForApply(context, jobActionService);
     if (!canApply || !context.mounted) return;
 
     final confirmed = await showAppDialog<bool>(
@@ -2643,8 +3047,9 @@ class _MatchedJobCard extends StatelessWidget {
         },
         onViewMap: () {
           Navigator.of(context).pop(); // Pop detail sheet
-          Navigator.of(context).pop(); // Pop SkillsProfilePage to return to Home tabs
-          homeNavRequestNotifier.value = 1; // Select Map tab
+          Navigator.of(context)
+              .pop(); // Pop SkillsProfilePage to return to Home tabs
+          homeNavRequestNotifier.value = 2; // Select Map tab
           mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
         },
       );
@@ -2728,7 +3133,8 @@ class _MatchedJobCard extends StatelessWidget {
                     const SizedBox(width: 12),
                     // Match Badge (Synced Design)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 8),
                       decoration: BoxDecoration(
                         color: matchBg,
                         borderRadius: BorderRadius.circular(14),
@@ -2768,9 +3174,12 @@ class _MatchedJobCard extends StatelessWidget {
                 // Metadata Row (Synced Design)
                 Row(
                   children: [
-                    Flexible(child: _buildBadgeCell(Icons.location_on_rounded, job.location)),
+                    Flexible(
+                        child: _buildBadgeCell(
+                            Icons.location_on_rounded, job.location)),
                     const SizedBox(width: 8),
-                    _buildBadgeCell(Icons.work_rounded, job.employmentTypeLabel),
+                    _buildBadgeCell(
+                        Icons.work_rounded, job.employmentTypeLabel),
                   ],
                 ),
 
@@ -2779,7 +3188,8 @@ class _MatchedJobCard extends StatelessWidget {
                 // Salary Band (Synced Design)
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF8FAFC),
                     borderRadius: BorderRadius.circular(12),
@@ -2787,7 +3197,8 @@ class _MatchedJobCard extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.payments_rounded, size: 14, color: Color(0xFF64748B)),
+                      const Icon(Icons.payments_rounded,
+                          size: 14, color: Color(0xFF64748B)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -2816,7 +3227,8 @@ class _MatchedJobCard extends StatelessWidget {
                       jobSkill: skill,
                     );
                     return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: isMatch
                             ? const Color(0xFF10B981).withOpacity(0.08)
@@ -2834,14 +3246,17 @@ class _MatchedJobCard extends StatelessWidget {
                           if (isMatch)
                             const Padding(
                               padding: EdgeInsets.only(right: 4),
-                              child: Icon(Icons.verified_rounded, size: 11, color: Color(0xFF10B981)),
+                              child: Icon(Icons.verified_rounded,
+                                  size: 11, color: Color(0xFF10B981)),
                             ),
                           Text(
                             skill,
                             style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
-                              color: isMatch ? const Color(0xFF059669) : const Color(0xFF64748B),
+                              color: isMatch
+                                  ? const Color(0xFF059669)
+                                  : const Color(0xFF64748B),
                             ),
                           ),
                         ],
@@ -2869,9 +3284,13 @@ class _MatchedJobCard extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Icon(
-                            isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                            isSaved
+                                ? Icons.bookmark_rounded
+                                : Icons.bookmark_outline_rounded,
                             size: 18,
-                            color: isSaved ? const Color(0xFF2563EB) : const Color(0xFF64748B),
+                            color: isSaved
+                                ? const Color(0xFF2563EB)
+                                : const Color(0xFF64748B),
                           ),
                         ),
                       ),
@@ -2881,7 +3300,8 @@ class _MatchedJobCard extends StatelessWidget {
                     GestureDetector(
                       onTap: openDetails,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
                         decoration: BoxDecoration(
                           color: const Color(0xFF2563EB),
                           borderRadius: BorderRadius.circular(12),
@@ -2896,7 +3316,8 @@ class _MatchedJobCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.send_rounded, size: 16, color: Colors.white),
+                            const Icon(Icons.send_rounded,
+                                size: 16, color: Colors.white),
                             const SizedBox(width: 6),
                             const Text(
                               'Apply Now',
@@ -2925,7 +3346,8 @@ class _MatchedJobCard extends StatelessWidget {
           ),
         ),
       ),
-    ).animate().fadeIn(duration: 400.ms, curve: Curves.easeOutQuad).slideY(begin: 0.1, end: 0, duration: 400.ms, curve: Curves.easeOutQuad);
+    ).animate().fadeIn(duration: 400.ms, curve: Curves.easeOutQuad).slideY(
+        begin: 0.1, end: 0, duration: 400.ms, curve: Curves.easeOutQuad);
   }
 
   Widget _buildBadgeCell(IconData icon, String text) {

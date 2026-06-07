@@ -4,6 +4,7 @@
   "appName": "Kabsat Empoy",
 
   "navHome": "Home",
+  "navExplore": "Diskubre",
   "navMap": "Mapa",
   "navProfile": "Profile",
 
@@ -140,10 +141,28 @@
   "email": "Email",
   "password": "Password",
   "confirmPassword": "Kumpirmahin ang password",
-  "forgotPassword": "Nakalimutan ang password?",
+  "forgotPassword": "Forgot Password?",
   "createAccount": "Gumawa ng account",
+  "continueButton": "Magpatuloy",
+  "signupStepOf": "Hakbang {current} sa {total}",
+  "@signupStepOf": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "signupStepName": "Pangalan",
+  "signupStepContact": "Kontak",
+  "signupStepSecurity": "Seguridad",
+  "signupStepDetails": "Detalye",
+  "signupStepNameHint": "Ilagay ang pangalan mo gaya ng nasa dokumento.",
+  "signupStepContactHint": "Gagamitin ito para maabisuhan ka tungkol sa trabaho at event.",
+  "signupStepSecurityHint": "Pumili ng matibay na password para sa account mo.",
+  "signupStepDetailsHint": "Ilang detalye pa, handa ka na pagkatapos.",
   "alreadyHaveAccount": "May account ka na?",
   "dontHaveAccount": "Wala pang account?",
+  "authSignupSubtitle": "Mag-apply sa trabaho at event malapit sa iyo.",
+  "authLoginSubtitle": "Mag-login para magpatuloy.",
   "welcomeBack": "Maligayang pagbabalik",
   "getStarted": "Magsimula",
   "sessionExpired": "Nag-expire na ang session. Mag-login ulit.",

@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\Admin\AdminActivityFeedController;
 use App\Http\Controllers\Api\Admin\AdminJobseekerDocumentController;
 use App\Http\Controllers\Api\Admin\AdminInvitationController;
 use App\Http\Controllers\Api\Public\PublicEventController;
+use App\Http\Controllers\Api\Public\PublicExploreController;
 use App\Http\Controllers\Api\Public\PublicMapController;
 use App\Http\Controllers\Api\Public\PublicSkillsController;
 use App\Http\Controllers\Api\Public\LegsFeedbackController;
@@ -86,6 +87,9 @@ Route::post('/jobseeker/reset-password', [JobseekerAuthController::class, 'reset
 // Public Job Listings
 Route::get('/public/jobs', [JobseekerJobListingController::class, 'index']);
 Route::get('/public/jobs/{id}', [JobseekerJobListingController::class, 'show']);
+
+// Explore / discovery aggregates (mobile app Explore tab)
+Route::get('/public/explore', PublicExploreController::class);
 
 // Backwards-compatible aliases for mobile app expecting /api/jobs
 Route::get('/jobs', [JobseekerJobListingController::class, 'index']);

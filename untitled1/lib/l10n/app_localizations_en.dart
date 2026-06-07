@@ -15,6 +15,9 @@ class SEn extends S {
   String get navHome => 'Home';
 
   @override
+  String get navExplore => 'Explore';
+
+  @override
   String get navMap => 'Map';
 
   @override
@@ -384,10 +387,52 @@ class SEn extends S {
   String get createAccount => 'Create account';
 
   @override
+  String get continueButton => 'Continue';
+
+  @override
+  String signupStepOf(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String get signupStepName => 'Name';
+
+  @override
+  String get signupStepContact => 'Contact';
+
+  @override
+  String get signupStepSecurity => 'Security';
+
+  @override
+  String get signupStepDetails => 'Details';
+
+  @override
+  String get signupStepNameHint =>
+      'Tell us your name as it appears on your documents.';
+
+  @override
+  String get signupStepContactHint =>
+      'We will use this to reach you about jobs and events.';
+
+  @override
+  String get signupStepSecurityHint =>
+      'Choose a strong password to protect your account.';
+
+  @override
+  String get signupStepDetailsHint =>
+      'A few more details, then you are ready to go.';
+
+  @override
   String get alreadyHaveAccount => 'Already have an account?';
 
   @override
   String get dontHaveAccount => 'Don\'t have an account?';
+
+  @override
+  String get authSignupSubtitle => 'Apply for jobs and events near you.';
+
+  @override
+  String get authLoginSubtitle => 'Sign in to continue where you left off.';
 
   @override
   String get welcomeBack => 'Welcome back';

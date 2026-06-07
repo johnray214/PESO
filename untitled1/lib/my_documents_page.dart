@@ -6,10 +6,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api_service.dart';
 import 'main.dart';
-import 'document_open_io.dart' if (dart.library.html) 'document_open_web.dart' as doc_open;
+import 'document_open_io.dart' if (dart.library.html) 'document_open_web.dart'
+    as doc_open;
 import 'l10n/app_localizations.dart';
 import 'pdf_picker_result.dart';
-import 'pick_pdf_io.dart' if (dart.library.html) 'pick_pdf_web.dart' as pdf_picker;
+import 'pick_pdf_io.dart' if (dart.library.html) 'pick_pdf_web.dart'
+    as pdf_picker;
 import 'user_session.dart';
 
 enum _DocKind { resume, certificate, clearance }
@@ -140,7 +142,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
     try {
       final prefs = await SharedPreferences.getInstance();
       if (uploadedAt != null) {
-        await prefs.setString(_prefKeyUploadedAt(kind), uploadedAt.toIso8601String());
+        await prefs.setString(
+            _prefKeyUploadedAt(kind), uploadedAt.toIso8601String());
       }
       if (sizeBytes != null) {
         await prefs.setInt(_prefKeySize(kind), sizeBytes);
@@ -156,7 +159,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
       v /= 1024;
       u++;
     }
-    final shown = (u == 0) ? v.toStringAsFixed(0) : v.toStringAsFixed(v >= 10 ? 0 : 1);
+    final shown =
+        (u == 0) ? v.toStringAsFixed(0) : v.toStringAsFixed(v >= 10 ? 0 : 1);
     return '$shown ${units[u]}';
   }
 
@@ -261,7 +265,9 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
     }
 
     final existing = _pathForKind(kind);
-    if (existing != null && existing.isNotEmpty && _pendingForKind(kind) == null) {
+    if (existing != null &&
+        existing.isNotEmpty &&
+        _pendingForKind(kind) == null) {
       final replace = await showAppDialog<bool>(
         context: context,
         type: AppDialogType.warning,
@@ -376,7 +382,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
         final now = DateTime.now();
         _setUploadedAtForKind(kind, now);
         if (sizeBytes != null) _setSizeBytesForKind(kind, sizeBytes);
-        unawaited(_persistLocalMeta(kind: kind, uploadedAt: now, sizeBytes: sizeBytes));
+        unawaited(_persistLocalMeta(
+            kind: kind, uploadedAt: now, sizeBytes: sizeBytes));
         await _loadPaths();
         _showToast(
           '${_labelForKind(kind)} uploaded successfully',
@@ -412,7 +419,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
     };
     setState(() => _openingKind = kind);
     try {
-      final res = await ApiService.fetchJobseekerDocument(token: token, type: type);
+      final res =
+          await ApiService.fetchJobseekerDocument(token: token, type: type);
       if (!mounted) return;
       if (res.statusCode != 200) {
         _showToast(
@@ -498,7 +506,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                           ],
                         ),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: _kBlue.withValues(alpha: 0.15)),
+                        border:
+                            Border.all(color: _kBlue.withValues(alpha: 0.15)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -533,16 +542,16 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                             ),
                           ),
                         ],
-                      ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
+                      ).animate().fadeIn(duration: 400.ms).slideY(
+                          begin: 0.1, end: 0, curve: Curves.easeOutCubic),
                     ),
                   ],
                 ),
               ),
             ),
             if (_loadingProfile)
-              const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator(color: _kBlue)),
+              const SliverToBoxAdapter(
+                child: _DocumentsPageSkeleton(),
               )
             else
               SliverPadding(
@@ -650,7 +659,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                             ),
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
                               color: uploaded
                                   ? const Color(0xFFDCFCE7)
@@ -688,7 +698,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
               const SizedBox(height: 14),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
                   borderRadius: BorderRadius.circular(12),
@@ -696,7 +707,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.insert_drive_file_rounded, color: accent, size: 22),
+                    Icon(Icons.insert_drive_file_rounded,
+                        color: accent, size: 22),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -747,7 +759,9 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                       children: [
                         Expanded(
                           child: OutlinedButton(
-                            onPressed: uploading ? null : () => _setPending(kind, null),
+                            onPressed: uploading
+                                ? null
+                                : () => _setPending(kind, null),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: _kSlate600,
                               side: const BorderSide(color: Color(0xFFCBD5E1)),
@@ -761,7 +775,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: FilledButton.icon(
-                            onPressed: uploading ? null : () => _uploadPending(kind),
+                            onPressed:
+                                uploading ? null : () => _uploadPending(kind),
                             icon: uploading
                                 ? const SizedBox(
                                     width: 18,
@@ -771,7 +786,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Icon(Icons.cloud_upload_rounded, size: 20),
+                                : const Icon(Icons.cloud_upload_rounded,
+                                    size: 20),
                             label: Text(uploading ? 'Uploading…' : 'Upload'),
                             style: FilledButton.styleFrom(
                               backgroundColor: accent,
@@ -840,5 +856,141 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
         ),
       ),
     );
+  }
+}
+
+class _DocumentsSkeletonBox extends StatelessWidget {
+  final double width;
+  final double height;
+  final double radius;
+
+  const _DocumentsSkeletonBox({
+    required this.width,
+    required this.height,
+    this.radius = 10,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+class _DocumentsPageSkeleton extends StatelessWidget {
+  const _DocumentsPageSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      child: Column(
+        children: [
+          const SizedBox(height: 16),
+          Container(
+            height: 140,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Color(0xFFE2E8F0)),
+            ),
+            padding: const EdgeInsets.all(20),
+            child: const Row(
+              children: [
+                _DocumentsSkeletonBox(width: 62, height: 62, radius: 20),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _DocumentsSkeletonBox(width: 170, height: 14),
+                      SizedBox(height: 14),
+                      _DocumentsSkeletonBox(width: 220, height: 18),
+                      SizedBox(height: 10),
+                      _DocumentsSkeletonBox(width: double.infinity, height: 14),
+                      SizedBox(height: 8),
+                      _DocumentsSkeletonBox(width: 220, height: 14),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          ...List.generate(
+            3,
+            (_) => Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _DocumentsSkeletonBox(
+                            width: 52, height: 52, radius: 14),
+                        SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _DocumentsSkeletonBox(
+                                  width: double.infinity, height: 18),
+                              SizedBox(height: 8),
+                              _DocumentsSkeletonBox(width: 210, height: 14),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 16),
+                    _DocumentsSkeletonBox(
+                        width: double.infinity, height: 42, radius: 12),
+                    SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _DocumentsSkeletonBox(
+                            width: double.infinity,
+                            height: 44,
+                            radius: 12,
+                          ),
+                        ),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: _DocumentsSkeletonBox(
+                            width: double.infinity,
+                            height: 44,
+                            radius: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(
+          begin: 0.58,
+          end: 1,
+          duration: 900.ms,
+        );
   }
 }

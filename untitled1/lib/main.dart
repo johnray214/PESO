@@ -25,11 +25,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'l10n/app_localizations.dart';
 import 'notification_service.dart';
-import 'legal_documents.dart';
 import 'locale_service.dart';
-
-/// Launcher / task-switcher name and in-app branding (auth, dialogs, etc.).
-const String kAppDisplayName = 'Kabsat Empoy';
+import 'app_config.dart';
+import 'auth/signup_wizard.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -941,245 +939,130 @@ class AuthEntryPage extends StatefulWidget {
   State<AuthEntryPage> createState() => _AuthEntryPageState();
 }
 
-class _AuthEntryPageState extends State<AuthEntryPage>
-    with TickerProviderStateMixin {
-  bool _isSignUpMode = false;
+class _AuthEntryPageState extends State<AuthEntryPage> {
+  /// Sign-up is the primary entry; login is one tap away at the bottom.
+  bool _isSignUpMode = true;
 
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      // Longer staged timeline:
-      // 1) welcome fades in
-      // 2) stays highlighted (~3s)
-      // 3) then header moves and auth panel enters
-      duration: const Duration(milliseconds: 3500),
-    );
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
+  void _toggleAuthMode() {
+    setState(() => _isSignUpMode = !_isSignUpMode);
   }
 
   @override
   Widget build(BuildContext context) {
-    final h = MediaQuery.sizeOf(context).height;
-    // Keep Sign in / Create account pinned to the physical bottom; do not resize
-    // the scaffold when the keyboard opens (avoids those buttons riding up).
-
-    final headerFade = CurvedAnimation(
-      parent: _ctrl,
-      // Quick fade in at start.
-      curve: const Interval(0.0, 0.12, curve: Curves.easeOut),
-    );
-    final headerMove = CurvedAnimation(
-      parent: _ctrl,
-      // Hold for ~3s first, then move up.
-      curve: const Interval(0.68, 0.90, curve: Curves.easeInOutCubic),
-    );
-    final authPop = CurvedAnimation(
-      parent: _ctrl,
-      // Enter right after the header starts moving.
-      curve: const Interval(0.82, 1.0, curve: Curves.easeOutBack),
-    );
+    final s = S.of(context);
 
     return Scaffold(
-      // Keep auth hero/header and form shell fixed while keyboard animates.
-      // The form itself is scrollable, so fields remain usable without full-page jump.
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: AnimatedBuilder(
-          animation: _ctrl,
-          builder: (context, _) {
-            return LayoutBuilder(
-              builder: (context, constraints) {
-                final maxH =
-                    constraints.maxHeight.isFinite ? constraints.maxHeight : h;
-                final headerOpacity = headerFade.value;
-
-                // Staged intro: welcome starts centered (highlight, subtext hidden), eases
-                // toward the top; form [authPop] starts with a low top edge then rises to
-                // sit just under the header — avoids Column pinning everything at top t=0.
-                final headerAlignment = Alignment.lerp(
-                  Alignment.center,
-                  const Alignment(0, -0.80),
-                  headerMove.value,
-                )!;
-
-                // Top edge of the white card: mid-screen → below icon/title/subtext with a
-                // clear gap (previous end ~158–178px let the sheet overlap the subtitle).
-                final formTopEnd = maxH < 640 ? 228.0 : 252.0;
-                final formTop = lerpDouble(
-                  maxH * 0.48,
-                  formTopEnd,
-                  authPop.value,
-                )!;
-                // `easeOutBack` can overshoot >1.0; Opacity requires 0..1.
-                final authOpacity = authPop.value.clamp(0.0, 1.0).toDouble();
-
-                final iconScale = lerpDouble(1.18, 1.0, headerMove.value)!;
-                final titleColor = Color.lerp(
-                  const Color(0xFF2563EB),
-                  const Color(0xFF0F172A),
-                  headerMove.value,
-                )!;
-                final subtitleColor = Color.lerp(
-                  const Color(0xFF2563EB),
-                  const Color(0xFF64748B),
-                  headerMove.value,
-                )!;
-                // Hide subtitle during the highlighted intro, then reveal smoothly
-                // as the header settles near the top.
-                final subtitleReveal = CurvedAnimation(
-                  parent: _ctrl,
-                  curve: const Interval(0.78, 0.96, curve: Curves.easeOutCubic),
-                ).value;
-                final subtitleOpacity =
-                    subtitleReveal.clamp(0.0, 1.0).toDouble();
-                final subtitleYOffset = lerpDouble(8, 0, subtitleReveal) ?? 0;
-
-                // Tighter header on short viewports so title + wrapped subtitle fit.
-                final compact = maxH < 640;
-                final iconSz = compact ? 52.0 : 64.0;
-                final titleSz = compact ? 21.0 : 24.0;
-                final subSize = compact ? 12.5 : 13.0;
-
-                return Stack(
-                  clipBehavior: Clip.none,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Align(
-                      alignment: headerAlignment,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(
-                          24,
-                          compact ? 4 : 8,
-                          24,
-                          compact ? 14 : 18,
-                        ),
-                        child: Opacity(
-                          opacity: headerOpacity,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Transform.scale(
-                                scale: iconScale,
-                                child: Icon(
-                                  Icons.verified_user_rounded,
-                                  size: iconSz,
-                                  color:
-                                      const Color(0xFF2563EB).withOpacity(0.9),
-                                ),
-                              ),
-                              SizedBox(height: compact ? 10 : 14),
-                              Text(
-                                'Welcome to $kAppDisplayName',
-                                style: GoogleFonts.poppins(
-                                  fontSize: titleSz,
-                                  fontWeight: FontWeight.w800,
-                                  color: titleColor,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                              SizedBox(height: compact ? 6 : 8),
-                              Transform.translate(
-                                offset: Offset(0, subtitleYOffset),
-                                child: Opacity(
-                                  opacity: subtitleOpacity,
-                                  child: Text(
-                                    'Sign in to continue, or create an account to start applying for jobs and events.',
-                                    style: GoogleFonts.poppins(
-                                      fontSize: subSize,
-                                      height: 1.4,
-                                      color: subtitleColor,
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ),
-                              ),
-                              // Air below subtext so the sheet cannot ride up over it.
-                              SizedBox(height: compact ? 10 : 12),
-                            ],
-                          ),
-                        ),
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.verified_user_rounded,
+                        color: Color(0xFF2563EB),
+                        size: 24,
                       ),
                     ),
-                    Positioned(
-                      left: 24,
-                      right: 24,
-                      top: formTop,
-                      bottom: 10,
-                      child: Opacity(
-                        opacity: authOpacity,
-                        child: Material(
-                          color: Colors.transparent,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Colors.white, Color(0xFFF8FBFF)],
-                              ),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: const Color(0xFFE6ECF5),
-                                width: 1.0,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color:
-                                      const Color(0xFF0F172A).withOpacity(0.09),
-                                  blurRadius: 30,
-                                  offset: const Offset(0, 14),
-                                ),
-                              ],
-                            ),
-                            child: Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(14, 14, 14, 12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Expanded(
-                                    child: SingleChildScrollView(
-                                      physics: const BouncingScrollPhysics(),
-                                      keyboardDismissBehavior:
-                                          ScrollViewKeyboardDismissBehavior
-                                              .onDrag,
-                                      child: Padding(
-                                        padding: EdgeInsets.fromLTRB(
-                                          4,
-                                          6,
-                                          4,
-                                          20,
-                                        ),
-                                        child: LoginModal(
-                                          key: ValueKey<bool>(_isSignUpMode),
-                                          isSignUp: _isSignUpMode,
-                                          renderAsModal: false,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                ],
-                              ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isSignUpMode
+                                ? (s?.createAccount ?? 'Create account')
+                                : (s?.welcomeBack ?? 'Welcome back'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                              height: 1.2,
                             ),
                           ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _isSignUpMode
+                                ? (s?.authSignupSubtitle ??
+                                    'Apply for jobs and events near you.')
+                                : (s?.authLoginSubtitle ??
+                                    'Sign in to continue where you left off.'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              height: 1.35,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+                  child: LoginModal(
+                    key: ValueKey<bool>(_isSignUpMode),
+                    isSignUp: _isSignUpMode,
+                    renderAsModal: false,
+                    useCompactLayout: true,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      _isSignUpMode
+                          ? (s?.alreadyHaveAccount ??
+                              'Already have an account?')
+                          : (s?.dontHaveAccount ?? "Don't have an account?"),
+                      style: GoogleFonts.poppins(
+                        fontSize: 13.5,
+                        color: const Color(0xFF64748B),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _toggleAuthMode,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        _isSignUpMode
+                            ? (s?.login ?? 'Log in')
+                            : (s?.signup ?? 'Sign up'),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF2563EB),
                         ),
                       ),
                     ),
                   ],
-                );
-              },
-            );
-          },
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -2105,6 +1988,158 @@ class _AboutPageState extends State<AboutPage> {
   }
 }
 
+/// Forgot-password UI using [AppDialog]; keeps [TextEditingController] lifetime
+/// aligned with the route so exit animations cannot touch a disposed controller.
+class _ForgotPasswordDialogShell extends StatefulWidget {
+  const _ForgotPasswordDialogShell({
+    required this.animation,
+    required this.initialEmail,
+    required this.hostContext,
+    required this.hostMounted,
+    required this.onOpenMailto,
+  });
+
+  final Animation<double> animation;
+  final String initialEmail;
+  final BuildContext hostContext;
+  final bool Function() hostMounted;
+  final Future<void> Function(String email) onOpenMailto;
+
+  @override
+  State<_ForgotPasswordDialogShell> createState() =>
+      _ForgotPasswordDialogShellState();
+}
+
+class _ForgotPasswordDialogShellState extends State<_ForgotPasswordDialogShell> {
+  late final TextEditingController _emailCtrl =
+      TextEditingController(text: widget.initialEmail);
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    super.dispose();
+  }
+
+  void _closeDialog() {
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _sendResetLink() async {
+    final email = _emailCtrl.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      if (!widget.hostMounted()) return;
+      CustomToast.show(
+        widget.hostContext,
+        message: 'Please enter a valid email address.',
+        type: ToastType.error,
+      );
+      return;
+    }
+    setState(() => _sending = true);
+    final res = await ApiService.forgotJobseekerPassword(email: email);
+    if (!mounted) return;
+    _closeDialog();
+    if (!widget.hostMounted()) return;
+    final ok = res['success'] == true;
+    String msg;
+    if (ok) {
+      msg = (res['message'] as String?)?.trim() ??
+          'Check your email for the reset link.';
+    } else {
+      final errs = res['errors'];
+      if (errs is Map &&
+          errs['email'] is List &&
+          (errs['email'] as List).isNotEmpty) {
+        msg = (errs['email'] as List).first.toString();
+      } else {
+        msg = (res['message'] as String?)?.trim() ??
+            'Could not send reset link. Try again later.';
+      }
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!widget.hostMounted()) return;
+      CustomToast.show(
+        widget.hostContext,
+        message: msg,
+        type: ok ? ToastType.success : ToastType.error,
+        duration:
+            ok ? const Duration(seconds: 5) : const Duration(seconds: 4),
+        actionLabel: ok ? 'Open email' : null,
+        onAction: ok ? () => unawaited(widget.onOpenMailto(email)) : null,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _appDialogScaleFadeTransition(
+      animation: widget.animation,
+      child: AppDialog(
+        type: AppDialogType.info,
+        icon: Icons.mark_email_unread_rounded,
+        title: S.of(context)?.forgotPassword ?? 'Forgot password?',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Enter your registered email. We’ll send a link to reset your password for $kAppDisplayName.',
+              style: GoogleFonts.poppins(
+                fontSize: 14,
+                color: const Color(0xFF64748B),
+                height: 1.6,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              decoration: InputDecoration(
+                labelText: 'Email',
+                labelStyle: GoogleFonts.poppins(
+                  fontSize: 14,
+                  color: const Color(0xFF64748B),
+                ),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Color(0xFFCBD5E1)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(
+                    color: Color(0xFF2563EB),
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+        confirmLabel: 'Send link',
+        confirmBusyLabel: 'Sending…',
+        confirmBusy: _sending,
+        onCancel: _closeDialog,
+        onConfirm: () => unawaited(_sendResetLink()),
+      ),
+    );
+  }
+}
+
 // ─── Login Modal ──────────────────────────────────────────────────────────────
 class LoginModal extends StatefulWidget {
   final bool isSignUp;
@@ -2113,8 +2148,15 @@ class LoginModal extends StatefulWidget {
   /// no slide animation, no close button).
   final bool renderAsModal;
 
-  const LoginModal(
-      {super.key, this.isSignUp = false, this.renderAsModal = true});
+  /// Full-page auth: no tab switcher or duplicate title (header lives on page).
+  final bool useCompactLayout;
+
+  const LoginModal({
+    super.key,
+    this.isSignUp = false,
+    this.renderAsModal = true,
+    this.useCompactLayout = false,
+  });
 
   @override
   State<LoginModal> createState() => _LoginModalState();
@@ -2146,6 +2188,8 @@ class _LoginModalState extends State<LoginModal>
   String? _serverEmailError;
   Timer? _emailDebounce;
   bool _acceptedTermsAndPrivacy = false;
+  int _signupStep = 0;
+  String? _signupStepError;
 
   @override
   void initState() {
@@ -2183,6 +2227,8 @@ class _LoginModalState extends State<LoginModal>
     if (_isSignUpMode == isSignUp) return;
     setState(() {
       _isSignUpMode = isSignUp;
+      _signupStep = 0;
+      _signupStepError = null;
       _formKey.currentState?.reset();
       _authError = null;
       _serverEmailError = null;
@@ -2190,94 +2236,35 @@ class _LoginModalState extends State<LoginModal>
     });
   }
 
-  Widget _buildLegalConsentRow() {
-    final baseStyle = TextStyle(
-      fontSize: 13,
-      height: 1.35,
-      color: Colors.grey[800],
-      fontWeight: FontWeight.w500,
-    );
-    const linkStyle = TextStyle(
-      color: Color(0xFF2563EB),
-      fontSize: 13,
-      fontWeight: FontWeight.w700,
-      height: 1.35,
-    );
+  void _goBackSignupStep() {
+    if (_signupStep <= 0) return;
+    setState(() {
+      _signupStep -= 1;
+      _signupStepError = null;
+    });
+  }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Transform.translate(
-          offset: const Offset(-4, -2),
-          child: SizedBox(
-            width: 28,
-            height: 28,
-            child: Checkbox(
-              value: _acceptedTermsAndPrivacy,
-              onChanged: (v) =>
-                  setState(() => _acceptedTermsAndPrivacy = v ?? false),
-              activeColor: const Color(0xFF2563EB),
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: RichText(
-              text: TextSpan(
-                style: baseStyle,
-                children: [
-                  const TextSpan(
-                    text:
-                        'I have read and agree to the ',
-                  ),
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.baseline,
-                    baseline: TextBaseline.alphabetic,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => const TermsOfServicePage(),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        'Terms & Conditions',
-                        style: linkStyle,
-                      ),
-                    ),
-                  ),
-                  const TextSpan(text: ' and the '),
-                  WidgetSpan(
-                    alignment: PlaceholderAlignment.baseline,
-                    baseline: TextBaseline.alphabetic,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {
-                        Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => const PrivacyPolicyPage(),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        'Privacy Policy',
-                        style: linkStyle,
-                      ),
-                    ),
-                  ),
-                  TextSpan(text: ' of $kAppDisplayName.'),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
+  bool _advanceSignupStep() {
+    final error = SignupStepValidation.validateStep(
+      step: _signupStep,
+      firstName: _firstNameController.text,
+      lastName: _lastNameController.text,
+      phone: _phoneController.text,
+      email: _emailController.text,
+      password: _passwordController.text,
+      confirmPassword: _confirmPasswordController.text,
+      sex: _selectedSex,
+      serverEmailError: _serverEmailError,
     );
+    if (error != null) {
+      setState(() => _signupStepError = error);
+      return false;
+    }
+    setState(() {
+      _signupStepError = null;
+      _signupStep += 1;
+    });
+    return true;
   }
 
   Future<void> _pickDob() async {
@@ -2423,6 +2410,8 @@ class _LoginModalState extends State<LoginModal>
     _phoneController.clear();
     _selectedDob = null;
     _selectedSex = null;
+    _signupStep = 0;
+    _signupStepError = null;
     _isSignUpMode = false;
   }
 
@@ -2445,122 +2434,25 @@ class _LoginModalState extends State<LoginModal>
     }
   }
 
-  Future<void> _showForgotPasswordDialog() async {
-    final emailCtrl = TextEditingController(text: _emailController.text.trim());
-    var sending = false;
-    void closeDialogSafely(BuildContext dialogContext) {
-      FocusManager.instance.primaryFocus?.unfocus();
-      if (!dialogContext.mounted) return;
-      Navigator.of(dialogContext).pop();
-    }
-    try {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: true,
-        builder: (ctx) {
-          return StatefulBuilder(
-            builder: (ctx, setLocal) {
-              return AlertDialog(
-              title: Text(S.of(context)?.forgotPassword ?? 'Forgot password'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Enter your registered email. We’ll send a link to reset your password for $kAppDisplayName.',
-                    style: TextStyle(
-                        fontSize: 13.5, height: 1.35, color: Color(0xFF64748B)),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: emailCtrl,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.all(Radius.circular(12))),
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: sending ? null : () => closeDialogSafely(ctx),
-                  child: const Text('Cancel'),
-                ),
-                FilledButton(
-                  onPressed: sending
-                      ? null
-                      : () async {
-                          final email = emailCtrl.text.trim();
-                          if (email.isEmpty || !email.contains('@')) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content:
-                                    Text('Please enter a valid email address.'),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                            return;
-                          }
-                          setLocal(() => sending = true);
-                          final res = await ApiService.forgotJobseekerPassword(
-                              email: email);
-                          if (!ctx.mounted) return;
-                          // Do not call setLocal before pop: rebuilding StatefulBuilder while
-                          // closing the route can assert in InheritedWidget disposal.
-                          closeDialogSafely(ctx);
-                          if (!mounted) return;
-                          final ok = res['success'] == true;
-                          String msg;
-                          if (ok) {
-                            msg = (res['message'] as String?)?.trim() ??
-                                'Check your email for the reset link.';
-                          } else {
-                            final errs = res['errors'];
-                            if (errs is Map &&
-                                errs['email'] is List &&
-                                (errs['email'] as List).isNotEmpty) {
-                              msg = (errs['email'] as List).first.toString();
-                            } else {
-                              msg = (res['message'] as String?)?.trim() ??
-                                  'Could not send reset link. Try again later.';
-                            }
-                          }
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(msg),
-                                behavior: SnackBarBehavior.floating,
-                                duration: const Duration(seconds: 5),
-                                action: ok
-                                    ? SnackBarAction(
-                                        label: 'Open email',
-                                        onPressed: () =>
-                                            unawaited(_openMailto(email)),
-                                      )
-                                    : null,
-                              ),
-                            );
-                          });
-                        },
-                  child: Text(sending ? 'Sending…' : 'Send link'),
-                ),
-              ],
-              );
-            },
-          );
-        },
-      );
-    } finally {
-      // Defer disposal one frame so the dialog TextField fully detaches
-      // before controller teardown (prevents close-time crashes with keyboard up).
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        emailCtrl.dispose();
-      });
-    }
+  void _showForgotPasswordDialog() {
+    const dialogTransition = Duration(milliseconds: 280);
+    unawaited(showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: const Color(0xFF0F172A).withOpacity(0.5),
+      transitionDuration: dialogTransition,
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (_, animation, __, ___) {
+        return _ForgotPasswordDialogShell(
+          animation: animation,
+          initialEmail: _emailController.text.trim(),
+          hostContext: context,
+          hostMounted: () => mounted,
+          onOpenMailto: _openMailto,
+        );
+      },
+    ));
   }
 
   void _startOtpReopenCooldown([int seconds = 3]) {
@@ -2595,68 +2487,6 @@ class _LoginModalState extends State<LoginModal>
     if (mounted) setState(() {});
   }
 
-  Widget _passwordRequirementRow(String label, bool ok) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            ok ? Icons.check_circle_rounded : Icons.circle_outlined,
-            size: 16,
-            color: ok ? const Color(0xFF16A34A) : const Color(0xFFCBD5E1),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: ok ? const Color(0xFF166534) : const Color(0xFF64748B),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPasswordRequirements() {
-    if (!_isSignUpMode) return const SizedBox.shrink();
-    final p = _passwordController.text;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Password must include:',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF64748B),
-          ),
-        ),
-        const SizedBox(height: 6),
-        _passwordRequirementRow(
-          'At least 8 characters',
-          PasswordRules.hasMinLength(p),
-        ),
-        _passwordRequirementRow(
-          'Uppercase & lowercase letters',
-          PasswordRules.hasUppercase(p) && PasswordRules.hasLowercase(p),
-        ),
-        _passwordRequirementRow(
-          'At least one number',
-          PasswordRules.hasNumber(p),
-        ),
-        _passwordRequirementRow(
-          'At least one special character',
-          PasswordRules.hasSymbol(p),
-        ),
-      ],
-    );
-  }
-
   InputDecoration _fieldDec(String label, IconData icon, {Widget? suffix}) {
     final fill = widget.renderAsModal ? const Color(0xFFF8F9FA) : Colors.white;
     final enabledBorderColor =
@@ -2682,7 +2512,7 @@ class _LoginModalState extends State<LoginModal>
     );
   }
 
-  Widget _buildTopErrorBanner(String message) {
+  Widget _buildTopErrorBanner(String message, {VoidCallback? onDismiss}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
@@ -2709,7 +2539,7 @@ class _LoginModalState extends State<LoginModal>
           ),
           const SizedBox(width: 6),
           GestureDetector(
-            onTap: () => setState(() => _authError = null),
+            onTap: onDismiss ?? () => setState(() => _authError = null),
             child: const Icon(Icons.close_rounded,
                 color: Color(0xFF991B1B), size: 18),
           ),
@@ -2720,25 +2550,29 @@ class _LoginModalState extends State<LoginModal>
 
   @override
   Widget build(BuildContext context) {
-    final content = SingleChildScrollView(
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: 24,
-          left: 24,
-          right: 24,
-          top: widget.renderAsModal ? 16 : 4,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.renderAsModal)
-              Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2))),
-            SizedBox(height: widget.renderAsModal ? 24 : 8),
+    final formBody = Padding(
+      padding: EdgeInsets.only(
+        bottom: widget.useCompactLayout ? 8 : 24,
+        left: widget.useCompactLayout ? 0 : 24,
+        right: widget.useCompactLayout ? 0 : 24,
+        top: widget.renderAsModal
+            ? 16
+            : (widget.useCompactLayout ? 0 : 4),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.renderAsModal)
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          if (widget.renderAsModal) const SizedBox(height: 24),
+          if (!widget.useCompactLayout) ...[
             Container(
               margin: const EdgeInsets.only(bottom: 24),
               decoration: BoxDecoration(
@@ -2856,7 +2690,8 @@ class _LoginModalState extends State<LoginModal>
               ],
             ),
             SizedBox(height: widget.renderAsModal ? 32 : 16),
-            Form(
+          ],
+          Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2866,149 +2701,118 @@ class _LoginModalState extends State<LoginModal>
                     const SizedBox(height: 12),
                   ],
                   if (_isSignUpMode) ...[
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          flex: 2,
-                          child: TextFormField(
-                            controller: _firstNameController,
-                            decoration: _fieldDec('First Name', Icons.person_outline_rounded),
-                            validator: (v) {
-                              if (v == null || v.trim().isEmpty) return 'Please enter your first name';
-                              return null;
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 1,
-                          child: TextFormField(
-                            controller: _middleInitialController,
-                            textCapitalization: TextCapitalization.characters,
-                            maxLength: 2,
-                            inputFormatters: [
-                              LengthLimitingTextInputFormatter(1),
-                              UpperCaseTextFormatter(),
-                            ],
-                            decoration: _fieldDec('M.I.', Icons.text_format_rounded).copyWith(counterText: ''),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _lastNameController,
-                      decoration:
-                          _fieldDec('Last Name', Icons.person_outline_rounded),
-                      validator: (v) {
-                        if (v == null || v.trim().isEmpty)
-                          return 'Please enter your last name';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: _fieldDec(
-                        'Phone number (11 digits)',
-                        Icons.phone_outlined,
+                    if (_signupStepError != null) ...[
+                      _buildTopErrorBanner(
+                        _signupStepError!,
+                        onDismiss: () =>
+                            setState(() => _signupStepError = null),
                       ),
-                      validator: (v) {
-                        final value = v?.trim() ?? '';
-                        if (value.isEmpty) {
-                          return 'Please enter your mobile number';
+                      const SizedBox(height: 12),
+                    ],
+                    SignupWizard(
+                      currentStep: _signupStep,
+                      renderAsModal: widget.renderAsModal,
+                      firstNameController: _firstNameController,
+                      middleInitialController: _middleInitialController,
+                      lastNameController: _lastNameController,
+                      phoneController: _phoneController,
+                      emailController: _emailController,
+                      passwordController: _passwordController,
+                      confirmPasswordController: _confirmPasswordController,
+                      dobController: _dobController,
+                      obscurePassword: _obscurePassword,
+                      obscureConfirmPassword: _obscureConfirmPassword,
+                      selectedSex: _selectedSex,
+                      acceptedTermsAndPrivacy: _acceptedTermsAndPrivacy,
+                      serverEmailError: _serverEmailError,
+                      onEmailChanged: (v) {
+                        if (_serverEmailError != null) {
+                          setState(() => _serverEmailError = null);
                         }
-                        final phPattern = RegExp(r'^0\d{10}$');
-                        if (!phPattern.hasMatch(value)) {
-                          return 'Enter 11-digit PH number (e.g. 09XXXXXXXXX)';
+                        if (_signupStepError != null) {
+                          setState(() => _signupStepError = null);
                         }
-                        return null;
+                        _emailDebounce?.cancel();
+                        if (v.trim().isEmpty ||
+                            !v.contains('@') ||
+                            !v.contains('.')) {
+                          return;
+                        }
+                        _emailDebounce = Timer(
+                          const Duration(milliseconds: 600),
+                          () async {
+                            final res = await ApiService.checkJobseekerEmail(
+                              v.trim(),
+                            );
+                            if (mounted &&
+                                _isSignUpMode &&
+                                _emailController.text.trim() == v.trim()) {
+                              if (res['success'] == true &&
+                                  res['exists'] == true) {
+                                setState(() => _serverEmailError =
+                                    'Email is already registered.');
+                              }
+                            }
+                          },
+                        );
                       },
+                      onPasswordChanged: () => setState(() {}),
+                      onTogglePassword: () => setState(
+                        () => _obscurePassword = !_obscurePassword,
+                      ),
+                      onToggleConfirmPassword: () => setState(
+                        () => _obscureConfirmPassword =
+                            !_obscureConfirmPassword,
+                      ),
+                      onSexChanged: (value) =>
+                          setState(() => _selectedSex = value),
+                      onTermsChanged: (value) =>
+                          setState(() => _acceptedTermsAndPrivacy = value),
+                      onPickDob: _pickDob,
                     ),
-                    const SizedBox(height: 20),
                   ],
-                  TextFormField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    decoration: _fieldDec('Email', Icons.email_outlined),
-                    onChanged: (v) {
-                      if (_serverEmailError != null) {
-                        setState(() => _serverEmailError = null);
-                      }
-                      if (!_isSignUpMode) return;
-                      _emailDebounce?.cancel();
-                      if (v.trim().isEmpty ||
-                          !v.contains('@') ||
-                          !v.contains('.')) return;
-                      _emailDebounce =
-                          Timer(const Duration(milliseconds: 600), () async {
-                        final res =
-                            await ApiService.checkJobseekerEmail(v.trim());
-                        if (mounted &&
-                            _isSignUpMode &&
-                            _emailController.text.trim() == v.trim()) {
-                          if (res['success'] == true && res['exists'] == true) {
-                            setState(() => _serverEmailError =
-                                'Email is already registered.');
-                          }
+                  if (!_isSignUpMode) ...[
+                    TextFormField(
+                      controller: _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: _fieldDec('Email', Icons.email_outlined),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Please enter your email';
                         }
-                      });
-                    },
-                    validator: (v) {
-                      if (v == null || v.isEmpty) {
-                        return 'Please enter your email';
-                      }
-                      if (_isSignUpMode &&
-                          (!v.contains('@') || !v.contains('.'))) {
-                        return 'Please enter a valid email address';
-                      }
-                      return null;
-                    },
-                  ),
-                  if (_isSignUpMode && _serverEmailError != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 8, left: 4),
-                      child: Text(
-                        _serverEmailError!,
-                        style: const TextStyle(
-                          color: Color(0xFFDC2626),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                        return null;
+                      },
                     ),
-                  const SizedBox(height: 20),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    onChanged: (_) => setState(() {}),
-                    decoration: _fieldDec(
-                      'Password',
-                      Icons.lock_outline_rounded,
-                      suffix: IconButton(
-                        icon: Icon(
+                    const SizedBox(height: 20),
+                    TextFormField(
+                      controller: _passwordController,
+                      obscureText: _obscurePassword,
+                      inputFormatters: PasswordRules.inputFormattersNoWhitespace,
+                      decoration: _fieldDec(
+                        'Password',
+                        Icons.lock_outline_rounded,
+                        suffix: IconButton(
+                          icon: Icon(
                             _obscurePassword
                                 ? Icons.visibility_outlined
                                 : Icons.visibility_off_outlined,
-                            color: Colors.grey[600]),
-                        onPressed: () => setState(
-                            () => _obscurePassword = !_obscurePassword),
+                            color: Colors.grey[600],
+                          ),
+                          onPressed: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                        ),
                       ),
+                      validator: (v) {
+                        if (v == null || v.isEmpty) {
+                          return 'Please enter your password';
+                        }
+                        if (PasswordRules.hasWhitespace(v)) {
+                          return 'Password cannot contain spaces';
+                        }
+                        return null;
+                      },
                     ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) {
-                        return 'Please enter your password';
-                      }
-                      if (_isSignUpMode) {
-                        return PasswordRules.validateStrongPassword(v);
-                      }
-                      return null;
-                    },
-                  ),
-                  if (_isSignUpMode) ...[
-                    _buildPasswordRequirements(),
                     const SizedBox(height: 8),
                   ],
                   if (!_isSignUpMode) ...[
@@ -3074,116 +2878,87 @@ class _LoginModalState extends State<LoginModal>
                     ),
                   ],
                   if (!_isSignUpMode) const SizedBox(height: 6),
-                  if (_isSignUpMode) ...[
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _confirmPasswordController,
-                      obscureText: _obscureConfirmPassword,
-                      onChanged: (_) => setState(() {}),
-                      decoration: _fieldDec(
-                        'Confirm Password',
-                        Icons.lock_outline_rounded,
-                        suffix: IconButton(
-                          icon: Icon(
-                              _obscureConfirmPassword
-                                  ? Icons.visibility_outlined
-                                  : Icons.visibility_off_outlined,
-                              color: Colors.grey[600]),
-                          onPressed: () => setState(() =>
-                              _obscureConfirmPassword =
-                                  !_obscureConfirmPassword),
-                        ),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty)
-                          return 'Please confirm your password';
-                        if (v != _passwordController.text)
-                          return 'Passwords do not match';
-                        return null;
-                      },
-                    ),
-                    if (_confirmPasswordController.text.isNotEmpty &&
-                        _confirmPasswordController.text !=
-                            _passwordController.text)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          'Passwords do not match',
-                          style: TextStyle(
-                            color: Colors.red[700],
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      if (_isSignUpMode && _signupStep > 0) ...[
+                        SizedBox(
+                          height: 52,
+                          child: OutlinedButton.icon(
+                            onPressed:
+                                _isSubmitting ? null : _goBackSignupStep,
+                            icon: const Icon(Icons.arrow_back_rounded,
+                                size: 18),
+                            label: Text(
+                              S.of(context)?.back ?? 'Back',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF475569),
+                              side: const BorderSide(color: Color(0xFFE2E8F0)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                            ),
                           ),
                         ),
-                      ),
-                    const SizedBox(height: 20),
-                    TextFormField(
-                      controller: _dobController,
-                      readOnly: true,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Color(0xFF0F172A),
-                        fontWeight: FontWeight.w500,
-                      ),
-                      decoration: _fieldDec(
-                        'Birthdate (YYYY-MM-DD)',
-                        Icons.cake_outlined,
-                      ).copyWith(
-                        labelStyle: const TextStyle(
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 12.5,
-                        ),
-                        floatingLabelStyle: const TextStyle(
-                          color: Color(0xFF64748B),
-                          fontWeight: FontWeight.w500,
-                          fontSize: 11,
-                        ),
-                        isDense: true,
-                      ),
-                      onTap: _pickDob,
-                    ),
-                    const SizedBox(height: 20),
-                    DropdownButtonFormField<String>(
-                      value: _selectedSex,
-                      decoration: _fieldDec('Sex', Icons.person_outline),
-                      items: const [
-                        DropdownMenuItem(value: 'male', child: Text('Male')),
-                        DropdownMenuItem(value: 'female', child: Text('Female')),
+                        const SizedBox(width: 12),
                       ],
-                      onChanged: (value) =>
-                          setState(() => _selectedSex = value),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Required';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    _buildLegalConsentRow(),
-                  ],
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
+                      Expanded(
+                        child: SizedBox(
+                          height: 52,
+                          child: ElevatedButton(
                       onPressed: _isSubmitting ||
-                              (_isSignUpMode && _serverEmailError != null) ||
-                              (_isSignUpMode && !_acceptedTermsAndPrivacy)
+                              (_isSignUpMode &&
+                                  _signupStep == 1 &&
+                                  _serverEmailError != null) ||
+                              (_isSignUpMode &&
+                                  _signupStep == kSignupStepCount - 1 &&
+                                  !_acceptedTermsAndPrivacy)
                           ? null
                           : () async {
+                              if (_isSignUpMode) {
+                                if (_signupStep < kSignupStepCount - 1) {
+                                  _advanceSignupStep();
+                                  return;
+                                }
+                                final stepError =
+                                    SignupStepValidation.validateStep(
+                                  step: _signupStep,
+                                  firstName: _firstNameController.text,
+                                  lastName: _lastNameController.text,
+                                  phone: _phoneController.text,
+                                  email: _emailController.text,
+                                  password: _passwordController.text,
+                                  confirmPassword:
+                                      _confirmPasswordController.text,
+                                  sex: _selectedSex,
+                                  serverEmailError: _serverEmailError,
+                                );
+                                if (stepError != null) {
+                                  setState(() => _signupStepError = stepError);
+                                  return;
+                                }
+                                if (!_acceptedTermsAndPrivacy) return;
+                                setState(() {
+                                  _signupStepError = null;
+                                  _isSubmitting = true;
+                                });
+                                await _handleRegistration();
+                                if (mounted) {
+                                  setState(() => _isSubmitting = false);
+                                }
+                                return;
+                              }
                               if (_formKey.currentState!.validate()) {
                                 setState(() {
                                   _authError = null;
                                   _isSubmitting = true;
                                 });
-                                if (_isSignUpMode) {
-                                  await _handleRegistration();
-                                  if (mounted) {
-                                    setState(() => _isSubmitting = false);
-                                  }
-                                } else {
-                                  if (_otpReopenCooldownSeconds > 0) {
+                                if (_otpReopenCooldownSeconds > 0) {
                                     if (!mounted) return;
                                     setState(() {
                                       _authError =
@@ -3281,7 +3056,6 @@ class _LoginModalState extends State<LoginModal>
                                       _isSubmitting = false;
                                     });
                                   }
-                                }
                               }
                             },
                       style: ElevatedButton.styleFrom(
@@ -3300,9 +3074,15 @@ class _LoginModalState extends State<LoginModal>
                                     fontWeight: FontWeight.w700,
                                   ),
                                 )
-                              : const Text(
-                                  'Continue',
-                                  style: TextStyle(
+                              : Text(
+                                  _isSignUpMode
+                                      ? (_signupStep < kSignupStepCount - 1
+                                          ? (S.of(context)?.continueButton ??
+                                              'Continue')
+                                          : (S.of(context)?.createAccount ??
+                                              'Create account'))
+                                      : (S.of(context)?.login ?? 'Log in'),
+                                  style: const TextStyle(
                                     fontSize: 18,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -3339,17 +3119,22 @@ class _LoginModalState extends State<LoginModal>
                                       fontSize: 18,
                                       fontWeight: FontWeight.w700),
                                 ),
-                    ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
+
+    if (widget.useCompactLayout) return formBody;
+
+    final content = SingleChildScrollView(child: formBody);
 
     if (!widget.renderAsModal) return content;
 
@@ -4172,6 +3957,8 @@ class CustomToast {
     required String message,
     ToastType type = ToastType.info,
     Duration duration = const Duration(seconds: 4),
+    String? actionLabel,
+    VoidCallback? onAction,
   }) {
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
@@ -4180,6 +3967,13 @@ class CustomToast {
       builder: (context) => _ToastWidget(
         message: message,
         type: type,
+        actionLabel: actionLabel,
+        onAction: onAction == null
+            ? null
+            : () {
+                if (entry.mounted) entry.remove();
+                onAction();
+              },
         onDismiss: () {
           if (entry.mounted) entry.remove();
         },
@@ -4198,11 +3992,15 @@ class CustomToast {
 class _ToastWidget extends StatefulWidget {
   final String message;
   final ToastType type;
+  final String? actionLabel;
+  final VoidCallback? onAction;
   final VoidCallback onDismiss;
 
   const _ToastWidget({
     required this.message,
     required this.type,
+    this.actionLabel,
+    this.onAction,
     required this.onDismiss,
   });
 
@@ -4308,6 +4106,28 @@ class _ToastWidgetState extends State<_ToastWidget> with SingleTickerProviderSta
                       ),
                     ),
                   ),
+                  if (widget.actionLabel != null && widget.onAction != null) ...[
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: widget.onAction,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        foregroundColor: color,
+                      ),
+                      child: Text(
+                        widget.actionLabel!,
+                        style: GoogleFonts.poppins(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () {
@@ -4360,6 +4180,14 @@ class AppDialog extends StatelessWidget {
   final Widget? content;
   final String confirmLabel;
   final String cancelLabel;
+
+  /// When true, primary and cancel actions are disabled and [confirmBusyLabel]
+  /// is shown on the primary button (if non-null).
+  final bool confirmBusy;
+
+  /// Shown on the confirm button while [confirmBusy] is true.
+  final String? confirmBusyLabel;
+
   final VoidCallback? onConfirm;
   final VoidCallback? onCancel;
   final IconData? icon;
@@ -4372,6 +4200,8 @@ class AppDialog extends StatelessWidget {
     this.content,
     this.confirmLabel = 'Confirm',
     this.cancelLabel = 'Cancel',
+    this.confirmBusy = false,
+    this.confirmBusyLabel,
     this.onConfirm,
     this.onCancel,
     this.icon,
@@ -4476,7 +4306,9 @@ class AppDialog extends StatelessWidget {
                 children: [
                   Expanded(
                     child: TextButton(
-                      onPressed: onCancel ?? () => Navigator.pop(context),
+                      onPressed: confirmBusy
+                          ? null
+                          : (onCancel ?? () => Navigator.pop(context)),
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
@@ -4498,7 +4330,9 @@ class AppDialog extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton(
-                      onPressed: onConfirm ?? () => Navigator.pop(context, true),
+                      onPressed: confirmBusy
+                          ? null
+                          : (onConfirm ?? () => Navigator.pop(context, true)),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         backgroundColor: colors.primary,
@@ -4509,7 +4343,9 @@ class AppDialog extends StatelessWidget {
                         elevation: 0,
                       ),
                       child: Text(
-                        confirmLabel,
+                        (confirmBusy && confirmBusyLabel != null)
+                            ? confirmBusyLabel!
+                            : confirmLabel,
                         style: GoogleFonts.poppins(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -4562,6 +4398,28 @@ class AppDialog extends StatelessWidget {
   }
 }
 
+Widget _appDialogScaleFadeTransition({
+  required Animation<double> animation,
+  required Widget child,
+}) {
+  final curvedAnimation = CurvedAnimation(
+    parent: animation,
+    curve: Curves.easeOutBack,
+    reverseCurve: Curves.easeInCubic,
+  );
+  return Center(
+    child: ScaleTransition(
+      scale: Tween<double>(begin: 0.85, end: 1.0).animate(curvedAnimation),
+      child: FadeTransition(
+        opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOut),
+        ),
+        child: child,
+      ),
+    ),
+  );
+}
+
 /// Shows a unified app dialog with scale + fade animation.
 Future<T?> showAppDialog<T>({
   required BuildContext context,
@@ -4584,30 +4442,18 @@ Future<T?> showAppDialog<T>({
     transitionDuration: const Duration(milliseconds: 280),
     pageBuilder: (_, __, ___) => const SizedBox.shrink(),
     transitionBuilder: (ctx, animation, secondaryAnimation, child) {
-      final curvedAnimation = CurvedAnimation(
-        parent: animation,
-        curve: Curves.easeOutBack,
-        reverseCurve: Curves.easeInCubic,
-      );
-      return Center(
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.85, end: 1.0).animate(curvedAnimation),
-          child: FadeTransition(
-            opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            ),
-            child: AppDialog(
-              type: type,
-              title: title,
-              message: message,
-              content: content,
-              confirmLabel: confirmLabel,
-              cancelLabel: cancelLabel,
-              onConfirm: onConfirm,
-              onCancel: onCancel,
-              icon: icon,
-            ),
-          ),
+      return _appDialogScaleFadeTransition(
+        animation: animation,
+        child: AppDialog(
+          type: type,
+          title: title,
+          message: message,
+          content: content,
+          confirmLabel: confirmLabel,
+          cancelLabel: cancelLabel,
+          onConfirm: onConfirm,
+          onCancel: onCancel,
+          icon: icon,
         ),
       );
     },

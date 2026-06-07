@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'main.dart' show CustomToast, ToastType;
 
 /// Keep aligned with `kAppDisplayName` in main.dart.
 const String kLegalAppDisplayName = 'Kabsat Empoy';
@@ -271,11 +272,10 @@ class _LegalContactActions extends StatelessWidget {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open an email app.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      CustomToast.show(
+        context,
+        message: 'Could not open an email app.',
+        type: ToastType.info,
       );
     }
   }
@@ -285,11 +285,10 @@ class _LegalContactActions extends StatelessWidget {
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open the link.'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      CustomToast.show(
+        context,
+        message: 'Could not open the Messenger link.',
+        type: ToastType.info,
       );
     }
   }

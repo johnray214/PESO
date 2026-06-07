@@ -4,6 +4,7 @@
   "appName": "Kabsat Empoy",
 
   "navHome": "Home",
+  "navExplore": "Explore",
   "navMap": "Map",
   "navProfile": "Profile",
 
@@ -158,8 +159,26 @@
   "confirmPassword": "Confirm password",
   "forgotPassword": "Forgot password?",
   "createAccount": "Create account",
+  "continueButton": "Continue",
+  "signupStepOf": "Step {current} of {total}",
+  "@signupStepOf": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
+  "signupStepName": "Name",
+  "signupStepContact": "Contact",
+  "signupStepSecurity": "Security",
+  "signupStepDetails": "Details",
+  "signupStepNameHint": "Tell us your name as it appears on your documents.",
+  "signupStepContactHint": "We will use this to reach you about jobs and events.",
+  "signupStepSecurityHint": "Choose a strong password to protect your account.",
+  "signupStepDetailsHint": "A few more details, then you are ready to go.",
   "alreadyHaveAccount": "Already have an account?",
   "dontHaveAccount": "Don't have an account?",
+  "authSignupSubtitle": "Apply for jobs and events near you.",
+  "authLoginSubtitle": "Sign in to continue where you left off.",
   "welcomeBack": "Welcome back",
   "getStarted": "Get started",
   "sessionExpired": "Session expired. Please log in again.",

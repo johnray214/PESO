@@ -35,8 +35,15 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
 
   String? _validateConfirm(String? v) {
     final l10n = S.of(context);
-    if (v == null || v.isEmpty) return l10n?.confirmYourNewPassword ?? 'Confirm your new password';
-    if (v != _newCtrl.text) return l10n?.passwordsDoNotMatch ?? 'Passwords do not match';
+    if (v == null || v.isEmpty) {
+      return l10n?.confirmYourNewPassword ?? 'Confirm your new password';
+    }
+    if (PasswordRules.hasWhitespace(v)) {
+      return 'Password cannot contain spaces';
+    }
+    if (v != _newCtrl.text) {
+      return l10n?.passwordsDoNotMatch ?? 'Passwords do not match';
+    }
     return null;
   }
 
@@ -90,7 +97,8 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     );
   }
 
-  Widget _passwordRequirementRow(String label, bool ok) {
+  Widget _passwordRequirementRow(String label, bool ok,
+      {String? helpTooltip}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
@@ -103,13 +111,23 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w600,
-                color: ok ? const Color(0xFF166534) : const Color(0xFF64748B),
-              ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          ok ? const Color(0xFF166534) : const Color(0xFF64748B),
+                    ),
+                  ),
+                ),
+                if (helpTooltip != null)
+                  PasswordRequirementHelpIcon(message: helpTooltip),
+              ],
             ),
           ),
         ],
@@ -138,6 +156,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         _passwordRequirementRow(
           'Uppercase & lowercase letters',
           PasswordRules.hasUppercase(p) && PasswordRules.hasLowercase(p),
+          helpTooltip: PasswordRules.tooltipMixedCase,
         ),
         _passwordRequirementRow(
           'At least one number',
@@ -146,6 +165,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
         _passwordRequirementRow(
           'At least one special character',
           PasswordRules.hasSymbol(p),
+          helpTooltip: PasswordRules.tooltipSpecialChar,
         ),
       ],
     );
@@ -203,6 +223,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 controller: _currentCtrl,
                 obscureText: _obscureCurrent,
                 autofillHints: const [AutofillHints.password],
+                inputFormatters: PasswordRules.inputFormattersNoWhitespace,
                 decoration: InputDecoration(
                   labelText: l10n?.currentPassword ?? 'Current password',
                   border: border,
@@ -219,7 +240,12 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   ),
                 ),
                 validator: (v) {
-                  if (v == null || v.isEmpty) return l10n?.currentPassword ?? 'Current password';
+                  if (v == null || v.isEmpty) {
+                    return l10n?.currentPassword ?? 'Current password';
+                  }
+                  if (PasswordRules.hasWhitespace(v)) {
+                    return 'Password cannot contain spaces';
+                  }
                   return null;
                 },
                 onChanged: (_) => setState(() {}),
@@ -229,6 +255,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 controller: _newCtrl,
                 obscureText: _obscureNew,
                 autofillHints: const [AutofillHints.newPassword],
+                inputFormatters: PasswordRules.inputFormattersNoWhitespace,
                 decoration: InputDecoration(
                   labelText: l10n?.newPassword ?? 'New password',
                   border: border,
@@ -254,6 +281,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 controller: _confirmCtrl,
                 obscureText: _obscureConfirm,
                 autofillHints: const [AutofillHints.newPassword],
+                inputFormatters: PasswordRules.inputFormattersNoWhitespace,
                 decoration: InputDecoration(
                   labelText: l10n?.confirmNewPassword ?? 'Confirm new password',
                   border: border,

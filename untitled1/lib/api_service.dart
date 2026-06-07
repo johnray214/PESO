@@ -5,8 +5,7 @@ import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl =
-      'http://10.169.75.42:8000/api';
+  static const String baseUrl = 'http://192.168.254.104:8000/api';
 
   /// True when [baseUrl] points at a machine-local / emulator-typical host.
   ///
@@ -99,7 +98,8 @@ class ApiService {
 
     return {
       'success': false,
-      'message': customMessage ?? 'Connection error: Service temporarily unavailable.',
+      'message':
+          customMessage ?? 'Connection error: Service temporarily unavailable.',
     };
   }
 
@@ -555,12 +555,16 @@ class ApiService {
 
   static Future<Map<String, dynamic>> getJobListings({
     int page = 1,
+    int? perPage,
     String? search,
     List<String>? employmentTypes,
     List<String>? skills,
   }) async {
     try {
       final params = <String, String>{'page': page.toString()};
+      if (perPage != null) {
+        params['per_page'] = perPage.toString();
+      }
       if (search != null && search.trim().isNotEmpty) {
         params['search'] = search.trim();
       }
@@ -594,6 +598,7 @@ class ApiService {
             'current_page': data['current_page'],
             'last_page': data['last_page'],
             'total': data['total'],
+            'per_page': data['per_page'],
           },
         };
       }
@@ -667,7 +672,8 @@ class ApiService {
   }) async {
     try {
       final httpResponse = await http.post(
-        Uri.parse('$baseUrl/jobseeker/applications/$applicationId/respond-offer'),
+        Uri.parse(
+            '$baseUrl/jobseeker/applications/$applicationId/respond-offer'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',
@@ -1182,12 +1188,16 @@ class ApiService {
   static Future<Map<String, dynamic>> getMatchedJobs(
     String token, {
     int page = 1,
+    int? perPage,
     String? search,
     List<String>? employmentTypes,
     List<String>? skills,
   }) async {
     try {
       final params = <String, String>{'page': page.toString()};
+      if (perPage != null) {
+        params['per_page'] = perPage.toString();
+      }
       if (search != null && search.trim().isNotEmpty) {
         params['search'] = search.trim();
       }
@@ -1443,7 +1453,10 @@ class ApiService {
       if (cursor != null && cursor.isNotEmpty) {
         params['cursor'] = cursor;
       }
-      if (minLat != null && maxLat != null && minLng != null && maxLng != null) {
+      if (minLat != null &&
+          maxLat != null &&
+          minLng != null &&
+          maxLng != null) {
         params.addAll({
           'min_lat': minLat.toString(),
           'max_lat': maxLat.toString(),
@@ -1472,6 +1485,30 @@ class ApiService {
         };
       }
       return decoded;
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
+  // ─── Explore / Discovery ──────────────────────────────────────────────────────
+
+  /// Aggregated discovery data: top hiring companies, in-demand skills,
+  /// job-count by sector, and snapshot stats.
+  /// Falls back gracefully — each section independent so partial failure is OK.
+  static Future<Map<String, dynamic>> getExploreData() async {
+    try {
+      final uri = Uri.parse('$baseUrl/public/explore');
+      final response = await http.get(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 15));
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic> && decoded['success'] == true) {
+        return decoded;
+      }
+      return decoded is Map<String, dynamic>
+          ? decoded
+          : {'success': false, 'message': 'Invalid response'};
     } catch (e) {
       return _handleError(e);
     }

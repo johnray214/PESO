@@ -5,6 +5,7 @@ import 'home_pages.dart' show replayHomeTourNotifier;
 import 'l10n/app_localizations.dart';
 import 'legal_documents.dart';
 import 'locale_service.dart';
+import 'main.dart';
 import 'my_documents_page.dart';
 import 'onboarding_prefs.dart';
 import 'settings_page.dart';
@@ -38,7 +39,8 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
                 'Kailangan ang Resume/CV bago makapag-apply. Pumunta sa Mga Dokumento Ko, mag-upload ng Resume/CV, pagkatapos ay subukan muli.'
           ),
           (
-            question: 'Ano ang ibig sabihin ng Processing sa Aking Mga Aplikasyon?',
+            question:
+                'Ano ang ibig sabihin ng Processing sa Aking Mga Aplikasyon?',
             answer:
                 'Ibig sabihin ng Processing ay sinusuri pa ng employer ang iyong aplikasyon. Maaaring may sub-stage gaya ng Shortlisted, Interview, o For Job Offer.'
           ),
@@ -65,7 +67,8 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
         icon: Icons.map_outlined,
         items: [
           (
-            question: 'Paano naaapektuhan ng exact location ang resulta ng trabaho sa mapa?',
+            question:
+                'Paano naaapektuhan ng exact location ang resulta ng trabaho sa mapa?',
             answer:
                 'Kapag naka-set ang Exact Location, ang nearby jobs ay kakalkulahin batay sa napili mong punto, hindi sa live GPS location mo.'
           ),
@@ -107,7 +110,8 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
         icon: Icons.notifications_outlined,
         items: [
           (
-            question: 'Mukhang luma o mali ang notifications. Ano ang dapat gawin?',
+            question:
+                'Mukhang luma o mali ang notifications. Ano ang dapat gawin?',
             answer:
                 'I-pull down para i-refresh ang Notifications at buksan muli ang item. Ang read state at offer status ay ina-update mula sa pinakabagong server data.'
           ),
@@ -254,11 +258,10 @@ Future<void> _showPesoContactDialog(BuildContext context) {
                 if (await canLaunchUrl(uri)) {
                   await launchUrl(uri);
                 } else if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('Could not open an email app on this device.'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
+                  CustomToast.show(
+                    ctx,
+                    message: 'Could not open an email app on this device.',
+                    type: ToastType.info,
                   );
                 }
               },
@@ -272,11 +275,10 @@ Future<void> _showPesoContactDialog(BuildContext context) {
                 if (await canLaunchUrl(uri)) {
                   await launchUrl(uri, mode: LaunchMode.externalApplication);
                 } else if (ctx.mounted) {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    const SnackBar(
-                      content: Text('Could not open the link.'),
-                      behavior: SnackBarBehavior.floating,
-                    ),
+                  CustomToast.show(
+                    ctx,
+                    message: 'Could not open the Messenger link.',
+                    type: ToastType.info,
                   );
                 }
               },
@@ -387,7 +389,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                       Navigator.of(ctx).pop();
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
@@ -481,7 +484,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 _QuickActionTile(
                   icon: Icons.description_outlined,
                   title: l10n?.goToMyDocuments ?? 'Go to My Documents',
-                  subtitle: l10n?.goToMyDocumentsSubtitle ?? 'Upload required files before applying',
+                  subtitle: l10n?.goToMyDocumentsSubtitle ??
+                      'Upload required files before applying',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -494,7 +498,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 _QuickActionTile(
                   icon: Icons.settings_outlined,
                   title: l10n?.openSettings ?? 'Open Settings',
-                  subtitle: l10n?.openSettingsSubtitle ?? 'Manage account details and email',
+                  subtitle: l10n?.openSettingsSubtitle ??
+                      'Manage account details and email',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -514,7 +519,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 _QuickActionTile(
                   icon: Icons.play_circle_outline_rounded,
                   title: l10n?.replayTour ?? 'Replay App Tour',
-                  subtitle: l10n?.replayTourSubtitle ?? 'See the guided walkthrough again',
+                  subtitle: l10n?.replayTourSubtitle ??
+                      'See the guided walkthrough again',
                   onTap: () async {
                     final token = UserSession().token;
                     await OnboardingPrefs.clearHomeTourDone(token: token);
@@ -535,7 +541,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 _QuickActionTile(
                   icon: Icons.gavel_rounded,
                   title: l10n?.termsOfService ?? 'Terms & Conditions',
-                  subtitle: l10n?.termsOfServiceSubtitle ?? 'Rules for using the app',
+                  subtitle:
+                      l10n?.termsOfServiceSubtitle ?? 'Rules for using the app',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -548,7 +555,8 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 _QuickActionTile(
                   icon: Icons.privacy_tip_outlined,
                   title: l10n?.privacyPolicy ?? 'Privacy Policy',
-                  subtitle: l10n?.privacyPolicySubtitle ?? 'How we handle personal data',
+                  subtitle: l10n?.privacyPolicySubtitle ??
+                      'How we handle personal data',
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute<void>(
@@ -568,17 +576,20 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
               children: [
                 _StatusHint(
                   title: l10n?.statusRegistration ?? 'Registration',
-                  description: l10n?.statusRegistrationDesc ?? 'Application submitted and recorded by the system.',
+                  description: l10n?.statusRegistrationDesc ??
+                      'Application submitted and recorded by the system.',
                 ),
                 const SizedBox(height: 10),
                 _StatusHint(
                   title: l10n?.statusProcessing ?? 'Processing',
-                  description: l10n?.statusProcessingDesc ?? 'Employer review stage. Sub-stages can appear as: • Shortlisted • Interview • For Job Offer',
+                  description: l10n?.statusProcessingDesc ??
+                      'Employer review stage. Sub-stages can appear as: • Shortlisted • Interview • For Job Offer',
                 ),
                 const SizedBox(height: 10),
                 _StatusHint(
                   title: l10n?.statusPlacementHired ?? 'Placement/Hired',
-                  description: l10n?.statusPlacementHiredDesc ?? 'Final stage after hiring decision.',
+                  description: l10n?.statusPlacementHiredDesc ??
+                      'Final stage after hiring decision.',
                 ),
               ],
             ),

@@ -73,7 +73,10 @@ class JobseekerJobListingController extends Controller
             $query->orderByDesc('posted_date');
         }
 
-        $jobListings = $query->paginate(15);
+        $perPage = (int) $request->integer('per_page', 15);
+        $perPage = max(1, min($perPage, 50));
+
+        $jobListings = $query->paginate($perPage);
 
         // Match % (employer_photo_url comes from JobListing model accessor + $appends).
         $jobListings->getCollection()->transform(function ($job) use ($jobseeker) {

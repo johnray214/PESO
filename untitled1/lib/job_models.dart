@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'api_service.dart';
 import 'job_action_service.dart';
 import 'skill_match_utils.dart';
 import 'l10n/app_localizations.dart';
+import 'main.dart';
 
 // ─── Job Model ────────────────────────────────────────────────────────────────
 class Job {
@@ -11,8 +13,11 @@ class Job {
   final String company;
   final String companyInitial;
   final Color companyColor;
+
   /// Relative storage path from employer profile (`employers.photo`), if any.
   final String? companyPhotoPath;
+  final String? employerEmail;
+  final String? employerPhone;
   final String location;
   final double? latitude;
   final double? longitude;
@@ -37,6 +42,8 @@ class Job {
     required this.companyInitial,
     required this.companyColor,
     this.companyPhotoPath,
+    this.employerEmail,
+    this.employerPhone,
     required this.location,
     this.latitude,
     this.longitude,
@@ -94,8 +101,7 @@ class Job {
 
     // Prefer API-computed absolute URL; then nested employer.photo / photo_url.
     String? companyPhotoPath;
-    final topPhoto =
-        json['employer_photo_url'] ?? json['employerPhotoUrl'];
+    final topPhoto = json['employer_photo_url'] ?? json['employerPhotoUrl'];
     if (topPhoto != null && topPhoto.toString().trim().isNotEmpty) {
       companyPhotoPath = topPhoto.toString().trim();
     } else if (employerMap != null) {
@@ -106,12 +112,26 @@ class Job {
     }
 
     final companyInitial = (json['company_initial'] as String?) ??
-        (companyName.trim().isNotEmpty ? companyName.trim()[0].toUpperCase() : '?');
+        (companyName.trim().isNotEmpty
+            ? companyName.trim()[0].toUpperCase()
+            : '?');
+
+    String? cleanContactValue(dynamic value) {
+      final text = value?.toString().trim();
+      return text == null || text.isEmpty ? null : text;
+    }
+
+    final employerEmail =
+        cleanContactValue(json['employer_email'] ?? employerMap?['email']);
+    final employerPhone =
+        cleanContactValue(json['employer_phone'] ?? employerMap?['phone']);
 
     final salaryRange = (json['salary_range'] as String?)?.trim();
     String salaryMin = (json['salary_min'] as String?) ?? '';
     String salaryMax = (json['salary_max'] as String?) ?? '';
-    if ((salaryMin.isEmpty || salaryMax.isEmpty) && salaryRange != null && salaryRange.isNotEmpty) {
+    if ((salaryMin.isEmpty || salaryMax.isEmpty) &&
+        salaryRange != null &&
+        salaryRange.isNotEmpty) {
       final parts = salaryRange.split(RegExp(r'\s*-\s*'));
       if (parts.length >= 2) {
         salaryMin = parts[0].trim();
@@ -144,15 +164,20 @@ class Job {
         .where((s) => s.trim().isNotEmpty)
         .toList();
 
-    final postedRaw = (json['posted_date'] as String?) ?? (json['created_at'] as String?) ?? '';
+    final postedRaw = (json['posted_date'] as String?) ??
+        (json['created_at'] as String?) ??
+        '';
     final postedDate = DateTime.tryParse(postedRaw) ?? DateTime.now();
     final deadlineRaw = json['deadline'] as String?;
-    final deadline = deadlineRaw != null ? DateTime.tryParse(deadlineRaw) : null;
+    final deadline =
+        deadlineRaw != null ? DateTime.tryParse(deadlineRaw) : null;
 
     final isUrgent = json['is_urgent'] == true ||
         json['is_urgent'] == 1 ||
         json['urgent'] == true ||
-        (json['is_urgent'] is String && (json['is_urgent'] == '1' || json['is_urgent'].toString().toLowerCase() == 'true'));
+        (json['is_urgent'] is String &&
+            (json['is_urgent'] == '1' ||
+                json['is_urgent'].toString().toLowerCase() == 'true'));
 
     return Job(
       id: json['id'].toString(),
@@ -161,6 +186,8 @@ class Job {
       companyInitial: companyInitial,
       companyColor: color,
       companyPhotoPath: companyPhotoPath,
+      employerEmail: employerEmail,
+      employerPhone: employerPhone,
       location: (json['location'] as String?) ?? '',
       latitude: latitude,
       longitude: longitude,
@@ -177,7 +204,8 @@ class Job {
           'full-time',
       category: json['category'] as String?,
       postedDate: postedDate,
-      slots: (json['slots'] as num?)?.toInt() ?? (json['number_of_slots'] as num?)?.toInt(),
+      slots: (json['slots'] as num?)?.toInt() ??
+          (json['number_of_slots'] as num?)?.toInt(),
       deadline: deadline,
       matchPercentage: (json['match_percentage'] as num?)?.toInt() ?? 0,
       isUrgent: isUrgent,
@@ -188,7 +216,20 @@ class Job {
 /// e.g. Jan 15, 2026 (for job detail / cards)
 String formatJobDeadlineDate(DateTime? d) {
   if (d == null) return 'Not specified';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
+  ];
   return '${months[d.month - 1]} ${d.day}, ${d.year}';
 }
 
@@ -198,7 +239,8 @@ String formatEmploymentTypeLabel(String? raw) {
   final t = raw.trim();
   if (t.isEmpty) return 'Not specified';
 
-  final key = t.toLowerCase().replaceAll('_', '-').replaceAll(RegExp(r'\s+'), '');
+  final key =
+      t.toLowerCase().replaceAll('_', '-').replaceAll(RegExp(r'\s+'), '');
   switch (key) {
     case 'full-time':
     case 'fulltime':
@@ -246,6 +288,7 @@ String _humanizeEmploymentTypeSegments(String raw) {
 class CompanyLogoBox extends StatelessWidget {
   final Job job;
   final double size;
+
   /// When null, uses a full circle ([size] / 2).
   final double? borderRadius;
   final List<BoxShadow>? boxShadow;
@@ -310,7 +353,8 @@ class CompanyLogoBox extends StatelessWidget {
                   child: SizedBox(
                     width: size * 0.35,
                     height: size * 0.35,
-                    child: const CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: const CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
                   ),
                 );
               },
@@ -603,7 +647,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
     final deadlineText = formatJobDeadlineDate(job.deadline);
     final slotsText = (job.slots ?? 0) > 0 ? '${job.slots}' : '—';
-    final userSkillsNormalized = SkillMatchUtils.normalizedUserSkillsFromSession();
+    final userSkillsNormalized =
+        SkillMatchUtils.normalizedUserSkillsFromSession();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
@@ -647,8 +692,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                             const SizedBox(height: 24),
                             if (widget.headerBanner != null) ...[
                               Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 20),
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 20),
                                 child: widget.headerBanner!,
                               ),
                               const SizedBox(height: 16),
@@ -733,8 +778,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         // Urgent badge
         if (job.isUrgent) ...[
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
@@ -803,13 +847,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             children: [
               Flexible(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 7),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(999),
-                    border:
-                        Border.all(color: const Color(0xFFE2E8F0)),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.03),
@@ -845,13 +888,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 GestureDetector(
                   onTap: widget.onViewMap,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 7),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEFF6FF),
                       borderRadius: BorderRadius.circular(999),
-                      border:
-                          Border.all(color: const Color(0xFF93C5FD)),
+                      border: Border.all(color: const Color(0xFF93C5FD)),
                     ),
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
@@ -879,8 +921,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         if (job.matchPercentage > 0) ...[
           const SizedBox(height: 14),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 colors: [Color(0xFF10B981), Color(0xFF059669)],
@@ -888,8 +929,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
               borderRadius: BorderRadius.circular(999),
               boxShadow: [
                 BoxShadow(
-                  color:
-                      const Color(0xFF10B981).withOpacity(0.30),
+                  color: const Color(0xFF10B981).withOpacity(0.30),
                   blurRadius: 10,
                   offset: const Offset(0, 4),
                 ),
@@ -898,8 +938,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.star_rounded,
-                    size: 14, color: Colors.white),
+                const Icon(Icons.star_rounded, size: 14, color: Colors.white),
                 const SizedBox(width: 6),
                 Text(
                   '${job.matchPercentage}% Match',
@@ -916,8 +955,6 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
       ],
     );
   }
-
-
 
   // ── Main Content Card (Consolidated) ──────────────────────────────────────
   Widget _buildMainContentCard({
@@ -986,8 +1023,160 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 child: _buildRequirementsContent(job),
               ),
             ],
+
+            if (job.employerPhone != null || job.employerEmail != null) ...[
+              const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+              Padding(
+                padding: const EdgeInsets.all(22),
+                child: _buildContactContent(job),
+              ),
+            ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildContactContent(Job job) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle(
+          'Contact Information',
+          Icons.contact_phone_outlined,
+          iconColor: const Color(0xFF0EA5E9),
+        ),
+        const SizedBox(height: 16),
+        if (job.employerPhone != null)
+          _buildContactRow(
+            icon: Icons.phone_outlined,
+            label: 'Phone Number',
+            value: job.employerPhone!,
+            actionIcon: Icons.call_rounded,
+            actionLabel: 'Call',
+            onAction: () => _launchPhone(job.employerPhone!),
+          ),
+        if (job.employerPhone != null && job.employerEmail != null)
+          const SizedBox(height: 10),
+        if (job.employerEmail != null)
+          _buildContactRow(
+            icon: Icons.email_outlined,
+            label: 'Email Address',
+            value: job.employerEmail!,
+            actionIcon: Icons.mail_rounded,
+            actionLabel: 'Email',
+            onAction: () => _launchEmail(job),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _launchPhone(String phone) async {
+    final normalized = phone.replaceAll(RegExp(r'\s+'), '');
+    final uri = Uri(scheme: 'tel', path: normalized);
+    await _launchContactUri(uri);
+  }
+
+  Future<void> _launchEmail(Job job) async {
+    final email = job.employerEmail?.trim();
+    if (email == null || email.isEmpty) return;
+    final uri = Uri(
+      scheme: 'mailto',
+      path: email,
+      queryParameters: {
+        'subject': 'Job inquiry: ${job.title}',
+      },
+    );
+    await _launchContactUri(uri);
+  }
+
+  Future<void> _launchContactUri(Uri uri) async {
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    if (!mounted) return;
+    CustomToast.show(
+      context,
+      message: 'No app found to handle this contact action.',
+      type: ToastType.info,
+    );
+  }
+
+  Widget _buildContactRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required IconData actionIcon,
+    required String actionLabel,
+    required VoidCallback onAction,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0EA5E9).withOpacity(0.10),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 17, color: const Color(0xFF0284C7)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                SelectableText(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            height: 40,
+            child: FilledButton.icon(
+              onPressed: onAction,
+              icon: Icon(actionIcon, size: 16),
+              label: Text(actionLabel),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFF2563EB),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1136,8 +1325,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle(
-            l10n?.skillsRequiredTitle ?? 'Skills Required',
+        _buildSectionTitle(l10n?.skillsRequiredTitle ?? 'Skills Required',
             Icons.psychology_outlined,
             iconColor: const Color(0xFF8B5CF6)),
         const SizedBox(height: 18),
@@ -1196,7 +1384,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.verified_rounded, size: 14, color: Color(0xFF10B981)),
+                const Icon(Icons.verified_rounded,
+                    size: 14, color: Color(0xFF10B981)),
                 const SizedBox(width: 8),
                 Text(
                   '$matchedCount of ${job.skills.length} skills match your profile',
@@ -1285,10 +1474,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                     ),
                   ],
                 ),
-                child: const Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    size: 17,
-                    color: Color(0xFF0F172A)),
+                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                    size: 17, color: Color(0xFF0F172A)),
               ),
             ),
             Expanded(
@@ -1299,7 +1486,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                   final opacity = (1.0 - (offset / 40.0)).clamp(0.0, 1.0);
                   // Float up by 15px as it fades
                   final translateY = (offset * -0.4).clamp(-15.0, 0.0);
-                  
+
                   return Opacity(
                     opacity: opacity,
                     child: Transform.translate(
@@ -1325,10 +1512,14 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: isSaved ? const Color(0xFF2563EB) : Colors.white.withOpacity(0.9),
+                  color: isSaved
+                      ? const Color(0xFF2563EB)
+                      : Colors.white.withOpacity(0.9),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: isSaved ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+                    color: isSaved
+                        ? const Color(0xFF2563EB)
+                        : const Color(0xFFE2E8F0),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -1339,7 +1530,9 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                   ],
                 ),
                 child: Icon(
-                  isSaved ? Icons.bookmark_rounded : Icons.bookmark_outline_rounded,
+                  isSaved
+                      ? Icons.bookmark_rounded
+                      : Icons.bookmark_outline_rounded,
                   size: 20,
                   color: isSaved ? Colors.white : const Color(0xFF475569),
                 ),
@@ -1352,8 +1545,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   }
 
   // ── Fixed Bottom Action Bar ────────────────────────────────────────────────
-  Widget _buildBottomBar(
-      bool isSaved, bool isApplied, double bottomPad) {
+  Widget _buildBottomBar(bool isSaved, bool isApplied, double bottomPad) {
     return Positioned(
       bottom: 0,
       left: 0,
@@ -1369,8 +1561,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             ),
           ],
         ),
-        padding:
-            EdgeInsets.fromLTRB(20, 16, 20, bottomPad + 16),
+        padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad + 16),
         child: Row(
           children: [
             // Save icon button
@@ -1407,9 +1598,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             // Apply button
             Expanded(
               child: GestureDetector(
-                onTap: isApplied
-                    ? null
-                    : () => widget.onApply?.call(),
+                onTap: isApplied ? null : () => widget.onApply?.call(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   height: 54,

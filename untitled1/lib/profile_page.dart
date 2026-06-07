@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -30,6 +31,7 @@ import 'l10n/app_localizations.dart';
 class _ProfileTheme {
   static const Color scaffoldBg = AppColors.pageBackground;
   static const Color primary = AppColors.blueAccent;
+
   /// Icon tiles on white cards — blue glyph on soft blue surface.
   static const Color iconInk = AppColors.blueAccent;
   static const Color iconSurface = Color(0xFFEFF6FF);
@@ -81,7 +83,7 @@ class _ProfileTabState extends State<ProfileTab> {
     super.initState();
     _loadStats();
     _loadAvatar();
-    
+
     // Auto-update stats when a push notification (like application update) arrives
     NotificationService.addListener(_loadStats);
   }
@@ -152,9 +154,12 @@ class _ProfileTabState extends State<ProfileTab> {
       int missing = 0;
       if (userResult['success'] == true && userResult['data'] != null) {
         final user = userResult['data'] as Map<String, dynamic>;
-        if (user['resume_path'] == null || user['resume_path'].toString().isEmpty) missing++;
-        if (user['certificate_path'] == null || user['certificate_path'].toString().isEmpty) missing++;
-        if (user['barangay_clearance_path'] == null || user['barangay_clearance_path'].toString().isEmpty) missing++;
+        if (user['resume_path'] == null ||
+            user['resume_path'].toString().isEmpty) missing++;
+        if (user['certificate_path'] == null ||
+            user['certificate_path'].toString().isEmpty) missing++;
+        if (user['barangay_clearance_path'] == null ||
+            user['barangay_clearance_path'].toString().isEmpty) missing++;
       }
 
       if (!mounted) return;
@@ -180,11 +185,11 @@ class _ProfileTabState extends State<ProfileTab> {
   void _showEditProfileSheet(BuildContext context) async {
     final token = UserSession().token;
     if (token == null) return;
-    
+
     // We need to reload data to ensure we have current state
     final userResult = await ApiService.getUser(token);
     if (userResult['success'] == true && userResult['data'] != null) {
-       UserSession().updateFromUser(userResult['data'] as Map<String, dynamic>);
+      UserSession().updateFromUser(userResult['data'] as Map<String, dynamic>);
     }
 
     if (!mounted) return;
@@ -210,261 +215,309 @@ class _ProfileTabState extends State<ProfileTab> {
 
     return Scaffold(
       backgroundColor: _ProfileTheme.scaffoldBg,
-      body: CustomScrollView(
-        physics: const ClampingScrollPhysics(),
-        slivers: [
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: coverHeight + avatarSize / 2 + 20,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Cover — app blue gradient (same family as rest of PESO UI)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    height: coverHeight,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: _ProfileTheme.coverGradient,
-                      ),
-                      child: SafeArea(
-                        bottom: false,
-                        child: Align(
-                          alignment: Alignment.topRight,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: IconButton(
-                              onPressed: () =>
-                                  _showEditProfileSheet(context),
-                              icon: const Icon(Icons.edit_rounded,
-                                  color: Colors.white, size: 20),
-                              style: IconButton.styleFrom(
-                                backgroundColor: Colors.white24,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Positioned.fill(
+            child: CustomScrollView(
+              physics: const ClampingScrollPhysics(),
+              slivers: [
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: coverHeight + avatarSize / 2 + 20,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Cover — app blue gradient (same family as rest of PESO UI)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: coverHeight,
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              gradient: _ProfileTheme.coverGradient,
+                            ),
+                            child: SafeArea(
+                              bottom: false,
+                              child: Align(
+                                alignment: Alignment.topRight,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: IconButton(
+                                    onPressed: () =>
+                                        _showEditProfileSheet(context),
+                                    icon: const Icon(Icons.edit_rounded,
+                                        color: Colors.white, size: 20),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.white24,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
 
-                  // Avatar
-                  Positioned(
-                    top: avatarTop,
-                    left: 0,
-                    right: 0,
-                    child: Center(
-                      child: Container(
-                        width: avatarSize,
-                        height: avatarSize,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.blueAccent.withOpacity(0.22),
-                              blurRadius: 24,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: ClipOval(
-                          child: _avatarBytes != null &&
-                                  _avatarBytes!.isNotEmpty
-                              ? Image.memory(
-                                  Uint8List.fromList(_avatarBytes!),
-                                  width: avatarSize,
-                                  height: avatarSize,
-                                  fit: BoxFit.cover,
-                                )
-                              : Container(
-                                  color: AppColors.blueAccent,
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    UserSession().initials,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.w800,
-                                    ),
+                        // Avatar
+                        Positioned(
+                          top: avatarTop,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: Container(
+                              width: avatarSize,
+                              height: avatarSize,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border:
+                                    Border.all(color: Colors.white, width: 4),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color:
+                                        AppColors.blueAccent.withOpacity(0.22),
+                                    blurRadius: 24,
+                                    offset: const Offset(0, 8),
                                   ),
-                                ),
+                                ],
+                              ),
+                              child: ClipOval(
+                                child: _avatarBytes != null &&
+                                        _avatarBytes!.isNotEmpty
+                                    ? Image.memory(
+                                        Uint8List.fromList(_avatarBytes!),
+                                        width: avatarSize,
+                                        height: avatarSize,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        color: AppColors.blueAccent,
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          UserSession().initials,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 36,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                Text(
-                  UserSession().displayName,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  UserSession().email ?? '',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 18),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildCompactStat('$_appliedCount', l10n?.statApplied ?? 'Applied'),
-                        Container(
-                            width: 1,
-                            height: 28,
-                            color: AppColors.divider),
-                        _buildCompactStat('$_interviewCount', l10n?.statProcessing ?? 'Processing'),
-                        Container(
-                            width: 1,
-                            height: 28,
-                            color: AppColors.divider),
-                        _buildCompactStat('$_savedCount', l10n?.statSaved ?? 'Saved'),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
-              ],
-            ),
-          ),
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                _buildMenuItem(
-                  icon: Icons.folder_rounded,
-                  title: l10n?.myApplications ?? 'My Applications',
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
-                    );
-                    _loadStats();
-                  },
-                ),
-                _buildMenuItem(
-                  icon: Icons.bookmark_rounded,
-                  title: l10n?.savedJobs ?? 'Saved Jobs',
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const SavedJobsPage()),
-                    );
-                    _loadStats();
-                  },
-                ),
-                _buildMenuItem(
-                  icon: Icons.workspace_premium_outlined,
-                  title: l10n?.skillsProfile ?? 'Skills Profile',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SkillsProfilePage()),
-                  ),
-                ),
-                _buildMenuItem(
-                  icon: Icons.description_rounded,
-                  title: l10n?.myDocuments ?? 'My Documents',
-                  trailing: _missingDocsCount > 0
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      Text(
+                        UserSession().displayName,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        UserSession().email ?? '',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 18),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFFEF2F2),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFFEE2E2), width: 1),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.divider),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              const Icon(Icons.error_outline_rounded, size: 14, color: Color(0xFFEF4444)),
-                              const SizedBox(width: 4),
-                              Text(
-                                '$_missingDocsCount more',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFFEF4444),
-                                ),
-                              ),
-                            ],
-                          ),
-                        )
-                      : Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF0FDF4),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFFDCFCE7), width: 1),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.check_circle_outline_rounded, size: 14, color: Color(0xFF16A34A)),
-                              const SizedBox(width: 4),
-                              Text(
-                                l10n?.docsComplete ?? 'Complete',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF16A34A),
-                                ),
-                              ),
+                              _buildCompactStat('$_appliedCount',
+                                  l10n?.statApplied ?? 'Applied'),
+                              Container(
+                                  width: 1,
+                                  height: 28,
+                                  color: AppColors.divider),
+                              _buildCompactStat('$_interviewCount',
+                                  l10n?.statProcessing ?? 'Processing'),
+                              Container(
+                                  width: 1,
+                                  height: 28,
+                                  color: AppColors.divider),
+                              _buildCompactStat(
+                                  '$_savedCount', l10n?.statSaved ?? 'Saved'),
                             ],
                           ),
                         ),
-                  onTap: () async {
-                    await Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const MyDocumentsPage()),
-                    );
-                    _loadStats();
-                  },
-                ),
-                _buildMenuItem(
-                  icon: Icons.settings_rounded,
-                  title: l10n?.settings ?? 'Settings',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsPage()),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
                   ),
                 ),
-                _buildMenuItem(
-                  icon: Icons.help_center_rounded,
-                  title: l10n?.helpSupport ?? 'Help & Support',
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const HelpSupportPage()),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildListDelegate([
+                      _buildMenuItem(
+                        icon: Icons.folder_rounded,
+                        title: l10n?.myApplications ?? 'My Applications',
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const MyApplicationsPage()),
+                          );
+                          _loadStats();
+                        },
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.bookmark_rounded,
+                        title: l10n?.savedJobs ?? 'Saved Jobs',
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const SavedJobsPage()),
+                          );
+                          _loadStats();
+                        },
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.workspace_premium_outlined,
+                        title: l10n?.skillsProfile ?? 'Skills Profile',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const SkillsProfilePage()),
+                        ),
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.description_rounded,
+                        title: l10n?.myDocuments ?? 'My Documents',
+                        trailing: _missingDocsCount > 0
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEF2F2),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: const Color(0xFFFEE2E2), width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.error_outline_rounded,
+                                        size: 14, color: Color(0xFFEF4444)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$_missingDocsCount more',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFFEF4444),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF0FDF4),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                      color: const Color(0xFFDCFCE7), width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                        Icons.check_circle_outline_rounded,
+                                        size: 14,
+                                        color: Color(0xFF16A34A)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      l10n?.docsComplete ?? 'Complete',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFF16A34A),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const MyDocumentsPage()),
+                          );
+                          _loadStats();
+                        },
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.settings_rounded,
+                        title: l10n?.settings ?? 'Settings',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const SettingsPage()),
+                        ),
+                      ),
+                      _buildMenuItem(
+                        icon: Icons.help_center_rounded,
+                        title: l10n?.helpSupport ?? 'Help & Support',
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) => const HelpSupportPage()),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _buildMenuItem(
+                        icon: Icons.logout_rounded,
+                        title: l10n?.signOut ?? 'Sign Out',
+                        isSignOut: true,
+                        onTap: () => _confirmSignOut(context),
+                      ),
+                    ]),
                   ),
                 ),
-                const SizedBox(height: 12),
-                _buildMenuItem(
-                  icon: Icons.logout_rounded,
-                  title: l10n?.signOut ?? 'Sign Out',
-                  isSignOut: true,
-                  onTap: () => _confirmSignOut(context),
+              ],
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 100,
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      _ProfileTheme.scaffoldBg.withOpacity(0.0),
+                      _ProfileTheme.scaffoldBg.withOpacity(0.85),
+                      _ProfileTheme.scaffoldBg,
+                    ],
+                    stops: const [0.0, 0.5, 1.0],
+                  ),
                 ),
-              ]),
+              ),
             ),
           ),
         ],
@@ -497,7 +550,6 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   // Removed redundant _showEditProfileSheet
-
 
   Future<void> _confirmSignOut(BuildContext context) async {
     final l10n = S.of(context);
@@ -643,7 +695,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   bool _isLoadingLocations = false;
   bool _updatingLocation = false; // Concurrency guard
   String? _locationError;
-  static const String _psgcProvincesUrl = 'https://psgc.gitlab.io/api/provinces/';
+  static const String _psgcProvincesUrl =
+      'https://psgc.gitlab.io/api/provinces/';
   static const String _cachePrefix = 'psgc_cache_v1_';
 
   List<Map<String, String>> _provinces = [];
@@ -679,17 +732,20 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     final sessionName = (session.name ?? '').trim();
     final nameParts =
         sessionName.isEmpty ? <String>[] : sessionName.split(RegExp(r'\s+'));
-    final firstName =
-        firstFromSession.isNotEmpty ? firstFromSession : (nameParts.isNotEmpty ? nameParts.first : '');
+    final firstName = firstFromSession.isNotEmpty
+        ? firstFromSession
+        : (nameParts.isNotEmpty ? nameParts.first : '');
     final lastName = lastFromSession.isNotEmpty
         ? lastFromSession
         : (nameParts.length > 1 ? nameParts.skip(1).join(' ') : '');
 
     _firstNameController = TextEditingController(text: firstName);
-    _middleInitialController = TextEditingController(text: session.middleInitial ?? '');
+    _middleInitialController =
+        TextEditingController(text: session.middleInitial ?? '');
     _lastNameController = TextEditingController(text: lastName);
     _phoneController = TextEditingController(text: UserSession().phone ?? '');
-    _streetController = TextEditingController(text: session.streetAddress ?? '');
+    _streetController =
+        TextEditingController(text: session.streetAddress ?? '');
     _dobController = TextEditingController(text: session.dateOfBirth ?? '');
     _selectedSex = session.gender;
     _experienceController = TextEditingController();
@@ -724,9 +780,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     final token = UserSession().token;
     if (token == null || UserSession().avatarPath == null) return;
     final bytes = await ApiService.getAvatarBytes(token);
-    if (mounted) setState(() {
-      _avatarUint8List = bytes != null ? Uint8List.fromList(bytes) : null;
-    });
+    if (mounted)
+      setState(() {
+        _avatarUint8List = bytes != null ? Uint8List.fromList(bytes) : null;
+      });
   }
 
   Future<void> _pickImage() async {
@@ -885,8 +942,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     setState(() {
       _updatingLocation = true;
       _provinceCode = code;
-      _provinceName = _provinces
-          .firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
+      _provinceName = _provinces.firstWhere((e) => e['code'] == code,
+          orElse: () => {'name': ''})['name'];
       _cityCode = null;
       _cityName = null;
       _barangayCode = null;
@@ -925,8 +982,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     setState(() {
       _updatingLocation = true;
       _cityCode = code;
-      _cityName = _cities
-          .firstWhere((e) => e['code'] == code, orElse: () => {'name': ''})['name'];
+      _cityName = _cities.firstWhere((e) => e['code'] == code,
+          orElse: () => {'name': ''})['name'];
       _barangayCode = null;
       _barangayName = null;
       _barangays = [];
@@ -961,7 +1018,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     bool enableSearch = true,
   }) async {
     final queryController = enableSearch ? TextEditingController() : null;
-    List<Map<String, String>> filtered = List<Map<String, String>>.from(options);
+    List<Map<String, String>> filtered =
+        List<Map<String, String>>.from(options);
     bool alreadyPopped = false;
     bool picking = false;
 
@@ -977,13 +1035,13 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               canPop: alreadyPopped,
               onPopInvokedWithResult: (didPop, result) async {
                 if (didPop || alreadyPopped) return;
-                
+
                 // Block the instant pop and perform the smooth sequence
                 primaryFocus?.unfocus();
                 setLocalState(() => picking = true);
-                
+
                 await Future.delayed(const Duration(milliseconds: 600));
-                
+
                 if (ctx.mounted) {
                   alreadyPopped = true;
                   Navigator.of(ctx).pop(result);
@@ -1005,98 +1063,117 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                   children: [
                     const SizedBox(height: 18),
                     Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: Color(0xFF0F172A))),
-                        ),
-                        IconButton(
-                          onPressed: () async {
-                            if (picking) return;
-                            primaryFocus?.unfocus();
-                            setLocalState(() => picking = true);
-                            await Future.delayed(const Duration(milliseconds: 600));
-                            if (!ctx.mounted) return;
-                            Navigator.pop(ctx);
-                          },
-                          icon: const Icon(Icons.close_rounded),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (enableSearch && !picking)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: TextField(
-                        controller: queryController,
-                        autofocus: false,
-                        decoration: InputDecoration(
-                          prefixIcon: const Icon(Icons.search_rounded),
-                          hintText: 'Search...',
-                          hintStyle: const TextStyle(fontSize: 14),
-                          filled: true,
-                          fillColor: const Color(0xFFF1F5F9),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        ),
-                        onChanged: (q) {
-                          final needle = q.trim().toLowerCase();
-                          setLocalState(() {
-                            filtered = options
-                                .where((o) => (o['name'] ?? '').toLowerCase().contains(needle))
-                                .toList();
-                          });
-                        },
+                      padding: const EdgeInsets.fromLTRB(20, 0, 12, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(title,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 18,
+                                    color: Color(0xFF0F172A))),
+                          ),
+                          IconButton(
+                            onPressed: () async {
+                              if (picking) return;
+                              primaryFocus?.unfocus();
+                              setLocalState(() => picking = true);
+                              await Future.delayed(
+                                  const Duration(milliseconds: 600));
+                              if (!ctx.mounted) return;
+                              Navigator.pop(ctx);
+                            },
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                        ],
                       ),
                     ),
-                  const SizedBox(height: 12),
-                  Expanded(
-                    child: picking
-                        ? const Center(child: CircularProgressIndicator())
-                        : (filtered.isEmpty
-                            ? Center(
-                                child: Text(
-                                  enableSearch ? 'No matching results' : 'No options available',
-                                  style: const TextStyle(color: Colors.grey),
-                                ),
-                              )
-                            : ListView.separated(
-                                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                                itemCount: filtered.length,
-                                separatorBuilder: (_, __) => const Divider(height: 1),
-                                itemBuilder: (_, index) {
-                                  final item = filtered[index];
-                                  return ListTile(
-                                    title: Text(item['name'] ?? '', style: const TextStyle(fontSize: 15)),
-                                    trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
-                                    onTap: () async {
-                                      if (alreadyPopped || picking) return;
-                                      
-                                      setLocalState(() => picking = true);
-                                      
-                                      primaryFocus?.unfocus();
-                                      FocusManager.instance.primaryFocus?.unfocus();
-                                      
-                                      await Future.delayed(const Duration(milliseconds: 600));
-                                      
-                                      if (!ctx.mounted) return;
-                                      alreadyPopped = true;
-                                      
-                                      if (Navigator.canPop(ctx)) {
-                                        Navigator.of(ctx).pop(item);
-                                      }
-                                    },
-                                  );
-                                },
-                              )),
-                  ),
-                ],
+                    if (enableSearch && !picking)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: TextField(
+                          controller: queryController,
+                          autofocus: false,
+                          decoration: InputDecoration(
+                            prefixIcon: const Icon(Icons.search_rounded),
+                            hintText: 'Search...',
+                            hintStyle: const TextStyle(fontSize: 14),
+                            filled: true,
+                            fillColor: const Color(0xFFF1F5F9),
+                            border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide.none),
+                          ),
+                          onChanged: (q) {
+                            final needle = q.trim().toLowerCase();
+                            setLocalState(() {
+                              filtered = options
+                                  .where((o) => (o['name'] ?? '')
+                                      .toLowerCase()
+                                      .contains(needle))
+                                  .toList();
+                            });
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: picking
+                          ? const Center(child: CircularProgressIndicator())
+                          : (filtered.isEmpty
+                              ? Center(
+                                  child: Text(
+                                    enableSearch
+                                        ? 'No matching results'
+                                        : 'No options available',
+                                    style: const TextStyle(color: Colors.grey),
+                                  ),
+                                )
+                              : ListView.separated(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                                  itemCount: filtered.length,
+                                  separatorBuilder: (_, __) =>
+                                      const Divider(height: 1),
+                                  itemBuilder: (_, index) {
+                                    final item = filtered[index];
+                                    return ListTile(
+                                      title: Text(item['name'] ?? '',
+                                          style: const TextStyle(fontSize: 15)),
+                                      trailing: const Icon(
+                                          Icons.chevron_right_rounded,
+                                          size: 18,
+                                          color: Color(0xFF94A3B8)),
+                                      onTap: () async {
+                                        if (alreadyPopped || picking) return;
+
+                                        setLocalState(() => picking = true);
+
+                                        primaryFocus?.unfocus();
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus();
+
+                                        await Future.delayed(
+                                            const Duration(milliseconds: 600));
+
+                                        if (!ctx.mounted) return;
+                                        alreadyPopped = true;
+
+                                        if (Navigator.canPop(ctx)) {
+                                          Navigator.of(ctx).pop(item);
+                                        }
+                                      },
+                                    );
+                                  },
+                                )),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
-      );
-    },
+            );
+          },
+        );
+      },
     ).whenComplete(() {
       try {
         queryController?.dispose();
@@ -1131,7 +1208,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
             ),
             Icon(
               Icons.expand_more_rounded,
-              color: enabled ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
+              color:
+                  enabled ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
             ),
           ],
         ),
@@ -1187,8 +1265,10 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   InputDecoration _fieldDec(String label, IconData? icon) {
     return InputDecoration(
       labelText: label,
-      labelStyle: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
-      prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF2563EB)) : null,
+      labelStyle:
+          TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
+      prefixIcon:
+          icon != null ? Icon(icon, color: const Color(0xFF2563EB)) : null,
       filled: true,
       fillColor: const Color(0xFFF8FAFC),
       border: OutlineInputBorder(
@@ -1209,7 +1289,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
   bool _hasUnsavedChanges() {
     if (_pickedImageBytes != null) return true;
     if (_firstNameController.text.trim() != _initialFirstName) return true;
-    if (_middleInitialController.text.trim() != _initialMiddleInitial) return true;
+    if (_middleInitialController.text.trim() != _initialMiddleInitial)
+      return true;
     if (_lastNameController.text.trim() != _initialLastName) return true;
     if (_dobController.text.trim() != _initialDob) return true;
     if (_phoneController.text.trim() != _initialPhone) return true;
@@ -1244,473 +1325,508 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     return WillPopScope(
       onWillPop: _confirmDiscardUnsavedChanges,
       child: Scaffold(
-      backgroundColor: Colors.white,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SafeArea(
-            bottom: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
+        backgroundColor: Colors.white,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SafeArea(
+              bottom: false,
               child: Padding(
-                padding: const EdgeInsets.only(left: 8, right: 4),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2563EB).withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.edit_rounded,
-                        color: Color(0xFF2563EB),
-                        size: 22,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Edit Profile',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF0F172A),
+                padding: const EdgeInsets.fromLTRB(12, 8, 8, 12),
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 8, right: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2563EB).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.edit_rounded,
+                          color: Color(0xFF2563EB),
+                          size: 22,
                         ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () async {
-                        final shouldLeave = await _confirmDiscardUnsavedChanges();
-                        if (!mounted || !shouldLeave) return;
-                        Navigator.pop(context);
-                      },
-                      icon: Icon(Icons.close_rounded, color: Colors.grey[600]),
-                    ),
-                  ],
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Edit Profile',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () async {
+                          final shouldLeave =
+                              await _confirmDiscardUnsavedChanges();
+                          if (!mounted || !shouldLeave) return;
+                          Navigator.pop(context);
+                        },
+                        icon:
+                            Icon(Icons.close_rounded, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                        // Avatar edit (tap to change photo)
-                        Center(
-                          child: GestureDetector(
-                            onTap: _isSaving ? null : _pickImage,
-                            child: Stack(
-                              children: [
-                                Container(
-                                  width: 100,
-                                  height: 100,
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const ClampingScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottomInset),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Avatar edit (tap to change photo)
+                      Center(
+                        child: GestureDetector(
+                          onTap: _isSaving ? null : _pickImage,
+                          child: Stack(
+                            children: [
+                              Container(
+                                width: 100,
+                                height: 100,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF2563EB),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFF2563EB)
+                                          .withOpacity(0.3),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, 8),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipOval(
+                                  child: _pickedImageBytes != null
+                                      ? Image.memory(
+                                          _pickedImageBytes!,
+                                          width: 100,
+                                          height: 100,
+                                          fit: BoxFit.cover,
+                                        )
+                                      : _avatarUint8List != null &&
+                                              _avatarUint8List!.isNotEmpty
+                                          ? Image.memory(
+                                              _avatarUint8List!,
+                                              width: 100,
+                                              height: 100,
+                                              fit: BoxFit.cover,
+                                              gaplessPlayback: true,
+                                            )
+                                          : Center(
+                                              child: Text(
+                                                UserSession().initials,
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 36,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                              ),
+                                            ),
+                                ),
+                              ),
+                              Positioned(
+                                right: 0,
+                                bottom: 0,
+                                child: Container(
+                                  width: 34,
+                                  height: 34,
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF2563EB),
                                     shape: BoxShape.circle,
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(0xFF2563EB).withOpacity(0.3),
-                                        blurRadius: 20,
-                                        offset: const Offset(0, 8),
-                                      ),
-                                    ],
+                                    border: Border.all(
+                                        color: Colors.white, width: 2),
                                   ),
-                                  child: ClipOval(
-                                    child: _pickedImageBytes != null
-                                        ? Image.memory(
-                                            _pickedImageBytes!,
-                                            width: 100,
-                                            height: 100,
-                                            fit: BoxFit.cover,
-                                          )
-                                        : _avatarUint8List != null && _avatarUint8List!.isNotEmpty
-                                            ? Image.memory(
-                                                _avatarUint8List!,
-                                                width: 100,
-                                                height: 100,
-                                                fit: BoxFit.cover,
-                                                gaplessPlayback: true,
-                                              )
-                                            : Center(
-                                                child: Text(
-                                                  UserSession().initials,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 36,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                                ),
-                                              ),
-                                  ),
-                                ),
-                                Positioned(
-                                  right: 0,
-                                  bottom: 0,
-                                  child: Container(
-                                    width: 34,
-                                    height: 34,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF2563EB),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: Colors.white, width: 2),
-                                    ),
-                                    child: const Icon(
-                                      Icons.camera_alt_rounded,
-                                      size: 16,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 30),
-
-                        // Form fields
-                        Row(
-                          children: [
-                            Expanded(
-                              flex: 3,
-                              child: TextFormField(
-                                controller: _firstNameController,
-                                decoration:
-                                    _fieldDec('First Name', Icons.person_outline_rounded),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) return 'Required';
-                                  return null;
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              flex: 2,
-                              child: TextFormField(
-                                controller: _middleInitialController,
-                                textCapitalization: TextCapitalization.characters,
-                                maxLength: 1,
-                                inputFormatters: [
-                                  LengthLimitingTextInputFormatter(1),
-                                  UpperCaseTextFormatter(),
-                                ],
-                                decoration: _fieldDec('M.I.', null).copyWith(counterText: ''),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              flex: 3,
-                              child: TextFormField(
-                                controller: _lastNameController,
-                                decoration:
-                                    _fieldDec('Last Name', Icons.badge_outlined),
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) return 'Required';
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: const Color(0xFFBFDBFE)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Email address',
-                                style: TextStyle(
-                                  color: Color(0xFF1E40AF),
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                (UserSession().email ?? '').trim().isEmpty
-                                    ? 'No email available'
-                                    : UserSession().email!.trim(),
-                                style: const TextStyle(
-                                  color: Color(0xFF0F172A),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              OutlinedButton.icon(
-                                onPressed: () async {
-                                  if (!mounted) return;
-                                  Navigator.of(context).pop();
-                                  await Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => const SettingsPage(),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(Icons.settings_rounded, size: 18),
-                                label: const Text('Change email in Settings'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.blueAccent,
-                                  side: const BorderSide(color: Color(0xFF93C5FD)),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 14,
-                                    vertical: 10,
+                                  child: const Icon(
+                                    Icons.camera_alt_rounded,
+                                    size: 16,
+                                    color: Colors.white,
                                   ),
                                 ),
                               ),
                             ],
                           ),
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 30),
 
-                        TextFormField(
-                          controller: _phoneController,
-                          decoration: _fieldDec('Phone Number', Icons.phone_outlined),
-                          keyboardType: TextInputType.phone,
-                          validator: (v) {
-                            final value = v?.trim() ?? '';
-                            if (value.isEmpty) return null; // optional
-                            final phPattern = RegExp(r'^0\d{10}$');
-                            if (!phPattern.hasMatch(value)) {
-                              return 'Enter 11-digit PH number (e.g. 09XXXXXXXXX)';
-                            }
-                            return null;
-                          },
+                      // Form fields
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: _firstNameController,
+                              decoration: _fieldDec(
+                                  'First Name', Icons.person_outline_rounded),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty)
+                                  return 'Required';
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: _middleInitialController,
+                              textCapitalization: TextCapitalization.characters,
+                              maxLength: 1,
+                              inputFormatters: [
+                                LengthLimitingTextInputFormatter(1),
+                                UpperCaseTextFormatter(),
+                              ],
+                              decoration: _fieldDec('M.I.', null)
+                                  .copyWith(counterText: ''),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            flex: 3,
+                            child: TextFormField(
+                              controller: _lastNameController,
+                              decoration:
+                                  _fieldDec('Last Name', Icons.badge_outlined),
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty)
+                                  return 'Required';
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
                         ),
-
-                        const SizedBox(height: 16),
-
-                        Row(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _dobController,
-                                readOnly: true,
-                                decoration: _fieldDec('Birthdate (YYYY-MM-DD)', Icons.cake_outlined),
-                                onTap: () async {
-                                  final now = DateTime.now();
-                                  DateTime initial = DateTime(now.year - 21, now.month, now.day);
-                                  final rawDob = _dobController.text.trim();
-                                  if (rawDob.isNotEmpty) {
-                                    final datePart = rawDob.split(RegExp(r'[T\s]')).first;
-                                    final parts = datePart.split('-');
-                                    if (parts.length == 3) {
-                                      final y = int.tryParse(parts[0]);
-                                      final m = int.tryParse(parts[1]);
-                                      final d = int.tryParse(parts[2]);
-                                      if (y != null && m != null && d != null) {
-                                        initial = DateTime(y, m, d);
-                                      }
+                            const Text(
+                              'Email address',
+                              style: TextStyle(
+                                color: Color(0xFF1E40AF),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              (UserSession().email ?? '').trim().isEmpty
+                                  ? 'No email available'
+                                  : UserSession().email!.trim(),
+                              style: const TextStyle(
+                                color: Color(0xFF0F172A),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            OutlinedButton.icon(
+                              onPressed: () async {
+                                if (!mounted) return;
+                                Navigator.of(context).pop();
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => const SettingsPage(),
+                                  ),
+                                );
+                              },
+                              icon:
+                                  const Icon(Icons.settings_rounded, size: 18),
+                              label: const Text('Change email in Settings'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: AppColors.blueAccent,
+                                side:
+                                    const BorderSide(color: Color(0xFF93C5FD)),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration:
+                            _fieldDec('Phone Number', Icons.phone_outlined),
+                        keyboardType: TextInputType.phone,
+                        validator: (v) {
+                          final value = v?.trim() ?? '';
+                          if (value.isEmpty) return null; // optional
+                          final phPattern = RegExp(r'^0\d{10}$');
+                          if (!phPattern.hasMatch(value)) {
+                            return 'Enter 11-digit PH number (e.g. 09XXXXXXXXX)';
+                          }
+                          return null;
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _dobController,
+                              readOnly: true,
+                              decoration: _fieldDec('Birthdate (YYYY-MM-DD)',
+                                  Icons.cake_outlined),
+                              onTap: () async {
+                                final now = DateTime.now();
+                                DateTime initial =
+                                    DateTime(now.year - 21, now.month, now.day);
+                                final rawDob = _dobController.text.trim();
+                                if (rawDob.isNotEmpty) {
+                                  final datePart =
+                                      rawDob.split(RegExp(r'[T\s]')).first;
+                                  final parts = datePart.split('-');
+                                  if (parts.length == 3) {
+                                    final y = int.tryParse(parts[0]);
+                                    final m = int.tryParse(parts[1]);
+                                    final d = int.tryParse(parts[2]);
+                                    if (y != null && m != null && d != null) {
+                                      initial = DateTime(y, m, d);
                                     }
                                   }
-                                  final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: initial,
-                                    firstDate: DateTime(1900, 1, 1),
-                                    lastDate: now,
-                                  );
-                                  if (picked == null || !mounted) return;
-                                  setState(() {
-                                    final pickedLocal = DateTime(picked.year, picked.month, picked.day);
-                                    _dobController.text =
-                                        '${pickedLocal.year.toString().padLeft(4, '0')}-${pickedLocal.month.toString().padLeft(2, '0')}-${pickedLocal.day.toString().padLeft(2, '0')}';
-                                  });
-                                },
-                              ),
+                                }
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: initial,
+                                  firstDate: DateTime(1900, 1, 1),
+                                  lastDate: now,
+                                );
+                                if (picked == null || !mounted) return;
+                                setState(() {
+                                  final pickedLocal = DateTime(
+                                      picked.year, picked.month, picked.day);
+                                  _dobController.text =
+                                      '${pickedLocal.year.toString().padLeft(4, '0')}-${pickedLocal.month.toString().padLeft(2, '0')}-${pickedLocal.day.toString().padLeft(2, '0')}';
+                                });
+                              },
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: DropdownButtonFormField<String>(
-                                value: ['male', 'female'].contains(_selectedSex?.toLowerCase()) ? _selectedSex?.toLowerCase() : null,
-                                decoration: _fieldDec('Sex', Icons.person_outline),
-                                items: const [
-                                  DropdownMenuItem(value: 'male', child: Text('Male')),
-                                  DropdownMenuItem(value: 'female', child: Text('Female')),
-                                ],
-                                onChanged: (value) => setState(() => _selectedSex = value),
-                                validator: (value) {
-                                  if (value == null || value.isEmpty) return 'Required';
-                                  return null;
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        _selectorField(
-                          label: 'Education Level',
-                          icon: Icons.school_outlined,
-                          value: _educationLevel,
-                          placeholder: 'Select education level',
-                          enabled: !_isSaving,
-                          onTap: () async {
-                            final picked = await _pickOption(
-                              title: 'Select Education Level',
-                              options: _educationLevelOptions,
-                              enableSearch: false,
-                            );
-                            if (picked == null || !mounted) return;
-                            setState(() => _educationLevel = picked['name']);
-                          },
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        Text(
-                          'Add one experience at a time. Type an item (max 30 chars) and tap Add.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.grey[600],
-                            height: 1.4,
-                            fontWeight: FontWeight.w600,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        Row(
-                          children: [
-                            Expanded(
-                              child: TextFormField(
-                                controller: _experienceController,
-                                maxLength: 30,
-                                enabled: !_isSaving,
-                                decoration: _fieldDec(
-                                  'Job Experience (max 30 chars)',
-                                  Icons.work_outline_rounded,
-                                ).copyWith(counterText: ''),
-                              ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: ['male', 'female']
+                                      .contains(_selectedSex?.toLowerCase())
+                                  ? _selectedSex?.toLowerCase()
+                                  : null,
+                              decoration:
+                                  _fieldDec('Sex', Icons.person_outline),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'male', child: Text('Male')),
+                                DropdownMenuItem(
+                                    value: 'female', child: Text('Female')),
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => _selectedSex = value),
+                              validator: (value) {
+                                if (value == null || value.isEmpty)
+                                  return 'Required';
+                                return null;
+                              },
                             ),
-                            const SizedBox(width: 12),
-                            SizedBox(
-                              height: 56,
-                              child: ElevatedButton.icon(
-                                onPressed: _isSaving ? null : _addJobExperience,
-                                icon: const Icon(Icons.add_rounded, size: 20),
-                                label: const Text('Add'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF2563EB),
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-
-                        const SizedBox(height: 10),
-
-                        if (_jobExperiences.isEmpty)
-                          Text(
-                            'No job experience added yet.',
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              color: Colors.grey[600],
-                            ),
-                          )
-                        else
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: _jobExperiences.map((exp) {
-                              return Chip(
-                                label: Text(
-                                  exp,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                backgroundColor: const Color(0xFFEFF6FF),
-                                deleteIcon: const Icon(
-                                  Icons.close_rounded,
-                                  size: 16,
-                                ),
-                                onDeleted: _isSaving
-                                    ? null
-                                    : () => _removeJobExperience(exp),
-                              );
-                            }).toList(),
                           ),
+                        ],
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        _selectorField(
-                          label: 'Province',
-                          icon: Icons.location_city_outlined,
-                          value: _provinceName,
-                          placeholder:
-                              _provinces.isEmpty ? 'Loading provinces...' : 'Select province',
-                          enabled: !_isSaving && _provinces.isNotEmpty,
+                      _selectorField(
+                        label: 'Education Level',
+                        icon: Icons.school_outlined,
+                        value: _educationLevel,
+                        placeholder: 'Select education level',
+                        enabled: !_isSaving,
                         onTap: () async {
-                          if (_isSaving || _provinces.isEmpty || _updatingLocation) return;
+                          final picked = await _pickOption(
+                            title: 'Select Education Level',
+                            options: _educationLevelOptions,
+                            enableSearch: false,
+                          );
+                          if (picked == null || !mounted) return;
+                          setState(() => _educationLevel = picked['name']);
+                        },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      Text(
+                        'Add one experience at a time. Type an item (max 30 chars) and tap Add.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                          height: 1.4,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _experienceController,
+                              maxLength: 30,
+                              enabled: !_isSaving,
+                              decoration: _fieldDec(
+                                'Job Experience (max 30 chars)',
+                                Icons.work_outline_rounded,
+                              ).copyWith(counterText: ''),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          SizedBox(
+                            height: 56,
+                            child: ElevatedButton.icon(
+                              onPressed: _isSaving ? null : _addJobExperience,
+                              icon: const Icon(Icons.add_rounded, size: 20),
+                              label: const Text('Add'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2563EB),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 10),
+
+                      if (_jobExperiences.isEmpty)
+                        Text(
+                          'No job experience added yet.',
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: Colors.grey[600],
+                          ),
+                        )
+                      else
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: _jobExperiences.map((exp) {
+                            return Chip(
+                              label: Text(
+                                exp,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              backgroundColor: const Color(0xFFEFF6FF),
+                              deleteIcon: const Icon(
+                                Icons.close_rounded,
+                                size: 16,
+                              ),
+                              onDeleted: _isSaving
+                                  ? null
+                                  : () => _removeJobExperience(exp),
+                            );
+                          }).toList(),
+                        ),
+
+                      const SizedBox(height: 16),
+
+                      _selectorField(
+                        label: 'Province',
+                        icon: Icons.location_city_outlined,
+                        value: _provinceName,
+                        placeholder: _provinces.isEmpty
+                            ? 'Loading provinces...'
+                            : 'Select province',
+                        enabled: !_isSaving && _provinces.isNotEmpty,
+                        onTap: () async {
+                          if (_isSaving ||
+                              _provinces.isEmpty ||
+                              _updatingLocation) return;
                           FocusScope.of(context).unfocus();
                           try {
-                            final picked = await _pickOption(title: 'Select Province', options: _provinces);
+                            final picked = await _pickOption(
+                                title: 'Select Province', options: _provinces);
                             if (picked == null || !mounted) return;
                             await _onProvinceChanged(picked['code']);
                           } catch (e) {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Could not select province: $e')));
+                                  SnackBar(
+                                      content: Text(
+                                          'Could not select province: $e')));
                             }
                           }
                         },
-                        ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        _selectorField(
-                          label: 'City / Municipality',
-                          icon: Icons.location_city_outlined,
-                          value: _cityName,
-                          placeholder: 'Select province first',
-                          enabled: !_isSaving && _cities.isNotEmpty,
+                      _selectorField(
+                        label: 'City / Municipality',
+                        icon: Icons.location_city_outlined,
+                        value: _cityName,
+                        placeholder: 'Select province first',
+                        enabled: !_isSaving && _cities.isNotEmpty,
                         onTap: () async {
-                          if (_isSaving || _cities.isEmpty || _updatingLocation) return;
+                          if (_isSaving || _cities.isEmpty || _updatingLocation)
+                            return;
                           FocusScope.of(context).unfocus();
                           try {
                             final picked = await _pickOption(
-                                title: 'Select City / Municipality', options: _cities);
+                                title: 'Select City / Municipality',
+                                options: _cities);
                             if (picked == null || !mounted) return;
                             await _onCityChanged(picked['code']);
                           } catch (e) {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Could not select city: $e')));
+                                  SnackBar(
+                                      content:
+                                          Text('Could not select city: $e')));
                             }
                           }
                         },
-                        ),
+                      ),
 
-                        const SizedBox(height: 16),
+                      const SizedBox(height: 16),
 
-                        _selectorField(
-                          label: 'Barangay',
-                          icon: Icons.home_work_outlined,
-                          value: _barangayName,
-                          placeholder: 'Select city first',
-                          enabled: !_isSaving && _barangays.isNotEmpty,
+                      _selectorField(
+                        label: 'Barangay',
+                        icon: Icons.home_work_outlined,
+                        value: _barangayName,
+                        placeholder: 'Select city first',
+                        enabled: !_isSaving && _barangays.isNotEmpty,
                         onTap: () async {
-                          if (_isSaving || _barangays.isEmpty || _updatingLocation) return;
+                          if (_isSaving ||
+                              _barangays.isEmpty ||
+                              _updatingLocation) return;
                           FocusScope.of(context).unfocus();
                           try {
                             final picked = await _pickOption(
@@ -1730,196 +1846,216 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                             }
                           }
                         },
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: _streetController,
+                        decoration: _fieldDec(
+                          'Street / House No. / Landmark (Optional)',
+                          Icons.location_on_outlined,
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
-
-                        TextFormField(
-                          controller: _streetController,
-                          decoration: _fieldDec(
-                            'Street / House No. / Landmark (Optional)',
-                            Icons.location_on_outlined,
+                      if (_isLoadingLocations) ...[
+                        const SizedBox(height: 10),
+                        const LinearProgressIndicator(
+                          color: Color(0xFF2563EB),
+                          minHeight: 3,
+                        ),
+                      ],
+                      if (_locationError != null) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          _locationError!,
+                          style: const TextStyle(
+                            color: Color(0xFFEF4444),
+                            fontSize: 12,
                           ),
                         ),
+                      ],
 
-                        if (_isLoadingLocations) ...[
-                          const SizedBox(height: 10),
-                          const LinearProgressIndicator(
-                            color: Color(0xFF2563EB),
-                            minHeight: 3,
-                          ),
-                        ],
-                        if (_locationError != null) ...[
-                          const SizedBox(height: 10),
-                          Text(
-                            _locationError!,
-                            style: const TextStyle(
-                              color: Color(0xFFEF4444),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(height: 30),
 
-                        const SizedBox(height: 30),
+                      // Save button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: (_isSaving || !_hasUnsavedChanges())
+                              ? null
+                              : () async {
+                                  if (!_formKey.currentState!.validate())
+                                    return;
+                                  final missingLocation =
+                                      _provinceCode == null ||
+                                          _cityCode == null ||
+                                          _barangayCode == null;
+                                  if (missingLocation) {
+                                    CustomToast.show(
+                                      context,
+                                      message:
+                                          'Please complete Province, City/Municipality, and Barangay.',
+                                      type: ToastType.error,
+                                    );
+                                    return;
+                                  }
+                                  setState(() => _isSaving = true);
 
-                        // Save button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 54,
-                          child: ElevatedButton(
-                            onPressed: (_isSaving || !_hasUnsavedChanges())
-                                ? null
-                                : () async {
-                                    if (!_formKey.currentState!.validate()) return;
-                                    final missingLocation = _provinceCode == null ||
-                                        _cityCode == null ||
-                                        _barangayCode == null;
-                                    if (missingLocation) {
+                                  final token = UserSession().token ?? '';
+                                  if (_pickedImageBytes != null) {
+                                    final uploadResult =
+                                        await ApiService.uploadAvatarBytes(
+                                      token: token,
+                                      fileBytes: _pickedImageBytes!,
+                                      fileName: 'avatar.jpg',
+                                    );
+                                    if (uploadResult['success'] != true &&
+                                        mounted) {
+                                      setState(() => _isSaving = false);
                                       CustomToast.show(
                                         context,
-                                        message: 'Please complete Province, City/Municipality, and Barangay.',
+                                        message: uploadResult['message']
+                                                as String? ??
+                                            'Failed to upload photo',
                                         type: ToastType.error,
                                       );
                                       return;
                                     }
-                                    setState(() => _isSaving = true);
+                                  }
 
-                                    final token = UserSession().token ?? '';
+                                  final result = await ApiService.updateProfile(
+                                    token: token,
+                                    firstName: _firstNameController.text.trim(),
+                                    middleInitial:
+                                        _middleInitialController.text.trim(),
+                                    lastName: _lastNameController.text.trim(),
+                                    contact: _phoneController.text.trim(),
+                                    address: _composeAddress(),
+                                    educationLevel: _educationLevel,
+                                    jobExperience: _jobExperiences.isEmpty
+                                        ? null
+                                        : _jobExperiences.join(', '),
+                                    provinceCode: _provinceCode,
+                                    provinceName: _provinceName,
+                                    cityCode: _cityCode,
+                                    cityName: _cityName,
+                                    barangayCode: _barangayCode,
+                                    barangayName: _barangayName,
+                                    streetAddress:
+                                        _streetController.text.trim(),
+                                    dateOfBirth:
+                                        _dobController.text.trim().isEmpty
+                                            ? null
+                                            : _dobController.text.trim(),
+                                    sex: _selectedSex,
+                                  );
+
+                                  if (!mounted) return;
+                                  setState(() => _isSaving = false);
+
+                                  if (result['success'] == true) {
+                                    final updatedUser = result['data']
+                                            as Map<String, dynamic>? ??
+                                        {};
+                                    UserSession().updateFromUser(updatedUser);
                                     if (_pickedImageBytes != null) {
-                                      final uploadResult = await ApiService.uploadAvatarBytes(
-                                        token: token,
-                                        fileBytes: _pickedImageBytes!,
-                                        fileName: 'avatar.jpg',
-                                      );
-                                      if (uploadResult['success'] != true && mounted) {
-                                        setState(() => _isSaving = false);
-                                        CustomToast.show(
-                                          context,
-                                          message: uploadResult['message'] as String? ?? 'Failed to upload photo',
-                                          type: ToastType.error,
-                                        );
-                                        return;
+                                      final userResult =
+                                          await ApiService.getUser(token);
+                                      if (userResult['success'] == true &&
+                                          userResult['data'] != null) {
+                                        UserSession().updateFromUser(
+                                            userResult['data']
+                                                as Map<String, dynamic>);
                                       }
                                     }
-
-                                    final result = await ApiService.updateProfile(
-                                      token: token,
-                                      firstName: _firstNameController.text.trim(),
-                                      middleInitial: _middleInitialController.text.trim(),
-                                      lastName: _lastNameController.text.trim(),
-                                      contact: _phoneController.text.trim(),
-                                      address: _composeAddress(),
-                                      educationLevel: _educationLevel,
-                                      jobExperience: _jobExperiences.isEmpty
-                                          ? null
-                                          : _jobExperiences.join(', '),
-                                      provinceCode: _provinceCode,
-                                      provinceName: _provinceName,
-                                      cityCode: _cityCode,
-                                      cityName: _cityName,
-                                      barangayCode: _barangayCode,
-                                      barangayName: _barangayName,
-                                      streetAddress: _streetController.text.trim(),
-                                      dateOfBirth: _dobController.text.trim().isEmpty ? null : _dobController.text.trim(),
-                                      sex: _selectedSex,
-                                    );
-
+                                    widget
+                                        .onUpdate(); // <--- This triggers the immediate UI refresh
                                     if (!mounted) return;
-                                    setState(() => _isSaving = false);
-
-                                    if (result['success'] == true) {
-                                      final updatedUser =
-                                          result['data'] as Map<String, dynamic>? ?? {};
-                                      UserSession().updateFromUser(updatedUser);
-                                      if (_pickedImageBytes != null) {
-                                        final userResult = await ApiService.getUser(token);
-                                        if (userResult['success'] == true && userResult['data'] != null) {
-                                          UserSession().updateFromUser(userResult['data'] as Map<String, dynamic>);
-                                        }
-                                      }
-                                      widget.onUpdate(); // <--- This triggers the immediate UI refresh
-                                      if (!mounted) return;
-                                      Navigator.pop(context);
-                                      CustomToast.show(
-                                        context,
-                                        message: 'Profile updated successfully!',
-                                        type: ToastType.success,
-                                      );
-                                    } else {
-                                      CustomToast.show(
-                                        context,
-                                        message: result['message'] as String? ?? 'Failed to update profile.',
-                                        type: ToastType.error,
-                                      );
-                                    }
-                                  },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2563EB),
-                              foregroundColor: Colors.white,
-                              disabledBackgroundColor:
-                                  const Color(0xFF2563EB).withOpacity(0.6),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              elevation: 0,
+                                    Navigator.pop(context);
+                                    CustomToast.show(
+                                      context,
+                                      message: 'Profile updated successfully!',
+                                      type: ToastType.success,
+                                    );
+                                  } else {
+                                    CustomToast.show(
+                                      context,
+                                      message: result['message'] as String? ??
+                                          'Failed to update profile.',
+                                      type: ToastType.error,
+                                    );
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor:
+                                const Color(0xFF2563EB).withOpacity(0.6),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            child: _isSaving
-                                ? const SizedBox(
-                                    width: 22,
-                                    height: 22,
-                                    child: CircularProgressIndicator(
-                                      color: Colors.white,
-                                      strokeWidth: 2.5,
-                                    ),
-                                  )
-                                : const Text(
-                                    'Save Changes',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                            elevation: 0,
+                          ),
+                          child: _isSaving
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
                                   ),
+                                )
+                              : const Text(
+                                  'Save Changes',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Cancel button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 54,
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final shouldLeave =
+                                await _confirmDiscardUnsavedChanges();
+                            if (!mounted || !shouldLeave) return;
+                            Navigator.pop(context);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF64748B),
+                            side: const BorderSide(color: Color(0xFFE2E8F0)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
+                      ),
 
-                        const SizedBox(height: 16),
-
-                        // Cancel button
-                        SizedBox(
-                          width: double.infinity,
-                          height: 54,
-                          child: OutlinedButton(
-                            onPressed: () async {
-                              final shouldLeave = await _confirmDiscardUnsavedChanges();
-                              if (!mounted || !shouldLeave) return;
-                              Navigator.pop(context);
-                            },
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF64748B),
-                              side: const BorderSide(color: Color(0xFFE2E8F0)),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                            ),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-
-                        const SizedBox(height: 30),
-                      ],
-                    ),
+                      const SizedBox(height: 30),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
-    ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -1988,6 +2124,187 @@ class _SavedJob {
   const _SavedJob({required this.job, required this.savedDate});
 }
 
+class _ProfileSkeletonBox extends StatelessWidget {
+  final double width;
+  final double height;
+  final double radius;
+
+  const _ProfileSkeletonBox({
+    required this.width,
+    required this.height,
+    this.radius = 10,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(radius),
+      ),
+    );
+  }
+}
+
+class _ApplicationsPageSkeleton extends StatelessWidget {
+  const _ApplicationsPageSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      itemCount: 4,
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      itemBuilder: (_, __) => Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _ProfileSkeletonBox(width: 56, height: 56, radius: 16),
+                SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ProfileSkeletonBox(width: double.infinity, height: 18),
+                      SizedBox(height: 8),
+                      _ProfileSkeletonBox(width: 170, height: 14),
+                    ],
+                  ),
+                ),
+                SizedBox(width: 12),
+                _ProfileSkeletonBox(width: 88, height: 28, radius: 14),
+              ],
+            ),
+            SizedBox(height: 16),
+            _ProfileSkeletonBox(width: double.infinity, height: 14),
+            SizedBox(height: 10),
+            _ProfileSkeletonBox(width: 200, height: 14),
+            SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _ProfileSkeletonBox(
+                    width: double.infinity,
+                    height: 42,
+                    radius: 14,
+                  ),
+                ),
+                SizedBox(width: 10),
+                Expanded(
+                  child: _ProfileSkeletonBox(
+                    width: double.infinity,
+                    height: 42,
+                    radius: 14,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(
+          begin: 0.58,
+          end: 1,
+          duration: 900.ms,
+        );
+  }
+}
+
+class _SavedJobsPageSkeleton extends StatelessWidget {
+  const _SavedJobsPageSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      itemCount: 4,
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
+      itemBuilder: (_, __) => const _SavedJobSkeletonCard(),
+    ).animate(onPlay: (controller) => controller.repeat(reverse: true)).fade(
+          begin: 0.58,
+          end: 1,
+          duration: 900.ms,
+        );
+  }
+}
+
+class _SavedJobSkeletonCard extends StatelessWidget {
+  const _SavedJobSkeletonCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ProfileSkeletonBox(width: 56, height: 56, radius: 16),
+              SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _ProfileSkeletonBox(width: double.infinity, height: 18),
+                    SizedBox(height: 8),
+                    _ProfileSkeletonBox(width: 150, height: 13),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 14),
+          _ProfileSkeletonBox(width: 170, height: 24, radius: 12),
+          SizedBox(height: 12),
+          _ProfileSkeletonBox(width: double.infinity, height: 14),
+          SizedBox(height: 8),
+          _ProfileSkeletonBox(width: 240, height: 14),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _ProfileSkeletonBox(
+                  width: double.infinity,
+                  height: 42,
+                  radius: 14,
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: _ProfileSkeletonBox(
+                  width: double.infinity,
+                  height: 42,
+                  radius: 14,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // See SavedJobsPage which now loads from backend instead of demo data.
 
 // ─── My Applications Page ────────────────────────────────────────────────────
@@ -2045,11 +2362,13 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
       final apps = <_Application>[];
       for (final item in list) {
         final map = item as Map<String, dynamic>;
-        final jobData = (map['job_listing'] ?? map['job']) as Map<String, dynamic>? ?? {};
+        final jobData =
+            (map['job_listing'] ?? map['job']) as Map<String, dynamic>? ?? {};
         final job = Job.fromJson(jobData);
-        final createdAt =
-            DateTime.tryParse(map['applied_at'] as String? ?? map['created_at'] as String? ?? '') ??
-                DateTime.now();
+        final createdAt = DateTime.tryParse(map['applied_at'] as String? ??
+                map['created_at'] as String? ??
+                '') ??
+            DateTime.now();
         final appliedDate = _formatApplicationDate(createdAt);
         final rawStatus = (map['status'] as String? ?? '').trim().toLowerCase();
         final processingStage = switch (rawStatus) {
@@ -2095,7 +2414,8 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
           case 'Placement/Hired':
           case 'Hired':
           case 'Placement':
-            statusColor = const Color(0xFF10B981); // emerald green, matches buttons
+            statusColor =
+                const Color(0xFF10B981); // emerald green, matches buttons
             statusIcon = Icons.work_rounded;
             break;
           case 'Denied':
@@ -2125,7 +2445,8 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
       });
     } else {
       setState(() {
-        _errorMessage = result['message'] as String? ?? 'Failed to load applications.';
+        _errorMessage =
+            result['message'] as String? ?? 'Failed to load applications.';
         _isLoading = false;
       });
     }
@@ -2153,9 +2474,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: _ProfileTheme.primary),
-            )
+          ? const _ApplicationsPageSkeleton()
           : _errorMessage != null
               ? ErrorState(
                   message: _errorMessage!,
@@ -2165,7 +2484,8 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                   ? const _EmptyListState(
                       icon: Icons.description_outlined,
                       title: 'No applications yet',
-                      subtitle: 'Apply to jobs and your applications will appear here.',
+                      subtitle:
+                          'Apply to jobs and your applications will appear here.',
                     )
                   : RefreshIndicator(
                       color: _ProfileTheme.primary,
@@ -2267,12 +2587,16 @@ class _ApplicationCard extends StatelessWidget {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF94A3B8)),
+                              const Icon(Icons.location_on_rounded,
+                                  size: 14, color: Color(0xFF94A3B8)),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   job.location,
-                                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.w500),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -2291,16 +2615,20 @@ class _ApplicationCard extends StatelessWidget {
                       child: Align(
                         alignment: Alignment.centerLeft,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: application.statusColor.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: application.statusColor.withOpacity(0.2)),
+                            border: Border.all(
+                                color:
+                                    application.statusColor.withOpacity(0.2)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(application.statusIcon, size: 14, color: application.statusColor),
+                              Icon(application.statusIcon,
+                                  size: 14, color: application.statusColor),
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
@@ -2358,8 +2686,9 @@ void _openApplicationDetail(BuildContext context, _Application application) {
     isSaved: jobActionService.isSaved(job.id),
     onViewMap: () {
       Navigator.of(context).pop(); // Pop modal
-      Navigator.of(context).pop(); // Pop the Applications/Detail page to return home
-      homeNavRequestNotifier.value = 1; // Switch to Map Tab
+      Navigator.of(context)
+          .pop(); // Pop the Applications/Detail page to return home
+      homeNavRequestNotifier.value = 2; // Switch to Map Tab
       mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
     },
     onSave: () async {
@@ -2507,12 +2836,11 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
             (map['job_listing'] ?? map['job']) as Map<String, dynamic>? ?? {};
         final job = Job.fromJson({
           ...rawJobData,
-          'match_percentage':
-              (map['match_score'] as num?)?.toInt() ??
-                  (map['match_percentage'] as num?)?.toInt() ??
-                  (rawJobData['match_score'] as num?)?.toInt() ??
-                  (rawJobData['match_percentage'] as num?)?.toInt() ??
-                  0,
+          'match_percentage': (map['match_score'] as num?)?.toInt() ??
+              (map['match_percentage'] as num?)?.toInt() ??
+              (rawJobData['match_score'] as num?)?.toInt() ??
+              (rawJobData['match_percentage'] as num?)?.toInt() ??
+              0,
         });
         final createdAt =
             DateTime.tryParse(map['created_at'] as String? ?? '') ??
@@ -2524,7 +2852,8 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
 
       final meta = result['meta'] as Map<String, dynamic>? ?? {};
       final nextCursor = meta['next_cursor'] as String?;
-      final hasMore = meta['has_more'] == true || (nextCursor != null && nextCursor.isNotEmpty);
+      final hasMore = meta['has_more'] == true ||
+          (nextCursor != null && nextCursor.isNotEmpty);
       setState(() {
         if (!loadMore) {
           _savedJobs
@@ -2540,7 +2869,8 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
       });
     } else {
       setState(() {
-        _errorMessage = result['message'] as String? ?? 'Failed to load saved jobs.';
+        _errorMessage =
+            result['message'] as String? ?? 'Failed to load saved jobs.';
         _isLoading = false;
         _isLoadingMore = false;
       });
@@ -2556,7 +2886,8 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
         type: AppDialogType.info,
         icon: Icons.description_outlined,
         title: 'Resume Required',
-        message: 'You need to upload your resume first before applying to jobs.',
+        message:
+            'You need to upload your resume first before applying to jobs.',
         confirmLabel: 'Go to Documents',
         onConfirm: () => Navigator.of(context).pop(true),
         onCancel: () => Navigator.of(context).pop(false),
@@ -2672,9 +3003,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: _ProfileTheme.primary),
-            )
+          ? const _SavedJobsPageSkeleton()
           : _errorMessage != null
               ? ErrorState(
                   message: _errorMessage!,
@@ -2700,22 +3029,18 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                         itemBuilder: (context, index) {
                           if (index >= _savedJobs.length) {
                             return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 12),
-                              child: Center(
-                                child: SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(strokeWidth: 2.2),
-                                ),
-                              ),
+                              padding: EdgeInsets.only(top: 4, bottom: 12),
+                              child: _SavedJobSkeletonCard(),
                             );
                           }
                           final saved = _savedJobs[index];
-                          final isApplied = _jobActionService.isApplied(saved.job.id);
+                          final isApplied =
+                              _jobActionService.isApplied(saved.job.id);
                           return _SavedJobCard(
                             savedJob: saved,
                             isApplied: isApplied,
-                            onApply: () => _applyToJob(saved.job.id, saved.job.title),
+                            onApply: () =>
+                                _applyToJob(saved.job.id, saved.job.title),
                             onUnsave: () => _unsaveJob(saved.job.id),
                           );
                         },
@@ -2758,18 +3083,18 @@ class _SavedJobCard extends StatelessWidget {
           if (listing.isNotEmpty) {
             detailJob = Job.fromJson({
               ...listing,
-              if ((listing['employer'] == null || listing['employer'] is! Map) &&
+              if ((listing['employer'] == null ||
+                      listing['employer'] is! Map) &&
                   job.company.isNotEmpty)
                 'employer': {'company_name': job.company},
               if ((listing['location'] == null ||
                       listing['location'].toString().trim().isEmpty) &&
                   job.location.isNotEmpty)
                 'location': job.location,
-              'match_percentage':
-                  (data['match_score'] as num?)?.toInt() ??
-                      (data['match_percentage'] as num?)?.toInt() ??
-                      (listing['match_percentage'] as num?)?.toInt() ??
-                      job.matchPercentage,
+              'match_percentage': (data['match_score'] as num?)?.toInt() ??
+                  (data['match_percentage'] as num?)?.toInt() ??
+                  (listing['match_percentage'] as num?)?.toInt() ??
+                  job.matchPercentage,
             });
           }
         }
@@ -2785,11 +3110,12 @@ class _SavedJobCard extends StatelessWidget {
         onViewMap: () {
           Navigator.of(context).pop(); // Pop modal
           Navigator.of(context).pop(); // Pop SavedJobsPage to return home
-          homeNavRequestNotifier.value = 1; // Switch to Map Tab
+          homeNavRequestNotifier.value = 2; // Switch to Map Tab
           mapFocusRequestNotifier.value = MapFocusRequest.fromJob(detailJob);
         },
       );
     }
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -2861,12 +3187,16 @@ class _SavedJobCard extends StatelessWidget {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFF94A3B8)),
+                              const Icon(Icons.location_on_rounded,
+                                  size: 14, color: Color(0xFF94A3B8)),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   job.location,
-                                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF64748B),
+                                      fontWeight: FontWeight.w500),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -2878,7 +3208,8 @@ class _SavedJobCard extends StatelessWidget {
                     if (job.matchPercentage > 0) ...[
                       const SizedBox(width: 12),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF0FDF4),
                           borderRadius: BorderRadius.circular(12),
@@ -2896,7 +3227,8 @@ class _SavedJobCard extends StatelessWidget {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star_rounded, size: 12, color: Color(0xFF059669)),
+                            const Icon(Icons.star_rounded,
+                                size: 12, color: Color(0xFF059669)),
                             const SizedBox(height: 1),
                             Text(
                               '${job.matchPercentage}%',
@@ -2927,7 +3259,8 @@ class _SavedJobCard extends StatelessWidget {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Icon(Icons.payments_outlined, size: 16, color: Colors.grey[500]),
+                    Icon(Icons.payments_outlined,
+                        size: 16, color: Colors.grey[500]),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
@@ -3179,9 +3512,8 @@ class _ApplicationStatusBanner extends StatelessWidget {
                             steps[index],
                             style: TextStyle(
                               fontSize: 8,
-                              fontWeight: isDone
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
+                              fontWeight:
+                                  isDone ? FontWeight.w700 : FontWeight.w500,
                               color: isDone
                                   ? application.statusColor
                                   : const Color(0xFF94A3B8),

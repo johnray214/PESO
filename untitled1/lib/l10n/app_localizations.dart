@@ -109,6 +109,12 @@ abstract class S {
   /// **'Home'**
   String get navHome;
 
+  /// No description provided for @navExplore.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore'**
+  String get navExplore;
+
   /// No description provided for @navMap.
   ///
   /// In en, this message translates to:
@@ -829,6 +835,66 @@ abstract class S {
   /// **'Create account'**
   String get createAccount;
 
+  /// No description provided for @continueButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get continueButton;
+
+  /// No description provided for @signupStepOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String signupStepOf(int current, int total);
+
+  /// No description provided for @signupStepName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get signupStepName;
+
+  /// No description provided for @signupStepContact.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact'**
+  String get signupStepContact;
+
+  /// No description provided for @signupStepSecurity.
+  ///
+  /// In en, this message translates to:
+  /// **'Security'**
+  String get signupStepSecurity;
+
+  /// No description provided for @signupStepDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get signupStepDetails;
+
+  /// No description provided for @signupStepNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tell us your name as it appears on your documents.'**
+  String get signupStepNameHint;
+
+  /// No description provided for @signupStepContactHint.
+  ///
+  /// In en, this message translates to:
+  /// **'We will use this to reach you about jobs and events.'**
+  String get signupStepContactHint;
+
+  /// No description provided for @signupStepSecurityHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a strong password to protect your account.'**
+  String get signupStepSecurityHint;
+
+  /// No description provided for @signupStepDetailsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'A few more details, then you are ready to go.'**
+  String get signupStepDetailsHint;
+
   /// No description provided for @alreadyHaveAccount.
   ///
   /// In en, this message translates to:
@@ -840,6 +906,18 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Don\'t have an account?'**
   String get dontHaveAccount;
+
+  /// No description provided for @authSignupSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply for jobs and events near you.'**
+  String get authSignupSubtitle;
+
+  /// No description provided for @authLoginSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in to continue where you left off.'**
+  String get authLoginSubtitle;
 
   /// No description provided for @welcomeBack.
   ///

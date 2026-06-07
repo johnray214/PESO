@@ -15,6 +15,9 @@ class STl extends S {
   String get navHome => 'Home';
 
   @override
+  String get navExplore => 'Diskubre';
+
+  @override
   String get navMap => 'Mapa';
 
   @override
@@ -382,16 +385,59 @@ class STl extends S {
   String get confirmPassword => 'Kumpirmahin ang password';
 
   @override
-  String get forgotPassword => 'Nakalimutan ang password?';
+  String get forgotPassword => 'Forgot Password?';
 
   @override
   String get createAccount => 'Gumawa ng account';
+
+  @override
+  String get continueButton => 'Magpatuloy';
+
+  @override
+  String signupStepOf(int current, int total) {
+    return 'Hakbang $current sa $total';
+  }
+
+  @override
+  String get signupStepName => 'Pangalan';
+
+  @override
+  String get signupStepContact => 'Kontak';
+
+  @override
+  String get signupStepSecurity => 'Seguridad';
+
+  @override
+  String get signupStepDetails => 'Detalye';
+
+  @override
+  String get signupStepNameHint =>
+      'Ilagay ang pangalan mo gaya ng nasa dokumento.';
+
+  @override
+  String get signupStepContactHint =>
+      'Gagamitin ito para maabisuhan ka tungkol sa trabaho at event.';
+
+  @override
+  String get signupStepSecurityHint =>
+      'Pumili ng matibay na password para sa account mo.';
+
+  @override
+  String get signupStepDetailsHint =>
+      'Ilang detalye pa, handa ka na pagkatapos.';
 
   @override
   String get alreadyHaveAccount => 'May account ka na?';
 
   @override
   String get dontHaveAccount => 'Wala pang account?';
+
+  @override
+  String get authSignupSubtitle =>
+      'Mag-apply sa trabaho at event malapit sa iyo.';
+
+  @override
+  String get authLoginSubtitle => 'Mag-login para magpatuloy.';
 
   @override
   String get welcomeBack => 'Maligayang pagbabalik';
