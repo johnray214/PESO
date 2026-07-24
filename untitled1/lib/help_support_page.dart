@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'home_pages.dart' show replayHomeTourNotifier;
@@ -21,7 +22,7 @@ class _FaqCategory {
   });
 
   final String title;
-  final IconData icon;
+  final dynamic icon;
   final List<_FaqItem> items;
 }
 
@@ -31,7 +32,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
     return const [
       _FaqCategory(
         title: 'Trabaho at aplikasyon',
-        icon: Icons.work_outline_rounded,
+        icon: HugeIcons.strokeRoundedBriefcase01,
         items: [
           (
             question: 'Bakit hindi ako makapag-apply sa trabaho?',
@@ -48,7 +49,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
       ),
       _FaqCategory(
         title: 'Kasanayan at job matching',
-        icon: Icons.psychology_outlined,
+        icon: HugeIcons.strokeRoundedBrain01,
         items: [
           (
             question: 'Paano gamitin ang Skills Profile / Skills Editor?',
@@ -64,7 +65,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
       ),
       _FaqCategory(
         title: 'Mapa at lokasyon',
-        icon: Icons.map_outlined,
+        icon: HugeIcons.strokeRoundedMapsLocation01,
         items: [
           (
             question:
@@ -91,7 +92,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
       ),
       _FaqCategory(
         title: 'Account at settings',
-        icon: Icons.person_outline_rounded,
+        icon: HugeIcons.strokeRoundedUser,
         items: [
           (
             question: 'Paano ko papalitan ang email ko?',
@@ -107,7 +108,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
       ),
       _FaqCategory(
         title: 'Mga notipikasyon',
-        icon: Icons.notifications_outlined,
+        icon: HugeIcons.strokeRoundedNotification01,
         items: [
           (
             question:
@@ -123,7 +124,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
   return const [
     _FaqCategory(
       title: 'Jobs & applications',
-      icon: Icons.work_outline_rounded,
+      icon: HugeIcons.strokeRoundedBriefcase01,
       items: [
         (
           question: 'Why can\'t I apply to a job?',
@@ -139,7 +140,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
     ),
     _FaqCategory(
       title: 'Skills & job matching',
-      icon: Icons.psychology_outlined,
+      icon: HugeIcons.strokeRoundedBrain01,
       items: [
         (
           question: 'How do I use the Skills Profile / Skills Editor?',
@@ -155,7 +156,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
     ),
     _FaqCategory(
       title: 'Map & location',
-      icon: Icons.map_outlined,
+      icon: HugeIcons.strokeRoundedMapsLocation01,
       items: [
         (
           question: 'How does exact location affect job results on map?',
@@ -181,7 +182,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
     ),
     _FaqCategory(
       title: 'Account & settings',
-      icon: Icons.person_outline_rounded,
+      icon: HugeIcons.strokeRoundedUser,
       items: [
         (
           question: 'How do I change my email?',
@@ -197,7 +198,7 @@ List<_FaqCategory> _faqCategories(BuildContext context) {
     ),
     _FaqCategory(
       title: 'Notifications',
-      icon: Icons.notifications_outlined,
+      icon: HugeIcons.strokeRoundedNotification01,
       items: [
         (
           question: 'Notifications look outdated or wrong. What should I do?',
@@ -265,7 +266,12 @@ Future<void> _showPesoContactDialog(BuildContext context) {
                   );
                 }
               },
-              icon: const Icon(Icons.email_outlined),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedMail01,
+                size: 18,
+                color: Colors.white,
+                strokeWidth: 2.0,
+              ),
               label: const Text('Open email app'),
             ),
             const SizedBox(height: 8),
@@ -282,7 +288,12 @@ Future<void> _showPesoContactDialog(BuildContext context) {
                   );
                 }
               },
-              icon: const Icon(Icons.chat_bubble_outline_rounded),
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedComment01,
+                size: 18,
+                color: Color(0xFF2563EB),
+                strokeWidth: 2.0,
+              ),
               label: const Text('Facebook Messenger'),
             ),
             const SizedBox(height: 12),
@@ -455,6 +466,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
     final categories = _faqCategories(context);
     final currentLocale = LocaleService.instance.locale;
     final l10n = S.of(context);
+    final isGuest = UserSession().isGuest;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -462,6 +474,15 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
         elevation: 0,
         backgroundColor: const Color(0xFFF1F5F9),
         foregroundColor: const Color(0xFF0F172A),
+        leading: IconButton(
+          icon: const HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowLeft01,
+            size: 20,
+            color: Color(0xFF0F172A),
+            strokeWidth: 2.0,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Text(
           l10n?.helpSupport ?? 'Help & Support',
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
@@ -475,49 +496,51 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
             child: Column(
               children: [
                 _QuickActionTile(
-                  icon: Icons.language_rounded,
+                  icon: HugeIcons.strokeRoundedGlobal,
                   title: l10n?.language ?? 'Language',
                   subtitle: AppLocales.displayName(currentLocale),
                   onTap: _showLanguageSelector,
                 ),
+                if (!isGuest) ...[
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  _QuickActionTile(
+                    icon: HugeIcons.strokeRoundedFile01,
+                    title: l10n?.goToMyDocuments ?? 'Go to My Documents',
+                    subtitle: l10n?.goToMyDocumentsSubtitle ??
+                        'Upload required files before applying',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const MyDocumentsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1, color: Color(0xFFE2E8F0)),
+                  _QuickActionTile(
+                    icon: HugeIcons.strokeRoundedAccountSetting01,
+                    title: l10n?.openSettings ?? 'Open Settings',
+                    subtitle: l10n?.openSettingsSubtitle ??
+                        'Manage account details and email',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const SettingsPage(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
                 const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _QuickActionTile(
-                  icon: Icons.description_outlined,
-                  title: l10n?.goToMyDocuments ?? 'Go to My Documents',
-                  subtitle: l10n?.goToMyDocumentsSubtitle ??
-                      'Upload required files before applying',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const MyDocumentsPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                _QuickActionTile(
-                  icon: Icons.settings_outlined,
-                  title: l10n?.openSettings ?? 'Open Settings',
-                  subtitle: l10n?.openSettingsSubtitle ??
-                      'Manage account details and email',
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => const SettingsPage(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                _QuickActionTile(
-                  icon: Icons.support_agent_rounded,
+                  icon: HugeIcons.strokeRoundedCustomerSupport,
                   title: l10n?.contactSupport ?? 'Contact Support',
                   subtitle: kLegalContactEmail,
                   onTap: () => _showPesoContactDialog(context),
                 ),
                 const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _QuickActionTile(
-                  icon: Icons.play_circle_outline_rounded,
+                  icon: HugeIcons.strokeRoundedPlayCircle,
                   title: l10n?.replayTour ?? 'Replay App Tour',
                   subtitle: l10n?.replayTourSubtitle ??
                       'See the guided walkthrough again',
@@ -539,7 +562,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
             child: Column(
               children: [
                 _QuickActionTile(
-                  icon: Icons.gavel_rounded,
+                  icon: HugeIcons.strokeRoundedLegalDocument01,
                   title: l10n?.termsOfService ?? 'Terms & Conditions',
                   subtitle:
                       l10n?.termsOfServiceSubtitle ?? 'Rules for using the app',
@@ -553,7 +576,7 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                 ),
                 const Divider(height: 1, color: Color(0xFFE2E8F0)),
                 _QuickActionTile(
-                  icon: Icons.privacy_tip_outlined,
+                  icon: HugeIcons.strokeRoundedSecurity,
                   title: l10n?.privacyPolicy ?? 'Privacy Policy',
                   subtitle: l10n?.privacyPolicySubtitle ??
                       'How we handle personal data',
@@ -605,11 +628,15 @@ class _HelpSupportPageState extends State<HelpSupportPage> {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Icon(
-                        categories[c].icon,
-                        size: 20,
-                        color: const Color(0xFF64748B),
-                      ),
+                      categories[c].icon is IconData
+                          ? Icon(categories[c].icon as IconData,
+                              size: 18, color: const Color(0xFF64748B))
+                          : HugeIcon(
+                              icon: categories[c].icon as List<List<dynamic>>,
+                              size: 18,
+                              color: const Color(0xFF64748B),
+                              strokeWidth: 2.0,
+                            ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -710,7 +737,7 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _QuickActionTile extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
@@ -726,7 +753,14 @@ class _QuickActionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, color: const Color(0xFF64748B), size: 22),
+      leading: icon is IconData
+          ? Icon(icon, color: const Color(0xFF64748B), size: 20)
+          : HugeIcon(
+              icon: icon as List<List<dynamic>>,
+              color: const Color(0xFF64748B),
+              size: 20,
+              strokeWidth: 2.0,
+            ),
       title: Text(
         title,
         style: const TextStyle(
@@ -739,9 +773,11 @@ class _QuickActionTile extends StatelessWidget {
         subtitle,
         style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
       ),
-      trailing: const Icon(
-        Icons.chevron_right_rounded,
+      trailing: const HugeIcon(
+        icon: HugeIcons.strokeRoundedArrowRight01,
         color: Color(0xFF94A3B8),
+        size: 18,
+        strokeWidth: 2.0,
       ),
       onTap: onTap,
     );

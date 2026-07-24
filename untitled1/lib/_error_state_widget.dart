@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 class ErrorState extends StatelessWidget {
   final String message;
@@ -18,7 +19,7 @@ class ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_off_rounded, size: 56, color: Colors.grey[300]),
+            const HugeIcon(icon: HugeIcons.strokeRoundedWifiDisconnected01, size: 56, color: Color(0xFFCBD5E1)),
             const SizedBox(height: 16),
             const Text(
               'Something went wrong',
@@ -47,7 +48,7 @@ class ErrorState extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              icon: const Icon(Icons.refresh_rounded, size: 18),
+              icon: const HugeIcon(icon: HugeIcons.strokeRoundedRefresh, size: 18, color: Colors.white),
               label: const Text(
                 'Try again',
                 style: TextStyle(fontWeight: FontWeight.w600),

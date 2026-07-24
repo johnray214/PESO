@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, listEquals;
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'job_models.dart';
 import 'user_session.dart';
 import 'api_service.dart';
+import 'auth_gate.dart';
 import '_error_state_widget.dart';
 import 'job_action_service.dart';
 import 'skills_profile_page.dart';
@@ -25,7 +27,13 @@ import 'notification_service.dart';
 import 'main.dart';
 import 'home_pages.dart'; // Added to access global map notifiers
 import 'skill_match_utils.dart';
+import 'micro_interactions.dart';
 import 'l10n/app_localizations.dart';
+
+const String _kProfileHeaderMascotAsset = 'assets/empoy_profile.png';
+const double _kProfileHeaderMascotImageSize = 170;
+const double _kProfileHeaderMascotOffsetX = 2.80;
+const double _kProfileHeaderMascotOffsetY = -56.5;
 
 /// Matches app blues ([AppColors]); menu rows stay one hue — no rainbow accents.
 class _ProfileTheme {
@@ -208,6 +216,10 @@ class _ProfileTabState extends State<ProfileTab> {
 
   @override
   Widget build(BuildContext context) {
+    if (UserSession().isGuest) {
+      return _buildGuestProfile(context);
+    }
+
     final l10n = S.of(context);
     const coverHeight = 180.0;
     const avatarSize = 100.0;
@@ -247,8 +259,12 @@ class _ProfileTabState extends State<ProfileTab> {
                                   child: IconButton(
                                     onPressed: () =>
                                         _showEditProfileSheet(context),
-                                    icon: const Icon(Icons.edit_rounded,
-                                        color: Colors.white, size: 20),
+                                    icon: const HugeIcon(
+                                      icon: HugeIcons.strokeRoundedPencilEdit01,
+                                      color: Colors.white,
+                                      size: 18,
+                                      strokeWidth: 2.0,
+                                    ),
                                     style: IconButton.styleFrom(
                                       backgroundColor: Colors.white24,
                                       shape: RoundedRectangleBorder(
@@ -305,6 +321,27 @@ class _ProfileTabState extends State<ProfileTab> {
                                           ),
                                         ),
                                       ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: avatarTop,
+                          left: 0,
+                          right: 0,
+                          child: IgnorePointer(
+                            child: Center(
+                              child: Transform.translate(
+                                offset: const Offset(
+                                  _kProfileHeaderMascotOffsetX,
+                                  _kProfileHeaderMascotOffsetY,
+                                ),
+                                child: Image.asset(
+                                  _kProfileHeaderMascotAsset,
+                                  width: _kProfileHeaderMascotImageSize,
+                                  height: _kProfileHeaderMascotImageSize,
+                                  fit: BoxFit.contain,
+                                ),
                               ),
                             ),
                           ),
@@ -374,7 +411,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
                       _buildMenuItem(
-                        icon: Icons.folder_rounded,
+                        icon: HugeIcons.strokeRoundedFolder01,
                         title: l10n?.myApplications ?? 'My Applications',
                         onTap: () async {
                           await Navigator.of(context).push(
@@ -385,7 +422,7 @@ class _ProfileTabState extends State<ProfileTab> {
                         },
                       ),
                       _buildMenuItem(
-                        icon: Icons.bookmark_rounded,
+                        icon: HugeIcons.strokeRoundedBookmark01,
                         title: l10n?.savedJobs ?? 'Saved Jobs',
                         onTap: () async {
                           await Navigator.of(context).push(
@@ -396,7 +433,7 @@ class _ProfileTabState extends State<ProfileTab> {
                         },
                       ),
                       _buildMenuItem(
-                        icon: Icons.workspace_premium_outlined,
+                        icon: HugeIcons.strokeRoundedFileBadge,
                         title: l10n?.skillsProfile ?? 'Skills Profile',
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -404,30 +441,30 @@ class _ProfileTabState extends State<ProfileTab> {
                         ),
                       ),
                       _buildMenuItem(
-                        icon: Icons.description_rounded,
+                        icon: HugeIcons.strokeRoundedFile01,
                         title: l10n?.myDocuments ?? 'My Documents',
                         trailing: _missingDocsCount > 0
                             ? Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 8, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFEF2F2),
+                                  color: const Color(0xFFFFFBEB),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
-                                      color: const Color(0xFFFEE2E2), width: 1),
+                                      color: const Color(0xFFFDE68A), width: 1),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(Icons.error_outline_rounded,
-                                        size: 14, color: Color(0xFFEF4444)),
+                                    const HugeIcon(icon: HugeIcons.strokeRoundedAlertCircle,
+                                        size: 14, color: Color(0xFFD97706), strokeWidth: 2.0),
                                     const SizedBox(width: 4),
                                     Text(
                                       '$_missingDocsCount more',
                                       style: const TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.w700,
-                                        color: Color(0xFFEF4444),
+                                        color: Color(0xFFD97706),
                                       ),
                                     ),
                                   ],
@@ -445,10 +482,11 @@ class _ProfileTabState extends State<ProfileTab> {
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
-                                        Icons.check_circle_outline_rounded,
+                                    const HugeIcon(
+                                        icon: HugeIcons.strokeRoundedCheckmarkCircle01,
                                         size: 14,
-                                        color: Color(0xFF16A34A)),
+                                        color: Color(0xFF16A34A),
+                                        strokeWidth: 2.0),
                                     const SizedBox(width: 4),
                                     Text(
                                       l10n?.docsComplete ?? 'Complete',
@@ -470,7 +508,7 @@ class _ProfileTabState extends State<ProfileTab> {
                         },
                       ),
                       _buildMenuItem(
-                        icon: Icons.settings_rounded,
+                        icon: HugeIcons.strokeRoundedAccountSetting01,
                         title: l10n?.settings ?? 'Settings',
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -478,7 +516,7 @@ class _ProfileTabState extends State<ProfileTab> {
                         ),
                       ),
                       _buildMenuItem(
-                        icon: Icons.help_center_rounded,
+                        icon: HugeIcons.strokeRoundedHelpCircle,
                         title: l10n?.helpSupport ?? 'Help & Support',
                         onTap: () => Navigator.of(context).push(
                           MaterialPageRoute(
@@ -487,7 +525,7 @@ class _ProfileTabState extends State<ProfileTab> {
                       ),
                       const SizedBox(height: 12),
                       _buildMenuItem(
-                        icon: Icons.logout_rounded,
+                        icon: HugeIcons.strokeRoundedLogout01,
                         title: l10n?.signOut ?? 'Sign Out',
                         isSignOut: true,
                         onTap: () => _confirmSignOut(context),
@@ -525,6 +563,98 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+  Widget _buildGuestProfile(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _ProfileTheme.scaffoldBg,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 28, 24, 120),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.divider),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const HugeIcon(
+                        icon: HugeIcons.strokeRoundedUser,
+                        color: Color(0xFF2563EB),
+                        size: 26,
+                        strokeWidth: 2.0,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      'Sign in to manage your profile',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0F172A),
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Create or access your account to apply for jobs, save listings, upload documents, and receive PESO updates.',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF64748B),
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => unawaited(openAuthForGuest(context)),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedLogin01,
+                          size: 18,
+                          color: Colors.white,
+                          strokeWidth: 2.0,
+                        ),
+                        label: const Text('Sign in or create account'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.blueAccent,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildMenuItem(
+                icon: HugeIcons.strokeRoundedHelpCircle,
+                title: S.of(context)?.helpSupport ?? 'Help & Support',
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HelpSupportPage()),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildCompactStat(String value, String label) {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -556,7 +686,7 @@ class _ProfileTabState extends State<ProfileTab> {
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.destructive,
-      icon: Icons.logout_rounded,
+      icon: HugeIcons.strokeRoundedLogout01,
       title: l10n?.signOut ?? 'Sign Out',
       message: l10n?.signOutConfirm ?? 'Are you sure you want to sign out?',
       confirmLabel: l10n?.signOut ?? 'Sign Out',
@@ -593,7 +723,7 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Widget _buildMenuItem({
-    required IconData icon,
+    required dynamic icon,
     required String title,
     required VoidCallback onTap,
     Widget? trailing,
@@ -627,7 +757,14 @@ class _ProfileTabState extends State<ProfileTab> {
                     color: iconBg,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, size: 20, color: iconFg),
+                  child: icon is IconData
+                      ? Icon(icon, size: 22, color: iconFg)
+                      : HugeIcon(
+                          icon: icon as List<List<dynamic>>,
+                          size: 22,
+                          color: iconFg,
+                          strokeWidth: 2.2,
+                        ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -644,10 +781,11 @@ class _ProfileTabState extends State<ProfileTab> {
                   trailing,
                   const SizedBox(width: 12),
                 ],
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 24,
+                const HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowRight01,
+                  size: 20,
                   color: Color(0xFFCBD5E1),
+                  strokeWidth: 2.0,
                 ),
               ],
             ),
@@ -1183,35 +1321,43 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
   Widget _selectorField({
     required String label,
-    required IconData icon,
+    required dynamic icon,
     required String? value,
     required String placeholder,
     required bool enabled,
     required VoidCallback onTap,
   }) {
-    final display = (value ?? '').trim();
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: InputDecorator(
-        decoration: _fieldDec(label, icon),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                display.isNotEmpty ? display : placeholder,
-                style: TextStyle(
-                  color: display.isNotEmpty
-                      ? const Color(0xFF0F172A)
-                      : const Color(0xFF94A3B8),
+    final display = value?.trim() ?? '';
+    return _labeledField(
+      label,
+      GestureDetector(
+        onTap: enabled ? onTap : null,
+        child: InputDecorator(
+          decoration: _fieldDec(placeholder, icon),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  display.isNotEmpty ? display : placeholder,
+                  style: TextStyle(
+                    color: display.isNotEmpty
+                        ? const Color(0xFF0F172A)
+                        : const Color(0xFF94A3B8),
+                    fontWeight:
+                        display.isNotEmpty ? FontWeight.w600 : FontWeight.w500,
+                  ),
                 ),
               ),
-            ),
-            Icon(
-              Icons.expand_more_rounded,
-              color:
-                  enabled ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
-            ),
-          ],
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedArrowDown01,
+                size: 18,
+                color: enabled
+                    ? const Color(0xFF64748B)
+                    : const Color(0xFFCBD5E1),
+                strokeWidth: 2.0,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1262,27 +1408,96 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     setState(() => _jobExperiences.remove(value));
   }
 
-  InputDecoration _fieldDec(String label, IconData? icon) {
+  InputDecoration _fieldDec(String label, dynamic icon) {
     return InputDecoration(
-      labelText: label,
-      labelStyle:
-          TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
-      prefixIcon:
-          icon != null ? Icon(icon, color: const Color(0xFF2563EB)) : null,
+      hintText: label,
+      hintStyle: const TextStyle(
+        color: Color(0xFF94A3B8),
+        fontSize: 14,
+        fontWeight: FontWeight.w500,
+      ),
+      prefixIcon: icon != null
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: icon is IconData
+                  ? Icon(icon, color: const Color(0xFF2563EB), size: 18)
+                  : HugeIcon(
+                      icon: icon as List<List<dynamic>>,
+                      color: const Color(0xFF2563EB),
+                      size: 18,
+                      strokeWidth: 2.0,
+                    ),
+            )
+          : null,
+      prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
       filled: true,
-      fillColor: const Color(0xFFF8FAFC),
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: Color(0xFF2563EB), width: 2),
       ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444)),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFEF4444), width: 1.5),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF334155),
+          letterSpacing: 0.2,
+        ),
+      ),
+    );
+  }
+
+  Widget _labeledField(String label, Widget child, {String? helper}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF475569),
+          ),
+        ),
+        if (helper != null) ...[
+          const SizedBox(height: 3),
+          Text(
+            helper,
+            style: const TextStyle(
+              fontSize: 11.5,
+              height: 1.25,
+              color: Color(0xFF64748B),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+        const SizedBox(height: 6),
+        child,
+      ],
     );
   }
 
@@ -1309,7 +1524,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     final shouldLeave = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.warning,
-      icon: Icons.warning_amber_rounded,
+      icon: HugeIcons.strokeRoundedAlertCircle,
       title: 'Unsaved Changes',
       message: 'You have unsaved profile changes. Leave without saving?',
       confirmLabel: 'Leave',
@@ -1343,10 +1558,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           color: const Color(0xFF2563EB).withOpacity(0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(
-                          Icons.edit_rounded,
+                        child: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedPencilEdit01,
                           color: Color(0xFF2563EB),
-                          size: 22,
+                          size: 20,
+                          strokeWidth: 2.0,
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -1367,8 +1583,12 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           if (!mounted || !shouldLeave) return;
                           Navigator.pop(context);
                         },
-                        icon:
-                            Icon(Icons.close_rounded, color: Colors.grey[600]),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedCancel01,
+                          size: 20,
+                          color: Color(0xFF64748B),
+                          strokeWidth: 2.0,
+                        ),
                       ),
                     ],
                   ),
@@ -1440,16 +1660,18 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                 child: Container(
                                   width: 34,
                                   height: 34,
+                                  alignment: Alignment.center,
                                   decoration: BoxDecoration(
                                     color: const Color(0xFF2563EB),
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                         color: Colors.white, width: 2),
                                   ),
-                                  child: const Icon(
-                                    Icons.camera_alt_rounded,
-                                    size: 16,
+                                  child: const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedCamera01,
+                                    size: 15,
                                     color: Colors.white,
+                                    strokeWidth: 2.0,
                                   ),
                                 ),
                               ),
@@ -1460,207 +1682,171 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                       const SizedBox(height: 30),
 
-                      // Form fields
+                      _sectionTitle('Personal Information'),
+
+                      _labeledField(
+                        'First name',
+                        TextFormField(
+                          controller: _firstNameController,
+                          decoration: _fieldDec(
+                              'Enter first name', HugeIcons.strokeRoundedUser),
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Required';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            flex: 3,
-                            child: TextFormField(
-                              controller: _firstNameController,
-                              decoration: _fieldDec(
-                                  'First Name', Icons.person_outline_rounded),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty)
-                                  return 'Required';
-                                return null;
-                              },
+                          SizedBox(
+                            width: 88,
+                            child: _labeledField(
+                              'M.I.',
+                              TextFormField(
+                                controller: _middleInitialController,
+                                textCapitalization:
+                                    TextCapitalization.characters,
+                                maxLength: 1,
+                                inputFormatters: [
+                                  LengthLimitingTextInputFormatter(1),
+                                  UpperCaseTextFormatter(),
+                                ],
+                                decoration: _fieldDec('L.', null)
+                                    .copyWith(counterText: ''),
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 10),
                           Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              controller: _middleInitialController,
-                              textCapitalization: TextCapitalization.characters,
-                              maxLength: 1,
-                              inputFormatters: [
-                                LengthLimitingTextInputFormatter(1),
-                                UpperCaseTextFormatter(),
-                              ],
-                              decoration: _fieldDec('M.I.', null)
-                                  .copyWith(counterText: ''),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            flex: 3,
-                            child: TextFormField(
-                              controller: _lastNameController,
-                              decoration:
-                                  _fieldDec('Last Name', Icons.badge_outlined),
-                              validator: (v) {
-                                if (v == null || v.trim().isEmpty)
-                                  return 'Required';
-                                return null;
-                              },
+                            child: _labeledField(
+                              'Last name',
+                              TextFormField(
+                                controller: _lastNameController,
+                                decoration: _fieldDec(
+                                    'Enter last name', HugeIcons.strokeRoundedUser),
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Required';
+                                  }
+                                  return null;
+                                },
+                              ),
                             ),
                           ),
                         ],
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFEFF6FF),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFBFDBFE)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Email address',
-                              style: TextStyle(
-                                color: Color(0xFF1E40AF),
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              (UserSession().email ?? '').trim().isEmpty
-                                  ? 'No email available'
-                                  : UserSession().email!.trim(),
-                              style: const TextStyle(
-                                color: Color(0xFF0F172A),
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            OutlinedButton.icon(
-                              onPressed: () async {
-                                if (!mounted) return;
-                                Navigator.of(context).pop();
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => const SettingsPage(),
-                                  ),
-                                );
-                              },
-                              icon:
-                                  const Icon(Icons.settings_rounded, size: 18),
-                              label: const Text('Change email in Settings'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: AppColors.blueAccent,
-                                side:
-                                    const BorderSide(color: Color(0xFF93C5FD)),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 10,
-                                ),
-                              ),
-                            ),
-                          ],
+                      _labeledField(
+                        'Phone number',
+                        TextFormField(
+                          controller: _phoneController,
+                          decoration:
+                              _fieldDec('09XXXXXXXXX', HugeIcons.strokeRoundedCall),
+                          keyboardType: TextInputType.phone,
+                          validator: (v) {
+                            final value = v?.trim() ?? '';
+                            if (value.isEmpty) return null; // optional
+                            final phPattern = RegExp(r'^0\d{10}$');
+                            if (!phPattern.hasMatch(value)) {
+                              return 'Enter 11-digit PH number (e.g. 09XXXXXXXXX)';
+                            }
+                            return null;
+                          },
                         ),
                       ),
 
-                      const SizedBox(height: 16),
-
-                      TextFormField(
-                        controller: _phoneController,
-                        decoration:
-                            _fieldDec('Phone Number', Icons.phone_outlined),
-                        keyboardType: TextInputType.phone,
-                        validator: (v) {
-                          final value = v?.trim() ?? '';
-                          if (value.isEmpty) return null; // optional
-                          final phPattern = RegExp(r'^0\d{10}$');
-                          if (!phPattern.hasMatch(value)) {
-                            return 'Enter 11-digit PH number (e.g. 09XXXXXXXXX)';
-                          }
-                          return null;
-                        },
-                      ),
-
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
 
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _dobController,
-                              readOnly: true,
-                              decoration: _fieldDec('Birthdate (YYYY-MM-DD)',
-                                  Icons.cake_outlined),
-                              onTap: () async {
-                                final now = DateTime.now();
-                                DateTime initial =
-                                    DateTime(now.year - 21, now.month, now.day);
-                                final rawDob = _dobController.text.trim();
-                                if (rawDob.isNotEmpty) {
-                                  final datePart =
-                                      rawDob.split(RegExp(r'[T\s]')).first;
-                                  final parts = datePart.split('-');
-                                  if (parts.length == 3) {
-                                    final y = int.tryParse(parts[0]);
-                                    final m = int.tryParse(parts[1]);
-                                    final d = int.tryParse(parts[2]);
-                                    if (y != null && m != null && d != null) {
-                                      initial = DateTime(y, m, d);
+                            child: _labeledField(
+                              'Birthdate',
+                              TextFormField(
+                                controller: _dobController,
+                                readOnly: true,
+                                decoration: _fieldDec(
+                                    'YYYY-MM-DD', HugeIcons.strokeRoundedCalendar03),
+                                onTap: () async {
+                                  final now = DateTime.now();
+                                  DateTime initial = DateTime(
+                                      now.year - 21, now.month, now.day);
+                                  final rawDob = _dobController.text.trim();
+                                  if (rawDob.isNotEmpty) {
+                                    final datePart =
+                                        rawDob.split(RegExp(r'[T\s]')).first;
+                                    final parts = datePart.split('-');
+                                    if (parts.length == 3) {
+                                      final y = int.tryParse(parts[0]);
+                                      final m = int.tryParse(parts[1]);
+                                      final d = int.tryParse(parts[2]);
+                                      if (y != null && m != null && d != null) {
+                                        initial = DateTime(y, m, d);
+                                      }
                                     }
                                   }
-                                }
-                                final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: initial,
-                                  firstDate: DateTime(1900, 1, 1),
-                                  lastDate: now,
-                                );
-                                if (picked == null || !mounted) return;
-                                setState(() {
-                                  final pickedLocal = DateTime(
-                                      picked.year, picked.month, picked.day);
-                                  _dobController.text =
-                                      '${pickedLocal.year.toString().padLeft(4, '0')}-${pickedLocal.month.toString().padLeft(2, '0')}-${pickedLocal.day.toString().padLeft(2, '0')}';
-                                });
-                              },
+                                  final picked = await showDatePicker(
+                                    context: context,
+                                    initialDate: initial,
+                                    firstDate: DateTime(1900, 1, 1),
+                                    lastDate: now,
+                                  );
+                                  if (picked == null || !mounted) return;
+                                  setState(() {
+                                    final pickedLocal = DateTime(
+                                        picked.year, picked.month, picked.day);
+                                    _dobController.text =
+                                        '${pickedLocal.year.toString().padLeft(4, '0')}-${pickedLocal.month.toString().padLeft(2, '0')}-${pickedLocal.day.toString().padLeft(2, '0')}';
+                                  });
+                                },
+                              ),
                             ),
                           ),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: DropdownButtonFormField<String>(
-                              value: ['male', 'female']
-                                      .contains(_selectedSex?.toLowerCase())
-                                  ? _selectedSex?.toLowerCase()
-                                  : null,
-                              decoration:
-                                  _fieldDec('Sex', Icons.person_outline),
-                              items: const [
-                                DropdownMenuItem(
-                                    value: 'male', child: Text('Male')),
-                                DropdownMenuItem(
-                                    value: 'female', child: Text('Female')),
-                              ],
-                              onChanged: (value) =>
-                                  setState(() => _selectedSex = value),
-                              validator: (value) {
-                                if (value == null || value.isEmpty)
-                                  return 'Required';
-                                return null;
-                              },
+                            child: _labeledField(
+                              'Sex',
+                              DropdownButtonFormField<String>(
+                                value: ['male', 'female']
+                                        .contains(_selectedSex?.toLowerCase())
+                                    ? _selectedSex?.toLowerCase()
+                                    : null,
+                                decoration: _fieldDec(
+                                    'Select sex', HugeIcons.strokeRoundedUser),
+                                items: const [
+                                  DropdownMenuItem(
+                                      value: 'male', child: Text('Male')),
+                                  DropdownMenuItem(
+                                      value: 'female', child: Text('Female')),
+                                ],
+                                onChanged: (value) =>
+                                    setState(() => _selectedSex = value),
+                                validator: (value) {
+                                  if (value == null || value.isEmpty) {
+                                    return 'Required';
+                                  }
+                                  return null;
+                                },
+                              ),
                             ),
                           ),
                         ],
                       ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
+
+                      _sectionTitle('Education & Experience'),
 
                       _selectorField(
                         label: 'Education Level',
-                        icon: Icons.school_outlined,
+                        icon: HugeIcons.strokeRoundedGraduateMale,
                         value: _educationLevel,
                         placeholder: 'Select education level',
                         enabled: !_isSaving,
@@ -1677,36 +1863,35 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                       const SizedBox(height: 16),
 
-                      Text(
-                        'Add one experience at a time. Type an item (max 30 chars) and tap Add.',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey[600],
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _experienceController,
-                              maxLength: 30,
-                              enabled: !_isSaving,
-                              decoration: _fieldDec(
-                                'Job Experience (max 30 chars)',
-                                Icons.work_outline_rounded,
-                              ).copyWith(counterText: ''),
+                            child: _labeledField(
+                              'Job experience',
+                              TextFormField(
+                                controller: _experienceController,
+                                maxLength: 30,
+                                enabled: !_isSaving,
+                                decoration: _fieldDec(
+                                  'Add item',
+                                  HugeIcons.strokeRoundedBriefcase01,
+                                ).copyWith(counterText: ''),
+                              ),
+                              helper: 'One item at a time, max 30 characters.',
                             ),
                           ),
                           const SizedBox(width: 12),
                           SizedBox(
-                            height: 56,
+                            height: 52,
                             child: ElevatedButton.icon(
                               onPressed: _isSaving ? null : _addJobExperience,
-                              icon: const Icon(Icons.add_rounded, size: 20),
+                              icon: const HugeIcon(
+                                icon: HugeIcons.strokeRoundedAdd01,
+                                size: 18,
+                                color: Colors.white,
+                                strokeWidth: 2.0,
+                              ),
                               label: const Text('Add'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF2563EB),
@@ -1744,9 +1929,11 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                                 ),
                               ),
                               backgroundColor: const Color(0xFFEFF6FF),
-                              deleteIcon: const Icon(
-                                Icons.close_rounded,
-                                size: 16,
+                              deleteIcon: const HugeIcon(
+                                icon: HugeIcons.strokeRoundedCancel01,
+                                size: 14,
+                                color: Color(0xFF64748B),
+                                strokeWidth: 2.0,
                               ),
                               onDeleted: _isSaving
                                   ? null
@@ -1755,11 +1942,102 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           }).toList(),
                         ),
 
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
+
+                      _sectionTitle('Account'),
+
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 36,
+                              height: 36,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.75),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const HugeIcon(
+                                icon: HugeIcons.strokeRoundedMail01,
+                                color: Color(0xFF2563EB),
+                                size: 18,
+                                strokeWidth: 2.0,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Email address',
+                                    style: TextStyle(
+                                      color: Color(0xFF1E40AF),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    (UserSession().email ?? '').trim().isEmpty
+                                        ? 'No email available'
+                                        : UserSession().email!.trim(),
+                                    style: const TextStyle(
+                                      color: Color(0xFF0F172A),
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.25,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  OutlinedButton.icon(
+                                    onPressed: () async {
+                                      if (!mounted) return;
+                                      Navigator.of(context).pop();
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute<void>(
+                                          builder: (_) => const SettingsPage(),
+                                        ),
+                                      );
+                                    },
+                                    icon: const HugeIcon(
+                                      icon: HugeIcons.strokeRoundedSettings01,
+                                      size: 16,
+                                      color: AppColors.blueAccent,
+                                      strokeWidth: 2.0,
+                                    ),
+                                    label: const Text('Change in Settings'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppColors.blueAccent,
+                                      side: const BorderSide(
+                                          color: Color(0xFF93C5FD)),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 9,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      _sectionTitle('Address'),
 
                       _selectorField(
                         label: 'Province',
-                        icon: Icons.location_city_outlined,
+                        icon: HugeIcons.strokeRoundedBuilding01,
                         value: _provinceName,
                         placeholder: _provinces.isEmpty
                             ? 'Loading provinces...'
@@ -1790,7 +2068,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                       _selectorField(
                         label: 'City / Municipality',
-                        icon: Icons.location_city_outlined,
+                        icon: HugeIcons.strokeRoundedBuilding01,
                         value: _cityName,
                         placeholder: 'Select province first',
                         enabled: !_isSaving && _cities.isNotEmpty,
@@ -1819,7 +2097,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                       _selectorField(
                         label: 'Barangay',
-                        icon: Icons.home_work_outlined,
+                        icon: HugeIcons.strokeRoundedHouse01,
                         value: _barangayName,
                         placeholder: 'Select city first',
                         enabled: !_isSaving && _barangays.isNotEmpty,
@@ -1850,12 +2128,16 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
 
                       const SizedBox(height: 16),
 
-                      TextFormField(
-                        controller: _streetController,
-                        decoration: _fieldDec(
-                          'Street / House No. / Landmark (Optional)',
-                          Icons.location_on_outlined,
+                      _labeledField(
+                        'Street / House No. / Landmark',
+                        TextFormField(
+                          controller: _streetController,
+                          decoration: _fieldDec(
+                            'Optional',
+                            HugeIcons.strokeRoundedLocation01,
+                          ),
                         ),
+                        helper: 'Optional',
                       ),
 
                       if (_isLoadingLocations) ...[
@@ -2877,7 +3159,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
     }
   }
 
-  Future<void> _applyToJob(String jobId, String jobTitle) async {
+  Future<void> _applyToJob(Job job) async {
     final hasResume = await _jobActionService.hasResumeOnFile();
     if (!mounted) return;
     if (!hasResume) {
@@ -2908,47 +3190,39 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
           ? 'Kumpirmahin ang Aplikasyon'
           : 'Confirm Application',
       message: Localizations.localeOf(context).languageCode == 'tl'
-          ? 'Mag-apply para sa $jobTitle?'
-          : 'Apply for $jobTitle?',
+          ? 'Mag-apply para sa ${job.title}?'
+          : 'Apply for ${job.title}?',
       confirmLabel: S.of(context)?.apply ?? 'Apply',
-      onConfirm: () => Navigator.pop(context, true),
-      onCancel: () => Navigator.pop(context, false),
+      confirmBusyLabel: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Nag-a-apply...'
+          : 'Applying...',
+      onConfirmAsync: () async {
+        final error = await _jobActionService.applyToJob(job.id, job.title);
+        if (error != null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(error),
+                backgroundColor: const Color(0xFFEF4444),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            );
+          }
+          throw Exception(error);
+        }
+      },
     );
     if (confirmed != true || !mounted) return;
 
-    final error = await _jobActionService.applyToJob(jobId, jobTitle);
-    if (!mounted) return;
-
-    if (error == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_outline_rounded,
-                  color: Colors.white, size: 18),
-              const SizedBox(width: 8),
-              Text('Applied to $jobTitle!'),
-            ],
-          ),
-          backgroundColor: const Color(0xFF10B981),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: const Color(0xFFEF4444),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
-    }
+    microInteractionSuccess();
+    await showApplySuccessFeedback(
+      context,
+      job: job,
+      jobActionService: _jobActionService,
+    );
   }
 
   Future<void> _unsaveJob(String jobId) async {
@@ -3039,8 +3313,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                           return _SavedJobCard(
                             savedJob: saved,
                             isApplied: isApplied,
-                            onApply: () =>
-                                _applyToJob(saved.job.id, saved.job.title),
+                            onApply: () => _applyToJob(saved.job),
                             onUnsave: () => _unsaveJob(saved.job.id),
                           );
                         },

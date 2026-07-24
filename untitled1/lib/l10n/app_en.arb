@@ -344,6 +344,88 @@
     }
   },
 
+  "exploreSignInToApply": "Please sign in or create an account before applying to jobs.",
+  "exploreSignInToSave": "Please sign in or create an account to save jobs.",
+  "exploreConfirmApplication": "Confirm application",
+  "exploreApplyForJob": "Apply for {title} at {company}?",
+  "@exploreApplyForJob": {
+    "placeholders": {
+      "title": { "type": "String" },
+      "company": { "type": "String" }
+    }
+  },
+  "exploreAppliedToJob": "Applied to {title}.",
+  "@exploreAppliedToJob": {
+    "placeholders": {
+      "title": { "type": "String" }
+    }
+  },
+  "exploreNoOpenJobsForEmployer": "No open jobs found for this employer.",
+  "exploreConnectionError": "Connection error",
+  "exploreFailedToLoad": "Failed to load",
+  "exploreSomethingWentWrong": "Something went wrong",
+  "exploreHeaderSubtitle": "Discover opportunities that fit your next move",
+  "exploreNewJobsThisWeek": "New jobs this week",
+  "exploreEmployers": "Employers",
+  "exploreOpenJobs": "Open jobs",
+  "exploreRecommendedNearYou": "Recommended near you",
+  "exploreRecommendedSubtitle": "Recent openings ranked by fit and freshness",
+  "exploreSeeAll": "See all",
+  "exploreNoRecommendations": "No job recommendations yet",
+  "exploreNoRecommendationsMessage": "Open jobs will appear here once the listings load.",
+  "exploreBrowseJobs": "Browse jobs",
+  "exploreUpcomingPesoEvents": "Upcoming PESO events",
+  "exploreUpcomingEventsSubtitle": "Workshops, hiring events, and livelihood programs",
+  "exploreCalendar": "Calendar",
+  "exploreNoUpcomingEvents": "No upcoming events",
+  "exploreNoUpcomingEventsMessage": "Check the calendar for new PESO activities.",
+  "exploreViewCalendar": "View calendar",
+  "exploreNearestEventSubtitle": "Nearest activity on your calendar",
+  "exploreTopHiringCompanies": "Top hiring companies",
+  "exploreTopHiringCompaniesSubtitle": "Employers with the most open roles",
+  "exploreNoEmployerTrends": "No employer trends yet",
+  "exploreNoEmployerTrendsMessage": "Hiring companies will appear here once jobs are available.",
+  "exploreInDemandSkills": "In-demand skills",
+  "exploreInDemandSkillsSubtitle": "Trending across open jobs",
+  "exploreNoSkillTrends": "No skill trends yet",
+  "exploreNoSkillTrendsMessage": "Skill demand will appear here after jobs are indexed.",
+  "exploreBrowseByIndustry": "Browse by industry",
+  "exploreBrowseByIndustrySubtitle": "Open roles grouped by employer sector",
+  "exploreRecentlyPosted": "Recently posted",
+  "exploreRecentlyPostedSubtitle": "Fresh opportunities from employers",
+  "exploreNoRecentJobs": "No recent jobs yet",
+  "exploreNoRecentJobsMessage": "New job posts will appear here.",
+  "exploreOneDayAgo": "1 day ago",
+  "exploreDaysAgo": "{count} days ago",
+  "@exploreDaysAgo": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "exploreLocationNotSpecified": "Location not specified",
+  "exploreSaved": "Saved",
+  "exploreMatchPercent": "{percent}% match",
+  "@exploreMatchPercent": {
+    "placeholders": {
+      "percent": { "type": "int" }
+    }
+  },
+  "exploreUrgent": "Urgent",
+  "exploreEventsThisDay": "{count} events this day",
+  "@exploreEventsThisDay": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "exploreUpcomingEvent": "Upcoming event",
+  "exploreViewDetails": "View details",
+  "exploreJobCount": "{count, plural, =1{1 job} other{{count} jobs}}",
+  "@exploreJobCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
   "mapSearchThisArea": "Search this area",
   "mapClosestCompanyNearYou": "Closest company near you",
   "mapClosestCompanyInArea": "Closest company in this area",

@@ -774,6 +774,187 @@ class SEn extends S {
   }
 
   @override
+  String get exploreSignInToApply =>
+      'Please sign in or create an account before applying to jobs.';
+
+  @override
+  String get exploreSignInToSave =>
+      'Please sign in or create an account to save jobs.';
+
+  @override
+  String get exploreConfirmApplication => 'Confirm application';
+
+  @override
+  String exploreApplyForJob(String title, String company) {
+    return 'Apply for $title at $company?';
+  }
+
+  @override
+  String exploreAppliedToJob(String title) {
+    return 'Applied to $title.';
+  }
+
+  @override
+  String get exploreNoOpenJobsForEmployer =>
+      'No open jobs found for this employer.';
+
+  @override
+  String get exploreConnectionError => 'Connection error';
+
+  @override
+  String get exploreFailedToLoad => 'Failed to load';
+
+  @override
+  String get exploreSomethingWentWrong => 'Something went wrong';
+
+  @override
+  String get exploreHeaderSubtitle =>
+      'Discover opportunities that fit your next move';
+
+  @override
+  String get exploreNewJobsThisWeek => 'New jobs this week';
+
+  @override
+  String get exploreEmployers => 'Employers';
+
+  @override
+  String get exploreOpenJobs => 'Open jobs';
+
+  @override
+  String get exploreRecommendedNearYou => 'Recommended near you';
+
+  @override
+  String get exploreRecommendedSubtitle =>
+      'Recent openings ranked by fit and freshness';
+
+  @override
+  String get exploreSeeAll => 'See all';
+
+  @override
+  String get exploreNoRecommendations => 'No job recommendations yet';
+
+  @override
+  String get exploreNoRecommendationsMessage =>
+      'Open jobs will appear here once the listings load.';
+
+  @override
+  String get exploreBrowseJobs => 'Browse jobs';
+
+  @override
+  String get exploreUpcomingPesoEvents => 'Upcoming PESO events';
+
+  @override
+  String get exploreUpcomingEventsSubtitle =>
+      'Workshops, hiring events, and livelihood programs';
+
+  @override
+  String get exploreCalendar => 'Calendar';
+
+  @override
+  String get exploreNoUpcomingEvents => 'No upcoming events';
+
+  @override
+  String get exploreNoUpcomingEventsMessage =>
+      'Check the calendar for new PESO activities.';
+
+  @override
+  String get exploreViewCalendar => 'View calendar';
+
+  @override
+  String get exploreNearestEventSubtitle => 'Nearest activity on your calendar';
+
+  @override
+  String get exploreTopHiringCompanies => 'Top hiring companies';
+
+  @override
+  String get exploreTopHiringCompaniesSubtitle =>
+      'Employers with the most open roles';
+
+  @override
+  String get exploreNoEmployerTrends => 'No employer trends yet';
+
+  @override
+  String get exploreNoEmployerTrendsMessage =>
+      'Hiring companies will appear here once jobs are available.';
+
+  @override
+  String get exploreInDemandSkills => 'In-demand skills';
+
+  @override
+  String get exploreInDemandSkillsSubtitle => 'Trending across open jobs';
+
+  @override
+  String get exploreNoSkillTrends => 'No skill trends yet';
+
+  @override
+  String get exploreNoSkillTrendsMessage =>
+      'Skill demand will appear here after jobs are indexed.';
+
+  @override
+  String get exploreBrowseByIndustry => 'Browse by industry';
+
+  @override
+  String get exploreBrowseByIndustrySubtitle =>
+      'Open roles grouped by employer sector';
+
+  @override
+  String get exploreRecentlyPosted => 'Recently posted';
+
+  @override
+  String get exploreRecentlyPostedSubtitle =>
+      'Fresh opportunities from employers';
+
+  @override
+  String get exploreNoRecentJobs => 'No recent jobs yet';
+
+  @override
+  String get exploreNoRecentJobsMessage => 'New job posts will appear here.';
+
+  @override
+  String get exploreOneDayAgo => '1 day ago';
+
+  @override
+  String exploreDaysAgo(int count) {
+    return '$count days ago';
+  }
+
+  @override
+  String get exploreLocationNotSpecified => 'Location not specified';
+
+  @override
+  String get exploreSaved => 'Saved';
+
+  @override
+  String exploreMatchPercent(int percent) {
+    return '$percent% match';
+  }
+
+  @override
+  String get exploreUrgent => 'Urgent';
+
+  @override
+  String exploreEventsThisDay(int count) {
+    return '$count events this day';
+  }
+
+  @override
+  String get exploreUpcomingEvent => 'Upcoming event';
+
+  @override
+  String get exploreViewDetails => 'View details';
+
+  @override
+  String exploreJobCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count jobs',
+      one: '1 job',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get mapSearchThisArea => 'Search this area';
 
   @override

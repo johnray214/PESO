@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'change_email_page.dart';
 import 'change_password_page.dart';
 import 'locale_service.dart';
@@ -129,10 +130,11 @@ class _SettingsPageState extends State<SettingsPage> {
                             ),
                           ),
                           if (isSelected)
-                            const Icon(
-                              Icons.check_circle_rounded,
+                            const HugeIcon(
+                              icon: HugeIcons.strokeRoundedCheckmarkCircle01,
                               color: Color(0xFF2563EB),
                               size: 22,
+                              strokeWidth: 2.0,
                             ),
                         ],
                       ),
@@ -158,6 +160,15 @@ class _SettingsPageState extends State<SettingsPage> {
         elevation: 0,
         backgroundColor: const Color(0xFFF1F5F9),
         foregroundColor: const Color(0xFF0F172A),
+        leading: IconButton(
+          icon: const HugeIcon(
+            icon: HugeIcons.strokeRoundedArrowLeft01,
+            size: 20,
+            color: Color(0xFF0F172A),
+            strokeWidth: 2.0,
+          ),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         title: Text(
           l10n?.settings ?? 'Settings',
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
@@ -197,10 +208,11 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                leading: const Icon(
-                  Icons.language_rounded,
+                leading: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedGlobal,
                   color: Color(0xFF64748B),
-                  size: 22,
+                  size: 20,
+                  strokeWidth: 2.0,
                 ),
                 title: Text(
                   l10n?.language ?? 'Language',
@@ -217,10 +229,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: Color(0xFF64748B),
                   ),
                 ),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
+                trailing: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowRight01,
                   color: Color(0xFF94A3B8),
-                  size: 22,
+                  size: 18,
+                  strokeWidth: 2.0,
                 ),
                 onTap: _showLanguageSelector,
               ),
@@ -258,10 +271,11 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                leading: const Icon(
-                  Icons.alternate_email_rounded,
+                leading: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedMail01,
                   color: Color(0xFF64748B),
-                  size: 22,
+                  size: 20,
+                  strokeWidth: 2.0,
                 ),
                 title: Text(
                   l10n?.changeEmail ?? 'Change email address',
@@ -278,10 +292,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: Color(0xFF64748B),
                   ),
                 ),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
+                trailing: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowRight01,
                   color: Color(0xFF94A3B8),
-                  size: 22,
+                  size: 18,
+                  strokeWidth: 2.0,
                 ),
                 onTap: () {
                   Navigator.of(context).push(
@@ -313,10 +328,11 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               child: ListTile(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                leading: const Icon(
-                  Icons.lock_outline_rounded,
+                leading: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedLock,
                   color: Color(0xFF64748B),
-                  size: 22,
+                  size: 20,
+                  strokeWidth: 2.0,
                 ),
                 title: Text(
                   l10n?.changePassword ?? 'Change password',
@@ -326,10 +342,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     color: Color(0xFF0F172A),
                   ),
                 ),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
+                trailing: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowRight01,
                   color: Color(0xFF94A3B8),
-                  size: 22,
+                  size: 18,
+                  strokeWidth: 2.0,
                 ),
                 onTap: () {
                   Navigator.of(context).push(

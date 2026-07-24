@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -14,6 +15,7 @@ import 'profile_page.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'job_models.dart';
 import 'event_models.dart';
+import 'auth_gate.dart';
 import 'user_session.dart';
 import 'api_service.dart';
 import 'notification_service.dart';
@@ -57,6 +59,12 @@ final GlobalKey _showcaseMapLocProfiles = GlobalKey();
 
 Future<bool> _ensureResumeReadyForApply(
     BuildContext context, JobActionService jobActionService) async {
+  final isSignedIn = await requireAuthenticatedSession(
+    context,
+    message: 'Please sign in or create an account before applying to jobs.',
+  );
+  if (!isSignedIn) return false;
+
   final hasResume = await jobActionService.hasResumeOnFile();
   if (hasResume) return true;
   if (!context.mounted) return false;
@@ -80,6 +88,199 @@ Future<bool> _ensureResumeReadyForApply(
     );
   }
   return false;
+}
+
+Future<void> showApplySuccessFeedback(
+  BuildContext context, {
+  required Job job,
+  required JobActionService jobActionService,
+}) async {
+  if (!context.mounted) return;
+
+  if (!jobActionService.consumeApplySuccessGuidance()) {
+    CustomToast.show(
+      context,
+      message: 'Application submitted.',
+      type: ToastType.success,
+      actionLabel: 'View',
+      onAction: () {
+        if (!context.mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const MyApplicationsPage()),
+        );
+      },
+    );
+    return;
+  }
+
+  await showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      final l10n = S.of(sheetContext);
+      return SafeArea(
+        top: false,
+        child: Container(
+          padding: EdgeInsets.fromLTRB(
+            24,
+            20,
+            24,
+            24 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+              Align(
+                alignment: Alignment.center,
+                child: Container(
+                  width: 62,
+                  height: 62,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFD1FAE5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.check_rounded,
+                    color: Color(0xFF059669),
+                    size: 36,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Application submitted',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF0F172A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Your application for ${job.title} was sent to ${job.company}.',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const _ApplySuccessStep(
+                icon: Icons.notifications_active_outlined,
+                text:
+                    'Watch Notifications for shortlist, interview, and offer updates.',
+              ),
+              const SizedBox(height: 10),
+              const _ApplySuccessStep(
+                icon: Icons.fact_check_outlined,
+                text: 'Track progress anytime in Profile > My Applications.',
+              ),
+              const SizedBox(height: 10),
+              const _ApplySuccessStep(
+                icon: Icons.workspace_premium_outlined,
+                text:
+                    'Keep your resume, documents, and Skills Profile updated.',
+              ),
+              const SizedBox(height: 22),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const MyApplicationsPage()),
+                  );
+                },
+                icon: const Icon(Icons.list_alt_rounded, size: 20),
+                label: Text(l10n?.myApplications ?? 'View My Applications'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2563EB),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                child: const Text(
+                  'Continue Browsing',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _ApplySuccessStep extends StatelessWidget {
+  const _ApplySuccessStep({
+    required this.icon,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF6FF),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: const Color(0xFF2563EB), size: 19),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 13.5,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF334155),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class MapFocusRequest {
@@ -120,6 +321,10 @@ final ValueNotifier<Set<String>?> exploreApplySkillFiltersNotifier =
 final ValueNotifier<String?> exploreSearchTextNotifier =
     ValueNotifier<String?>(null);
 
+/// Set from Explore: Home applies this sort option then clears to null.
+final ValueNotifier<String?> exploreSortOptionNotifier =
+    ValueNotifier<String?>(null);
+
 /// Increment from Explore (or elsewhere) to open the shell Events screen.
 final ValueNotifier<int> shellOpenEventsRequestNotifier = ValueNotifier<int>(0);
 
@@ -156,10 +361,9 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
       Navigator.of(dialogContext).pop();
-      CustomToast.show(
+      await requireAuthenticatedSession(
         widget.hostContext,
-        message: 'Please log in to register for events.',
-        type: ToastType.error,
+        message: 'Please sign in or create an account to register for events.',
       );
       return;
     }
@@ -224,11 +428,7 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
               Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
-                  ),
+                  color: const Color(0xFF2563EB),
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(24)),
                 ),
@@ -237,18 +437,23 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
                     Positioned(
                       right: -20,
                       top: -20,
-                      child: Icon(
-                        Icons.event_note_rounded,
-                        size: 140,
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedCalendar03,
+                        size: 120,
                         color: Colors.white.withOpacity(0.1),
+                        strokeWidth: 1.5,
                       ),
                     ),
                     Positioned(
                       top: 16,
                       right: 16,
                       child: IconButton(
-                        icon: const Icon(Icons.close_rounded,
-                            color: Colors.white),
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedCancel01,
+                          color: Colors.white,
+                          size: 18,
+                          strokeWidth: 2.0,
+                        ),
                         onPressed: () => Navigator.pop(context),
                         style: IconButton.styleFrom(
                           backgroundColor: Colors.white12,
@@ -303,14 +508,14 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _detailInfoRow(
-                        Icons.calendar_today_rounded, _event.formattedDate),
+                        HugeIcons.strokeRoundedCalendar03, _event.formattedDate),
                     if (_event.eventTime != null)
                       _detailInfoRow(
-                          Icons.access_time_rounded, _event.eventTime!),
-                    _detailInfoRow(Icons.location_on_rounded, _event.location),
-                    _detailInfoRow(Icons.people_alt_rounded, _event.slotsLabel),
+                          HugeIcons.strokeRoundedClock01, _event.eventTime!),
+                    _detailInfoRow(HugeIcons.strokeRoundedLocation01, _event.location),
+                    _detailInfoRow(HugeIcons.strokeRoundedUserGroup, _event.slotsLabel),
                     if (_event.organizer != null)
-                      _detailInfoRow(Icons.business_rounded,
+                      _detailInfoRow(HugeIcons.strokeRoundedBuilding01,
                           'Organized by ${_event.organizer}'),
                     const SizedBox(height: 20),
                     const Text(
@@ -369,7 +574,7 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
     );
   }
 
-  Widget _detailInfoRow(IconData icon, String text) {
+  Widget _detailInfoRow(dynamic icon, String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
@@ -381,7 +586,14 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
               color: const Color(0xFF2563EB).withOpacity(0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 18, color: const Color(0xFF2563EB)),
+            child: icon is IconData
+                ? Icon(icon, size: 18, color: const Color(0xFF2563EB))
+                : HugeIcon(
+                    icon: icon as dynamic,
+                    size: 18,
+                    color: const Color(0xFF2563EB),
+                    strokeWidth: 2.0,
+                  ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -465,10 +677,11 @@ class _EventsPageState extends State<_EventsPage> {
                 color: const Color(0xFF2563EB).withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.event_note_rounded,
+              child: const HugeIcon(
+                icon: HugeIcons.strokeRoundedCalendar03,
                 color: Color(0xFF2563EB),
-                size: 22,
+                size: 20,
+                strokeWidth: 2.0,
               ),
             ),
             const SizedBox(width: 12),
@@ -560,11 +773,7 @@ class _EventsPageState extends State<_EventsPage> {
                 Container(
                   width: 80,
                   decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
-                    ),
+                    color: Color(0xFF2563EB),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -619,8 +828,12 @@ class _EventsPageState extends State<_EventsPage> {
                             ),
                             const Spacer(),
                             if (e.isRegistered)
-                              const Icon(Icons.check_circle_rounded,
-                                  size: 16, color: Colors.green)
+                              const HugeIcon(
+                                icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                                size: 16,
+                                color: Colors.green,
+                                strokeWidth: 2.0,
+                              )
                           ],
                         ),
                         const SizedBox(height: 6),
@@ -635,8 +848,12 @@ class _EventsPageState extends State<_EventsPage> {
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(Icons.access_time_rounded,
-                                size: 14, color: Color(0xFF64748B)),
+                            const HugeIcon(
+                              icon: HugeIcons.strokeRoundedClock01,
+                              size: 14,
+                              color: Color(0xFF64748B),
+                              strokeWidth: 2.0,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               e.eventTime ?? 'TBA',
@@ -650,8 +867,12 @@ class _EventsPageState extends State<_EventsPage> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            const Icon(Icons.location_on_rounded,
-                                size: 14, color: Color(0xFF64748B)),
+                            const HugeIcon(
+                              icon: HugeIcons.strokeRoundedLocation01,
+                              size: 14,
+                              color: Color(0xFF64748B),
+                              strokeWidth: 2.0,
+                            ),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
@@ -751,6 +972,85 @@ String formatExploreEmployerDistance(double meters) {
     return '${meters.round()} m';
   }
   return '${(meters / 1000).toStringAsFixed(1)} km';
+}
+
+Widget _buildBusinessLogo(Business business, double size, double borderRadius) {
+  final hasLogo = business.imageUrl.isNotEmpty;
+  Color brandColor;
+  if (business.availableJobs.isNotEmpty) {
+    brandColor = business.availableJobs.first.companyColor;
+  } else {
+    final colors = [
+      const Color(0xFF2563EB), // Blue
+      const Color(0xFF0F766E), // Teal
+      const Color(0xFF9333EA), // Purple
+      const Color(0xFFE11D48), // Pink/Red
+      const Color(0xFF10B981), // Emerald
+      const Color(0xFFF59E0B), // Amber
+    ];
+    final hash = business.name.hashCode.abs();
+    brandColor = colors[hash % colors.length];
+  }
+  
+  final initial = business.name.trim().isNotEmpty 
+      ? business.name.trim()[0].toUpperCase() 
+      : '?';
+
+  Widget fallback = Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        colors: [brandColor, brandColor.withOpacity(0.75)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(borderRadius),
+    ),
+    child: Center(
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: size * 0.42,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    ),
+  );
+
+  if (hasLogo) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: Image.network(
+        business.imageUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => fallback,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: size,
+            height: size,
+            color: Colors.white,
+            child: Center(
+              child: SizedBox(
+                width: size * 0.35,
+                height: size * 0.35,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: brandColor,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  } else {
+    return fallback;
+  }
 }
 
 bool _exploreEmployerHighlightAllJobs(Business business) {
@@ -1238,20 +1538,20 @@ class _HomePageState extends State<HomePage> {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
               child: Showcase(
-              key: _showcaseNavBar,
-              title: 'Navigation',
-              description:
-                  'Home for jobs, Explore to discover trends, Map to find nearby employers, Profile for documents and settings.',
-              targetBorderRadius: BorderRadius.circular(40),
-              tooltipBackgroundColor: const Color(0xFF1D4ED8),
-              textColor: Colors.white,
-              titleTextStyle: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white),
-              descTextStyle: const TextStyle(
-                  fontSize: 13.5, height: 1.4, color: Colors.white),
-              child: _buildFloatingNavBar(context),
+                key: _showcaseNavBar,
+                title: 'Navigation',
+                description:
+                    'Home for jobs, Explore to discover trends, Map to find nearby employers, Profile for documents and settings.',
+                targetBorderRadius: BorderRadius.circular(40),
+                tooltipBackgroundColor: const Color(0xFF1D4ED8),
+                textColor: Colors.white,
+                titleTextStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white),
+                descTextStyle: const TextStyle(
+                    fontSize: 13.5, height: 1.4, color: Colors.white),
+                child: _buildFloatingNavBar(context),
               ),
             ),
           ),
@@ -1315,26 +1615,24 @@ class _HomePageState extends State<HomePage> {
                                 width: 56,
                                 height: 56,
                                 decoration: BoxDecoration(
-                                  gradient: const LinearGradient(
-                                    colors: [
-                                      Color(0xFF2563EB),
-                                      Color(0xFF1D4ED8)
-                                    ],
-                                  ),
+                                  color: const Color(0xFF2563EB),
                                   borderRadius: BorderRadius.circular(16),
                                   boxShadow: [
                                     BoxShadow(
                                       color: const Color(0xFF2563EB)
-                                          .withOpacity(0.4),
+                                          .withValues(alpha: 0.4),
                                       blurRadius: 16,
                                       offset: const Offset(0, 6),
                                     ),
                                   ],
                                 ),
-                                child: const Icon(
-                                  Icons.event_rounded,
-                                  color: Colors.white,
-                                  size: 28,
+                                child: const Center(
+                                  child: HugeIcon(
+                                    icon: HugeIcons.strokeRoundedCalendar03,
+                                    color: Colors.white,
+                                    size: 26,
+                                    strokeWidth: 2.0,
+                                  ),
                                 ),
                               ),
                               if (count > 0)
@@ -1461,26 +1759,32 @@ class _HomePageState extends State<HomePage> {
                     return Row(
                       children: [
                         Expanded(
-                          child: _buildNavItem(0, Icons.home_rounded,
-                              Icons.home_outlined, l10n?.navHome ?? 'Home'),
+                          child: _buildNavItem(
+                            0,
+                            icon: HugeIcons.strokeRoundedHome01,
+                            label: l10n?.navHome ?? 'Home',
+                          ),
                         ),
                         Expanded(
                           child: _buildNavItem(
-                              1,
-                              Icons.explore_rounded,
-                              Icons.explore_outlined,
-                              l10n?.navExplore ?? 'Explore'),
-                        ),
-                        Expanded(
-                          child: _buildNavItem(2, Icons.map_rounded,
-                              Icons.map_outlined, l10n?.navMap ?? 'Map'),
+                            1,
+                            icon: HugeIcons.strokeRoundedCompass01,
+                            label: l10n?.navExplore ?? 'Explore',
+                          ),
                         ),
                         Expanded(
                           child: _buildNavItem(
-                              3,
-                              Icons.person_rounded,
-                              Icons.person_outline_rounded,
-                              l10n?.navProfile ?? 'Profile'),
+                            2,
+                            icon: HugeIcons.strokeRoundedMapsLocation01,
+                            label: l10n?.navMap ?? 'Map',
+                          ),
+                        ),
+                        Expanded(
+                          child: _buildNavItem(
+                            3,
+                            icon: HugeIcons.strokeRoundedUser,
+                            label: l10n?.navProfile ?? 'Profile',
+                          ),
                         ),
                       ],
                     );
@@ -1495,10 +1799,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildNavItem(
-      int index, IconData activeIcon, IconData inactiveIcon, String label) {
+    int index, {
+    required List<List<dynamic>> icon,
+    required String label,
+  }) {
     final isSelected = _selectedIndex == index;
     final iconColor =
-        isSelected ? const Color(0xFF2563EB) : Colors.white.withOpacity(0.7);
+        isSelected ? const Color(0xFF2563EB) : Colors.white.withValues(alpha: 0.75);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -1518,10 +1825,11 @@ class _HomePageState extends State<HomePage> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                isSelected ? activeIcon : inactiveIcon,
+              HugeIcon(
+                icon: icon,
                 color: iconColor,
                 size: 22,
+                strokeWidth: isSelected ? 2.8 : 1.8,
               ),
               if (isSelected) ...[
                 const SizedBox(width: 5),
@@ -1673,6 +1981,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     homeTourScrollResetNotifier.addListener(_onHomeTourScrollResetRequested);
     exploreApplySkillFiltersNotifier.addListener(_onExploreApplySkillFilters);
     exploreSearchTextNotifier.addListener(_onExploreSearchText);
+    exploreSortOptionNotifier.addListener(_onExploreSortOption);
     _loadAvatar();
     _jobActionService.addListener(_onJobActionsChanged);
     _loadUnreadNotifications();
@@ -1725,6 +2034,16 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     unawaited(_fetchJobs(showPageLoader: false));
   }
 
+  void _onExploreSortOption() {
+    final next = exploreSortOptionNotifier.value;
+    if (next == null) return;
+    exploreSortOptionNotifier.value = null;
+    if (!mounted) return;
+    setState(() {
+      _sortOption = next;
+    });
+  }
+
   void _ringBell() {
     HapticFeedback.lightImpact();
     _bellRingController.forward(from: 0);
@@ -1761,6 +2080,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     exploreApplySkillFiltersNotifier
         .removeListener(_onExploreApplySkillFilters);
     exploreSearchTextNotifier.removeListener(_onExploreSearchText);
+    exploreSortOptionNotifier.removeListener(_onExploreSortOption);
     _jobActionService.removeListener(_onJobActionsChanged);
     _bellRingController.dispose();
     _searchFocus.dispose();
@@ -1782,6 +2102,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   }
 
   void _openNotifications() {
+    if (!UserSession().canUseProtectedFeatures) {
+      unawaited(requireAuthenticatedSession(
+        context,
+        message: 'Please sign in or create an account to view notifications.',
+      ));
+      return;
+    }
+
     Navigator.of(context)
         .push(
       MaterialPageRoute(
@@ -2030,31 +2358,40 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
           ? 'Mag-apply para sa ${job.title} sa ${job.company}?'
           : 'Apply for ${job.title} at ${job.company}?',
       confirmLabel: S.of(context)?.apply ?? 'Apply',
-      onConfirm: () => Navigator.pop(context, true),
-      onCancel: () => Navigator.pop(context, false),
+      confirmBusyLabel: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Nag-a-apply...'
+          : 'Applying...',
+      onConfirmAsync: () async {
+        final error = await _jobActionService.applyToJob(job.id, job.title);
+        if (error != null) {
+          if (mounted) {
+            CustomToast.show(
+              context,
+              message: error,
+              type: ToastType.error,
+            );
+          }
+          throw Exception(error);
+        }
+      },
     );
     if (confirmed != true || !mounted) return;
 
-    final error = await _jobActionService.applyToJob(job.id, job.title);
-    if (!mounted) return;
-
-    if (error == null) {
-      microInteractionSuccess();
-      CustomToast.show(
-        context,
-        message: 'Applied to ${job.title}!',
-        type: ToastType.success,
-      );
-    } else {
-      CustomToast.show(
-        context,
-        message: error,
-        type: ToastType.error,
-      );
-    }
+    microInteractionSuccess();
+    await showApplySuccessFeedback(
+      context,
+      job: job,
+      jobActionService: _jobActionService,
+    );
   }
 
   Future<void> _toggleSaveJob(Job job) async {
+    final isSignedIn = await requireAuthenticatedSession(
+      context,
+      message: 'Please sign in or create an account to save jobs.',
+    );
+    if (!isSignedIn || !mounted) return;
+
     final wasSaved = _jobActionService.isSaved(job.id);
     final error = await _jobActionService.toggleSave(job.id);
     if (!mounted) return;
@@ -2250,10 +2587,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                         ),
                         const Spacer(),
                         if (isSelected)
-                          const Icon(
-                            Icons.check_circle_rounded,
+                          const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCheckmarkCircle01,
                             color: Color(0xFF2563EB),
                             size: 20,
+                            strokeWidth: 2.0,
                           ),
                       ],
                     ),
@@ -2423,11 +2761,17 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             },
                             decoration: InputDecoration(
                               hintText: 'Search skills...',
-                              prefixIcon: const Icon(
-                                Icons.search_rounded,
-                                size: 20,
-                                color: Color(0xFF94A3B8),
+                              prefixIcon: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 12),
+                                child: HugeIcon(
+                                  icon: HugeIcons.strokeRoundedSearch01,
+                                  size: 18,
+                                  color: Color(0xFF94A3B8),
+                                  strokeWidth: 2.0,
+                                ),
                               ),
+                              prefixIconConstraints: const BoxConstraints(
+                                  minWidth: 44, minHeight: 44),
                               filled: true,
                               fillColor: const Color(0xFFF8FAFC),
                               contentPadding: const EdgeInsets.symmetric(
@@ -2558,14 +2902,16 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                                     ),
                                                   ),
                                                 const SizedBox(width: 8),
-                                                Icon(
-                                                  isExpanded
-                                                      ? Icons
-                                                          .keyboard_arrow_up_rounded
-                                                      : Icons
-                                                          .keyboard_arrow_down_rounded,
+                                                HugeIcon(
+                                                  icon: isExpanded
+                                                      ? HugeIcons
+                                                          .strokeRoundedArrowUp01
+                                                      : HugeIcons
+                                                          .strokeRoundedArrowDown01,
                                                   color:
                                                       const Color(0xFF64748B),
+                                                  size: 18,
+                                                  strokeWidth: 2.0,
                                                 ),
                                               ],
                                             ),
@@ -2873,18 +3219,21 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                     // Greeting text + notifications
                     // Vertical position: Alignment(x, y) — y: -1=top, 0=center, 1=bottom
                     Align(
-                      alignment: const Alignment(0, 0.3),
+                      alignment: const Alignment(0, 0.38),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const SizedBox(width: 120),
+                          const SizedBox(width: 132),
                           Expanded(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  _getPhilippinesGreeting(),
+                                  UserSession().isGuest
+                                      ? _getPhilippinesGreeting()
+                                          .replaceFirst(', Kabsat', '')
+                                      : _getPhilippinesGreeting(),
                                   style: GoogleFonts.poppins(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -2894,7 +3243,9 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  UserSession().displayName,
+                                  UserSession().isGuest
+                                      ? 'Kabsat'
+                                      : UserSession().displayName,
                                   style: GoogleFonts.poppins(
                                     fontSize: 19,
                                     fontWeight: FontWeight.w900,
@@ -2938,10 +3289,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   },
                                   child: IconButton(
                                     onPressed: _openNotifications,
-                                    icon: const Icon(
-                                      Icons.notifications_none_rounded,
+                                    icon: const HugeIcon(
+                                      icon: HugeIcons.strokeRoundedNotification01,
                                       color: Colors.white,
-                                      size: 26,
+                                      size: 24,
+                                      strokeWidth: 2.0,
                                     ),
                                   ),
                                 ),
@@ -3071,10 +3423,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                 ),
                                 decoration: InputDecoration(
                                   border: InputBorder.none,
-                                  icon: Icon(
-                                    Icons.search_rounded,
-                                    color: const Color(0xFF64748B),
-                                    size: 22,
+                                  icon: const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedSearch01,
+                                    color: Color(0xFF64748B),
+                                    size: 20,
+                                    strokeWidth: 2.0,
                                   ),
                                   hintText: l10n?.searchJobsHint ??
                                       'Search jobs, companies...',
@@ -3088,10 +3441,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                     builder: (context, text, _) {
                                       return text.isNotEmpty
                                           ? IconButton(
-                                              icon: const Icon(
-                                                Icons.clear_rounded,
+                                              icon: const HugeIcon(
+                                                icon: HugeIcons.strokeRoundedCancel01,
                                                 color: Color(0xFF64748B),
-                                                size: 20,
+                                                size: 18,
+                                                strokeWidth: 2.0,
                                               ),
                                               onPressed: () {
                                                 _searchController.clear();
@@ -3111,14 +3465,15 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                                       const Color(0xFFCBD5E1),
                                                 ),
                                                 IconButton(
-                                                  icon: Icon(
-                                                    Icons.tune_rounded,
+                                                  icon: HugeIcon(
+                                                    icon: HugeIcons.strokeRoundedFilterHorizontal,
                                                     color: _hasActiveFilters
                                                         ? const Color(
                                                             0xFF2563EB)
                                                         : const Color(
                                                             0xFF64748B),
                                                     size: 20,
+                                                    strokeWidth: 2.0,
                                                   ),
                                                   onPressed: _showFilterSheet,
                                                 ),
@@ -3237,13 +3592,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                       ),
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 200),
-                        child: Icon(
-                          _isGridView
-                              ? Icons.view_list_rounded
-                              : Icons.grid_view_rounded,
+                        child: HugeIcon(
+                          icon: _isGridView
+                              ? HugeIcons.strokeRoundedListView
+                              : HugeIcons.strokeRoundedGridView,
                           key: ValueKey(_isGridView),
                           size: 20,
                           color: const Color(0xFF2563EB),
+                          strokeWidth: 2.0,
                         ),
                       ),
                     ),
@@ -3280,10 +3636,11 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 18,
+                          const HugeIcon(
+                            icon: HugeIcons.strokeRoundedArrowDown01,
+                            size: 16,
                             color: Color(0xFF2563EB),
+                            strokeWidth: 2.0,
                           ),
                         ],
                       ),
@@ -3899,8 +4256,12 @@ class _JobCardState extends State<_JobCard> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.star_rounded,
-                                size: 12, color: Color(0xFF059669)),
+                            const HugeIcon(
+                              icon: HugeIcons.strokeRoundedStar,
+                              size: 12,
+                              color: Color(0xFF059669),
+                              strokeWidth: 2.0,
+                            ),
                             const SizedBox(height: 1),
                             Text(
                               '${job.matchPercentage}%',
@@ -3933,9 +4294,10 @@ class _JobCardState extends State<_JobCard> {
                   children: [
                     Flexible(
                         child: _buildChip(
-                            Icons.location_on_rounded, job.location)),
+                            HugeIcons.strokeRoundedLocation01, job.location)),
                     const SizedBox(width: 8),
-                    _buildChip(Icons.work_rounded, job.employmentTypeLabel),
+                    _buildChip(HugeIcons.strokeRoundedBriefcase01,
+                        job.employmentTypeLabel),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -3952,8 +4314,12 @@ class _JobCardState extends State<_JobCard> {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.payments_rounded,
-                          size: 16, color: Color(0xFF2563EB)),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedMoney01,
+                        size: 16,
+                        color: Color(0xFF2563EB),
+                        strokeWidth: 2.0,
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
@@ -3991,7 +4357,7 @@ class _JobCardState extends State<_JobCard> {
                     _buildActionButton(
                       icon: isSaved
                           ? Icons.bookmark_rounded
-                          : Icons.bookmark_outline_rounded,
+                          : HugeIcons.strokeRoundedBookmark01,
                       color: isSaved
                           ? const Color(0xFF2563EB)
                           : const Color(0xFF64748B),
@@ -4002,8 +4368,8 @@ class _JobCardState extends State<_JobCard> {
                     const SizedBox(width: 10),
                     _buildActionButton(
                       icon: isApplied
-                          ? Icons.check_circle_rounded
-                          : Icons.arrow_forward_rounded,
+                          ? HugeIcons.strokeRoundedCheckmarkCircle01
+                          : HugeIcons.strokeRoundedArrowRight01,
                       color: isApplied
                           ? const Color(0xFF10B981)
                           : const Color(0xFF2563EB),
@@ -4024,7 +4390,7 @@ class _JobCardState extends State<_JobCard> {
     );
   }
 
-  Widget _buildChip(IconData icon, String text) {
+  Widget _buildChip(dynamic icon, String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
@@ -4034,7 +4400,14 @@ class _JobCardState extends State<_JobCard> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: const Color(0xFF64748B)),
+          icon is IconData
+              ? Icon(icon, size: 14, color: const Color(0xFF64748B))
+              : HugeIcon(
+                  icon: icon as List<List<dynamic>>,
+                  size: 14,
+                  color: const Color(0xFF64748B),
+                  strokeWidth: 2.0,
+                ),
           const SizedBox(width: 6),
           Flexible(
             child: Text(
@@ -4054,7 +4427,7 @@ class _JobCardState extends State<_JobCard> {
   }
 
   Widget _buildActionButton({
-    required IconData icon,
+    required dynamic icon,
     required Color color,
     required bool isSelected,
     required VoidCallback onTap,
@@ -4081,11 +4454,18 @@ class _JobCardState extends State<_JobCard> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                size: 18,
-                color: isSelected ? Colors.white : color,
-              ),
+              icon is IconData
+                  ? Icon(
+                      icon,
+                      size: 18,
+                      color: isSelected ? Colors.white : color,
+                    )
+                  : HugeIcon(
+                      icon: icon as List<List<dynamic>>,
+                      size: 18,
+                      color: isSelected ? Colors.white : color,
+                      strokeWidth: 2.0,
+                    ),
               if (label != null) ...[
                 const SizedBox(width: 8),
                 Text(
@@ -4209,10 +4589,11 @@ class _JobCardCompact extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.payments_rounded,
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedMoney01,
                         size: 11,
                         color: Color(0xFF2563EB),
+                        strokeWidth: 2.0,
                       ),
                       const SizedBox(width: 4),
                       Flexible(
@@ -4233,8 +4614,12 @@ class _JobCardCompact extends StatelessWidget {
                 const Spacer(),
                 Row(
                   children: [
-                    const Icon(Icons.location_on_rounded,
-                        size: 12, color: Color(0xFF94A3B8)),
+                    const HugeIcon(
+                      icon: HugeIcons.strokeRoundedLocation01,
+                      size: 12,
+                      color: Color(0xFF94A3B8),
+                      strokeWidth: 2.0,
+                    ),
                     const SizedBox(width: 3),
                     Expanded(
                       child: Text(
@@ -4272,15 +4657,18 @@ class _JobCardCompact extends StatelessWidget {
                     const Spacer(),
                     GestureDetector(
                       onTap: onSave,
-                      child: Icon(
-                        isSaved
-                            ? Icons.bookmark_rounded
-                            : Icons.bookmark_outline_rounded,
-                        size: 20,
-                        color: isSaved
-                            ? const Color(0xFF2563EB)
-                            : const Color(0xFF94A3B8),
-                      ),
+                      child: isSaved
+                          ? const Icon(
+                              Icons.bookmark_rounded,
+                              size: 19,
+                              color: Color(0xFF2563EB),
+                            )
+                          : const HugeIcon(
+                              icon: HugeIcons.strokeRoundedBookmark01,
+                              size: 18,
+                              color: Color(0xFF94A3B8),
+                              strokeWidth: 2.0,
+                            ),
                     ),
                   ],
                 ),
@@ -4671,8 +5059,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.layers_rounded,
-                            color: Color(0xFF2563EB)),
+                        const HugeIcon(
+                          icon: HugeIcons.strokeRoundedLayers01,
+                          size: 20,
+                          color: Color(0xFF2563EB),
+                          strokeWidth: 2.0,
+                        ),
                         const SizedBox(width: 8),
                         const Text(
                           'Location Profiles',
@@ -4685,7 +5077,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                         const Spacer(),
                         IconButton(
                           onPressed: () => Navigator.of(ctx).pop(),
-                          icon: const Icon(Icons.close_rounded),
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedCancel01,
+                            size: 18,
+                            color: Color(0xFF64748B),
+                            strokeWidth: 2.0,
+                          ),
                         ),
                       ],
                     ),
@@ -4698,8 +5095,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                             Navigator.of(ctx).pop();
                             _startPickingExactLocation();
                           },
-                          icon: const Icon(Icons.add_location_alt_rounded,
-                              size: 16),
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedLocation01,
+                            size: 16,
+                            color: Color(0xFF2563EB),
+                            strokeWidth: 2.0,
+                          ),
                           label: const Text('Pick exact pin'),
                         ),
                         OutlinedButton.icon(
@@ -4707,7 +5108,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                             _useLiveGps();
                             Navigator.of(ctx).pop();
                           },
-                          icon: const Icon(Icons.gps_fixed_rounded, size: 16),
+                          icon: const HugeIcon(
+                            icon: HugeIcons.strokeRoundedGps01,
+                            size: 16,
+                            color: Color(0xFF2563EB),
+                            strokeWidth: 2.0,
+                          ),
                           label: const Text('Use live GPS'),
                         ),
                       ],
@@ -4734,8 +5140,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           child: ListTile(
                             contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 2),
-                            leading: const Icon(Icons.place_rounded,
-                                color: Color(0xFF2563EB)),
+                            leading: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedLocation01,
+                              size: 18,
+                              color: Color(0xFF2563EB),
+                              strokeWidth: 2.0,
+                            ),
                             title: Text(
                               profile.name,
                               style: const TextStyle(
@@ -4761,8 +5171,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                     if (!mounted) return;
                                     if (renamed) setSheetState(() {});
                                   },
-                                  icon: const Icon(Icons.edit_rounded,
-                                      color: Color(0xFF64748B)),
+                                  icon: const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedPencilEdit01,
+                                    size: 16,
+                                    color: Color(0xFF64748B),
+                                    strokeWidth: 2.0,
+                                  ),
                                 ),
                                 IconButton(
                                   onPressed: () async {
@@ -4772,8 +5186,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                     if (!mounted) return;
                                     if (removed) setSheetState(() {});
                                   },
-                                  icon: const Icon(Icons.delete_outline_rounded,
-                                      color: Color(0xFFDC2626)),
+                                  icon: const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedDelete02,
+                                    size: 16,
+                                    color: Color(0xFFDC2626),
+                                    strokeWidth: 2.0,
+                                  ),
                                 ),
                               ],
                             ),
@@ -5237,20 +5655,43 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
   }
 
   Widget _buildLocationProfilesFab({bool withShowcase = false}) {
-    Widget fab = FloatingActionButton.extended(
-      heroTag: withShowcase
-          ? 'map_tab_location_profiles'
-          : 'map_tab_location_profiles_alt',
-      backgroundColor: Colors.white,
-      foregroundColor: const Color(0xFF2563EB),
-      elevation: 4,
-      onPressed: _isPickingExactLocation
+    Widget fab = GestureDetector(
+      onTap: _isPickingExactLocation
           ? _cancelPickingExactLocation
           : _showLocationProfilesSheet,
-      icon: const Icon(Icons.layers_rounded, size: 18),
-      label: const Text(
-        'Location Profiles',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.10),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const HugeIcon(
+              icon: HugeIcons.strokeRoundedLayers01,
+              size: 14,
+              color: Color(0xFF2563EB),
+              strokeWidth: 2.0,
+            ),
+            const SizedBox(width: 5),
+            const Text(
+              'Location Profiles',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2563EB),
+              ),
+            ),
+          ],
+        ),
       ),
     );
     if (withShowcase) {
@@ -6099,10 +6540,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                                 height: pinSize,
                                                 color: color,
                                                 alignment: Alignment.center,
-                                                child: Icon(
-                                                  Icons.store_rounded,
+                                                child: HugeIcon(
+                                                  icon: HugeIcons.strokeRoundedBuilding01,
                                                   color: Colors.white,
                                                   size: isSelected ? 22 : 18,
+                                                  strokeWidth: 2.0,
                                                 ),
                                               ),
                                             )
@@ -6111,10 +6553,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                               height: pinSize,
                                               color: color,
                                               alignment: Alignment.center,
-                                              child: Icon(
-                                                Icons.store_rounded,
+                                              child: HugeIcon(
+                                                icon: HugeIcons.strokeRoundedBuilding01,
                                                 color: Colors.white,
                                                 size: isSelected ? 22 : 18,
+                                                strokeWidth: 2.0,
                                               ),
                                             ),
                                     ),
@@ -6209,7 +6652,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
               child: Center(
                 child: ElevatedButton.icon(
                   onPressed: _applySearchThisArea,
-                  icon: const Icon(Icons.travel_explore_rounded, size: 16),
+                  icon: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedCompass01,
+                    size: 16,
+                    color: Colors.white,
+                    strokeWidth: 2.0,
+                  ),
                   label: Text(
                     S.of(context)?.mapSearchThisArea ?? 'Search this area',
                   ),
@@ -6253,12 +6701,25 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           hintText: S.of(context)?.searchBusinessesHint ??
                               'Search businesses...',
                           hintStyle: TextStyle(color: Colors.grey[500]),
-                          prefixIcon: const Icon(Icons.search_rounded,
-                              color: Color(0xFF2563EB)),
+                          prefixIcon: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 12),
+                            child: HugeIcon(
+                              icon: HugeIcons.strokeRoundedSearch01,
+                              size: 18,
+                              color: Color(0xFF2563EB),
+                              strokeWidth: 2.0,
+                            ),
+                          ),
+                          prefixIconConstraints: const BoxConstraints(
+                              minWidth: 44, minHeight: 44),
                           suffixIcon: _searchController.text.isNotEmpty
                               ? IconButton(
-                                  icon: const Icon(Icons.clear_rounded,
-                                      color: Colors.grey),
+                                  icon: const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedCancel01,
+                                    size: 18,
+                                    color: Colors.grey,
+                                    strokeWidth: 2.0,
+                                  ),
                                   onPressed: () {
                                     _searchController.clear();
                                     _onSearch('');
@@ -6274,21 +6735,15 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           _filteredBusinesses.isNotEmpty)
                         Container(
                           constraints: const BoxConstraints(maxHeight: 200),
-                          decoration: BoxDecoration(
-                            border: Border(
-                              top: BorderSide(color: Colors.grey[200]!),
-                            ),
-                          ),
                           child: ListView.builder(
                             shrinkWrap: true,
-                            padding: EdgeInsets.zero,
                             itemCount: _filteredBusinesses.length,
                             itemBuilder: (context, index) {
                               final business = _filteredBusinesses[index];
-                              final reference = _activeDistanceReference();
+                              final ref = _activeDistanceReference();
                               final distance = business.getDistanceFromUser(
-                                fromLat: reference.latitude,
-                                fromLng: reference.longitude,
+                                fromLat: ref.latitude,
+                                fromLng: ref.longitude,
                               );
                               return ListTile(
                                 leading: ClipRRect(
@@ -6305,10 +6760,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                             height: 40,
                                             color: const Color(0xFF2563EB)
                                                 .withOpacity(0.1),
-                                            child: const Icon(
-                                              Icons.store_rounded,
+                                            child: const HugeIcon(
+                                              icon: HugeIcons
+                                                  .strokeRoundedBuilding01,
                                               color: Color(0xFF2563EB),
                                               size: 20,
+                                              strokeWidth: 2.0,
                                             ),
                                           ),
                                         )
@@ -6321,10 +6778,12 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                             borderRadius:
                                                 BorderRadius.circular(10),
                                           ),
-                                          child: const Icon(
-                                            Icons.store_rounded,
+                                          child: const HugeIcon(
+                                            icon: HugeIcons
+                                                .strokeRoundedBuilding01,
                                             color: Color(0xFF2563EB),
                                             size: 20,
+                                            strokeWidth: 2.0,
                                           ),
                                         ),
                                 ),
@@ -6411,12 +6870,13 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                           _onSearch(_searchController.text);
                         },
                         showCheckmark: false,
-                        label: Icon(
-                          Icons.verified_rounded,
-                          size: 21,
+                        label: HugeIcon(
+                          icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                          size: 20,
                           color: _bestMatchOnly
                               ? const Color(0xFF15803D)
                               : const Color(0xFF64748B),
+                          strokeWidth: 2.0,
                         ),
                         labelPadding: EdgeInsets.zero,
                         padding: const EdgeInsets.all(10),
@@ -6463,7 +6923,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                         children: [
                           if (!isSearching)
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                              padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
                               child: Align(
                                 alignment: Alignment.centerLeft,
                                 child: _buildLocationProfilesFab(
@@ -6477,7 +6937,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                 clipBehavior: Clip.none,
                                 children: [
                                   Padding(
-                                    padding: const EdgeInsets.only(top: 20),
+                                    padding: EdgeInsets.only(
+                                        top: _compareBusinessIds.isNotEmpty ? 20 : 0),
                                     child: Row(
                                       children: [
                                         Container(
@@ -6663,86 +7124,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                           children: [
                                             Row(
                                               children: [
-                                                ClipRRect(
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                  child: business
-                                                          .imageUrl.isNotEmpty
-                                                      ? Image.network(
-                                                          business.imageUrl,
-                                                          width: 44,
-                                                          height: 44,
-                                                          fit: BoxFit.cover,
-                                                          errorBuilder:
-                                                              (_, __, ___) =>
-                                                                  Container(
-                                                            width: 44,
-                                                            height: 44,
-                                                            decoration:
-                                                                BoxDecoration(
-                                                              color: (index %
-                                                                          2 ==
-                                                                      0)
-                                                                  ? const Color(
-                                                                          0xFFE11D48)
-                                                                      .withOpacity(
-                                                                          0.1)
-                                                                  : const Color(
-                                                                          0xFF7C3AED)
-                                                                      .withOpacity(
-                                                                          0.1),
-                                                              borderRadius:
-                                                                  BorderRadius
-                                                                      .circular(
-                                                                          12),
-                                                            ),
-                                                            child: Icon(
-                                                              Icons
-                                                                  .store_rounded,
-                                                              color: (index %
-                                                                          2 ==
-                                                                      0)
-                                                                  ? const Color(
-                                                                      0xFFE11D48)
-                                                                  : const Color(
-                                                                      0xFF7C3AED),
-                                                              size: 24,
-                                                            ),
-                                                          ),
-                                                        )
-                                                      : Container(
-                                                          width: 44,
-                                                          height: 44,
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: (index % 2 ==
-                                                                    0)
-                                                                ? const Color(
-                                                                        0xFFE11D48)
-                                                                    .withOpacity(
-                                                                        0.1)
-                                                                : const Color(
-                                                                        0xFF7C3AED)
-                                                                    .withOpacity(
-                                                                        0.1),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        12),
-                                                          ),
-                                                          child: Icon(
-                                                            Icons.store_rounded,
-                                                            color: (index % 2 ==
-                                                                    0)
-                                                                ? const Color(
-                                                                    0xFFE11D48)
-                                                                : const Color(
-                                                                    0xFF7C3AED),
-                                                            size: 24,
-                                                          ),
-                                                        ),
-                                                ),
-                                                const SizedBox(width: 12),
+                                                 _buildBusinessLogo(business, 44, 12),
+                                                 const SizedBox(width: 12),
                                                 Expanded(
                                                   child: Column(
                                                     crossAxisAlignment:
@@ -7223,39 +7606,7 @@ class _BusinessPopupCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: business.imageUrl.isNotEmpty
-                    ? Image.network(
-                        business.imageUrl,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          width: 56,
-                          height: 56,
-                          color: const Color(0xFF2563EB).withOpacity(0.1),
-                          child: const Icon(
-                            Icons.store_rounded,
-                            color: Color(0xFF2563EB),
-                            size: 28,
-                          ),
-                        ),
-                      )
-                    : Container(
-                        width: 56,
-                        height: 56,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Icon(
-                          Icons.store_rounded,
-                          color: Color(0xFF2563EB),
-                          size: 28,
-                        ),
-                      ),
-              ),
+              _buildBusinessLogo(business, 56, 14),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -7719,41 +8070,7 @@ class _BusinessDetailSheet extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: business.imageUrl.isNotEmpty
-                                ? Image.network(
-                                    business.imageUrl,
-                                    width: 72,
-                                    height: 72,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      width: 72,
-                                      height: 72,
-                                      color: const Color(0xFF2563EB)
-                                          .withOpacity(0.1),
-                                      child: const Icon(
-                                        Icons.store_rounded,
-                                        color: Color(0xFF2563EB),
-                                        size: 36,
-                                      ),
-                                    ),
-                                  )
-                                : Container(
-                                    width: 72,
-                                    height: 72,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF2563EB)
-                                          .withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                    child: const Icon(
-                                      Icons.store_rounded,
-                                      color: Color(0xFF2563EB),
-                                      size: 36,
-                                    ),
-                                  ),
-                          ),
+                          _buildBusinessLogo(business, 72, 18),
                           const SizedBox(width: 16),
                           Expanded(
                             child: Column(
@@ -7935,7 +8252,16 @@ class _BusinessDetailSheet extends StatelessWidget {
       detailJob,
       isSaved: jobActionService.isSaved(detailJob.id),
       isApplied: jobActionService.isApplied(detailJob.id),
-      onSave: () => jobActionService.toggleSave(detailJob.id),
+      onSave: () {
+        unawaited(() async {
+          final isSignedIn = await requireAuthenticatedSession(
+            context,
+            message: 'Please sign in or create an account to save jobs.',
+          );
+          if (!isSignedIn) return;
+          await jobActionService.toggleSave(detailJob.id);
+        }());
+      },
       onApply: () =>
           _applyFromBusinessDetail(context, detailJob, jobActionService),
       onViewMap: null, // Redundant in map page
@@ -7959,27 +8285,30 @@ class _BusinessDetailSheet extends StatelessWidget {
           ? 'Mag-apply para sa ${job.title} sa ${job.company}?'
           : 'Apply for ${job.title} at ${job.company}?',
       confirmLabel: S.of(context)?.apply ?? 'Apply',
-      onConfirm: () => Navigator.pop(context, true),
-      onCancel: () => Navigator.pop(context, false),
+      confirmBusyLabel: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Nag-a-apply...'
+          : 'Applying...',
+      onConfirmAsync: () async {
+        final error = await jobActionService.applyToJob(job.id, job.title);
+        if (error != null) {
+          if (context.mounted) {
+            CustomToast.show(
+              context,
+              message: error,
+              type: ToastType.error,
+            );
+          }
+          throw Exception(error);
+        }
+      },
     );
     if (confirmed != true || !context.mounted) return;
 
-    final error = await jobActionService.applyToJob(job.id, job.title);
-    if (context.mounted) {
-      if (error == null) {
-        CustomToast.show(
-          context,
-          message: 'Applied to ${job.title}!',
-          type: ToastType.success,
-        );
-      } else {
-        CustomToast.show(
-          context,
-          message: error,
-          type: ToastType.error,
-        );
-      }
-    }
+    await showApplySuccessFeedback(
+      context,
+      job: job,
+      jobActionService: jobActionService,
+    );
   }
 }
 
@@ -8474,31 +8803,40 @@ class _NotificationsTabState extends State<NotificationsTab>
           ? 'Mag-apply para sa ${job.title} sa ${job.company}?'
           : 'Apply for ${job.title} at ${job.company}?',
       confirmLabel: S.of(context)?.apply ?? 'Apply',
-      onConfirm: () => Navigator.pop(context, true),
-      onCancel: () => Navigator.pop(context, false),
+      confirmBusyLabel: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Nag-a-apply...'
+          : 'Applying...',
+      onConfirmAsync: () async {
+        final error = await _jobActionService.applyToJob(job.id, job.title);
+        if (error != null) {
+          if (mounted) {
+            CustomToast.show(
+              context,
+              message: error,
+              type: ToastType.error,
+            );
+          }
+          throw Exception(error);
+        }
+      },
     );
     if (confirmed != true || !mounted) return;
 
-    final error = await _jobActionService.applyToJob(job.id, job.title);
-    if (!mounted) return;
-
-    if (error == null) {
-      microInteractionSuccess();
-      CustomToast.show(
-        context,
-        message: 'Applied to ${job.title}!',
-        type: ToastType.success,
-      );
-    } else {
-      CustomToast.show(
-        context,
-        message: error,
-        type: ToastType.error,
-      );
-    }
+    microInteractionSuccess();
+    await showApplySuccessFeedback(
+      context,
+      job: job,
+      jobActionService: _jobActionService,
+    );
   }
 
   Future<void> _toggleSaveJob(Job job) async {
+    final isSignedIn = await requireAuthenticatedSession(
+      context,
+      message: 'Please sign in or create an account to save jobs.',
+    );
+    if (!isSignedIn || !mounted) return;
+
     final wasSaved = _jobActionService.isSaved(job.id);
     final error = await _jobActionService.toggleSave(job.id);
     if (!mounted) return;
@@ -9267,6 +9605,8 @@ class _NotificationsTabState extends State<NotificationsTab>
 
     int selectedRating = 0;
     bool isSubmitting = false;
+    bool dialogClosing = false;
+    DateTime? lastRatingHapticAt;
 
     await showGeneralDialog(
       context: context,
@@ -9285,12 +9625,20 @@ class _NotificationsTabState extends State<NotificationsTab>
               builder: (ctx, setDialogState) {
                 const double starBarWidth = 240;
                 void applyStarFromDx(double dx) {
+                  if (dialogClosing || isSubmitting || !ctx.mounted) return;
                   final x = dx.clamp(0.0, starBarWidth);
                   var next = ((x / starBarWidth) * 5).ceil();
                   if (next < 1) next = 1;
                   if (next > 5) next = 5;
                   if (next != selectedRating) {
-                    HapticFeedback.selectionClick();
+                    final now = DateTime.now();
+                    final last = lastRatingHapticAt;
+                    if (last == null ||
+                        now.difference(last) >
+                            const Duration(milliseconds: 90)) {
+                      lastRatingHapticAt = now;
+                      HapticFeedback.selectionClick();
+                    }
                     setDialogState(() => selectedRating = next);
                   }
                 }
@@ -9340,35 +9688,33 @@ class _NotificationsTabState extends State<NotificationsTab>
                       ),
                       const SizedBox(height: 32),
                       // Emoji Feedback
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: Text(
-                          selectedRating == 1
-                              ? '😟'
-                              : selectedRating == 2
-                                  ? '😕'
-                                  : selectedRating == 3
-                                      ? '😐'
-                                      : selectedRating == 4
-                                          ? '🙂'
-                                          : selectedRating == 5
-                                              ? '🤩'
-                                              : '✨',
-                          key: ValueKey(selectedRating),
-                          style: const TextStyle(fontSize: 48),
-                        ),
+                      Text(
+                        selectedRating == 1
+                            ? '😟'
+                            : selectedRating == 2
+                                ? '😕'
+                                : selectedRating == 3
+                                    ? '😐'
+                                    : selectedRating == 4
+                                        ? '🙂'
+                                        : selectedRating == 5
+                                            ? '🤩'
+                                            : '✨',
+                        style: const TextStyle(fontSize: 48),
                       ),
                       const SizedBox(height: 12),
                       Center(
                         child: SizedBox(
                           width: starBarWidth,
                           height: 52,
-                          child: Listener(
+                          child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onPointerDown: (e) =>
-                                applyStarFromDx(e.localPosition.dx),
-                            onPointerMove: (e) =>
-                                applyStarFromDx(e.localPosition.dx),
+                            onTapDown: (details) =>
+                                applyStarFromDx(details.localPosition.dx),
+                            onHorizontalDragStart: (details) =>
+                                applyStarFromDx(details.localPosition.dx),
+                            onHorizontalDragUpdate: (details) =>
+                                applyStarFromDx(details.localPosition.dx),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: List.generate(5, (i) {
@@ -9385,20 +9731,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                         ? const Color(0xFFF59E0B)
                                         : const Color(0xFFCBD5E1),
                                     size: 40,
-                                  )
-                                      .animate(
-                                        target: isSelected ? 1 : 0,
-                                      )
-                                      .scale(
-                                          begin: const Offset(1, 1),
-                                          end: const Offset(1.2, 1.2),
-                                          duration: 200.ms,
-                                          curve: Curves.easeOutBack)
-                                      .then()
-                                      .scale(
-                                          begin: const Offset(1.2, 1.2),
-                                          end: const Offset(1, 1),
-                                          duration: 150.ms),
+                                  ),
                                 );
                               }),
                             ),
@@ -9436,7 +9769,10 @@ class _NotificationsTabState extends State<NotificationsTab>
                           child: TextButton(
                             onPressed: isSubmitting
                                 ? null
-                                : () => Navigator.of(ctx).pop(),
+                                : () {
+                                    dialogClosing = true;
+                                    Navigator.of(ctx).pop();
+                                  },
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 14),
                               shape: RoundedRectangleBorder(
@@ -9460,9 +9796,10 @@ class _NotificationsTabState extends State<NotificationsTab>
                                     final result = await ApiService
                                         .submitSatisfactionRating(
                                             token, selectedRating);
-                                    if (!mounted) return;
+                                    if (!mounted || !ctx.mounted) return;
                                     setDialogState(() => isSubmitting = false);
                                     if (result['success'] == true) {
+                                      dialogClosing = true;
                                       Navigator.of(ctx).pop();
                                       ScaffoldMessenger.of(context)
                                           .showSnackBar(

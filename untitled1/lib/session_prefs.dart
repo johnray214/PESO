@@ -7,18 +7,34 @@ import 'skill_match_utils.dart';
 
 class SessionPrefs {
   static const _kToken = 'auth_token_v1';
+  static const _kGuestMode = 'guest_mode_v1';
 
   static Future<void> saveToken(String token) async {
     final p = await SharedPreferences.getInstance();
     await p.setString(_kToken, token);
-    
+    await p.setBool(_kGuestMode, false);
+
     // Trigger sync for new logins
     NotificationService().initialize();
+  }
+
+  static Future<void> saveGuestSession() async {
+    final p = await SharedPreferences.getInstance();
+    await p.remove(_kToken);
+    await p.setBool(_kGuestMode, true);
+    UserSession().enterGuestMode();
+    SkillMatchUtils.invalidateUserSkillsCache();
   }
 
   static Future<void> clear() async {
     final p = await SharedPreferences.getInstance();
     await p.remove(_kToken);
+    await p.setBool(_kGuestMode, false);
+  }
+
+  static Future<bool> isGuestSession() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getBool(_kGuestMode) == true;
   }
 
   /// Fast, local-only check — no network call.
@@ -59,6 +75,7 @@ class SessionPrefs {
         data;
 
     UserSession().token = token;
+    UserSession().mode = SessionMode.authenticated;
     UserSession().updateFromUser(user);
     SkillMatchUtils.invalidateUserSkillsCache();
 
@@ -68,4 +85,3 @@ class SessionPrefs {
     return true;
   }
 }
-

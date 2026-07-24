@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.254.104:8000/api';
+  static const String baseUrl = 'http://192.168.254.106:8000/api';
 
   /// True when [baseUrl] points at a machine-local / emulator-typical host.
   ///

@@ -1561,6 +1561,306 @@ abstract class S {
   /// **'No results for \"{query}\"'**
   String noResultsFor(String query);
 
+  /// No description provided for @exploreSignInToApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Please sign in or create an account before applying to jobs.'**
+  String get exploreSignInToApply;
+
+  /// No description provided for @exploreSignInToSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Please sign in or create an account to save jobs.'**
+  String get exploreSignInToSave;
+
+  /// No description provided for @exploreConfirmApplication.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm application'**
+  String get exploreConfirmApplication;
+
+  /// No description provided for @exploreApplyForJob.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply for {title} at {company}?'**
+  String exploreApplyForJob(String title, String company);
+
+  /// No description provided for @exploreAppliedToJob.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied to {title}.'**
+  String exploreAppliedToJob(String title);
+
+  /// No description provided for @exploreNoOpenJobsForEmployer.
+  ///
+  /// In en, this message translates to:
+  /// **'No open jobs found for this employer.'**
+  String get exploreNoOpenJobsForEmployer;
+
+  /// No description provided for @exploreConnectionError.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection error'**
+  String get exploreConnectionError;
+
+  /// No description provided for @exploreFailedToLoad.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load'**
+  String get exploreFailedToLoad;
+
+  /// No description provided for @exploreSomethingWentWrong.
+  ///
+  /// In en, this message translates to:
+  /// **'Something went wrong'**
+  String get exploreSomethingWentWrong;
+
+  /// No description provided for @exploreHeaderSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discover opportunities that fit your next move'**
+  String get exploreHeaderSubtitle;
+
+  /// No description provided for @exploreNewJobsThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'New jobs this week'**
+  String get exploreNewJobsThisWeek;
+
+  /// No description provided for @exploreEmployers.
+  ///
+  /// In en, this message translates to:
+  /// **'Employers'**
+  String get exploreEmployers;
+
+  /// No description provided for @exploreOpenJobs.
+  ///
+  /// In en, this message translates to:
+  /// **'Open jobs'**
+  String get exploreOpenJobs;
+
+  /// No description provided for @exploreRecommendedNearYou.
+  ///
+  /// In en, this message translates to:
+  /// **'Recommended near you'**
+  String get exploreRecommendedNearYou;
+
+  /// No description provided for @exploreRecommendedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent openings ranked by fit and freshness'**
+  String get exploreRecommendedSubtitle;
+
+  /// No description provided for @exploreSeeAll.
+  ///
+  /// In en, this message translates to:
+  /// **'See all'**
+  String get exploreSeeAll;
+
+  /// No description provided for @exploreNoRecommendations.
+  ///
+  /// In en, this message translates to:
+  /// **'No job recommendations yet'**
+  String get exploreNoRecommendations;
+
+  /// No description provided for @exploreNoRecommendationsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Open jobs will appear here once the listings load.'**
+  String get exploreNoRecommendationsMessage;
+
+  /// No description provided for @exploreBrowseJobs.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse jobs'**
+  String get exploreBrowseJobs;
+
+  /// No description provided for @exploreUpcomingPesoEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming PESO events'**
+  String get exploreUpcomingPesoEvents;
+
+  /// No description provided for @exploreUpcomingEventsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Workshops, hiring events, and livelihood programs'**
+  String get exploreUpcomingEventsSubtitle;
+
+  /// No description provided for @exploreCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'Calendar'**
+  String get exploreCalendar;
+
+  /// No description provided for @exploreNoUpcomingEvents.
+  ///
+  /// In en, this message translates to:
+  /// **'No upcoming events'**
+  String get exploreNoUpcomingEvents;
+
+  /// No description provided for @exploreNoUpcomingEventsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the calendar for new PESO activities.'**
+  String get exploreNoUpcomingEventsMessage;
+
+  /// No description provided for @exploreViewCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'View calendar'**
+  String get exploreViewCalendar;
+
+  /// No description provided for @exploreNearestEventSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Nearest activity on your calendar'**
+  String get exploreNearestEventSubtitle;
+
+  /// No description provided for @exploreTopHiringCompanies.
+  ///
+  /// In en, this message translates to:
+  /// **'Top hiring companies'**
+  String get exploreTopHiringCompanies;
+
+  /// No description provided for @exploreTopHiringCompaniesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Employers with the most open roles'**
+  String get exploreTopHiringCompaniesSubtitle;
+
+  /// No description provided for @exploreNoEmployerTrends.
+  ///
+  /// In en, this message translates to:
+  /// **'No employer trends yet'**
+  String get exploreNoEmployerTrends;
+
+  /// No description provided for @exploreNoEmployerTrendsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Hiring companies will appear here once jobs are available.'**
+  String get exploreNoEmployerTrendsMessage;
+
+  /// No description provided for @exploreInDemandSkills.
+  ///
+  /// In en, this message translates to:
+  /// **'In-demand skills'**
+  String get exploreInDemandSkills;
+
+  /// No description provided for @exploreInDemandSkillsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Trending across open jobs'**
+  String get exploreInDemandSkillsSubtitle;
+
+  /// No description provided for @exploreNoSkillTrends.
+  ///
+  /// In en, this message translates to:
+  /// **'No skill trends yet'**
+  String get exploreNoSkillTrends;
+
+  /// No description provided for @exploreNoSkillTrendsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Skill demand will appear here after jobs are indexed.'**
+  String get exploreNoSkillTrendsMessage;
+
+  /// No description provided for @exploreBrowseByIndustry.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse by industry'**
+  String get exploreBrowseByIndustry;
+
+  /// No description provided for @exploreBrowseByIndustrySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Open roles grouped by employer sector'**
+  String get exploreBrowseByIndustrySubtitle;
+
+  /// No description provided for @exploreRecentlyPosted.
+  ///
+  /// In en, this message translates to:
+  /// **'Recently posted'**
+  String get exploreRecentlyPosted;
+
+  /// No description provided for @exploreRecentlyPostedSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Fresh opportunities from employers'**
+  String get exploreRecentlyPostedSubtitle;
+
+  /// No description provided for @exploreNoRecentJobs.
+  ///
+  /// In en, this message translates to:
+  /// **'No recent jobs yet'**
+  String get exploreNoRecentJobs;
+
+  /// No description provided for @exploreNoRecentJobsMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'New job posts will appear here.'**
+  String get exploreNoRecentJobsMessage;
+
+  /// No description provided for @exploreOneDayAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'1 day ago'**
+  String get exploreOneDayAgo;
+
+  /// No description provided for @exploreDaysAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} days ago'**
+  String exploreDaysAgo(int count);
+
+  /// No description provided for @exploreLocationNotSpecified.
+  ///
+  /// In en, this message translates to:
+  /// **'Location not specified'**
+  String get exploreLocationNotSpecified;
+
+  /// No description provided for @exploreSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get exploreSaved;
+
+  /// No description provided for @exploreMatchPercent.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% match'**
+  String exploreMatchPercent(int percent);
+
+  /// No description provided for @exploreUrgent.
+  ///
+  /// In en, this message translates to:
+  /// **'Urgent'**
+  String get exploreUrgent;
+
+  /// No description provided for @exploreEventsThisDay.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} events this day'**
+  String exploreEventsThisDay(int count);
+
+  /// No description provided for @exploreUpcomingEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming event'**
+  String get exploreUpcomingEvent;
+
+  /// No description provided for @exploreViewDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'View details'**
+  String get exploreViewDetails;
+
+  /// No description provided for @exploreJobCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 job} other{{count} jobs}}'**
+  String exploreJobCount(int count);
+
   /// No description provided for @mapSearchThisArea.
   ///
   /// In en, this message translates to:

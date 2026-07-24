@@ -6,6 +6,7 @@ use App\Events\AdminActivityEvent;
 use App\Http\Controllers\Controller;
 use App\Models\Jobseeker;
 use App\Support\JobseekerPassword;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -28,7 +29,12 @@ class JobseekerAuthController extends Controller
     
     public function checkEmail(Request $request) {
         $request->validate(['email' => 'required|email']);
-        $exists = Jobseeker::where('email', $request->email)->exists();
+        $jobseeker = Jobseeker::withTrashed()->where('email', $request->email)->first();
+        if ($jobseeker && $this->purgeIfExpiredUnverified($jobseeker)) {
+            $jobseeker = null;
+        }
+
+        $exists = $jobseeker !== null;
         return response()->json([
             'success' => true,
             'exists' => $exists,
@@ -50,7 +56,7 @@ class JobseekerAuthController extends Controller
             'date_of_birth' => 'nullable|date',
         ]);
 
-        $existing = Jobseeker::where('email', $validated['email'])->first();
+        $existing = Jobseeker::withTrashed()->where('email', $validated['email'])->first();
         if ($existing && $this->purgeIfExpiredUnverified($existing)) {
             $existing = null;
         }
@@ -79,7 +85,22 @@ class JobseekerAuthController extends Controller
         $validated['otp_resend_count'] = 0;
         $validated['otp_resend_cooldown_until'] = null;
 
-        $jobseeker = Jobseeker::create($validated);
+        try {
+            $jobseeker = Jobseeker::create($validated);
+        } catch (QueryException $e) {
+            if ($e->getCode() === '23000') {
+                Log::warning('Duplicate jobseeker email during registration.', [
+                    'email' => $validated['email'],
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Email is already registered. Please sign in.',
+                ], 422);
+            }
+
+            throw $e;
+        }
 
         $sendResult = $this->issueOtpWithGuardrails($jobseeker, false);
         if (!$sendResult['success']) {
@@ -503,7 +524,7 @@ class JobseekerAuthController extends Controller
             return false;
         }
         $jobseeker->tokens()->delete();
-        $jobseeker->delete();
+        $jobseeker->forceDelete();
         return true;
     }
 }

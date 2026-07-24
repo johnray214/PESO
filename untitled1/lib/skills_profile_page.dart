@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'api_service.dart';
+import 'auth_gate.dart';
 import 'user_session.dart';
 import 'job_models.dart';
 import 'job_action_service.dart';
@@ -102,6 +104,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   }
 
   Future<void> _maybeStartSkillsGuide() async {
+    if (_skillsGuideActive) return;
     final token = UserSession().token;
     final done = await OnboardingPrefs.isSkillsProfileGuideDone(token: token);
     if (!mounted) return;
@@ -111,8 +114,16 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     if (done) return;
     final pending =
         await OnboardingPrefs.isSkillsProfileGuidePending(token: token);
-    if (!mounted || !pending) return;
+    if (!mounted || !pending || _isLoadingCatalog) return;
     _startSkillsGuide(force: false);
+  }
+
+  Future<void> _markSkillsGuideHandled() async {
+    final token = UserSession().token;
+    await OnboardingPrefs.setSkillsProfileGuideDone(token: token);
+    await OnboardingPrefs.clearSkillsProfileGuidePending(token: token);
+    if (!mounted) return;
+    setState(() => _skillsGuideDone = true);
   }
 
   void _startSkillsGuide({required bool force}) {
@@ -124,11 +135,16 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       );
       return;
     }
-    _skillsScrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-    );
+    if (!force) {
+      unawaited(_markSkillsGuideHandled());
+    }
+    if (_skillsScrollController.hasClients) {
+      _skillsScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    }
     setState(() {
       _skillsGuideActive = true;
       _skillsGuideStep = 0;
@@ -319,6 +335,10 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     } else {
       setState(() => _isLoadingCatalog = false);
     }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _maybeStartSkillsGuide();
+    });
   }
 
   Future<void> _loadSavedSkills() async {
@@ -1011,7 +1031,11 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.work_outline_rounded, size: 18),
+        const HugeIcon(
+          icon: HugeIcons.strokeRoundedBriefcase01,
+          size: 18,
+          strokeWidth: 2.0,
+        ),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
@@ -1048,18 +1072,19 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
         _skillsGuideActive && !_isActionAllowedDuringGuide('job_matches');
 
     return PopScope(
-      canPop: !_hasChanges,
-      onPopInvokedWithResult: (bool didPop, Object? result) {
+      canPop: !_hasChanges && !_popConfirmInFlight,
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
         if (_popConfirmInFlight) return;
         _popConfirmInFlight = true;
-        _confirmLeaveWithUnsavedChanges().then((shouldLeave) {
-          _popConfirmInFlight = false;
-          if (!context.mounted) return;
-          if (shouldLeave) {
+        try {
+          final shouldLeave = await _confirmLeaveWithUnsavedChanges();
+          if (mounted && shouldLeave) {
             Navigator.of(context).pop();
           }
-        });
+        } finally {
+          _popConfirmInFlight = false;
+        }
       },
       child: Scaffold(
         resizeToAvoidBottomInset: false,
@@ -1070,7 +1095,12 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
           surfaceTintColor: Colors.transparent,
           iconTheme: const IconThemeData(color: Color(0xFF0F172A)),
           leading: IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            icon: const HugeIcon(
+              icon: HugeIcons.strokeRoundedArrowLeft01,
+              size: 20,
+              color: Color(0xFF0F172A),
+              strokeWidth: 2.0,
+            ),
             onPressed: () async {
               if (!_hasChanges) {
                 if (context.mounted) Navigator.of(context).pop();
@@ -1122,7 +1152,11 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.psychology_outlined, size: 18),
+                          const HugeIcon(
+                            icon: HugeIcons.strokeRoundedBrain01,
+                            size: 18,
+                            strokeWidth: 2.0,
+                          ),
                           const SizedBox(width: 6),
                           Text(S.of(context)?.skillsTab ?? 'My Skills'),
                           if (_selectedSkills.isNotEmpty) ...[
@@ -1206,80 +1240,106 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       children: [
         Column(
           children: [
-            Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFEFF6FF),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFDBEAFE)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.tips_and_updates_outlined,
-                      color: Color(0xFF2563EB)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      _skillsGuideDone
-                          ? (S.of(context)?.replayTourSubtitle ??
-                              'Need a refresher? Replay the Skills Profile tutorial.')
-                          : (Localizations.localeOf(context).languageCode ==
-                                  'tl'
-                              ? 'Bago ka ba? Kumpletuhin ang Profile ng Kasanayan para sa mas magandang job matches.'
-                              : 'New here? Complete your Skills Profile to unlock better matches.'),
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: Color(0xFF0F172A),
-                        height: 1.25,
+            if (!_skillsGuideDone && !_skillsGuideActive)
+              Container(
+                margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEFF6FF),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2563EB).withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Center(
+                        child: HugeIcon(
+                          icon: HugeIcons.strokeRoundedIdea01,
+                          size: 18,
+                          color: Color(0xFF2563EB),
+                          strokeWidth: 2.0,
+                        ),
                       ),
                     ),
-                  ),
-                  TextButton(
-                    onPressed: () => _startSkillsGuide(force: true),
-                    child: Text(
-                      _skillsGuideDone
-                          ? (S.of(context)?.replayTour ?? 'Replay')
-                          : (Localizations.localeOf(context).languageCode ==
-                                  'tl'
-                              ? 'Simulan'
-                              : 'Start'),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'See the guided walkthrough again',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          Text(
+                            'Replays the quick 4-step tutorial.',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                    TextButton(
+                      onPressed: () => _startSkillsGuide(force: true),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF2563EB),
+                        textStyle: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
+                      ),
+                      child: const Text('Replay App Tour'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            // Persistent search bar
+            const SizedBox(height: 12),
+
+            // Search Input Bar
             Showcase(
               key: _guideSearchKey,
-              title: 'Search Skills',
+              title: 'Search bar',
               description:
-                  'Use the search bar to find specific skills by keyword. Tap anywhere on the screen to continue.',
+                  'Search for any skill by name to find and add it quickly.',
               tooltipActions: const [],
-              disableBarrierInteraction: false,
-              onBarrierClick: () {
-                if (!mounted || !_skillsGuideActive || _skillsGuideStep != 0)
-                  return;
-                _advanceGuideStep();
-              },
+              disableBarrierInteraction: true,
               disposeOnTap: true,
               onTargetClick: () {
-                if (!mounted || !_skillsGuideActive || _skillsGuideStep != 0)
-                  return;
+                if (!_skillsGuideActive || _skillsGuideStep != 0) return;
                 _advanceGuideStep();
               },
-              child: Container(
-                color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: TextField(
                   controller: _searchController,
                   onChanged: _onSearchChanged,
+                  onTap: () {
+                    if (_skillsGuideActive && _skillsGuideStep == 0) {
+                      _advanceGuideStep();
+                    }
+                  },
                   decoration: InputDecoration(
-                    hintText: S.of(context)?.searchSkills ?? 'Search skills...',
+                    hintText: 'Search skills...',
                     hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-                    prefixIcon: const Icon(Icons.search_rounded,
-                        color: Color(0xFF94A3B8), size: 22),
+                    prefixIcon: const UnconstrainedBox(
+                      child: HugeIcon(
+                        icon: HugeIcons.strokeRoundedSearch01,
+                        color: Color(0xFF94A3B8),
+                        size: 18,
+                        strokeWidth: 2.0,
+                      ),
+                    ),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? GestureDetector(
                             onTap: () {
@@ -1287,8 +1347,14 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                               _searchController.clear();
                               setState(() => _searchQuery = '');
                             },
-                            child: const Icon(Icons.close_rounded,
-                                color: Color(0xFF94A3B8), size: 20),
+                            child: const UnconstrainedBox(
+                              child: HugeIcon(
+                                icon: HugeIcons.strokeRoundedCancel01,
+                                color: Color(0xFF94A3B8),
+                                size: 16,
+                                strokeWidth: 2.0,
+                              ),
+                            ),
                           )
                         : null,
                     filled: true,
@@ -1320,8 +1386,12 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.edit_note_rounded,
-                        size: 16, color: Color(0xFFD97706)),
+                    const HugeIcon(
+                      icon: HugeIcons.strokeRoundedPencilEdit01,
+                      size: 16,
+                      color: Color(0xFFD97706),
+                      strokeWidth: 2.0,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Unsaved changes',
@@ -1358,7 +1428,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                 Expanded(
                                   child: _buildSectionHeader(
                                     'Your Selected Skills',
-                                    Icons.check_circle_outline_rounded,
+                                    HugeIcons.strokeRoundedCheckmarkCircle01,
                                     subtitle: _selectedSkills.isEmpty
                                         ? 'None yet — tap skills under Browse to add them here'
                                         : _editingSelectedSkills
@@ -1413,11 +1483,13 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                         tapTargetSize:
                                             MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      icon: Icon(
-                                        _editingSelectedSkills
-                                            ? Icons.check_rounded
-                                            : Icons.edit_rounded,
-                                        size: 18,
+                                      icon: HugeIcon(
+                                        icon: _editingSelectedSkills
+                                            ? HugeIcons.strokeRoundedCheckmarkSquare01
+                                            : HugeIcons.strokeRoundedPencilEdit01,
+                                        size: 16,
+                                        color: const Color(0xFF2563EB),
+                                        strokeWidth: 2.0,
                                       ),
                                       label: Text(
                                         _editingSelectedSkills
@@ -1446,8 +1518,12 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                 ),
                                 child: Row(
                                   children: [
-                                    Icon(Icons.add_task_rounded,
-                                        size: 22, color: Colors.grey[400]),
+                                    HugeIcon(
+                                      icon: HugeIcons.strokeRoundedAddCircle,
+                                      size: 20,
+                                      color: Colors.grey[400]!,
+                                      strokeWidth: 2.0,
+                                    ),
                                     const SizedBox(width: 12),
                                     Expanded(
                                       child: Text(
@@ -1502,16 +1578,18 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                               child: Row(
                                 children: [
                                   Container(
-                                    width: 50,
-                                    height: 50,
+                                    width: 44,
+                                    height: 44,
+                                    alignment: Alignment.center,
                                     decoration: BoxDecoration(
                                       color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(14),
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: const Icon(
-                                      Icons.auto_awesome_rounded,
+                                    child: const HugeIcon(
+                                      icon: HugeIcons.strokeRoundedBrain01,
                                       color: Colors.white,
-                                      size: 26,
+                                      size: 22,
+                                      strokeWidth: 2.0,
                                     ),
                                   ),
                                   const SizedBox(width: 16),
@@ -1890,7 +1968,12 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.save_rounded, size: 20),
+                                  const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedFloppyDisk,
+                                    size: 18,
+                                    color: Colors.white,
+                                    strokeWidth: 2.0,
+                                  ),
                                   const SizedBox(width: 8),
                                   Text(
                                     'Save Skills & Find Matches (${_selectedSkills.length})',
@@ -1936,10 +2019,17 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon, {String? subtitle}) {
+  Widget _buildSectionHeader(String title, dynamic icon, {String? subtitle}) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: const Color(0xFF2563EB)),
+        icon is IconData
+            ? Icon(icon, size: 18, color: const Color(0xFF2563EB))
+            : HugeIcon(
+                icon: icon as List<List<dynamic>>,
+                size: 18,
+                color: const Color(0xFF2563EB),
+                strokeWidth: 2.0,
+              ),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
@@ -2662,42 +2752,12 @@ class _SkillCategoryCard extends StatefulWidget {
 class _SkillCategoryCardState extends State<_SkillCategoryCard> {
   bool _expanded = false;
 
-  IconData _categoryIcon(String cat) {
-    switch (cat) {
-      case 'IT & Software':
-        return Icons.code_rounded;
-      case 'Sales & Marketing':
-        return Icons.storefront_rounded;
-      case 'Healthcare':
-        return Icons.local_hospital_rounded;
-      case 'Education':
-        return Icons.school_rounded;
-      case 'Construction':
-        return Icons.construction_rounded;
-      case 'Manufacturing':
-        return Icons.precision_manufacturing_rounded;
-      default:
-        return Icons.work_outline_rounded;
-    }
+  List<List<dynamic>> _categoryIcon(String cat) {
+    return HugeIcons.strokeRoundedBriefcase01;
   }
 
   Color _categoryColor(String cat) {
-    switch (cat) {
-      case 'IT & Software':
-        return const Color(0xFF3B82F6);
-      case 'Sales & Marketing':
-        return const Color(0xFFF59E0B);
-      case 'Healthcare':
-        return const Color(0xFFEF4444);
-      case 'Education':
-        return const Color(0xFF8B5CF6);
-      case 'Construction':
-        return const Color(0xFFF97316);
-      case 'Manufacturing':
-        return const Color(0xFF10B981);
-      default:
-        return const Color(0xFF64748B);
-    }
+    return const Color(0xFF2563EB);
   }
 
   @override
@@ -2767,14 +2827,19 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
               child: Row(
                 children: [
                   Container(
-                    width: 40,
-                    height: 40,
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
                     decoration: BoxDecoration(
                       color: color.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(_categoryIcon(widget.category),
-                        color: color, size: 22),
+                    child: HugeIcon(
+                      icon: _categoryIcon(widget.category),
+                      color: color,
+                      size: 15,
+                      strokeWidth: 1.8,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -2970,6 +3035,12 @@ class _MatchedJobCard extends StatelessWidget {
 
   Future<bool> _ensureResumeReadyForApply(
       BuildContext context, JobActionService jobActionService) async {
+    final isSignedIn = await requireAuthenticatedSession(
+      context,
+      message: 'Please sign in or create an account before applying to jobs.',
+    );
+    if (!isSignedIn) return false;
+
     final hasResume = await jobActionService.hasResumeOnFile();
     if (hasResume) return true;
     if (!context.mounted) return false;
@@ -3006,27 +3077,30 @@ class _MatchedJobCard extends StatelessWidget {
       title: 'Confirm Application',
       message: 'Apply for ${job.title} at ${job.company}?',
       confirmLabel: 'Apply',
-      onConfirm: () => Navigator.pop(context, true),
-      onCancel: () => Navigator.pop(context, false),
+      confirmBusyLabel: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Nag-a-apply...'
+          : 'Applying...',
+      onConfirmAsync: () async {
+        final error = await jobActionService.applyToJob(job.id, job.title);
+        if (error != null) {
+          if (context.mounted) {
+            CustomToast.show(
+              context,
+              message: error,
+              type: ToastType.error,
+            );
+          }
+          throw Exception(error);
+        }
+      },
     );
     if (confirmed != true || !context.mounted) return;
 
-    final error = await jobActionService.applyToJob(job.id, job.title);
-    if (!context.mounted) return;
-
-    if (error == null) {
-      CustomToast.show(
-        context,
-        message: 'Applied to ${job.title}!',
-        type: ToastType.success,
-      );
-    } else {
-      CustomToast.show(
-        context,
-        message: error,
-        type: ToastType.error,
-      );
-    }
+    CustomToast.show(
+      context,
+      message: 'Applied to ${job.title}!',
+      type: ToastType.success,
+    );
   }
 
   @override
@@ -3275,7 +3349,15 @@ class _MatchedJobCard extends StatelessWidget {
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: () => jobActionService.toggleSave(job.id),
+                        onTap: () async {
+                          final isSignedIn = await requireAuthenticatedSession(
+                            context,
+                            message:
+                                'Please sign in or create an account to save jobs.',
+                          );
+                          if (!isSignedIn) return;
+                          await jobActionService.toggleSave(job.id);
+                        },
                         borderRadius: BorderRadius.circular(10),
                         child: Container(
                           padding: const EdgeInsets.all(10),

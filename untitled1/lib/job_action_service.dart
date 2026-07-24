@@ -11,12 +11,19 @@ class JobActionService extends ChangeNotifier {
 
   final Set<String> _savedJobIds = {};
   final Set<String> _appliedJobIds = {};
+  bool _hasShownApplySuccessGuidance = false;
 
   Set<String> get savedJobIds => Set.unmodifiable(_savedJobIds);
   Set<String> get appliedJobIds => Set.unmodifiable(_appliedJobIds);
 
   bool isSaved(String jobId) => _savedJobIds.contains(jobId);
   bool isApplied(String jobId) => _appliedJobIds.contains(jobId);
+
+  bool consumeApplySuccessGuidance() {
+    if (_hasShownApplySuccessGuidance) return false;
+    _hasShownApplySuccessGuidance = true;
+    return true;
+  }
 
   /// Returns true when the current user has an uploaded resume on file.
   Future<bool> hasResumeOnFile() async {
@@ -161,6 +168,7 @@ class JobActionService extends ChangeNotifier {
   void clear() {
     _savedJobIds.clear();
     _appliedJobIds.clear();
+    _hasShownApplySuccessGuidance = false;
     notifyListeners();
   }
 }

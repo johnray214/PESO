@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -473,7 +474,12 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
               backgroundColor: _kPageBg,
               surfaceTintColor: Colors.transparent,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowLeft01,
+                  size: 20,
+                  color: _kSlate900,
+                  strokeWidth: 2.0,
+                ),
                 color: _kSlate900,
                 onPressed: () => Navigator.of(context).pop(),
               ),
@@ -561,7 +567,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                     _buildDocCard(
                       kind: _DocKind.resume,
                       accent: _kBlue,
-                      icon: Icons.description_rounded,
+                      icon: HugeIcons.strokeRoundedFile01,
                       title: 'Resume / CV',
                       hint: 'PDF format (required for most applications)',
                     )
@@ -572,7 +578,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                     _buildDocCard(
                       kind: _DocKind.certificate,
                       accent: _kIndigo,
-                      icon: Icons.workspace_premium_rounded,
+                      icon: HugeIcons.strokeRoundedCertificate01,
                       title: 'Certificate / Diploma',
                       hint: 'PDF — educational or training credentials',
                     )
@@ -583,7 +589,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                     _buildDocCard(
                       kind: _DocKind.clearance,
                       accent: _kEmerald,
-                      icon: Icons.verified_user_rounded,
+                      icon: HugeIcons.strokeRoundedLicense,
                       title: 'Barangay clearance',
                       hint: 'PDF — valid barangay clearance',
                     )
@@ -602,7 +608,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
   Widget _buildDocCard({
     required _DocKind kind,
     required Color accent,
-    required IconData icon,
+    required dynamic icon,
     required String title,
     required String hint,
   }) {
@@ -635,11 +641,19 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                 Container(
                   width: 52,
                   height: 52,
+                  alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: accent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(14),
                   ),
-                  child: Icon(icon, color: accent, size: 28),
+                  child: icon is IconData
+                      ? Icon(icon, color: accent, size: 24)
+                      : HugeIcon(
+                          icon: icon as List<List<dynamic>>,
+                          color: accent,
+                          size: 24,
+                          strokeWidth: 2.0,
+                        ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -707,8 +721,12 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.insert_drive_file_rounded,
-                        color: accent, size: 22),
+                    HugeIcon(
+                      icon: HugeIcons.strokeRoundedPdf01,
+                      color: accent,
+                      size: 18,
+                      strokeWidth: 2.0,
+                    ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -786,8 +804,12 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                                       color: Colors.white,
                                     ),
                                   )
-                                : const Icon(Icons.cloud_upload_rounded,
-                                    size: 20),
+                                : const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedCloudUpload,
+                                    size: 18,
+                                    color: Colors.white,
+                                    strokeWidth: 2.0,
+                                  ),
                             label: Text(uploading ? 'Uploading…' : 'Upload'),
                             style: FilledButton.styleFrom(
                               backgroundColor: accent,
@@ -819,7 +841,12 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : const Icon(Icons.open_in_new_rounded, size: 20),
+                          : HugeIcon(
+                              icon: HugeIcons.strokeRoundedEye,
+                              size: 16,
+                              color: accent,
+                              strokeWidth: 2.0,
+                            ),
                       label: Text(_openingKind == kind ? 'Opening…' : 'View'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: accent,
@@ -835,9 +862,13 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: uploading ? null : () => _pickForKind(kind),
-                    icon: Icon(
-                      uploaded ? Icons.sync_rounded : Icons.add_rounded,
-                      size: 20,
+                    icon: HugeIcon(
+                      icon: uploaded
+                          ? HugeIcons.strokeRoundedRefresh
+                          : HugeIcons.strokeRoundedAdd01,
+                      size: 16,
+                      color: Colors.white,
+                      strokeWidth: 2.0,
                     ),
                     label: Text(uploaded ? 'Replace' : 'Upload file'),
                     style: FilledButton.styleFrom(

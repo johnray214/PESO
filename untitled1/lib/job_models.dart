@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'api_service.dart';
 import 'job_action_service.dart';
@@ -795,8 +796,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             child: const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.local_fire_department_rounded,
-                    size: 13, color: Colors.white),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedFire,
+                  size: 13,
+                  color: Colors.white,
+                  strokeWidth: 2.0,
+                ),
                 SizedBox(width: 4),
                 Text(
                   'URGENT HIRING',
@@ -864,8 +869,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.location_on_rounded,
-                          size: 14, color: Color(0xFF94A3B8)),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedLocation01,
+                        size: 14,
+                        color: Color(0xFF94A3B8),
+                        strokeWidth: 2.0,
+                      ),
                       const SizedBox(width: 5),
                       Flexible(
                         child: Text(
@@ -898,8 +907,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.map_rounded,
-                            size: 14, color: Color(0xFF1D4ED8)),
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedMapsLocation01,
+                          size: 14,
+                          color: Color(0xFF1D4ED8),
+                          strokeWidth: 2.0,
+                        ),
                         SizedBox(width: 5),
                         Text(
                           'Locate',
@@ -938,7 +951,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.star_rounded, size: 14, color: Colors.white),
+                const HugeIcon(
+                  icon: HugeIcons.strokeRoundedStar,
+                  size: 14,
+                  color: Colors.white,
+                  strokeWidth: 2.0,
+                ),
                 const SizedBox(width: 6),
                 Text(
                   '${job.matchPercentage}% Match',
@@ -992,7 +1010,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                   children: [
                     _buildSectionTitle(
                         l10n?.aboutThisRoleTitle ?? 'About This Role',
-                        Icons.description_outlined),
+                        HugeIcons.strokeRoundedFile01),
                     const SizedBox(height: 16),
                     Text(
                       job.description,
@@ -1043,16 +1061,16 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
       children: [
         _buildSectionTitle(
           'Contact Information',
-          Icons.contact_phone_outlined,
+          HugeIcons.strokeRoundedCall,
           iconColor: const Color(0xFF0EA5E9),
         ),
         const SizedBox(height: 16),
         if (job.employerPhone != null)
           _buildContactRow(
-            icon: Icons.phone_outlined,
+            icon: HugeIcons.strokeRoundedCall,
             label: 'Phone Number',
             value: job.employerPhone!,
-            actionIcon: Icons.call_rounded,
+            actionIcon: HugeIcons.strokeRoundedCall,
             actionLabel: 'Call',
             onAction: () => _launchPhone(job.employerPhone!),
           ),
@@ -1060,10 +1078,10 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           const SizedBox(height: 10),
         if (job.employerEmail != null)
           _buildContactRow(
-            icon: Icons.email_outlined,
+            icon: HugeIcons.strokeRoundedMail01,
             label: 'Email Address',
             value: job.employerEmail!,
-            actionIcon: Icons.mail_rounded,
+            actionIcon: HugeIcons.strokeRoundedMail01,
             actionLabel: 'Email',
             onAction: () => _launchEmail(job),
           ),
@@ -1104,10 +1122,10 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   }
 
   Widget _buildContactRow({
-    required IconData icon,
+    required dynamic icon,
     required String label,
     required String value,
-    required IconData actionIcon,
+    required dynamic actionIcon,
     required String actionLabel,
     required VoidCallback onAction,
   }) {
@@ -1124,11 +1142,17 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           Container(
             width: 34,
             height: 34,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFF0EA5E9).withOpacity(0.10),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 17, color: const Color(0xFF0284C7)),
+            child: HugeIcon(
+              icon: icon as List<List<dynamic>>,
+              size: 17,
+              color: const Color(0xFF0284C7),
+              strokeWidth: 2.0,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1160,7 +1184,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             height: 40,
             child: FilledButton.icon(
               onPressed: onAction,
-              icon: Icon(actionIcon, size: 16),
+              icon: HugeIcon(
+                icon: actionIcon as List<List<dynamic>>,
+                size: 16,
+                color: Colors.white,
+                strokeWidth: 2.0,
+              ),
               label: Text(actionLabel),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),
@@ -1190,7 +1219,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           children: [
             Expanded(
               child: _buildDetailCell(
-                icon: Icons.work_outline_rounded,
+                icon: HugeIcons.strokeRoundedBriefcase01,
                 label: 'Type',
                 value: job.employmentTypeLabel,
                 color: const Color(0xFF2563EB),
@@ -1199,7 +1228,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             Container(width: 1, height: 60, color: const Color(0xFFF1F5F9)),
             Expanded(
               child: _buildDetailCell(
-                icon: Icons.payments_outlined,
+                icon: HugeIcons.strokeRoundedMoney01,
                 label: 'Salary Range',
                 value: job.salaryDisplay,
                 color: const Color(0xFF10B981),
@@ -1212,7 +1241,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           children: [
             Expanded(
               child: _buildDetailCell(
-                icon: Icons.groups_2_outlined,
+                icon: HugeIcons.strokeRoundedUserGroup,
                 label: 'Slots',
                 value: slotsText,
                 color: const Color(0xFF8B5CF6),
@@ -1221,7 +1250,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             Container(width: 1, height: 60, color: const Color(0xFFF1F5F9)),
             Expanded(
               child: _buildDetailCell(
-                icon: Icons.event_outlined,
+                icon: HugeIcons.strokeRoundedCalendar03,
                 label: 'Deadline',
                 value: deadlineText,
                 color: const Color(0xFFF59E0B),
@@ -1234,7 +1263,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
   }
 
   Widget _buildDetailCell({
-    required IconData icon,
+    required dynamic icon,
     required String label,
     required String value,
     required Color color,
@@ -1246,11 +1275,17 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           Container(
             width: 36,
             height: 36,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: color.withOpacity(0.08),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 18, color: color),
+            child: HugeIcon(
+              icon: icon as List<List<dynamic>>,
+              size: 18,
+              color: color,
+              strokeWidth: 2.0,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1285,18 +1320,24 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     );
   }
 
-  Widget _buildSectionTitle(String title, IconData icon, {Color? iconColor}) {
+  Widget _buildSectionTitle(String title, dynamic icon, {Color? iconColor}) {
     final color = iconColor ?? const Color(0xFF2563EB);
     return Row(
       children: [
         Container(
           width: 32,
           height: 32,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: color.withOpacity(0.10),
             borderRadius: BorderRadius.circular(9),
           ),
-          child: Icon(icon, size: 16, color: color),
+          child: HugeIcon(
+            icon: icon as List<List<dynamic>>,
+            size: 16,
+            color: color,
+            strokeWidth: 2.0,
+          ),
         ),
         const SizedBox(width: 12),
         Text(
@@ -1326,7 +1367,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _buildSectionTitle(l10n?.skillsRequiredTitle ?? 'Skills Required',
-            Icons.psychology_outlined,
+            HugeIcons.strokeRoundedBrain01,
             iconColor: const Color(0xFF8B5CF6)),
         const SizedBox(height: 18),
         Wrap(
@@ -1354,8 +1395,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (isMatch) ...[
-                    const Icon(Icons.check_circle_rounded,
-                        size: 14, color: Color(0xFF10B981)),
+                    const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                      size: 14,
+                      color: Color(0xFF10B981),
+                      strokeWidth: 2.0,
+                    ),
                     const SizedBox(width: 5),
                   ],
                   Text(
@@ -1384,8 +1429,12 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.verified_rounded,
-                    size: 14, color: Color(0xFF10B981)),
+                const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCheckmarkBadge01,
+                  size: 14,
+                  color: Color(0xFF10B981),
+                  strokeWidth: 2.0,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '$matchedCount of ${job.skills.length} skills match your profile',
@@ -1408,7 +1457,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Requirements', Icons.checklist_rounded,
+        _buildSectionTitle('Requirements', HugeIcons.strokeRoundedTask01,
             iconColor: const Color(0xFFF59E0B)),
         const SizedBox(height: 18),
         ...job.requirements.asMap().entries.map((entry) {
@@ -1462,6 +1511,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
               child: Container(
                 width: 40,
                 height: 40,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.9),
                   shape: BoxShape.circle,
@@ -1474,17 +1524,19 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                     ),
                   ],
                 ),
-                child: const Icon(Icons.arrow_back_ios_new_rounded,
-                    size: 17, color: Color(0xFF0F172A)),
+                child: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowLeft01,
+                  size: 17,
+                  color: Color(0xFF0F172A),
+                  strokeWidth: 2.0,
+                ),
               ),
             ),
             Expanded(
               child: ValueListenableBuilder<double>(
                 valueListenable: _scrollOffset,
                 builder: (context, offset, _) {
-                  // Fade out between 0 and 40 pixels of scroll
                   final opacity = (1.0 - (offset / 40.0)).clamp(0.0, 1.0);
-                  // Float up by 15px as it fades
                   final translateY = (offset * -0.4).clamp(-15.0, 0.0);
 
                   return Opacity(
@@ -1494,7 +1546,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                       child: Text(
                         S.of(context)?.jobDetailsTitle ?? 'Job Details',
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                           color: Color(0xFF0F172A),
@@ -1511,6 +1563,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 duration: const Duration(milliseconds: 200),
                 width: 40,
                 height: 40,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isSaved
                       ? const Color(0xFF2563EB)
@@ -1529,12 +1582,11 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                     ),
                   ],
                 ),
-                child: Icon(
-                  isSaved
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_outline_rounded,
-                  size: 20,
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedBookmark01,
+                  size: 18,
                   color: isSaved ? Colors.white : const Color(0xFF475569),
+                  strokeWidth: 2.0,
                 ),
               ),
             ),
@@ -1564,13 +1616,13 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad + 16),
         child: Row(
           children: [
-            // Save icon button
             GestureDetector(
               onTap: () => widget.onSave?.call(),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
                 width: 54,
                 height: 54,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: isSaved
                       ? const Color(0xFF2563EB).withOpacity(0.08)
@@ -1583,19 +1635,17 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                     width: 1.5,
                   ),
                 ),
-                child: Icon(
-                  isSaved
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_outline_rounded,
-                  size: 22,
+                child: HugeIcon(
+                  icon: HugeIcons.strokeRoundedBookmark01,
+                  size: 20,
                   color: isSaved
                       ? const Color(0xFF2563EB)
                       : const Color(0xFF64748B),
+                  strokeWidth: 2.0,
                 ),
               ),
             ),
             const SizedBox(width: 12),
-            // Apply button
             Expanded(
               child: GestureDetector(
                 onTap: isApplied ? null : () => widget.onApply?.call(),
@@ -1631,12 +1681,13 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        isApplied
-                            ? Icons.check_circle_rounded
-                            : Icons.send_rounded,
-                        size: 20,
+                      HugeIcon(
+                        icon: isApplied
+                            ? HugeIcons.strokeRoundedCheckmarkCircle01
+                            : HugeIcons.strokeRoundedSent,
+                        size: 18,
                         color: Colors.white,
+                        strokeWidth: 2.0,
                       ),
                       const SizedBox(width: 10),
                       Text(

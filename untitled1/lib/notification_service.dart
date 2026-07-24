@@ -16,15 +16,17 @@ class NotificationService {
 
   final FirebaseMessaging _fcm = FirebaseMessaging.instance;
   final List<void Function()> _notificationListeners = [];
-  
+
   // Local Notifications Plugin
-  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _localNotifications =
+      FlutterLocalNotificationsPlugin();
 
   // High Importance Channel for Android
   final AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'ding_alerts_v2', // id
     'Ding Alerts', // title
-    description: 'Notification channel with ding sound for in-app alerts.', // description
+    description:
+        'Notification channel with ding sound for in-app alerts.', // description
     importance: Importance.high,
     playSound: true,
     sound: RawResourceAndroidNotificationSound('ding'),
@@ -48,17 +50,26 @@ class NotificationService {
     }
   }
 
+  void _openNotificationsIfAuthenticated() {
+    if (!UserSession().canUseProtectedFeatures) return;
+    rootNavigatorKey.currentState?.push(
+      MaterialPageRoute(builder: (_) => const NotificationsTab()),
+    );
+  }
+
   Future<void> initialize() async {
     print("🔔 NotificationService: initialize() CALLED");
 
     try {
       // 1. Initialize Local Notifications
       const AndroidInitializationSettings initializationSettingsAndroid =
-          AndroidInitializationSettings('@mipmap/ic_launcher'); // Using your launcher icon
+          AndroidInitializationSettings(
+              '@mipmap/ic_launcher'); // Using your launcher icon
       const DarwinInitializationSettings initializationSettingsDarwin =
           DarwinInitializationSettings();
-      
-      const InitializationSettings initializationSettings = InitializationSettings(
+
+      const InitializationSettings initializationSettings =
+          InitializationSettings(
         android: initializationSettingsAndroid,
         iOS: initializationSettingsDarwin,
       );
@@ -67,18 +78,16 @@ class NotificationService {
         settings: initializationSettings,
         onDidReceiveNotificationResponse: (NotificationResponse details) {
           print("🔔 Clicked Local Notification: ${details.payload}");
-          // JUMP TO NOTIFICATIONS PAGE
-          rootNavigatorKey.currentState?.push(
-            MaterialPageRoute(builder: (_) => const NotificationsTab()),
-          );
+          _openNotificationsIfAuthenticated();
         },
       );
 
       // 2. Create the Android High Importance channel
       await _localNotifications
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(_channel);
-      
+
       // Ensure iOS shows alert/sound while app is in foreground.
       await _fcm.setForegroundNotificationPresentationOptions(
         alert: true,
@@ -91,29 +100,24 @@ class NotificationService {
         print("🔔 FCM: Notification received: ${message.notification?.title}");
 
         _showLocalNotification(message);
-        
+
         _notifyListeners();
       });
 
       // 4. Handle notification clicks when app is in BACKGROUND
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         print("🔔 Clicked Background Notification: ${message.data}");
-        // JUMP TO NOTIFICATIONS PAGE
-        rootNavigatorKey.currentState?.push(
-            MaterialPageRoute(builder: (_) => const NotificationsTab()),
-        );
+        _openNotificationsIfAuthenticated();
       });
 
       // 5. Check if app was opened FROM a terminated state by a notification
       RemoteMessage? initialMessage = await _fcm.getInitialMessage();
       if (initialMessage != null) {
-          print("🔔 App opened from TERMINATED state via notification!");
-          // Wait a bit for the app to settle then jump
-          Future.delayed(const Duration(seconds: 1), () {
-             rootNavigatorKey.currentState?.push(
-                MaterialPageRoute(builder: (_) => const NotificationsTab()),
-             );
-          });
+        print("🔔 App opened from TERMINATED state via notification!");
+        // Wait a bit for the app to settle then jump
+        Future.delayed(const Duration(seconds: 1), () {
+          _openNotificationsIfAuthenticated();
+        });
       }
 
       // 6. Request Notification Permission
@@ -123,15 +127,17 @@ class NotificationService {
         badge: true,
         sound: true,
       );
-      print("🔔 NotificationService: Permission status: ${settings.authorizationStatus}");
+      print(
+          "🔔 NotificationService: Permission status: ${settings.authorizationStatus}");
 
       if (settings.authorizationStatus == AuthorizationStatus.authorized) {
         // Step 8: Get Device Token
         print("🔔 NotificationService: Fetching FCM Token...");
         String? fcmToken = await _fcm.getToken();
-        
+
         if (fcmToken != null) {
-          print("🔔 NotificationService: Got Token: ${fcmToken.substring(0, 10)}...");
+          print(
+              "🔔 NotificationService: Got Token: ${fcmToken.substring(0, 10)}...");
           _syncToken(fcmToken);
         }
 
@@ -145,7 +151,6 @@ class NotificationService {
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         print("🔔 NotificationService: App opened via notification!");
       });
-
     } catch (e) {
       print("❌ NotificationService ERROR: $e");
     }
@@ -194,10 +199,12 @@ class NotificationService {
 
   /// Sync the FCM token with our backend whenever it changes or on app start
   Future<void> _syncToken(String fcmToken) async {
-    print("📣 FCM Sync: Starting process for token: ${fcmToken.substring(0, 5)}...");
-    
+    print(
+        "📣 FCM Sync: Starting process for token: ${fcmToken.substring(0, 5)}...");
+
     final sessionToken = UserSession().token;
-    print("📣 FCM Sync: Current Session Token is: ${sessionToken == null ? 'NULL' : (sessionToken.isEmpty ? 'EMPTY' : 'VALID')}");
+    print(
+        "📣 FCM Sync: Current Session Token is: ${sessionToken == null ? 'NULL' : (sessionToken.isEmpty ? 'EMPTY' : 'VALID')}");
 
     if (sessionToken == null || sessionToken.isEmpty) {
       print("📣 FCM Sync: CANCELLED - User is not logged in yet.");

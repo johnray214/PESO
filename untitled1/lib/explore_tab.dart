@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import 'api_service.dart';
+import 'auth_gate.dart';
 import 'event_models.dart';
 import 'user_session.dart';
 import 'job_models.dart';
@@ -16,9 +18,14 @@ import 'skill_match_utils.dart';
 import 'micro_interactions.dart';
 import 'my_documents_page.dart';
 import 'main.dart';
+import 'l10n/app_localizations.dart';
 
 /// Primary brand blue (matches Explore header gradient mid-stop).
 const Color _kExplorePrimaryBlue = Color(0xFF2563EB);
+const String _kExploreHeaderMascotAsset = 'assets/empoy_explore.png';
+const double _kExploreHeaderMascotImageSize = 130;
+const double _kExploreHeaderMascotOffsetX = -5;
+const double _kExploreHeaderMascotOffsetY = 23;
 
 class ExploreTab extends StatefulWidget {
   const ExploreTab({super.key});
@@ -40,8 +47,6 @@ class _ExploreTabState extends State<ExploreTab>
   bool _resolvingCompanySheet = false;
   bool _eventsLoaded = false;
 
-  final TextEditingController _searchController = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode();
   final JobActionService _jobActionService = JobActionService();
 
   // Snapshot stats
@@ -81,8 +86,6 @@ class _ExploreTabState extends State<ExploreTab>
   void dispose() {
     activeHomeTabIndexNotifier.removeListener(_onMainTabChanged);
     _jobActionService.removeListener(_onJobActionsChanged);
-    _searchController.dispose();
-    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -364,7 +367,8 @@ class _ExploreTabState extends State<ExploreTab>
       if (business == null || business.availableJobs.isEmpty) {
         CustomToast.show(
           context,
-          message: 'No open jobs found for this employer.',
+          message: S.of(context)?.exploreNoOpenJobsForEmployer ??
+              'No open jobs found for this employer.',
           type: ToastType.info,
         );
         return;
@@ -527,6 +531,11 @@ class _ExploreTabState extends State<ExploreTab>
 
   void _openAllJobs() => _openHomeSearch('');
 
+  void _openRecentlyPostedJobs() {
+    exploreSortOptionNotifier.value = 'Latest';
+    _openAllJobs();
+  }
+
   void _openIndustrySearch(String industryName) {
     final query = industryName.trim();
     if (query.isEmpty) return;
@@ -539,6 +548,14 @@ class _ExploreTabState extends State<ExploreTab>
   }
 
   Future<bool> _ensureResumeReadyForApply() async {
+    final s = S.of(context);
+    final isSignedIn = await requireAuthenticatedSession(
+      context,
+      message: s?.exploreSignInToApply ??
+          'Please sign in or create an account before applying to jobs.',
+    );
+    if (!isSignedIn) return false;
+
     final hasResume = await _jobActionService.hasResumeOnFile();
     if (hasResume) return true;
     if (!mounted) return false;
@@ -547,9 +564,10 @@ class _ExploreTabState extends State<ExploreTab>
       context: context,
       type: AppDialogType.info,
       icon: Icons.description_outlined,
-      title: 'Resume required',
-      message: 'Upload your resume before applying to jobs.',
-      confirmLabel: 'Go to Documents',
+      title: s?.resumeRequired ?? 'Resume required',
+      message: s?.resumeRequiredMessage ??
+          'Upload your resume before applying to jobs.',
+      confirmLabel: s?.goToDocuments ?? 'Go to Documents',
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
     );
@@ -563,6 +581,7 @@ class _ExploreTabState extends State<ExploreTab>
   }
 
   Future<void> _applyToJob(Job job) async {
+    final s = S.of(context);
     final canApply = await _ensureResumeReadyForApply();
     if (!canApply || !mounted) return;
 
@@ -570,29 +589,43 @@ class _ExploreTabState extends State<ExploreTab>
       context: context,
       type: AppDialogType.confirm,
       icon: Icons.send_rounded,
-      title: 'Confirm application',
-      message: 'Apply for ${job.title} at ${job.company}?',
-      confirmLabel: 'Apply',
-      onConfirm: () => Navigator.of(context).pop(true),
-      onCancel: () => Navigator.of(context).pop(false),
+      title: s?.exploreConfirmApplication ?? 'Confirm application',
+      message: s?.exploreApplyForJob(job.title, job.company) ??
+          'Apply for ${job.title} at ${job.company}?',
+      confirmLabel: s?.apply ?? 'Apply',
+      confirmBusyLabel: Localizations.localeOf(context).languageCode == 'tl'
+          ? 'Nag-a-apply...'
+          : 'Applying...',
+      onConfirmAsync: () async {
+        final error = await _jobActionService.applyToJob(job.id, job.title);
+        if (error != null) {
+          if (mounted) {
+            CustomToast.show(context, message: error, type: ToastType.error);
+          }
+          throw Exception(error);
+        }
+      },
     );
     if (confirmed != true || !mounted) return;
 
-    final error = await _jobActionService.applyToJob(job.id, job.title);
-    if (!mounted) return;
-    if (error == null) {
-      microInteractionSuccess();
-      CustomToast.show(
-        context,
-        message: 'Applied to ${job.title}.',
-        type: ToastType.success,
-      );
-    } else {
-      CustomToast.show(context, message: error, type: ToastType.error);
-    }
+    microInteractionSuccess();
+    CustomToast.show(
+      context,
+      message:
+          s?.exploreAppliedToJob(job.title) ?? 'Applied to ${job.title}.',
+      type: ToastType.success,
+    );
   }
 
   Future<void> _toggleSaveJob(Job job) async {
+    final s = S.of(context);
+    final isSignedIn = await requireAuthenticatedSession(
+      context,
+      message: s?.exploreSignInToSave ??
+          'Please sign in or create an account to save jobs.',
+    );
+    if (!isSignedIn || !mounted) return;
+
     final wasSaved = _jobActionService.isSaved(job.id);
     final error = await _jobActionService.toggleSave(job.id);
     if (!mounted) return;
@@ -600,7 +633,9 @@ class _ExploreTabState extends State<ExploreTab>
       microInteractionSuccess();
       CustomToast.show(
         context,
-        message: wasSaved ? 'Job removed from saved.' : 'Job saved.',
+        message: wasSaved
+            ? (s?.jobUnsaved ?? 'Job removed from saved.')
+            : (s?.jobSaved ?? 'Job saved.'),
         type: ToastType.info,
       );
     } else {
@@ -633,16 +668,7 @@ class _ExploreTabState extends State<ExploreTab>
       if (byMatch != 0) return byMatch;
       return b.postedDate.compareTo(a.postedDate);
     });
-    return jobs.take(2).toList();
-  }
-
-  String get _locationLabel {
-    final session = UserSession();
-    final city = session.cityName?.trim();
-    final province = session.provinceName?.trim();
-    if (city != null && city.isNotEmpty) return 'Near $city';
-    if (province != null && province.isNotEmpty) return 'Near $province';
-    return 'Near you';
+    return jobs.take(3).toList();
   }
 
   bool get _showIndustrySection {
@@ -693,12 +719,6 @@ class _ExploreTabState extends State<ExploreTab>
               children: [
                 _SkeletonBox(width: 150, height: 28, color: Colors.white24),
                 SizedBox(height: 10),
-                _SkeletonBox(
-                  width: double.infinity,
-                  height: 48,
-                  color: Colors.white24,
-                ),
-                SizedBox(height: 10),
                 _SkeletonBox(width: 230, height: 28, color: Colors.white24),
               ],
             ),
@@ -706,7 +726,7 @@ class _ExploreTabState extends State<ExploreTab>
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 38, 20, 0),
             child: Column(
               children: const [
                 _SkeletonCard(height: 136),
@@ -722,12 +742,13 @@ class _ExploreTabState extends State<ExploreTab>
             ),
           ),
         ),
-        SliverToBoxAdapter(child: SizedBox(height: bottomPadding + 100)),
+        SliverToBoxAdapter(child: SizedBox(height: bottomPadding + 140)),
       ],
     );
   }
 
   Widget _buildErrorState() {
+    final s = S.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -741,7 +762,7 @@ class _ExploreTabState extends State<ExploreTab>
             ),
             const SizedBox(height: 16),
             Text(
-              _errorMessage ?? 'Something went wrong',
+              _localizedExploreError(context, _errorMessage),
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 15,
@@ -752,7 +773,7 @@ class _ExploreTabState extends State<ExploreTab>
             FilledButton.icon(
               onPressed: () => _loadExploreData(userInitiated: true),
               icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: const Text('Retry'),
+              label: Text(s?.retry ?? 'Retry'),
               style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFF2563EB),
                 foregroundColor: Colors.white,
@@ -794,13 +815,13 @@ class _ExploreTabState extends State<ExploreTab>
                     child: _buildHeader(topPadding),
                   ),
                   SliverToBoxAdapter(
+                    child: _buildSnapshotStrip(),
+                  ),
+                  SliverToBoxAdapter(
                     child: _buildRecommendedJobsSection(),
                   ),
                   SliverToBoxAdapter(
                     child: _buildEventsSection(),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _buildSnapshotStrip(),
                   ),
                   SliverToBoxAdapter(
                     child: _buildTopCompaniesSection(),
@@ -817,7 +838,7 @@ class _ExploreTabState extends State<ExploreTab>
                   ),
                   // Bottom spacer for nav bar
                   SliverToBoxAdapter(
-                    child: SizedBox(height: bottomPadding + 100),
+                    child: SizedBox(height: bottomPadding + 140),
                   ),
                 ],
               ),
@@ -853,6 +874,7 @@ class _ExploreTabState extends State<ExploreTab>
   // ─── Header ───────────────────────────────────────────────────────────────
 
   Widget _buildHeader(double topPadding) {
+    final s = S.of(context);
     return Container(
       padding: EdgeInsets.fromLTRB(20, topPadding + 16, 20, 18),
       decoration: const BoxDecoration(
@@ -867,16 +889,21 @@ class _ExploreTabState extends State<ExploreTab>
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.all(9),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
+              Transform.translate(
+                offset: const Offset(
+                  _kExploreHeaderMascotOffsetX,
+                  _kExploreHeaderMascotOffsetY,
                 ),
-                child: const Icon(
-                  Icons.explore_rounded,
-                  color: Colors.white,
-                  size: 22,
+                child: Image.asset(
+                  _kExploreHeaderMascotAsset,
+                  width: _kExploreHeaderMascotImageSize,
+                  height: _kExploreHeaderMascotImageSize,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.explore_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -885,7 +912,7 @@ class _ExploreTabState extends State<ExploreTab>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Explore',
+                      s?.navExplore ?? 'Explore',
                       style: GoogleFonts.inter(
                         fontSize: 24,
                         fontWeight: FontWeight.w800,
@@ -894,7 +921,8 @@ class _ExploreTabState extends State<ExploreTab>
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      'Discover opportunities that fit your next move',
+                      s?.exploreHeaderSubtitle ??
+                          'Discover opportunities that fit your next move',
                       style: GoogleFonts.inter(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w500,
@@ -906,83 +934,6 @@ class _ExploreTabState extends State<ExploreTab>
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          Container(
-            height: 48,
-            padding: const EdgeInsets.only(left: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.10),
-                  blurRadius: 18,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                const Icon(
-                  Icons.search_rounded,
-                  color: Color(0xFF64748B),
-                  size: 21,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    focusNode: _searchFocusNode,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: _openHomeSearch,
-                    style: GoogleFonts.inter(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF0F172A),
-                    ),
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                      hintText: 'Search jobs, companies, skills',
-                      hintStyle: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: const Color(0xFF94A3B8),
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Search',
-                  onPressed: () => _openHomeSearch(_searchController.text),
-                  icon: const Icon(
-                    Icons.arrow_forward_rounded,
-                    color: _kExplorePrimaryBlue,
-                    size: 21,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                _ExploreQuickActionChip(
-                  icon: Icons.location_on_rounded,
-                  label: _locationLabel,
-                  onTap: _openAllJobs,
-                ),
-                const SizedBox(width: 8),
-                _ExploreQuickActionChip(
-                  icon: Icons.work_outline_rounded,
-                  label: 'All jobs',
-                  onTap: _openAllJobs,
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0);
@@ -991,17 +942,13 @@ class _ExploreTabState extends State<ExploreTab>
   // ─── Snapshot stats (one bar, vertical separators) ────────────────────────
 
   Widget _buildSnapshotStrip() {
+    final s = S.of(context);
     final openJobsLabel = _totalOpenPositions > 999
         ? '${(_totalOpenPositions / 1000).toStringAsFixed(1)}k'
         : _totalOpenPositions.toString();
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        12,
-        20,
-        6,
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -1019,7 +966,7 @@ class _ExploreTabState extends State<ExploreTab>
           children: [
             Expanded(
               child: _SnapshotStripCell(
-                label: 'New jobs this week',
+                label: s?.exploreNewJobsThisWeek ?? 'New jobs this week',
                 value: _newJobsThisWeek.toString(),
               ),
             ),
@@ -1031,7 +978,7 @@ class _ExploreTabState extends State<ExploreTab>
             ),
             Expanded(
               child: _SnapshotStripCell(
-                label: 'Employers',
+                label: s?.exploreEmployers ?? 'Employers',
                 value: _activeEmployers.toString(),
               ),
             ),
@@ -1043,7 +990,7 @@ class _ExploreTabState extends State<ExploreTab>
             ),
             Expanded(
               child: _SnapshotStripCell(
-                label: 'Open jobs',
+                label: s?.exploreOpenJobs ?? 'Open jobs',
                 value: openJobsLabel,
               ),
             ),
@@ -1056,7 +1003,9 @@ class _ExploreTabState extends State<ExploreTab>
   // ─── Recommended Jobs ──────────────────────────────────────────────────────
 
   Widget _buildRecommendedJobsSection() {
+    final s = S.of(context);
     final jobs = _recommendedJobs;
+    if (jobs.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -1064,40 +1013,30 @@ class _ExploreTabState extends State<ExploreTab>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ExploreSectionHeader(
-            icon: Icons.near_me_rounded,
+            icon: HugeIcons.strokeRoundedMapsLocation01,
             iconColor: const Color(0xFF0D9488),
-            title: 'Recommended near you',
-            subtitle: 'Recent openings ranked by fit and freshness',
-            trailingLabel: 'See all',
+            title: s?.exploreRecommendedNearYou ?? 'Recommended near you',
+            trailingLabel: s?.exploreSeeAll ?? 'See all',
             onTrailingTap: _openAllJobs,
           ),
           const SizedBox(height: 12),
-          if (jobs.isEmpty)
-            _ExploreEmptyStateCard(
-              icon: Icons.work_outline_rounded,
-              title: 'No job recommendations yet',
-              message: 'Open jobs will appear here once the listings load.',
-              actionLabel: 'Browse jobs',
-              onAction: _openAllJobs,
-            )
-          else
-            Column(
-              children: jobs.asMap().entries.map((entry) {
-                final index = entry.key;
-                final job = entry.value;
-                return Padding(
-                  padding: EdgeInsets.only(
-                      bottom: index == jobs.length - 1 ? 0 : 10),
-                  child: _RecommendedJobCard(
-                    job: job,
-                    isSaved: _jobActionService.isSaved(job.id),
-                    onTap: () => _openJobDetails(job),
-                    onSave: () => _toggleSaveJob(job),
-                    delay: index * 70,
-                  ),
-                );
-              }).toList(),
-            ),
+          Column(
+            children: jobs.asMap().entries.map((entry) {
+              final index = entry.key;
+              final job = entry.value;
+              return Padding(
+                padding: EdgeInsets.only(
+                    bottom: index == jobs.length - 1 ? 0 : 10),
+                child: _RecommendedJobCard(
+                  job: job,
+                  isSaved: _jobActionService.isSaved(job.id),
+                  onTap: () => _openJobDetails(job),
+                  onSave: () => _toggleSaveJob(job),
+                  delay: index * 70,
+                ),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );
@@ -1106,57 +1045,26 @@ class _ExploreTabState extends State<ExploreTab>
   // ─── Upcoming events ───────────────────────────────────────────────────────
 
   Widget _buildEventsSection() {
+    final s = S.of(context);
     if (!_eventsLoaded && _nearestDayEvents.isEmpty) {
       return const Padding(
-        padding: EdgeInsets.fromLTRB(20, 24, 20, 0),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
         child: _SkeletonCard(height: 124),
       );
     }
 
-    if (_nearestDayEvents.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _ExploreSectionHeader(
-              icon: Icons.event_available_rounded,
-              iconColor: _kExplorePrimaryBlue,
-              title: 'Upcoming PESO events',
-              subtitle: 'Workshops, hiring events, and livelihood programs',
-              trailingLabel: 'Calendar',
-              onTrailingTap: () {
-                HapticFeedback.selectionClick();
-                shellOpenEventsRequestNotifier.value++;
-              },
-            ),
-            const SizedBox(height: 12),
-            _ExploreEmptyStateCard(
-              icon: Icons.event_busy_rounded,
-              title: 'No upcoming events',
-              message: 'Check the calendar for new PESO activities.',
-              actionLabel: 'View calendar',
-              onAction: () {
-                HapticFeedback.selectionClick();
-                shellOpenEventsRequestNotifier.value++;
-              },
-            ),
-          ],
-        ),
-      );
-    }
+    if (_nearestDayEvents.isEmpty) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ExploreSectionHeader(
-            icon: Icons.event_available_rounded,
+            icon: HugeIcons.strokeRoundedCalendar03,
             iconColor: _kExplorePrimaryBlue,
-            title: 'Upcoming PESO events',
-            subtitle: 'Nearest activity on your calendar',
-            trailingLabel: 'Calendar',
+            title: s?.exploreUpcomingPesoEvents ?? 'Upcoming PESO events',
+            trailingLabel: s?.exploreCalendar ?? 'Calendar',
             onTrailingTap: () {
               HapticFeedback.selectionClick();
               shellOpenEventsRequestNotifier.value++;
@@ -1178,56 +1086,45 @@ class _ExploreTabState extends State<ExploreTab>
   // ─── Top Hiring Companies ──────────────────────────────────────────────────
 
   Widget _buildTopCompaniesSection() {
+    final s = S.of(context);
+    if (_topCompanies.isEmpty) return const SizedBox.shrink();
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 0, 0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 0, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.only(right: 20),
             child: _ExploreSectionHeader(
-              icon: Icons.trending_up_rounded,
+              icon: HugeIcons.strokeRoundedTradeUp,
               iconColor: _kExplorePrimaryBlue,
-              title: 'Top hiring companies',
-              subtitle: 'Employers with the most open roles',
+              title: s?.exploreTopHiringCompanies ?? 'Top hiring companies',
             ),
           ),
           const SizedBox(height: 12),
-          if (_topCompanies.isEmpty)
-            Padding(
+          SizedBox(
+            height: 118,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.only(right: 20),
-              child: _ExploreEmptyStateCard(
-                icon: Icons.business_rounded,
-                title: 'No employer trends yet',
-                message:
-                    'Hiring companies will appear here once jobs are available.',
-                actionLabel: 'Browse jobs',
-                onAction: _openAllJobs,
-              ),
-            )
-          else
-            SizedBox(
-              height: 118,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.only(right: 20),
-                itemCount: _topCompanies.length,
-                itemBuilder: (context, index) {
-                  final company = _topCompanies[index];
-                  return _CompanyCard(
-                    name: company['name'] as String? ?? '',
-                    initial: (company['initial'] as String?) ?? '',
-                    photoUrl: company['photo_url'] as String?,
-                    jobCount: (company['job_count'] as num?)?.toInt() ?? 0,
-                    delay: index * 60,
-                    onTap: () => _openExploreCompanyJobs(
-                      company['name'] as String? ?? '',
-                      company['photo_url'] as String?,
-                    ),
-                  );
-                },
-              ),
+              itemCount: _topCompanies.length,
+              itemBuilder: (context, index) {
+                final company = _topCompanies[index];
+                return _CompanyCard(
+                  name: company['name'] as String? ?? '',
+                  initial: (company['initial'] as String?) ?? '',
+                  photoUrl: company['photo_url'] as String?,
+                  jobCount: (company['job_count'] as num?)?.toInt() ?? 0,
+                  delay: index * 60,
+                  onTap: () => _openExploreCompanyJobs(
+                    company['name'] as String? ?? '',
+                    company['photo_url'] as String?,
+                  ),
+                );
+              },
             ),
+          ),
         ],
       ),
     );
@@ -1236,28 +1133,21 @@ class _ExploreTabState extends State<ExploreTab>
   // ─── In-Demand Skills ──────────────────────────────────────────────────────
 
   Widget _buildInDemandSkillsSection() {
+    final s = S.of(context);
+    if (_inDemandSkills.isEmpty) return const SizedBox.shrink();
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _ExploreSectionHeader(
-            icon: Icons.auto_awesome_rounded,
-            iconColor: Color(0xFF10B981),
-            title: 'In-demand skills',
-            subtitle: 'Trending across open jobs',
+          _ExploreSectionHeader(
+            icon: HugeIcons.strokeRoundedBrain01,
+            iconColor: const Color(0xFF10B981),
+            title: s?.exploreInDemandSkills ?? 'In-demand skills',
           ),
           const SizedBox(height: 12),
-          if (_inDemandSkills.isEmpty)
-            _ExploreEmptyStateCard(
-              icon: Icons.auto_awesome_outlined,
-              title: 'No skill trends yet',
-              message: 'Skill demand will appear here after jobs are indexed.',
-              actionLabel: 'Browse jobs',
-              onAction: _openAllJobs,
-            )
-          else
-            _SkillDemandChart(skills: _inDemandSkills.take(8).toList()),
+          _SkillDemandChart(skills: _inDemandSkills.take(8).toList()),
         ],
       ),
     );
@@ -1266,23 +1156,24 @@ class _ExploreTabState extends State<ExploreTab>
   // ─── Browse by industry (employer.industry) ───────────────────────────────
 
   Widget _buildIndustriesSection() {
-    final sectorIcons = <String, IconData>{
-      'Full-time': Icons.schedule_rounded,
-      'Part-time': Icons.timelapse_rounded,
-      'Contract': Icons.assignment_rounded,
-      'Freelance': Icons.laptop_mac_rounded,
-      'BPO': Icons.headset_mic_rounded,
-      'IT': Icons.computer_rounded,
-      'Healthcare': Icons.health_and_safety_rounded,
-      'Education': Icons.school_rounded,
-      'Construction': Icons.construction_rounded,
-      'Retail': Icons.storefront_rounded,
-      'Manufacturing': Icons.precision_manufacturing_rounded,
-      'Government': Icons.account_balance_rounded,
-      'Food & Beverage': Icons.restaurant_rounded,
-      'Transportation': Icons.local_shipping_rounded,
-      'Agriculture': Icons.agriculture_rounded,
-      'Other': Icons.apartment_rounded,
+    final s = S.of(context);
+    final sectorIcons = <String, dynamic>{
+      'Full-time': HugeIcons.strokeRoundedClock01,
+      'Part-time': HugeIcons.strokeRoundedClock02,
+      'Contract': HugeIcons.strokeRoundedFile01,
+      'Freelance': HugeIcons.strokeRoundedComputer,
+      'BPO': HugeIcons.strokeRoundedHeadphones,
+      'IT': HugeIcons.strokeRoundedBinaryCode,
+      'Healthcare': HugeIcons.strokeRoundedHospital01,
+      'Education': HugeIcons.strokeRoundedGraduateMale,
+      'Construction': HugeIcons.strokeRoundedBuilding01,
+      'Retail': HugeIcons.strokeRoundedStore01,
+      'Manufacturing': HugeIcons.strokeRoundedAccountSetting01,
+      'Government': HugeIcons.strokeRoundedBuilding01,
+      'Food & Beverage': HugeIcons.strokeRoundedRestaurant01,
+      'Transportation': HugeIcons.strokeRoundedDeliveryTruck01,
+      'Agriculture': HugeIcons.strokeRoundedGlobal,
+      'Other': HugeIcons.strokeRoundedBriefcase01,
     };
 
     final sectorColors = <String, Color>{
@@ -1305,15 +1196,14 @@ class _ExploreTabState extends State<ExploreTab>
     };
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _ExploreSectionHeader(
-            icon: Icons.domain_rounded,
-            iconColor: Color(0xFF0D9488),
-            title: 'Browse by industry',
-            subtitle: 'Open roles grouped by employer sector',
+          _ExploreSectionHeader(
+            icon: HugeIcons.strokeRoundedBuilding01,
+            iconColor: const Color(0xFF0D9488),
+            title: s?.exploreBrowseByIndustry ?? 'Browse by industry',
           ),
           const SizedBox(height: 12),
           GridView.builder(
@@ -1330,7 +1220,7 @@ class _ExploreTabState extends State<ExploreTab>
               final sector = _industries[index];
               final name = sector['name'] as String? ?? '';
               final count = (sector['job_count'] as num?)?.toInt() ?? 0;
-              final icon = sectorIcons[name] ?? Icons.work_outline_rounded;
+              final icon = sectorIcons[name] ?? HugeIcons.strokeRoundedBriefcase01;
               final color = sectorColors[name] ?? const Color(0xFF64748B);
 
               return _SectorTile(
@@ -1351,29 +1241,30 @@ class _ExploreTabState extends State<ExploreTab>
   // ─── Featured Jobs ─────────────────────────────────────────────────────────
 
   Widget _buildFeaturedJobsSection() {
+    final s = S.of(context);
     final jobs = _featuredJobs.take(4).toList();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _ExploreSectionHeader(
-            icon: Icons.schedule_rounded,
+            icon: HugeIcons.strokeRoundedClock01,
             iconColor: const Color(0xFFF59E0B),
-            title: 'Recently posted',
-            subtitle: 'Fresh opportunities from employers',
-            trailingLabel: 'See all',
-            onTrailingTap: _openAllJobs,
+            title: s?.exploreRecentlyPosted ?? 'Recently posted',
+            trailingLabel: s?.exploreSeeAll ?? 'See all',
+            onTrailingTap: _openRecentlyPostedJobs,
           ),
           const SizedBox(height: 12),
           if (jobs.isEmpty)
             _ExploreEmptyStateCard(
-              icon: Icons.work_history_outlined,
-              title: 'No recent jobs yet',
-              message: 'New job posts will appear here.',
-              actionLabel: 'Browse jobs',
-              onAction: _openAllJobs,
+              icon: HugeIcons.strokeRoundedBriefcase01,
+              title: s?.exploreNoRecentJobs ?? 'No recent jobs yet',
+              message: s?.exploreNoRecentJobsMessage ??
+                  'New job posts will appear here.',
+              actionLabel: s?.exploreBrowseJobs ?? 'Browse jobs',
+              onAction: _openRecentlyPostedJobs,
             )
           else
             Column(
@@ -1399,58 +1290,10 @@ class _ExploreTabState extends State<ExploreTab>
   }
 }
 
-class _ExploreQuickActionChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  const _ExploreQuickActionChip({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 190),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 15, color: Colors.white),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ExploreSectionHeader extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon;
   final Color iconColor;
   final String title;
-  final String? subtitle;
   final String? trailingLabel;
   final VoidCallback? onTrailingTap;
 
@@ -1458,7 +1301,6 @@ class _ExploreSectionHeader extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.title,
-    this.subtitle,
     this.trailingLabel,
     this.onTrailingTap,
   });
@@ -1471,41 +1313,31 @@ class _ExploreSectionHeader extends StatelessWidget {
         Container(
           width: 34,
           height: 34,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: iconColor.withValues(alpha: 0.10),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: iconColor, size: 18),
+          child: icon is IconData
+              ? Icon(icon, color: iconColor, size: 16)
+              : HugeIcon(
+                  icon: icon as List<List<dynamic>>,
+                  color: iconColor,
+                  size: 16,
+                  strokeWidth: 2.0,
+                ),
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF0F172A),
-                ),
-              ),
-              if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
-                const SizedBox(height: 1),
-                Text(
-                  subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: const Color(0xFF64748B),
-                  ),
-                ),
-              ],
-            ],
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF0F172A),
+            ),
           ),
         ),
         if (trailingLabel != null && onTrailingTap != null) ...[
@@ -1529,8 +1361,9 @@ class _ExploreSectionHeader extends StatelessWidget {
   }
 }
 
+
 class _ExploreEmptyStateCard extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon;
   final String title;
   final String message;
   final String actionLabel;
@@ -1559,11 +1392,19 @@ class _ExploreEmptyStateCard extends StatelessWidget {
           Container(
             width: 40,
             height: 40,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               color: const Color(0xFFF1F5F9),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, size: 20, color: const Color(0xFF64748B)),
+            child: icon is IconData
+                ? Icon(icon, size: 18, color: const Color(0xFF64748B))
+                : HugeIcon(
+                    icon: icon as List<List<dynamic>>,
+                    size: 18,
+                    color: const Color(0xFF64748B),
+                    strokeWidth: 2.0,
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -1722,12 +1563,28 @@ class _SkeletonRowCards extends StatelessWidget {
   }
 }
 
-String _explorePostedLabel(DateTime date) {
+String _explorePostedLabelForLocale(BuildContext? context, DateTime date) {
+  final s = context == null ? null : S.of(context);
   final daysAgo = DateTime.now().difference(date).inDays;
-  if (daysAgo <= 0) return 'Today';
-  if (daysAgo == 1) return '1 day ago';
-  if (daysAgo < 7) return '$daysAgo days ago';
-  return DateFormat('MMM d').format(date);
+  if (daysAgo <= 0) return s?.today ?? 'Today';
+  if (daysAgo == 1) return s?.exploreOneDayAgo ?? '1 day ago';
+  if (daysAgo < 7) {
+    return s?.exploreDaysAgo(daysAgo) ?? '$daysAgo days ago';
+  }
+  return DateFormat('MMM d', s?.localeName).format(date);
+}
+
+String _localizedExploreError(BuildContext context, String? message) {
+  final s = S.of(context);
+  final normalized = message?.trim().toLowerCase();
+  if (normalized == 'connection error') {
+    return s?.exploreConnectionError ?? 'Connection error';
+  }
+  if (normalized == 'failed to load') {
+    return s?.exploreFailedToLoad ?? 'Failed to load';
+  }
+  if (message != null && message.trim().isNotEmpty) return message;
+  return s?.exploreSomethingWentWrong ?? 'Something went wrong';
 }
 
 class _EmployerLogo extends StatelessWidget {
@@ -1795,6 +1652,7 @@ class _RecommendedJobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final showMatch = job.matchPercentage > 0;
 
     return Material(
@@ -1841,34 +1699,27 @@ class _RecommendedJobCard extends StatelessWidget {
                             color: const Color(0xFF64748B),
                           ),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          job.location.isEmpty
-                              ? 'Location not specified'
-                              : job.location,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w500,
-                            color: const Color(0xFF94A3B8),
-                          ),
-                        ),
                       ],
                     ),
                   ),
                   IconButton(
-                    tooltip: isSaved ? 'Saved' : 'Save',
+                    tooltip: isSaved
+                        ? (s?.exploreSaved ?? 'Saved')
+                        : (s?.save ?? 'Save'),
                     visualDensity: VisualDensity.compact,
                     onPressed: onSave,
-                    icon: Icon(
-                      isSaved
-                          ? Icons.bookmark_rounded
-                          : Icons.bookmark_outline_rounded,
-                      color: isSaved
-                          ? _kExplorePrimaryBlue
-                          : const Color(0xFF64748B),
-                    ),
+                    icon: isSaved
+                        ? const Icon(
+                            Icons.bookmark_rounded,
+                            color: _kExplorePrimaryBlue,
+                            size: 19,
+                          )
+                        : const HugeIcon(
+                            icon: HugeIcons.strokeRoundedBookmark01,
+                            color: Color(0xFF64748B),
+                            size: 18,
+                            strokeWidth: 2.0,
+                          ),
                   ),
                 ],
               ),
@@ -1890,24 +1741,25 @@ class _RecommendedJobCard extends StatelessWidget {
                 runSpacing: 8,
                 children: [
                   _MiniMetaPill(
-                    icon: Icons.schedule_rounded,
+                    icon: HugeIcons.strokeRoundedClock01,
                     label: job.employmentTypeLabel,
                   ),
                   _MiniMetaPill(
-                    icon: Icons.payments_outlined,
+                    icon: HugeIcons.strokeRoundedMoney01,
                     label: job.salaryDisplay,
                   ),
                   if (showMatch)
                     _MiniMetaPill(
-                      icon: Icons.verified_rounded,
-                      label: '${job.matchPercentage}% match',
+                      icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                      label: s?.exploreMatchPercent(job.matchPercentage) ??
+                          '${job.matchPercentage}% match',
                       color: const Color(0xFF0D9488),
                     ),
                   if (job.isUrgent)
-                    const _MiniMetaPill(
-                      icon: Icons.priority_high_rounded,
-                      label: 'Urgent',
-                      color: Color(0xFFDC2626),
+                    _MiniMetaPill(
+                      icon: HugeIcons.strokeRoundedAlertCircle,
+                      label: s?.exploreUrgent ?? 'Urgent',
+                      color: const Color(0xFFDC2626),
                     ),
                 ],
               ),
@@ -1939,6 +1791,7 @@ class _RecentJobCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
@@ -1987,7 +1840,7 @@ class _RecentJobCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 5),
                     Text(
-                      '${_explorePostedLabel(job.postedDate)} · ${job.employmentTypeLabel}',
+                      '${_explorePostedLabelForLocale(context, job.postedDate)} · ${job.employmentTypeLabel}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: GoogleFonts.inter(
@@ -2000,16 +1853,23 @@ class _RecentJobCard extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: isSaved ? 'Saved' : 'Save',
+                tooltip: isSaved
+                    ? (s?.exploreSaved ?? 'Saved')
+                    : (s?.save ?? 'Save'),
                 visualDensity: VisualDensity.compact,
                 onPressed: onSave,
-                icon: Icon(
-                  isSaved
-                      ? Icons.bookmark_rounded
-                      : Icons.bookmark_outline_rounded,
-                  color:
-                      isSaved ? _kExplorePrimaryBlue : const Color(0xFF64748B),
-                ),
+                icon: isSaved
+                    ? const Icon(
+                        Icons.bookmark_rounded,
+                        color: _kExplorePrimaryBlue,
+                        size: 19,
+                      )
+                    : const HugeIcon(
+                        icon: HugeIcons.strokeRoundedBookmark01,
+                        color: Color(0xFF64748B),
+                        size: 18,
+                        strokeWidth: 2.0,
+                      ),
               ),
             ],
           ),
@@ -2023,7 +1883,7 @@ class _RecentJobCard extends StatelessWidget {
 }
 
 class _MiniMetaPill extends StatelessWidget {
-  final IconData icon;
+  final dynamic icon;
   final String label;
   final Color color;
 
@@ -2044,7 +1904,14 @@ class _MiniMetaPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: color),
+          icon is IconData
+              ? Icon(icon, size: 12, color: color)
+              : HugeIcon(
+                  icon: icon as List<List<dynamic>>,
+                  size: 12,
+                  color: color,
+                  strokeWidth: 1.8,
+                ),
           const SizedBox(width: 4),
           Text(
             label,
@@ -2114,9 +1981,12 @@ class _ExploreUpcomingEventsCardState
   Widget build(BuildContext context) {
     final events = widget.events;
     if (events.isEmpty) return const SizedBox.shrink();
+    final s = S.of(context);
 
-    final dateLabel = DateFormat('EEEE, MMM d').format(events.first.eventDate);
-    final monthLabel = DateFormat('MMM').format(events.first.eventDate);
+    final dateLabel =
+        DateFormat('EEEE, MMM d', s?.localeName).format(events.first.eventDate);
+    final monthLabel =
+        DateFormat('MMM', s?.localeName).format(events.first.eventDate);
     final dayLabel = DateFormat('d').format(events.first.eventDate);
 
     return Material(
@@ -2180,8 +2050,9 @@ class _ExploreUpcomingEventsCardState
                         children: [
                           Text(
                             events.length > 1
-                                ? '${events.length} events this day'
-                                : 'Upcoming event',
+                                ? (s?.exploreEventsThisDay(events.length) ??
+                                    '${events.length} events this day')
+                                : (s?.exploreUpcomingEvent ?? 'Upcoming event'),
                             style: GoogleFonts.inter(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w700,
@@ -2282,7 +2153,7 @@ class _ExploreUpcomingEventsCardState
                     else
                       const Spacer(),
                     Text(
-                      'View details',
+                      s?.exploreViewDetails ?? 'View details',
                       style: GoogleFonts.inter(
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
@@ -2369,6 +2240,7 @@ class _CompanyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     final resolvedUrl = ApiService.storageOrAbsoluteUrl(photoUrl);
     final logo = _EmployerLogo(
       photoUrl: resolvedUrl,
@@ -2433,7 +2305,8 @@ class _CompanyCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        '$jobCount ${jobCount == 1 ? 'job' : 'jobs'}',
+                        s?.exploreJobCount(jobCount) ??
+                            '$jobCount ${jobCount == 1 ? 'job' : 'jobs'}',
                         style: GoogleFonts.inter(
                           fontSize: 11,
                           fontWeight: FontWeight.w800,
@@ -2616,7 +2489,7 @@ class _SkillDemandBar extends StatelessWidget {
 class _SectorTile extends StatelessWidget {
   final String name;
   final int jobCount;
-  final IconData icon;
+  final dynamic icon;
   final Color color;
   final int delay;
   final VoidCallback onTap;
@@ -2632,6 +2505,7 @@ class _SectorTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final s = S.of(context);
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
@@ -2651,11 +2525,19 @@ class _SectorTile extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(7),
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: Icon(icon, color: color, size: 17),
+                child: icon is IconData
+                    ? Icon(icon, color: color, size: 14)
+                    : HugeIcon(
+                        icon: icon as List<List<dynamic>>,
+                        color: color,
+                        size: 14,
+                        strokeWidth: 2.0,
+                      ),
               ),
               const SizedBox(width: 9),
               Expanded(
@@ -2675,7 +2557,8 @@ class _SectorTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '$jobCount ${jobCount == 1 ? 'job' : 'jobs'}',
+                      s?.exploreJobCount(jobCount) ??
+                          '$jobCount ${jobCount == 1 ? 'job' : 'jobs'}',
                       style: GoogleFonts.inter(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,

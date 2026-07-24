@@ -781,6 +781,190 @@ class STl extends S {
   }
 
   @override
+  String get exploreSignInToApply =>
+      'Mag-sign in o gumawa muna ng account bago mag-apply sa trabaho.';
+
+  @override
+  String get exploreSignInToSave =>
+      'Mag-sign in o gumawa muna ng account para mag-save ng trabaho.';
+
+  @override
+  String get exploreConfirmApplication => 'Kumpirmahin ang aplikasyon';
+
+  @override
+  String exploreApplyForJob(String title, String company) {
+    return 'Mag-apply para sa $title sa $company?';
+  }
+
+  @override
+  String exploreAppliedToJob(String title) {
+    return 'Nakapag-apply ka na sa $title.';
+  }
+
+  @override
+  String get exploreNoOpenJobsForEmployer =>
+      'Walang bukas na trabaho para sa employer na ito.';
+
+  @override
+  String get exploreConnectionError => 'May problema sa koneksyon';
+
+  @override
+  String get exploreFailedToLoad => 'Hindi na-load';
+
+  @override
+  String get exploreSomethingWentWrong => 'May nangyaring mali';
+
+  @override
+  String get exploreHeaderSubtitle =>
+      'Tuklasin ang mga oportunidad na bagay sa susunod mong hakbang';
+
+  @override
+  String get exploreNewJobsThisWeek => 'Bagong trabaho ngayong linggo';
+
+  @override
+  String get exploreEmployers => 'Employers';
+
+  @override
+  String get exploreOpenJobs => 'Bukas na trabaho';
+
+  @override
+  String get exploreRecommendedNearYou => 'Rekomendado malapit sa iyo';
+
+  @override
+  String get exploreRecommendedSubtitle =>
+      'Mga bagong opening ayon sa fit at petsa';
+
+  @override
+  String get exploreSeeAll => 'Tingnan lahat';
+
+  @override
+  String get exploreNoRecommendations => 'Wala pang rekomendasyon';
+
+  @override
+  String get exploreNoRecommendationsMessage =>
+      'Lalabas dito ang mga trabaho kapag na-load na ang listings.';
+
+  @override
+  String get exploreBrowseJobs => 'Mag-browse ng trabaho';
+
+  @override
+  String get exploreUpcomingPesoEvents => 'Mga paparating na PESO event';
+
+  @override
+  String get exploreUpcomingEventsSubtitle =>
+      'Workshops, hiring events, at livelihood programs';
+
+  @override
+  String get exploreCalendar => 'Calendar';
+
+  @override
+  String get exploreNoUpcomingEvents => 'Walang paparating na event';
+
+  @override
+  String get exploreNoUpcomingEventsMessage =>
+      'Tingnan ang calendar para sa bagong PESO activities.';
+
+  @override
+  String get exploreViewCalendar => 'Tingnan ang calendar';
+
+  @override
+  String get exploreNearestEventSubtitle =>
+      'Pinakamalapit na activity sa iyong calendar';
+
+  @override
+  String get exploreTopHiringCompanies => 'Top hiring companies';
+
+  @override
+  String get exploreTopHiringCompaniesSubtitle =>
+      'Employers na may pinakamaraming bukas na roles';
+
+  @override
+  String get exploreNoEmployerTrends => 'Wala pang employer trends';
+
+  @override
+  String get exploreNoEmployerTrendsMessage =>
+      'Lalabas dito ang hiring companies kapag may available na trabaho.';
+
+  @override
+  String get exploreInDemandSkills => 'Mga in-demand na kasanayan';
+
+  @override
+  String get exploreInDemandSkillsSubtitle =>
+      'Trending sa mga bukas na trabaho';
+
+  @override
+  String get exploreNoSkillTrends => 'Wala pang skill trends';
+
+  @override
+  String get exploreNoSkillTrendsMessage =>
+      'Lalabas dito ang demand sa skills kapag na-index na ang jobs.';
+
+  @override
+  String get exploreBrowseByIndustry => 'Mag-browse ayon sa industriya';
+
+  @override
+  String get exploreBrowseByIndustrySubtitle =>
+      'Mga bukas na role ayon sa sector ng employer';
+
+  @override
+  String get exploreRecentlyPosted => 'Kamakailang nai-post';
+
+  @override
+  String get exploreRecentlyPostedSubtitle =>
+      'Mga bagong oportunidad mula sa employers';
+
+  @override
+  String get exploreNoRecentJobs => 'Wala pang bagong trabaho';
+
+  @override
+  String get exploreNoRecentJobsMessage =>
+      'Lalabas dito ang mga bagong job post.';
+
+  @override
+  String get exploreOneDayAgo => '1 araw na ang nakalipas';
+
+  @override
+  String exploreDaysAgo(int count) {
+    return '$count araw na ang nakalipas';
+  }
+
+  @override
+  String get exploreLocationNotSpecified => 'Walang nakalagay na lokasyon';
+
+  @override
+  String get exploreSaved => 'Naka-save';
+
+  @override
+  String exploreMatchPercent(int percent) {
+    return '$percent% match';
+  }
+
+  @override
+  String get exploreUrgent => 'Urgent';
+
+  @override
+  String exploreEventsThisDay(int count) {
+    return '$count event sa araw na ito';
+  }
+
+  @override
+  String get exploreUpcomingEvent => 'Paparating na event';
+
+  @override
+  String get exploreViewDetails => 'Tingnan ang detalye';
+
+  @override
+  String exploreJobCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count trabaho',
+      one: '1 trabaho',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get mapSearchThisArea => 'I-search ang lugar na ito';
 
   @override

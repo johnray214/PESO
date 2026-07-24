@@ -1,11 +1,14 @@
-/// Singleton that holds the currently authenticated user's data.
-/// Populated on login/register, cleared on sign-out.
+enum SessionMode { anonymous, guest, authenticated }
+
+/// Singleton that holds the current user's session data.
+/// Populated on login/register, marked as guest for public browsing, cleared on sign-out.
 class UserSession {
   static final UserSession _instance = UserSession._internal();
   factory UserSession() => _instance;
   UserSession._internal();
 
   String? token;
+  SessionMode mode = SessionMode.anonymous;
   int? userId;
   String? firstName;
   String? middleInitial;
@@ -31,6 +34,8 @@ class UserSession {
   bool isOnboardingDone = false;
 
   bool get isLoggedIn => token != null && token!.isNotEmpty;
+  bool get isGuest => mode == SessionMode.guest;
+  bool get canUseProtectedFeatures => isLoggedIn;
 
   /// Two-letter initials from the user's name (e.g. "Juan Dela Cruz" → "JD")
   String get initials {
@@ -47,6 +52,7 @@ class UserSession {
   String get displayName {
     final n = name?.trim() ?? '';
     if (n.isNotEmpty) return n;
+    if (isGuest) return 'Guest';
     return email?.split('@').first ?? 'User';
   }
 
@@ -59,11 +65,19 @@ class UserSession {
         (data['jobseeker'] as Map<String, dynamic>?) ??
         {};
     token = data['token'] as String? ?? '';
+    mode = token != null && token!.isNotEmpty
+        ? SessionMode.authenticated
+        : SessionMode.anonymous;
     _applyUserFields(user);
   }
 
   /// Update only the user fields (used after profile edit, where token stays the same).
   void updateFromUser(Map<String, dynamic> user) => _applyUserFields(user);
+
+  void enterGuestMode() {
+    clear();
+    mode = SessionMode.guest;
+  }
 
   void _applyUserFields(Map<String, dynamic> user) {
     userId = user['id'] as int?;
@@ -127,6 +141,7 @@ class UserSession {
 
   void clear() {
     token = null;
+    mode = SessionMode.anonymous;
     userId = null;
     firstName = null;
     middleInitial = null;
@@ -170,4 +185,3 @@ String getPhilippinesGreeting() {
   if (hour >= 12 && hour < 18) return 'Good Afternoon';
   return 'Good Evening';
 }
-      

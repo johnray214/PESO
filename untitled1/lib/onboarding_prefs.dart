@@ -10,7 +10,8 @@ class OnboardingPrefs {
   static const _kHomeTourV1 = 'home_tour_v1_done';
   static const _kMapTourV1 = 'map_tour_v1_done';
   static const _kSkillsProfileGuideV1 = 'skills_profile_guide_v1_done';
-  static const _kSkillsProfileGuidePendingV1 = 'skills_profile_guide_v1_pending';
+  static const _kSkillsProfileGuidePendingV1 =
+      'skills_profile_guide_v1_pending';
 
   /// After this version bump, intro can show again (optional future use).
   static const introVersion = 1;
@@ -21,7 +22,8 @@ class OnboardingPrefs {
     return '${_kIntroV1}_$token';
   }
 
-  static Future<bool> isIntroDone({String? token, bool ignoreDebug = false}) async {
+  static Future<bool> isIntroDone(
+      {String? token, bool ignoreDebug = false}) async {
     if (kDebugMode && !ignoreDebug) return false;
     final p = await SharedPreferences.getInstance();
     return p.getBool(_getIntroKey(token)) ?? false;
@@ -48,13 +50,13 @@ class OnboardingPrefs {
   /// Missing key → treat as already completed (existing users).
   static Future<bool> needsPostAuth({bool ignoreDebug = false}) async {
     if (kDebugMode && !ignoreDebug) return true;
-    
+
     // If logged in, the backend source of truth is absolute.
     if (UserSession().isLoggedIn) {
       return !UserSession().isOnboardingDone;
     }
 
-    // If not logged in yet (e.g. just registered but session not fully restored), 
+    // If not logged in yet (e.g. just registered but session not fully restored),
     // check the local pending flag.
     final p = await SharedPreferences.getInstance();
     return p.getBool(_kPostAuthV1) == false;
@@ -95,8 +97,8 @@ class OnboardingPrefs {
 
     // Backward-compatible migration from old token-scoped keys.
     final legacyDone = p.getKeys().any(
-      (k) => k.startsWith('${_kMapTourV1}_') && (p.getBool(k) ?? false),
-    );
+          (k) => k.startsWith('${_kMapTourV1}_') && (p.getBool(k) ?? false),
+        );
     if (legacyDone) {
       await p.setBool(_mapTourKey(token), true);
       return true;
@@ -116,14 +118,25 @@ class OnboardingPrefs {
 
   // ─── Skills Profile guided setup ──────────────────────────────────────────
 
-  static String _skillsProfileGuideKey(String? token) {
-    if (token == null || token.isEmpty) return _kSkillsProfileGuideV1;
-    return '${_kSkillsProfileGuideV1}_$token';
-  }
+  // Skills guide is device-local instead of token-scoped. Auth tokens can rotate
+  // between sessions, and token-scoped keys make completed tours reappear.
+  static String _skillsProfileGuideKey(String? token) => _kSkillsProfileGuideV1;
 
   static Future<bool> isSkillsProfileGuideDone({String? token}) async {
     final p = await SharedPreferences.getInstance();
-    return p.getBool(_skillsProfileGuideKey(token)) ?? false;
+    final current = p.getBool(_skillsProfileGuideKey(token));
+    if (current == true) return true;
+
+    final legacyDone = p.getKeys().any(
+          (k) =>
+              k.startsWith('${_kSkillsProfileGuideV1}_') &&
+              (p.getBool(k) ?? false),
+        );
+    if (legacyDone) {
+      await p.setBool(_skillsProfileGuideKey(token), true);
+      return true;
+    }
+    return false;
   }
 
   static Future<void> setSkillsProfileGuideDone({String? token}) async {
@@ -134,12 +147,15 @@ class OnboardingPrefs {
   static Future<void> clearSkillsProfileGuideDone({String? token}) async {
     final p = await SharedPreferences.getInstance();
     await p.remove(_skillsProfileGuideKey(token));
+    for (final key in p
+        .getKeys()
+        .where((k) => k.startsWith('${_kSkillsProfileGuideV1}_'))) {
+      await p.remove(key);
+    }
   }
 
-  static String _skillsProfileGuidePendingKey(String? token) {
-    if (token == null || token.isEmpty) return _kSkillsProfileGuidePendingV1;
-    return '${_kSkillsProfileGuidePendingV1}_$token';
-  }
+  static String _skillsProfileGuidePendingKey(String? token) =>
+      _kSkillsProfileGuidePendingV1;
 
   /// Set to `true` right after registration/first auth for brand-new accounts.
   static Future<void> setSkillsProfileGuidePending({String? token}) async {
@@ -150,11 +166,28 @@ class OnboardingPrefs {
   /// Returns `true` only when explicitly set to true (brand-new accounts).
   static Future<bool> isSkillsProfileGuidePending({String? token}) async {
     final p = await SharedPreferences.getInstance();
-    return p.getBool(_skillsProfileGuidePendingKey(token)) == true;
+    final current = p.getBool(_skillsProfileGuidePendingKey(token));
+    if (current == true) return true;
+
+    final legacyPending = p.getKeys().any(
+          (k) =>
+              k.startsWith('${_kSkillsProfileGuidePendingV1}_') &&
+              (p.getBool(k) ?? false),
+        );
+    if (legacyPending) {
+      await p.setBool(_skillsProfileGuidePendingKey(token), true);
+      return true;
+    }
+    return false;
   }
 
   static Future<void> clearSkillsProfileGuidePending({String? token}) async {
     final p = await SharedPreferences.getInstance();
     await p.remove(_skillsProfileGuidePendingKey(token));
+    for (final key in p
+        .getKeys()
+        .where((k) => k.startsWith('${_kSkillsProfileGuidePendingV1}_'))) {
+      await p.remove(key);
+    }
   }
 }
