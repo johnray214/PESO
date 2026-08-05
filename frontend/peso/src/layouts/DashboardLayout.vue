@@ -202,8 +202,10 @@ export default {
       const type  = (notif.type  || '').toLowerCase()
       const title = (notif.title || '').toLowerCase()
 
-      // Route based on type/title keywords
-      if (type === 'registration' || title.includes('jobseeker') || title.includes('registered')) {
+      // Route based on type/title keywords (check employer FIRST before generic registration/registered)
+      if (title.includes('employer') || type === 'employer') {
+        this.router.push('/dashboard/employers')
+      } else if (type === 'registration' || title.includes('jobseeker') || title.includes('registered')) {
         this.router.push('/dashboard/jobseekers')
       } else if (title.includes('application') || title.includes('applied') || type === 'status') {
         this.router.push('/dashboard/applicants')
@@ -211,8 +213,6 @@ export default {
         this.router.push('/dashboard/events')
       } else if (title.includes('job') || title.includes('listing') || type === 'match') {
         this.router.push('/dashboard/joblisting')
-      } else if (title.includes('employer')) {
-        this.router.push('/dashboard/employers')
       } else {
         this.router.push('/dashboard/notifications')
       }
@@ -226,6 +226,7 @@ export default {
         'registration': `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>`,
         'event':        `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
         'status':       `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>`,
+        'welcome':      `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
         'system':       `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
       }
       return icons[typeKey] || icons['system']
@@ -238,6 +239,7 @@ export default {
         'registration': { bg: '#dbeafe', text: '#2563eb' },
         'event':        { bg: '#fff7ed', text: '#f97316' },
         'status':       { bg: '#fdf4ff', text: '#a21caf' },
+        'welcome':      { bg: '#fef9ec', text: '#d97706' },
         'system':       { bg: '#f1f5f9', text: '#64748b' },
       }
       return colors[typeKey] || colors['system']

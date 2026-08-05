@@ -47,6 +47,10 @@ class Employer extends Authenticatable
         // ── Documents ─────────────────────────────────────────────────
         'biz_permit_path',
         'bir_cert_path',
+        'dmw_license_path',
+
+        // ── Employer Type ──────────────────────────────────────────
+        'employer_type',
 
         // ── Stats ─────────────────────────────────────────────────────
         'total_hired',

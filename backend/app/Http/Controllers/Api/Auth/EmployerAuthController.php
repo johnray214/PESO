@@ -24,6 +24,7 @@ class EmployerAuthController extends Controller
             'password'       => 'required|string|min:8|confirmed',
             'industry'       => 'required|string|max:100',
             'company_size'   => 'required|string|max:30',
+            'employer_type'  => 'nullable|string|in:local,overseas',
             'province'       => 'required|string|max:100',
             'city'           => 'required|string|max:100',
             'barangay'       => 'required|string|max:100',
@@ -33,7 +34,11 @@ class EmployerAuthController extends Controller
             'website'        => 'nullable|string|max:255',
             'biz_permit'     => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
             'bir_cert'       => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'dmw_license'    => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
+
+        // Default employer_type to 'local' if not provided
+        $validated['employer_type'] = $validated['employer_type'] ?? 'local';
 
         $validated['password'] = Hash::make($validated['password']);
         $validated['status']   = 'pending';
@@ -51,7 +56,11 @@ class EmployerAuthController extends Controller
         $employer = Employer::create($validated);
 
         // Handle file uploads
-        foreach (['biz_permit' => 'biz_permit_path', 'bir_cert' => 'bir_cert_path'] as $field => $column) {
+        foreach ([
+            'biz_permit'  => 'biz_permit_path',
+            'bir_cert'    => 'bir_cert_path',
+            'dmw_license' => 'dmw_license_path',
+        ] as $field => $column) {
             if ($request->hasFile($field)) {
                 $path = $request->file($field)->store(
                     "employer-docs/{$employer->id}",
@@ -64,7 +73,7 @@ class EmployerAuthController extends Controller
         // CREATE WELCOME NOTIFICATION
         try {
             $notif = Notification::create([
-                'subject' => "Welcome to PESO Santiago Connect!, {$employer->company_name}! 🏢",
+                'subject' => "Welcome to PESO Santiago Connect!, {$employer->company_name}!",
                 'message' => "We're glad to have you on board! PESO Santiago Connect! is here to help you find the best talent. Your account is currently pending verification by our PESO Santiago staff. This standard process ensures a secure platform for everyone. We'll notify you as soon as your account is approved. In the meantime, feel free to explore our platform features!",
                 'type' => 'welcome',
                 'recipients' => 'specific',
@@ -199,10 +208,11 @@ class EmployerAuthController extends Controller
     public function resubmit(Request $request)
     {
         $request->validate([
-            'email'      => 'required|email',
-            'password'   => 'required|string',
-            'biz_permit' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'bir_cert'   => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'email'       => 'required|email',
+            'password'    => 'required|string',
+            'biz_permit'  => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'bir_cert'    => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'dmw_license' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
         ]);
 
         $employer = Employer::where('email', $request->email)->first();
@@ -222,7 +232,11 @@ class EmployerAuthController extends Controller
         }
 
         // Replace documents if provided
-        foreach (['biz_permit' => 'biz_permit_path', 'bir_cert' => 'bir_cert_path'] as $field => $column) {
+        foreach ([
+            'biz_permit'  => 'biz_permit_path',
+            'bir_cert'    => 'bir_cert_path',
+            'dmw_license' => 'dmw_license_path',
+        ] as $field => $column) {
             if ($request->hasFile($field)) {
                 if ($employer->$column) {
                     Storage::disk('public')->delete($employer->$column);

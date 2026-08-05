@@ -121,6 +121,7 @@ class AdminJobListingController extends Controller
             'implementing_agency' => 'nullable|string|max:150',
             'employer_name'       => 'nullable|string|max:255',
             'employer'            => 'nullable|string|max:255', // alias
+            'is_overseas'         => 'nullable|boolean',
         ]);
 
         if (!isset($validated['salary_range']) && isset($validated['salary'])) {
@@ -205,6 +206,7 @@ class AdminJobListingController extends Controller
             'implementing_agency' => 'nullable|string|max:150',
             'employer_name'       => 'nullable|string|max:255',
             'employer'            => 'nullable|string|max:255',
+            'is_overseas'         => 'nullable|boolean',
         ]);
 
         if (!isset($validated['salary_range']) && isset($validated['salary'])) {

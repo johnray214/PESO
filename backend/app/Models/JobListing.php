@@ -26,6 +26,7 @@ class JobListing extends Model
     protected $fillable = [
         'employer_id',
         'employer_name',
+        'is_overseas',
         'title',
         'type',
         'location',
@@ -45,9 +46,10 @@ class JobListing extends Model
     ];
 
     protected $casts = [
-        'posted_date' => 'date',
-        'deadline' => 'date',
-        'slots' => 'integer',
+        'posted_date'  => 'date',
+        'deadline'     => 'date',
+        'slots'        => 'integer',
+        'is_overseas'  => 'boolean',
     ];
 
     public function employer()

@@ -50,6 +50,10 @@ class EmployerResource extends JsonResource
             // ── Documents ─────────────────────────────────────────────
             'biz_permit_url' => PublicStorageUrl::fromRequest($request, $this->biz_permit_path),
             'bir_cert_url'   => PublicStorageUrl::fromRequest($request, $this->bir_cert_path),
+            'dmw_license_url'=> PublicStorageUrl::fromRequest($request, $this->dmw_license_path),
+
+            // ── Employer Type ─────────────────────────────────────────
+            'employer_type'  => $this->employer_type ?? 'local',
 
             // ── Admin Dashboard Employer Properties ─────────────────────
             'total_hired'      => $this->total_hired ?? 0,
