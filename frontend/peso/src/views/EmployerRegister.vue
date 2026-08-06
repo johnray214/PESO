@@ -114,6 +114,39 @@
 
           <!-- ── STEP 1: Account Setup ── -->
           <div v-if="currentStep === 1" class="step-body">
+            <!-- Employer Classification -->
+            <div class="form-group" style="margin-bottom:18px;">
+              <label class="form-label">Employer Classification</label>
+              <div class="employer-type-cards">
+                <div
+                  class="type-card"
+                  :class="{ active: form.employerType === 'local' }"
+                  @click="form.employerType = 'local'"
+                >
+                  <div class="type-card-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                  </div>
+                  <div>
+                    <div class="type-card-title">Local Employer</div>
+                    <div class="type-card-sub">Hiring within Philippines</div>
+                  </div>
+                </div>
+                <div
+                  class="type-card"
+                  :class="{ active: form.employerType === 'overseas' }"
+                  @click="form.employerType = 'overseas'"
+                >
+                  <div class="type-card-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  </div>
+                  <div>
+                    <div class="type-card-title">Overseas Agency</div>
+                    <div class="type-card-sub">Overseas recruitment & placement</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="form-group">
               <label class="form-label">Work Email Address</label>
               <div class="input-wrap">
@@ -160,6 +193,7 @@
 
           <!-- ── STEP 2: Company Info ── -->
           <div v-if="currentStep === 2" class="step-body">
+
             <div class="form-group">
               <label class="form-label">Company / Business Name</label>
               <div class="input-wrap">
@@ -269,13 +303,13 @@
           <!-- ── STEP 3: Documents ── -->
           <div v-if="currentStep === 3" class="step-body">
             <div class="form-group">
-              <label class="form-label">Business Permit / DTI Registration</label>
+              <label class="form-label">Business Permit</label>
               <div class="upload-area" @click="$refs.bizPermit.click()" :class="{ 'has-file': form.bizPermitFile }">
                 <div v-if="!bizPermitPreview" class="upload-inner">
                   <div class="upload-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </div>
-                  <p class="upload-label">Click to upload or drag & drop</p>
+                  <p class="upload-label">Click to upload Business Permit or drag & drop</p>
                   <p class="upload-sub">PDF, JPG, PNG — max 2MB</p>
                 </div>
                 <div v-else class="file-preview">
@@ -290,6 +324,31 @@
                   @change="handleFileUpload('bizPermit', $event)"/>
               </div>
               <p v-if="bizPermitError" class="field-error">{{ bizPermitError }}</p>
+            </div>
+
+            <!-- DMW License (Required for Overseas Agencies/Employers) -->
+            <div v-if="form.employerType === 'overseas'" class="form-group">
+              <label class="form-label">DMW License <span style="color:#ef4444">*</span></label>
+              <div class="upload-area" @click="$refs.dmwLicense.click()" :class="{ 'has-file': form.dmwLicenseFile }">
+                <div v-if="!dmwLicensePreview" class="upload-inner">
+                  <div class="upload-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                  </div>
+                  <p class="upload-label">Click to upload DMW License or drag & drop</p>
+                  <p class="upload-sub">PDF, JPG, PNG — max 2MB</p>
+                </div>
+                <div v-else class="file-preview">
+                  <img v-if="dmwLicensePreview !== 'pdf'" :src="dmwLicensePreview" class="preview-img"/>
+                  <div v-else class="pdf-preview">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    <span>{{ form.dmwLicenseFile?.name }}</span>
+                  </div>
+                  <button class="remove-file-btn" @click.stop="removeFile('dmwLicense')" type="button">✕ Remove</button>
+                </div>
+                <input ref="dmwLicense" type="file" accept=".pdf,.jpg,.jpeg,.png" style="display:none"
+                  @change="handleFileUpload('dmwLicense', $event)"/>
+              </div>
+              <p v-if="dmwLicenseError" class="field-error">{{ dmwLicenseError }}</p>
             </div>
 
             <div class="form-group">
@@ -383,9 +442,11 @@ export default {
       emailError: '',
       passwordError: '',
       bizPermitError: '',
+      dmwLicenseError: '',
 
       bizPermitPreview: null,
       birCertPreview: null,
+      dmwLicensePreview: null,
 
       provinces: [],
       cities: [],
@@ -400,6 +461,7 @@ export default {
         email: '',
         password: '',
         confirmPassword: '',
+        employerType: 'local',
         companyName: '',
         contactPerson: '',
         industry: '',
@@ -414,6 +476,7 @@ export default {
         website: '',
         bizPermitFile: null,
         birCertFile: null,
+        dmwLicenseFile: null,
       },
 
       stats: [
@@ -535,6 +598,7 @@ export default {
 
       if (file.size > 2 * 1024 * 1024) {
         if (type === 'bizPermit') this.bizPermitError = 'File must be under 2MB.'
+        if (type === 'dmwLicense') this.dmwLicenseError = 'File must be under 2MB.'
         return
       }
 
@@ -546,6 +610,16 @@ export default {
         } else {
           const reader = new FileReader()
           reader.onload = e => { this.bizPermitPreview = e.target.result }
+          reader.readAsDataURL(file)
+        }
+      } else if (type === 'dmwLicense') {
+        this.dmwLicenseError     = ''
+        this.form.dmwLicenseFile = file
+        if (file.type === 'application/pdf') {
+          this.dmwLicensePreview = 'pdf'
+        } else {
+          const reader = new FileReader()
+          reader.onload = e => { this.dmwLicensePreview = e.target.result }
           reader.readAsDataURL(file)
         }
       } else {
@@ -564,17 +638,26 @@ export default {
       if (type === 'bizPermit') {
         this.form.bizPermitFile = null
         this.bizPermitPreview   = null
-        this.$refs.bizPermit.value = ''
+        if (this.$refs.bizPermit) this.$refs.bizPermit.value = ''
+      } else if (type === 'dmwLicense') {
+        this.form.dmwLicenseFile = null
+        this.dmwLicensePreview   = null
+        if (this.$refs.dmwLicense) this.$refs.dmwLicense.value = ''
       } else {
         this.form.birCertFile = null
         this.birCertPreview   = null
-        this.$refs.birCert.value = ''
+        if (this.$refs.birCert) this.$refs.birCert.value = ''
       }
     },
 
     async handleSubmit() {
       if (!this.form.bizPermitFile) {
         this.bizPermitError = 'Business Permit is required.'
+        return
+      }
+
+      if (this.form.employerType === 'overseas' && !this.form.dmwLicenseFile) {
+        this.dmwLicenseError = 'DMW License is required for overseas agencies/employers.'
         return
       }
 
@@ -586,6 +669,7 @@ export default {
         fd.append('email',                 this.form.email)
         fd.append('password',              this.form.password)
         fd.append('password_confirmation', this.form.confirmPassword)
+        fd.append('employer_type',         this.form.employerType)
         fd.append('company_name',          this.form.companyName)
         fd.append('contact_person',        this.form.contactPerson)
         fd.append('industry',              this.form.industry)
@@ -598,6 +682,7 @@ export default {
         fd.append('tin',                   this.form.tin)
         fd.append('website',               this.form.website)
         fd.append('biz_permit',            this.form.bizPermitFile)
+        if (this.form.dmwLicenseFile) fd.append('dmw_license', this.form.dmwLicenseFile)
         if (this.form.birCertFile) fd.append('bir_cert', this.form.birCertFile)
 
         await api.post('/employer/register', fd, {
@@ -801,4 +886,13 @@ export default {
   transition: all 0.2s;
 }
 .btn-go-login:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(40,114,161,0.4); }
+
+/* ── EMPLOYER TYPE CARDS ── */
+.employer-type-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.type-card { border: 1.5px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; background: #fff; cursor: pointer; display: flex; align-items: center; gap: 10px; transition: all 0.15s; }
+.type-card:hover { border-color: #08BDDE; background: #f0f9ff; }
+.type-card.active { border-color: #2872A1; background: #eff8ff; box-shadow: 0 0 0 2px rgba(40,114,161,0.15); }
+.type-card-icon { font-size: 20px; flex-shrink: 0; }
+.type-card-title { font-size: 12.5px; font-weight: 700; color: #0f172a; }
+.type-card-sub { font-size: 10.5px; color: #64748b; margin-top: 1px; }
 </style>

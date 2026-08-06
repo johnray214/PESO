@@ -212,6 +212,8 @@ class EmployerJobListingController extends Controller
         }
 
         $validated['employer_id'] = $employer->id;
+        // Auto-tag as overseas if employer is an overseas recruitment agency
+        $validated['is_overseas']  = ($employer->employer_type === 'overseas');
 
         DB::beginTransaction();
         try {
@@ -296,6 +298,8 @@ class EmployerJobListingController extends Controller
 
         DB::beginTransaction();
         try {
+            // Preserve the is_overseas flag from the employer record
+            $validated['is_overseas'] = ($employer->employer_type === 'overseas');
             $jobListing->update($validated);
 
             if (isset($validated['skills'])) {

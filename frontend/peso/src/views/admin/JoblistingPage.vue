@@ -109,6 +109,10 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" :stroke="job.color" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+              <span v-if="job.is_overseas" class="overseas-badge">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:3px;vertical-align:-1px"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                Overseas
+              </span>
               <!-- Program Badge -->
               <span v-if="job.program" class="program-badge" :style="getProgramStyle(job.program)">
                 {{ job.program }}
@@ -859,6 +863,7 @@ export default {
         status:              j.status ? j.status.charAt(0).toUpperCase() + j.status.slice(1) : '',
         education_level:     j.education_level || '',
         experience_required: j.experience_required || '',
+        is_overseas:         !!j.is_overseas,
         daysLeft:            j.deadline ? Math.ceil((new Date(j.deadline) - new Date()) / (1000*60*60*24)) : 9999,
         postedDate:          j.posted_date ? new Date(j.posted_date).toLocaleDateString('en-US', { month:'short', day:'2-digit', year:'numeric' }) : '—',
         description:         j.description,
@@ -1160,6 +1165,7 @@ export default {
 
 /* Program badge */
 .program-badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.02em; }
+.overseas-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; letter-spacing: 0.01em; }
 
 /* Status */
 .job-status { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; }

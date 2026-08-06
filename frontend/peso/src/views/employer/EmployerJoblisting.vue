@@ -114,7 +114,11 @@
               <div class="job-icon-lg" :style="{ background: job.bg }">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" :stroke="job.color" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               </div>
-              <div class="job-status-wrap">
+              <div class="job-status-wrap" style="display:flex;align-items:center;gap:6px;">
+                <span v-if="job.is_overseas" class="overseas-badge">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="margin-right:3px;vertical-align:-1px"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  Overseas
+                </span>
                 <span class="job-status" :class="jobStatusClass(job.status)">{{ job.status }}</span>
               </div>
             </div>
@@ -730,6 +734,7 @@ export default {
         status:              j.status ? j.status.charAt(0).toUpperCase() + j.status.slice(1) : '',
         education_level:     j.education_level     || '',
         experience_required: j.experience_required || '',
+        is_overseas:         !!j.is_overseas,
         daysLeft:            j.deadline
           ? Math.ceil((new Date(j.deadline) - new Date()) / (1000 * 60 * 60 * 24))
           : 9999,
@@ -1115,6 +1120,7 @@ export default {
 .job-card { background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #f1f5f9; display: flex; flex-direction: column; gap: 10px; transition: box-shadow 0.15s; }
 .job-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.07); }
 .job-card-header { display: flex; align-items: center; justify-content: space-between; }
+.overseas-badge { font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; letter-spacing: 0.01em; }
 .job-icon-lg { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .job-status { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px; }
 .status-open   { background: #f0fdf4; color: #22c55e; }

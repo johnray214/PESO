@@ -255,7 +255,7 @@
                     </template>
                   </div>
                   <div class="doc-card-info">
-                    <p class="doc-card-name">Business Permit / DTI</p>
+                    <p class="doc-card-name">Business Permit</p>
                     <div class="doc-card-footer">
                       <span class="doc-tag" :class="selectedEmployer.hasBizPermit ? 'doc-tag-ok' : 'doc-tag-missing'">{{ selectedEmployer.hasBizPermit ? 'Uploaded' : 'Missing' }}</span>
                       <button v-if="selectedEmployer.hasBizPermit" class="doc-view-btn" @click="openDocViewer(selectedEmployer, 'bizPermit')">
@@ -265,6 +265,39 @@
                     </div>
                   </div>
                 </div>
+
+                <!-- DMW License card for Overseas Employers -->
+                <div v-if="selectedEmployer.employerType === 'overseas' || selectedEmployer.hasDmwLicense" class="doc-card" :class="selectedEmployer.hasDmwLicense ? 'doc-card-ok' : 'doc-card-missing'">
+                  <div class="doc-card-preview" @click="selectedEmployer.hasDmwLicense && openDocViewer(selectedEmployer, 'dmwLicense')">
+                    <template v-if="selectedEmployer.hasDmwLicense">
+                      <div class="doc-thumb">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                        <span class="doc-thumb-label">{{ selectedEmployer.dmwLicenseName || 'dmw_license.pdf' }}</span>
+                      </div>
+                      <div class="doc-hover-overlay">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        <span>View Document</span>
+                      </div>
+                    </template>
+                    <template v-else>
+                      <div class="doc-missing-thumb">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fca5a5" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                        <span>Not uploaded</span>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="doc-card-info">
+                    <p class="doc-card-name">DMW License</p>
+                    <div class="doc-card-footer">
+                      <span class="doc-tag" :class="selectedEmployer.hasDmwLicense ? 'doc-tag-ok' : 'doc-tag-missing'">{{ selectedEmployer.hasDmwLicense ? 'Uploaded' : 'Missing' }}</span>
+                      <button v-if="selectedEmployer.hasDmwLicense" class="doc-view-btn" @click="openDocViewer(selectedEmployer, 'dmwLicense')">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        View
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="doc-card" :class="selectedEmployer.hasBirCert ? 'doc-card-ok' : 'doc-card-neutral'">
                   <div class="doc-card-preview" @click="selectedEmployer.hasBirCert && openDocViewer(selectedEmployer, 'birCert')">
                     <template v-if="selectedEmployer.hasBirCert">
@@ -535,11 +568,13 @@ export default {
           list = []
         }
         this.employers = (Array.isArray(list) ? list : []).map((e, i) => {
-          const bizPermitUrl = e.biz_permit_url || (e.biz_permit_path ? `/storage/${e.biz_permit_path}` : null)
-          const birCertUrl   = e.bir_cert_url   || (e.bir_cert_path   ? `/storage/${e.bir_cert_path}`   : null)
+          const bizPermitUrl  = e.biz_permit_url  || (e.biz_permit_path  ? `/storage/${e.biz_permit_path}`  : null)
+          const birCertUrl    = e.bir_cert_url    || (e.bir_cert_path    ? `/storage/${e.bir_cert_path}`    : null)
+          const dmwLicenseUrl = e.dmw_license_url || (e.dmw_license_path ? `/storage/${e.dmw_license_path}` : null)
           return {
             id:                 e.id,
             companyName:        e.company_name   || 'Unknown',
+            employerType:       e.employer_type  || 'local',
             industry:           e.industry       || '—',
             companySize:        e.company_size   || '—',
             city:               e.city           || '—',
@@ -551,14 +586,17 @@ export default {
             photo:              e.photo ? (e.photo.startsWith('http') ? e.photo : '/storage/' + e.photo) : null,
             registeredDate:     e.created_at ? new Date(e.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
             verificationStatus: e.status ? (e.status.charAt(0).toUpperCase() + e.status.slice(1)) : 'Pending',
-            hasBizPermit:  !!bizPermitUrl,
-            hasBirCert:    !!birCertUrl,
+            hasBizPermit:   !!bizPermitUrl,
+            hasBirCert:     !!birCertUrl,
+            hasDmwLicense:  !!dmwLicenseUrl,
             bizPermitUrl,
             birCertUrl,
-            bizPermitName: bizPermitUrl ? bizPermitUrl.split('/').pop() : null,
-            birCertName:   birCertUrl   ? birCertUrl.split('/').pop()   : null,
-            remarks:       e.remarks || '',
-            avatarBg:      avatarColors[i % avatarColors.length],
+            dmwLicenseUrl,
+            bizPermitName:  bizPermitUrl  ? bizPermitUrl.split('/').pop()  : null,
+            birCertName:    birCertUrl    ? birCertUrl.split('/').pop()    : null,
+            dmwLicenseName: dmwLicenseUrl ? dmwLicenseUrl.split('/').pop() : null,
+            remarks:        e.remarks || '',
+            avatarBg:       avatarColors[i % avatarColors.length],
           }
         })
       } catch (e) {
@@ -629,10 +667,10 @@ export default {
     openDocViewer(employer, docType) {
       const isImage = (url) => url && /\.(jpg|jpeg|png|gif|webp)$/i.test(url)
       const isPdf   = (url) => url && /\.pdf$/i.test(url)
-      const url  = docType === 'bizPermit' ? employer.bizPermitUrl : employer.birCertUrl
+      const url  = docType === 'bizPermit' ? employer.bizPermitUrl : (docType === 'dmwLicense' ? employer.dmwLicenseUrl : employer.birCertUrl)
       const name = docType === 'bizPermit'
         ? (employer.bizPermitName || 'business_permit.pdf')
-        : (employer.birCertName   || 'bir_certificate.pdf')
+        : (docType === 'dmwLicense' ? (employer.dmwLicenseName || 'dmw_license.pdf') : (employer.birCertName || 'bir_certificate.pdf'))
       this.activeDoc = {
         name,
         company: employer.companyName,
