@@ -17,6 +17,7 @@ import 'home_pages.dart';
 import 'skill_match_utils.dart';
 import 'micro_interactions.dart';
 import 'my_documents_page.dart';
+import 'app_haptics.dart';
 import 'main.dart';
 import 'l10n/app_localizations.dart';
 
@@ -523,7 +524,7 @@ class _ExploreTabState extends State<ExploreTab>
   }
 
   void _openHomeSearch(String query) {
-    HapticFeedback.selectionClick();
+    AppHaptics.lightImpact();
     exploreSearchTextNotifier.value = query.trim();
     homeNavRequestNotifier.value = 0;
     scheduleMicrotask(() => homeNavRequestNotifier.value = null);
@@ -543,7 +544,7 @@ class _ExploreTabState extends State<ExploreTab>
   }
 
   Future<void> _refreshExploreData() async {
-    HapticFeedback.selectionClick();
+    AppHaptics.lightImpact();
     await _loadExploreData(silent: true, userInitiated: true);
   }
 
@@ -576,6 +577,9 @@ class _ExploreTabState extends State<ExploreTab>
       await Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => const MyDocumentsPage()),
       );
+      if (mounted) {
+        return await _jobActionService.hasResumeOnFile(forceRefresh: true);
+      }
     }
     return false;
   }
@@ -644,7 +648,7 @@ class _ExploreTabState extends State<ExploreTab>
   }
 
   void _openJobDetails(Job job) {
-    HapticFeedback.selectionClick();
+    AppHaptics.lightImpact();
     showJobDetailSheet(
       context,
       job,
@@ -881,7 +885,11 @@ class _ExploreTabState extends State<ExploreTab>
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1E40AF), Color(0xFF2563EB), Color(0xFF3B82F6)],
+          colors: [
+            Color(0xFF1E3A8A),
+            Color(0xFF2563EB),
+            Color(0xFF3B82F6),
+          ],
         ),
       ),
       child: Column(
@@ -950,14 +958,15 @@ class _ExploreTabState extends State<ExploreTab>
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
       child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 4),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.025),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
             ),
           ],
           border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
@@ -966,31 +975,35 @@ class _ExploreTabState extends State<ExploreTab>
           children: [
             Expanded(
               child: _SnapshotStripCell(
-                label: s?.exploreNewJobsThisWeek ?? 'New jobs this week',
+                icon: HugeIcons.strokeRoundedBriefcase01,
+                iconColor: const Color(0xFF2563EB),
+                label: s?.exploreNewJobsThisWeek ?? 'New jobs',
                 value: _newJobsThisWeek.toString(),
               ),
             ),
             Container(
               width: 1,
-              height: 44,
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              color: const Color(0xFFE2E8F0),
+              height: 48,
+              color: const Color(0xFFF1F5F9),
             ),
             Expanded(
               child: _SnapshotStripCell(
+                icon: HugeIcons.strokeRoundedBuilding01,
+                iconColor: const Color(0xFF059669),
                 label: s?.exploreEmployers ?? 'Employers',
                 value: _activeEmployers.toString(),
               ),
             ),
             Container(
               width: 1,
-              height: 44,
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              color: const Color(0xFFE2E8F0),
+              height: 48,
+              color: const Color(0xFFF1F5F9),
             ),
             Expanded(
               child: _SnapshotStripCell(
-                label: s?.exploreOpenJobs ?? 'Open jobs',
+                icon: HugeIcons.strokeRoundedUserGroup,
+                iconColor: const Color(0xFF7C3AED),
+                label: s?.exploreOpenJobs ?? 'Openings',
                 value: openJobsLabel,
               ),
             ),
@@ -1066,7 +1079,7 @@ class _ExploreTabState extends State<ExploreTab>
             title: s?.exploreUpcomingPesoEvents ?? 'Upcoming PESO events',
             trailingLabel: s?.exploreCalendar ?? 'Calendar',
             onTrailingTap: () {
-              HapticFeedback.selectionClick();
+              AppHaptics.lightImpact();
               shellOpenEventsRequestNotifier.value++;
             },
           ),
@@ -1074,7 +1087,7 @@ class _ExploreTabState extends State<ExploreTab>
           _ExploreUpcomingEventsCard(
             events: _nearestDayEvents,
             onOpenEvents: () {
-              HapticFeedback.selectionClick();
+              AppHaptics.lightImpact();
               shellOpenEventsRequestNotifier.value++;
             },
           ),
@@ -1103,27 +1116,9 @@ class _ExploreTabState extends State<ExploreTab>
             ),
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            height: 118,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(right: 20),
-              itemCount: _topCompanies.length,
-              itemBuilder: (context, index) {
-                final company = _topCompanies[index];
-                return _CompanyCard(
-                  name: company['name'] as String? ?? '',
-                  initial: (company['initial'] as String?) ?? '',
-                  photoUrl: company['photo_url'] as String?,
-                  jobCount: (company['job_count'] as num?)?.toInt() ?? 0,
-                  delay: index * 60,
-                  onTap: () => _openExploreCompanyJobs(
-                    company['name'] as String? ?? '',
-                    company['photo_url'] as String?,
-                  ),
-                );
-              },
-            ),
+          _AutoGlideCompanyCarousel(
+            companies: _topCompanies,
+            onCompanyTap: (name, photoUrl) => _openExploreCompanyJobs(name, photoUrl),
           ),
         ],
       ),
@@ -1329,14 +1324,17 @@ class _ExploreSectionHeader extends StatelessWidget {
         ),
         const SizedBox(width: 10),
         Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              color: const Color(0xFF0F172A),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              title,
+              maxLines: 1,
+              style: GoogleFonts.inter(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: const Color(0xFF0F172A),
+              ),
             ),
           ),
         ),
@@ -1618,12 +1616,23 @@ class _EmployerLogo extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
+        color: color.withValues(alpha: 0.035),
         borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: color.withValues(alpha: 0.08),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: resolvedUrl != null
           ? ClipRRect(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(9),
               child: Image.network(
                 resolvedUrl,
                 fit: BoxFit.cover,
@@ -1660,6 +1669,8 @@ class _RecommendedJobCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
+        highlightColor: Colors.transparent,
+        splashColor: const Color(0x0D2563EB),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(14),
@@ -1702,24 +1713,15 @@ class _RecommendedJobCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
+                  AnimatedBookmarkButton(
+                    isSaved: isSaved,
+                    onTap: onSave,
                     tooltip: isSaved
                         ? (s?.exploreSaved ?? 'Saved')
                         : (s?.save ?? 'Save'),
-                    visualDensity: VisualDensity.compact,
-                    onPressed: onSave,
-                    icon: isSaved
-                        ? const Icon(
-                            Icons.bookmark_rounded,
-                            color: _kExplorePrimaryBlue,
-                            size: 19,
-                          )
-                        : const HugeIcon(
-                            icon: HugeIcons.strokeRoundedBookmark01,
-                            color: Color(0xFF64748B),
-                            size: 18,
-                            strokeWidth: 2.0,
-                          ),
+                    activeColor: _kExplorePrimaryBlue,
+                    inactiveColor: const Color(0xFF64748B),
+                    size: 19,
                   ),
                 ],
               ),
@@ -1797,6 +1799,8 @@ class _RecentJobCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
+        highlightColor: Colors.transparent,
+        splashColor: const Color(0x0D2563EB),
         borderRadius: BorderRadius.circular(12),
         child: Container(
           padding: const EdgeInsets.all(12),
@@ -1852,24 +1856,15 @@ class _RecentJobCard extends StatelessWidget {
                   ],
                 ),
               ),
-              IconButton(
+              AnimatedBookmarkButton(
+                isSaved: isSaved,
+                onTap: onSave,
                 tooltip: isSaved
                     ? (s?.exploreSaved ?? 'Saved')
                     : (s?.save ?? 'Save'),
-                visualDensity: VisualDensity.compact,
-                onPressed: onSave,
-                icon: isSaved
-                    ? const Icon(
-                        Icons.bookmark_rounded,
-                        color: _kExplorePrimaryBlue,
-                        size: 19,
-                      )
-                    : const HugeIcon(
-                        icon: HugeIcons.strokeRoundedBookmark01,
-                        color: Color(0xFF64748B),
-                        size: 18,
-                        strokeWidth: 2.0,
-                      ),
+                activeColor: _kExplorePrimaryBlue,
+                inactiveColor: const Color(0xFF64748B),
+                size: 19,
               ),
             ],
           ),
@@ -2176,44 +2171,224 @@ class _ExploreUpcomingEventsCardState
 class _SnapshotStripCell extends StatelessWidget {
   final String label;
   final String value;
+  final dynamic icon;
+  final Color iconColor;
 
   const _SnapshotStripCell({
     required this.label,
     required this.value,
+    required this.icon,
+    required this.iconColor,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: icon is IconData
+                ? Icon(icon, color: iconColor, size: 14)
+                : HugeIcon(
+                    icon: icon as List<List<dynamic>>,
+                    color: iconColor,
+                    size: 14,
+                    strokeWidth: 2.0,
+                  ),
+          ),
+          const SizedBox(height: 6),
           Text(
             value,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
-              fontSize: 18,
+              fontSize: 17,
               fontWeight: FontWeight.w800,
               color: const Color(0xFF0F172A),
+              letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             label,
             textAlign: TextAlign.center,
-            maxLines: 2,
+            maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: GoogleFonts.inter(
-              fontSize: 10,
-              fontWeight: FontWeight.w500,
-              height: 1.2,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
               color: const Color(0xFF64748B),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Auto-Glide Company Carousel ─────────────────────────────────────────────
+
+class _AutoGlideCompanyCarousel extends StatefulWidget {
+  final List<Map<String, dynamic>> companies;
+  final void Function(String name, String? photoUrl) onCompanyTap;
+
+  const _AutoGlideCompanyCarousel({
+    required this.companies,
+    required this.onCompanyTap,
+  });
+
+  @override
+  State<_AutoGlideCompanyCarousel> createState() =>
+      __AutoGlideCompanyCarouselState();
+}
+
+class __AutoGlideCompanyCarouselState
+    extends State<_AutoGlideCompanyCarousel> {
+  late final ScrollController _scrollController;
+  Timer? _glideTimer;
+  Timer? _resumeTimer;
+  bool _isUserInteracting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _startAutoGlide();
+  }
+
+  @override
+  void dispose() {
+    _glideTimer?.cancel();
+    _resumeTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  bool _isWidgetInViewport() {
+    if (!mounted) return false;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.attached) return false;
+
+    final position = renderBox.localToGlobal(Offset.zero);
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return position.dy < screenHeight &&
+        (position.dy + renderBox.size.height) > 0;
+  }
+
+  void _startAutoGlide() {
+    _glideTimer?.cancel();
+    _glideTimer = Timer.periodic(const Duration(milliseconds: 3200), (_) {
+      if (_isUserInteracting ||
+          !_scrollController.hasClients ||
+          !_isWidgetInViewport()) {
+        return;
+      }
+
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      final currentOffset = _scrollController.offset;
+      const step = 188.0; // card width (176) + padding (12)
+
+      final currentIndex = (currentOffset / step).round();
+      final nextIndex = currentIndex + 1;
+      double targetOffset = nextIndex * step;
+
+      if (targetOffset >= maxExtent + 20) {
+        _scrollController.animateTo(
+          0.0,
+          duration: const Duration(milliseconds: 600),
+          curve: Curves.easeOutCubic,
+        );
+      } else {
+        _scrollController.animateTo(
+          targetOffset.clamp(0.0, maxExtent),
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    });
+  }
+
+  void _snapToNearestCard() {
+    if (!_scrollController.hasClients) return;
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final currentOffset = _scrollController.offset;
+    const step = 188.0;
+
+    final targetIndex = (currentOffset / step).round();
+    final targetOffset = (targetIndex * step).clamp(0.0, maxExtent);
+
+    if ((currentOffset - targetOffset).abs() > 1.0) {
+      _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    }
+  }
+
+  void _pauseAutoGlide() {
+    _isUserInteracting = true;
+    _glideTimer?.cancel();
+    _resumeTimer?.cancel();
+  }
+
+  void _scheduleResume() {
+    _snapToNearestCard();
+    _resumeTimer?.cancel();
+    _resumeTimer = Timer(const Duration(milliseconds: 3500), () {
+      if (mounted) {
+        setState(() {
+          _isUserInteracting = false;
+        });
+        _startAutoGlide();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        if (notification is ScrollStartNotification &&
+            notification.dragDetails != null) {
+          _pauseAutoGlide();
+        } else if (notification is ScrollEndNotification) {
+          _scheduleResume();
+        }
+        return false;
+      },
+      child: SizedBox(
+        height: 118,
+        child: ListView.builder(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.only(right: 20),
+          itemCount: widget.companies.length,
+          itemBuilder: (context, index) {
+            final company = widget.companies[index];
+            return _CompanyCard(
+              name: company['name'] as String? ?? '',
+              initial: (company['initial'] as String?) ?? '',
+              photoUrl: company['photo_url'] as String?,
+              jobCount: (company['job_count'] as num?)?.toInt() ?? 0,
+              delay: index * 60,
+              onTap: () => widget.onCompanyTap(
+                company['name'] as String? ?? '',
+                company['photo_url'] as String?,
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -2246,29 +2421,36 @@ class _CompanyCard extends StatelessWidget {
       photoUrl: resolvedUrl,
       initial: initial,
       color: _kExplorePrimaryBlue,
-      size: 40,
+      size: 42,
     );
 
     return Padding(
-      padding: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.only(right: 12),
       child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: InkWell(
           onTap: () {
-            HapticFeedback.selectionClick();
+            AppHaptics.lightImpact();
             onTap();
           },
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           child: Container(
-            width: 172,
-            padding: const EdgeInsets.all(12),
+            width: 176,
+            padding: const EdgeInsets.all(13),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(14),
               border: Border.all(
                 color: const Color(0xFFE2E8F0),
                 width: 1,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2410,11 +2592,15 @@ class _SkillDemandBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ratio = maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.08, 1.0);
-    final barColor =
-        isUserSkill ? const Color(0xFF10B981) : _kExplorePrimaryBlue;
+    final gradientColors = isUserSkill
+        ? const [Color(0xFF059669), Color(0xFF10B981)]
+        : const [Color(0xFF2563EB), Color(0xFF3B82F6)];
+    final shadowColor = isUserSkill
+        ? const Color(0xFF10B981).withValues(alpha: 0.35)
+        : const Color(0xFF2563EB).withValues(alpha: 0.35);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -2426,54 +2612,101 @@ class _SkillDemandBar extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.inter(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
                     color: const Color(0xFF0F172A),
+                    letterSpacing: -0.1,
                   ),
                 ),
               ),
               if (isUserSkill) ...[
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.check_circle_rounded,
-                  size: 14,
-                  color: barColor,
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFECFDF5),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: const Color(0xFFA7F3D0),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.check_circle_rounded,
+                        size: 11,
+                        color: Color(0xFF059669),
+                      ),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Matched',
+                        style: GoogleFonts.inter(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF059669),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
               const SizedBox(width: 8),
-              Text(
-                '$count',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF475569),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '$count',
+                  style: GoogleFonts.inter(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF334155),
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 7),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return Stack(
-                  children: [
-                    Container(
-                      height: 8,
-                      width: double.infinity,
-                      color: const Color(0xFFEFF6FF),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return Container(
+                height: 10,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: AnimatedContainer(
+                    duration: Duration(milliseconds: 450 + delay),
+                    curve: Curves.easeOutCubic,
+                    height: 10,
+                    width: constraints.maxWidth * ratio,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(999),
+                      gradient: LinearGradient(
+                        colors: gradientColors,
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: shadowColor,
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    AnimatedContainer(
-                      duration: Duration(milliseconds: 420 + delay),
-                      curve: Curves.easeOutCubic,
-                      height: 8,
-                      width: constraints.maxWidth * ratio,
-                      color: barColor,
-                    ),
-                  ],
-                );
-              },
-            ),
+                  ),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -2511,7 +2744,7 @@ class _SectorTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: () {
-          HapticFeedback.selectionClick();
+          AppHaptics.lightImpact();
           onTap();
         },
         borderRadius: BorderRadius.circular(14),

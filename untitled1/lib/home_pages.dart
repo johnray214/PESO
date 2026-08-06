@@ -20,6 +20,7 @@ import 'user_session.dart';
 import 'api_service.dart';
 import 'notification_service.dart';
 import 'job_action_service.dart';
+import 'app_haptics.dart';
 import 'micro_interactions.dart';
 import 'my_documents_page.dart';
 import 'explore_tab.dart';
@@ -86,6 +87,9 @@ Future<bool> _ensureResumeReadyForApply(
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => const MyDocumentsPage()),
     );
+    if (context.mounted) {
+      return await jobActionService.hasResumeOnFile(forceRefresh: true);
+    }
   }
   return false;
 }
@@ -507,13 +511,15 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _detailInfoRow(
-                        HugeIcons.strokeRoundedCalendar03, _event.formattedDate),
+                    _detailInfoRow(HugeIcons.strokeRoundedCalendar03,
+                        _event.formattedDate),
                     if (_event.eventTime != null)
                       _detailInfoRow(
                           HugeIcons.strokeRoundedClock01, _event.eventTime!),
-                    _detailInfoRow(HugeIcons.strokeRoundedLocation01, _event.location),
-                    _detailInfoRow(HugeIcons.strokeRoundedUserGroup, _event.slotsLabel),
+                    _detailInfoRow(
+                        HugeIcons.strokeRoundedLocation01, _event.location),
+                    _detailInfoRow(
+                        HugeIcons.strokeRoundedUserGroup, _event.slotsLabel),
                     if (_event.organizer != null)
                       _detailInfoRow(HugeIcons.strokeRoundedBuilding01,
                           'Organized by ${_event.organizer}'),
@@ -724,9 +730,35 @@ class _EventsPageState extends State<_EventsPage> {
           }
           final events = widget.parseEventsPayload(data);
           if (events.isEmpty) {
-            return const Center(
-              child: Text('No upcoming events found',
-                  style: TextStyle(color: Colors.grey)),
+            return Align(
+              alignment: const Alignment(0, -0.20),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Slight X offset to optically center the mascot body due to asymmetric artwork background board
+                    Transform.translate(
+                      offset: const Offset(8, 0),
+                      child: Image.asset(
+                        'assets/empoynoevents.png',
+                        width: 190,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'No upcoming events found',
+                      style: TextStyle(
+                        color: Color(0xFF64748B),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
             );
           }
           return ListView.builder(
@@ -991,9 +1023,9 @@ Widget _buildBusinessLogo(Business business, double size, double borderRadius) {
     final hash = business.name.hashCode.abs();
     brandColor = colors[hash % colors.length];
   }
-  
-  final initial = business.name.trim().isNotEmpty 
-      ? business.name.trim()[0].toUpperCase() 
+
+  final initial = business.name.trim().isNotEmpty
+      ? business.name.trim()[0].toUpperCase()
       : '?';
 
   Widget fallback = Container(
@@ -1804,13 +1836,14 @@ class _HomePageState extends State<HomePage> {
     required String label,
   }) {
     final isSelected = _selectedIndex == index;
-    final iconColor =
-        isSelected ? const Color(0xFF2563EB) : Colors.white.withValues(alpha: 0.75);
+    final iconColor = isSelected
+        ? const Color(0xFF2563EB)
+        : Colors.white.withValues(alpha: 0.75);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
         if (_selectedIndex != index) {
-          HapticFeedback.selectionClick();
+          AppHaptics.selectionClick();
           setState(() {
             _selectedIndex = index;
             activeHomeTabIndexNotifier.value = _selectedIndex;
@@ -1880,6 +1913,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
   /// Robot mascot on greeting banner — swaps art while tapped / long‑pressed.
   bool _homeMascotPoked = false;
+  DateTime? _pokedTouchTime;
 
   /// Idle mascot (`empoyhomepagev2.png`) — [Positioned] + image box.
   static const double _mascotIdleLeft = -21;
@@ -2045,7 +2079,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   }
 
   void _ringBell() {
-    HapticFeedback.lightImpact();
+    AppHaptics.lightImpact();
     _bellRingController.forward(from: 0);
   }
 
@@ -3181,19 +3215,27 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapDown: (_) {
-                          HapticFeedback.lightImpact();
+                          AppHaptics.lightImpact();
+                          _pokedTouchTime = DateTime.now();
                           setState(() => _homeMascotPoked = true);
                         },
-                        onTapUp: (_) =>
-                            setState(() => _homeMascotPoked = false),
-                        onTapCancel: () =>
-                            setState(() => _homeMascotPoked = false),
-                        onLongPressStart: (_) {
-                          HapticFeedback.selectionClick();
-                          setState(() => _homeMascotPoked = true);
+                        onTapUp: (_) {
+                          final start = _pokedTouchTime;
+                          final elapsed = start != null
+                              ? DateTime.now().difference(start).inMilliseconds
+                              : 300;
+                          final remaining = 300 - elapsed;
+                          if (remaining > 0) {
+                            Future.delayed(Duration(milliseconds: remaining), () {
+                              if (mounted) setState(() => _homeMascotPoked = false);
+                            });
+                          } else {
+                            if (mounted) setState(() => _homeMascotPoked = false);
+                          }
                         },
-                        onLongPressEnd: (_) =>
-                            setState(() => _homeMascotPoked = false),
+                        onTapCancel: () {
+                          if (mounted) setState(() => _homeMascotPoked = false);
+                        },
                         child: Image.asset(
                           _homeMascotPoked
                               ? 'assets/empoy_poked.png'
@@ -3290,7 +3332,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   child: IconButton(
                                     onPressed: _openNotifications,
                                     icon: const HugeIcon(
-                                      icon: HugeIcons.strokeRoundedNotification01,
+                                      icon:
+                                          HugeIcons.strokeRoundedNotification01,
                                       color: Colors.white,
                                       size: 24,
                                       strokeWidth: 2.0,
@@ -3442,7 +3485,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                       return text.isNotEmpty
                                           ? IconButton(
                                               icon: const HugeIcon(
-                                                icon: HugeIcons.strokeRoundedCancel01,
+                                                icon: HugeIcons
+                                                    .strokeRoundedCancel01,
                                                 color: Color(0xFF64748B),
                                                 size: 18,
                                                 strokeWidth: 2.0,
@@ -3466,7 +3510,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                                 ),
                                                 IconButton(
                                                   icon: HugeIcon(
-                                                    icon: HugeIcons.strokeRoundedFilterHorizontal,
+                                                    icon: HugeIcons
+                                                        .strokeRoundedFilterHorizontal,
                                                     color: _hasActiveFilters
                                                         ? const Color(
                                                             0xFF2563EB)
@@ -3502,7 +3547,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                             padding: const EdgeInsets.only(right: 10),
                             child: InkWell(
                               onTap: () {
-                                HapticFeedback.selectionClick();
+                                AppHaptics.selectionClick();
                                 setState(() {
                                   if (isSelected) {
                                     _selectedEmploymentTypes.remove(type);
@@ -3573,7 +3618,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      AppHaptics.selectionClick();
                       setState(() => _isGridView = !_isGridView);
                       _scheduleClampJobListScroll();
                     },
@@ -3607,7 +3652,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () {
-                      HapticFeedback.selectionClick();
+                      AppHaptics.selectionClick();
                       _showSortSheet();
                     },
                     child: Container(
@@ -4165,30 +4210,44 @@ class _JobCardState extends State<_JobCard> {
     });
   }
 
+  bool _isPressed = false;
+
   @override
   Widget build(BuildContext context) {
     final job = widget.job;
     final isSaved = widget.isSaved;
     final isApplied = widget.isApplied;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: widget.onTap,
+    return AnimatedScale(
+      scale: _isPressed ? 0.97 : 1.0,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOutCubic,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
           borderRadius: BorderRadius.circular(24),
-          child: Padding(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: widget.onTap,
+            onTapDown: (_) {
+              AppHaptics.lightImpact();
+              setState(() => _isPressed = true);
+            },
+            onTapUp: (_) => setState(() => _isPressed = false),
+            onTapCancel: () => setState(() => _isPressed = false),
+            highlightColor: Colors.transparent,
+            splashColor: const Color(0x0D2563EB),
+            borderRadius: BorderRadius.circular(24),
+            child: Padding(
             padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -4338,32 +4397,24 @@ class _JobCardState extends State<_JobCard> {
                 ),
                 const SizedBox(height: 12),
 
-                // Description
-                Text(
-                  job.description,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Color(0xFF475569),
-                    height: 1.5,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-
                 // Footer Buttons (Anchored to Right)
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _buildActionButton(
-                      icon: isSaved
-                          ? Icons.bookmark_rounded
-                          : HugeIcons.strokeRoundedBookmark01,
-                      color: isSaved
-                          ? const Color(0xFF2563EB)
-                          : const Color(0xFF64748B),
-                      isSelected: isSaved,
+                    AnimatedBookmarkBounce(
+                      isSaved: isSaved,
                       onTap: widget.onSave,
-                      pulseScale: _savePulse,
+                      child: _buildActionButton(
+                        icon: isSaved
+                            ? Icons.bookmark_rounded
+                            : HugeIcons.strokeRoundedBookmark01,
+                        color: isSaved
+                            ? const Color(0xFF2563EB)
+                            : const Color(0xFF64748B),
+                        isSelected: isSaved,
+                        onTap: widget.onSave,
+                        pulseScale: _savePulse,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     _buildActionButton(
@@ -4387,8 +4438,9 @@ class _JobCardState extends State<_JobCard> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildChip(dynamic icon, String text) {
     return Container(
@@ -4655,20 +4707,12 @@ class _JobCardCompact extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    GestureDetector(
+                    AnimatedBookmarkButton(
+                      isSaved: isSaved,
                       onTap: onSave,
-                      child: isSaved
-                          ? const Icon(
-                              Icons.bookmark_rounded,
-                              size: 19,
-                              color: Color(0xFF2563EB),
-                            )
-                          : const HugeIcon(
-                              icon: HugeIcons.strokeRoundedBookmark01,
-                              size: 18,
-                              color: Color(0xFF94A3B8),
-                              strokeWidth: 2.0,
-                            ),
+                      activeColor: const Color(0xFF2563EB),
+                      inactiveColor: const Color(0xFF94A3B8),
+                      size: 18,
                     ),
                   ],
                 ),
@@ -4775,23 +4819,11 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
     if (!mounted || _mapTourStarted) return;
     if (activeHomeTabIndexNotifier.value != 2) return;
     _mapTourStarted = true;
-    unawaited(_maybeStartMapTour());
   }
 
   Future<void> _maybeStartMapTour() async {
-    final token = UserSession().token;
-    final done = await OnboardingPrefs.isMapTourDone(token: token);
-    if (done || !mounted) return;
-    // Persist immediately once eligible so hot reload/rebuild timing doesn't
-    // accidentally re-trigger the map tour on the next entry.
-    await OnboardingPrefs.setMapTourDone(token: token);
-    if (!mounted) return;
-    await Future.delayed(const Duration(milliseconds: 2000));
-    if (!mounted || activeHomeTabIndexNotifier.value != 2) return;
-    ShowcaseView.get().startShowCase([
-      _showcaseMapBestMatch,
-      _showcaseMapLocProfiles,
-    ]);
+    // Map tour disabled per request
+    return;
   }
 
   Future<void> _ensureLocationReady() async {
@@ -6541,7 +6573,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                                 color: color,
                                                 alignment: Alignment.center,
                                                 child: HugeIcon(
-                                                  icon: HugeIcons.strokeRoundedBuilding01,
+                                                  icon: HugeIcons
+                                                      .strokeRoundedBuilding01,
                                                   color: Colors.white,
                                                   size: isSelected ? 22 : 18,
                                                   strokeWidth: 2.0,
@@ -6554,7 +6587,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                               color: color,
                                               alignment: Alignment.center,
                                               child: HugeIcon(
-                                                icon: HugeIcons.strokeRoundedBuilding01,
+                                                icon: HugeIcons
+                                                    .strokeRoundedBuilding01,
                                                 color: Colors.white,
                                                 size: isSelected ? 22 : 18,
                                                 strokeWidth: 2.0,
@@ -6710,8 +6744,8 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                               strokeWidth: 2.0,
                             ),
                           ),
-                          prefixIconConstraints: const BoxConstraints(
-                              minWidth: 44, minHeight: 44),
+                          prefixIconConstraints:
+                              const BoxConstraints(minWidth: 44, minHeight: 44),
                           suffixIcon: _searchController.text.isNotEmpty
                               ? IconButton(
                                   icon: const HugeIcon(
@@ -6746,44 +6780,47 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                 fromLng: ref.longitude,
                               );
                               return ListTile(
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
+                                leading: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF3B82F6),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  alignment: Alignment.center,
                                   child: business.imageUrl.isNotEmpty
-                                      ? Image.network(
-                                          business.imageUrl,
-                                          width: 40,
-                                          height: 40,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) =>
-                                              Container(
+                                      ? ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                          child: Image.network(
+                                            business.imageUrl,
                                             width: 40,
                                             height: 40,
-                                            color: const Color(0xFF2563EB)
-                                                .withOpacity(0.1),
-                                            child: const HugeIcon(
-                                              icon: HugeIcons
-                                                  .strokeRoundedBuilding01,
-                                              color: Color(0xFF2563EB),
-                                              size: 20,
-                                              strokeWidth: 2.0,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => Text(
+                                              business.name.trim().isNotEmpty
+                                                  ? business.name
+                                                      .trim()[0]
+                                                      .toUpperCase()
+                                                  : 'B',
+                                              style: GoogleFonts.inter(
+                                                color: Colors.white,
+                                                fontSize: 18,
+                                                fontWeight: FontWeight.w800,
+                                              ),
                                             ),
                                           ),
                                         )
-                                      : Container(
-                                          width: 40,
-                                          height: 40,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF2563EB)
-                                                .withOpacity(0.1),
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          child: const HugeIcon(
-                                            icon: HugeIcons
-                                                .strokeRoundedBuilding01,
-                                            color: Color(0xFF2563EB),
-                                            size: 20,
-                                            strokeWidth: 2.0,
+                                      : Text(
+                                          business.name.trim().isNotEmpty
+                                              ? business.name
+                                                  .trim()[0]
+                                                  .toUpperCase()
+                                              : 'B',
+                                          style: GoogleFonts.inter(
+                                            color: Colors.white,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
                                           ),
                                         ),
                                 ),
@@ -6938,7 +6975,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                 children: [
                                   Padding(
                                     padding: EdgeInsets.only(
-                                        top: _compareBusinessIds.isNotEmpty ? 20 : 0),
+                                        top: _compareBusinessIds.isNotEmpty
+                                            ? 20
+                                            : 0),
                                     child: Row(
                                       children: [
                                         Container(
@@ -7124,8 +7163,9 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                           children: [
                                             Row(
                                               children: [
-                                                 _buildBusinessLogo(business, 44, 12),
-                                                 const SizedBox(width: 12),
+                                                _buildBusinessLogo(
+                                                    business, 44, 12),
+                                                const SizedBox(width: 12),
                                                 Expanded(
                                                   child: Column(
                                                     crossAxisAlignment:
@@ -8717,7 +8757,7 @@ class _NotificationsTabState extends State<NotificationsTab>
               onTap: disabled
                   ? null
                   : () {
-                      HapticFeedback.mediumImpact();
+                      AppHaptics.mediumImpact();
                       _confirmDeleteAllNotifications();
                     },
               borderRadius: BorderRadius.circular(_deleteFabCompact / 2),
@@ -8866,7 +8906,7 @@ class _NotificationsTabState extends State<NotificationsTab>
   }
 
   Future<void> _openNotification(Map<String, dynamic> notificationItem) async {
-    HapticFeedback.selectionClick();
+    AppHaptics.selectionClick();
     final token = UserSession().token;
     if (token == null || token.isEmpty) return;
     final id = notificationItem['id'];
@@ -9411,7 +9451,7 @@ class _NotificationsTabState extends State<NotificationsTab>
 
   Future<void> _deleteNotification(int idxInSortedList,
       {bool allowSatisfactionSurvey = false}) async {
-    HapticFeedback.mediumImpact();
+    AppHaptics.mediumImpact();
     // Use the sorted list to find the actual notification object
     final n = _sortedNotifications[idxInSortedList];
     final notifId = n['id'];
@@ -9637,7 +9677,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                         now.difference(last) >
                             const Duration(milliseconds: 90)) {
                       lastRatingHapticAt = now;
-                      HapticFeedback.selectionClick();
+                      AppHaptics.selectionClick();
                     }
                     setDialogState(() => selectedRating = next);
                   }
@@ -9938,7 +9978,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                 onTap: _notifications.isEmpty
                     ? null
                     : () {
-                        HapticFeedback.selectionClick();
+                        AppHaptics.selectionClick();
                         _markAllRead();
                       },
                 borderRadius: BorderRadius.circular(100),

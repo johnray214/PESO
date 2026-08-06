@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:hugeicons/hugeicons.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'api_service.dart';
 import 'l10n/app_localizations.dart';
 import 'password_rules.dart';
 import 'user_session.dart';
+import 'auth/auth_shared.dart';
+import 'micro_interactions.dart';
 
 /// Signed-in jobseeker: current + new + confirm. Uses `POST /jobseeker/profile/password`.
 class ChangePasswordPage extends StatefulWidget {
@@ -97,6 +101,23 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     );
   }
 
+  String _messageFromApi(Map<String, dynamic> res) {
+    final raw = res['message'];
+    if (raw is String && raw.trim().isNotEmpty) {
+      return raw.trim();
+    }
+    final errors = res['errors'];
+    if (errors is Map) {
+      for (final key in ['current_password', 'password', 'password_confirmation']) {
+        final list = errors[key];
+        if (list is List && list.isNotEmpty && list.first is String) {
+          return (list.first as String).trim();
+        }
+      }
+    }
+    return 'Failed to change password. Please check your current password.';
+  }
+
   Widget _passwordRequirementRow(String label, bool ok,
       {String? helpTooltip}) {
     return Padding(
@@ -171,72 +192,61 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
     );
   }
 
-  String _messageFromApi(Map<String, dynamic> res) {
-    final errors = res['errors'];
-    if (errors is Map) {
-      for (final entry in errors.entries) {
-        final v = entry.value;
-        if (v is List && v.isNotEmpty) return v.first.toString();
-      }
-    }
-    final m = (res['message'] as String?)?.trim();
-    if (m != null && m.isNotEmpty) return m;
-    return 'Could not update password. Try again.';
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = S.of(context);
-    const border = OutlineInputBorder(
-      borderRadius: BorderRadius.all(Radius.circular(12)),
-    );
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: const Color(0xFFF1F5F9),
+        backgroundColor: const Color(0xFFF8FAFC),
         foregroundColor: const Color(0xFF0F172A),
         title: Text(
           l10n?.changePassword ?? 'Change password',
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+          style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 18),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Use a strong password you haven’t used elsewhere.',
-                style: TextStyle(
+                style: GoogleFonts.inter(
                   fontSize: 14,
                   height: 1.4,
-                  color: Color(0xFF64748B),
+                  color: const Color(0xFF64748B),
                   fontWeight: FontWeight.w500,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
+              buildAuthFieldLabel(l10n?.currentPassword ?? 'Current password'),
               TextFormField(
                 controller: _currentCtrl,
                 obscureText: _obscureCurrent,
+                keyboardType: TextInputType.visiblePassword,
+                enableSuggestions: false,
+                autocorrect: false,
                 autofillHints: const [AutofillHints.password],
                 inputFormatters: PasswordRules.inputFormattersNoWhitespace,
-                decoration: InputDecoration(
-                  labelText: l10n?.currentPassword ?? 'Current password',
-                  border: border,
-                  enabledBorder: border,
-                  focusedBorder: border.copyWith(
-                    borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureCurrent ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                decoration: authFieldDecoration(
+                  HugeIcons.strokeRoundedLockPassword,
+                  hintText: '••••••••',
+                  suffix: IconButton(
+                    icon: HugeIcon(
+                      icon: _obscureCurrent
+                          ? HugeIcons.strokeRoundedViewOffSlash
+                          : HugeIcons.strokeRoundedView,
                       color: const Color(0xFF64748B),
+                      size: 20,
+                      strokeWidth: 2.0,
                     ),
-                    onPressed: () => setState(() => _obscureCurrent = !_obscureCurrent),
+                    onPressed: () =>
+                        setState(() => _obscureCurrent = !_obscureCurrent),
                   ),
                 ),
                 validator: (v) {
@@ -251,22 +261,26 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
+              buildAuthFieldLabel(l10n?.newPassword ?? 'New password'),
               TextFormField(
                 controller: _newCtrl,
                 obscureText: _obscureNew,
+                keyboardType: TextInputType.visiblePassword,
+                enableSuggestions: false,
+                autocorrect: false,
                 autofillHints: const [AutofillHints.newPassword],
                 inputFormatters: PasswordRules.inputFormattersNoWhitespace,
-                decoration: InputDecoration(
-                  labelText: l10n?.newPassword ?? 'New password',
-                  border: border,
-                  enabledBorder: border,
-                  focusedBorder: border.copyWith(
-                    borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureNew ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                decoration: authFieldDecoration(
+                  HugeIcons.strokeRoundedLockPassword,
+                  hintText: '••••••••',
+                  suffix: IconButton(
+                    icon: HugeIcon(
+                      icon: _obscureNew
+                          ? HugeIcons.strokeRoundedViewOffSlash
+                          : HugeIcons.strokeRoundedView,
                       color: const Color(0xFF64748B),
+                      size: 20,
+                      strokeWidth: 2.0,
                     ),
                     onPressed: () => setState(() => _obscureNew = !_obscureNew),
                   ),
@@ -274,27 +288,33 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                 validator: (v) => _validateNew(v),
                 onChanged: (_) => setState(() {}),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               _buildNewPasswordRequirements(),
               const SizedBox(height: 16),
+              buildAuthFieldLabel(
+                  l10n?.confirmNewPassword ?? 'Confirm new password'),
               TextFormField(
                 controller: _confirmCtrl,
                 obscureText: _obscureConfirm,
+                keyboardType: TextInputType.visiblePassword,
+                enableSuggestions: false,
+                autocorrect: false,
                 autofillHints: const [AutofillHints.newPassword],
                 inputFormatters: PasswordRules.inputFormattersNoWhitespace,
-                decoration: InputDecoration(
-                  labelText: l10n?.confirmNewPassword ?? 'Confirm new password',
-                  border: border,
-                  enabledBorder: border,
-                  focusedBorder: border.copyWith(
-                    borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
-                  ),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscureConfirm ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                decoration: authFieldDecoration(
+                  HugeIcons.strokeRoundedLockPassword,
+                  hintText: '••••••••',
+                  suffix: IconButton(
+                    icon: HugeIcon(
+                      icon: _obscureConfirm
+                          ? HugeIcons.strokeRoundedViewOffSlash
+                          : HugeIcons.strokeRoundedView,
                       color: const Color(0xFF64748B),
+                      size: 20,
+                      strokeWidth: 2.0,
                     ),
-                    onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                    onPressed: () =>
+                        setState(() => _obscureConfirm = !_obscureConfirm),
                   ),
                 ),
                 validator: (v) => _validateConfirm(v),
@@ -314,29 +334,43 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
                   ),
                 ),
               const SizedBox(height: 28),
-              FilledButton(
-                onPressed: _submitting ? null : _submit,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF2563EB),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+              SizedBox(
+                width: double.infinity,
+                child: PressableButton(
+                  onTap: _submitting ? null : _submit,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(14),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: _submitting
+                        ? const SizedBox(
+                            height: 22,
+                            width: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            l10n?.changePassword ?? 'Change password',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                            ),
+                          ),
                   ),
                 ),
-                child: _submitting
-                    ? const SizedBox(
-                        height: 22,
-                        width: 22,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Text(
-                        l10n?.changePassword ?? 'Change password',
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-                      ),
               ),
             ],
           ),

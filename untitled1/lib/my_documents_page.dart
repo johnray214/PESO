@@ -14,6 +14,7 @@ import 'pdf_picker_result.dart';
 import 'pick_pdf_io.dart' if (dart.library.html) 'pick_pdf_web.dart'
     as pdf_picker;
 import 'user_session.dart';
+import 'job_action_service.dart';
 
 enum _DocKind { resume, certificate, clearance }
 
@@ -386,6 +387,9 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
         unawaited(_persistLocalMeta(
             kind: kind, uploadedAt: now, sizeBytes: sizeBytes));
         await _loadPaths();
+        if (kind == _DocKind.resume) {
+          JobActionService().invalidateResumeCache();
+        }
         _showToast(
           '${_labelForKind(kind)} uploaded successfully',
           type: ToastType.success,

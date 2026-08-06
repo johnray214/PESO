@@ -6,6 +6,8 @@ import 'api_service.dart';
 import 'l10n/app_localizations.dart';
 import 'main.dart';
 import 'user_session.dart';
+import 'auth/auth_shared.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 enum _ChangeEmailStep { enterEmail, verifyOtp }
 
@@ -312,20 +314,14 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               ),
             ),
             const SizedBox(height: 14),
+            buildAuthFieldLabel(l10n?.newEmailAddress ?? 'New email address'),
             TextFormField(
               controller: _newEmailController,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: l10n?.newEmailAddress ?? 'New email address',
-                prefixIcon: const Icon(Icons.email_outlined),
-                border: const OutlineInputBorder(),
-                enabledBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFFBFDBFE)),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF2563EB), width: 2),
-                ),
+              decoration: authFieldDecoration(
+                HugeIcons.strokeRoundedMail01,
+                hintText: 'example@email.com',
               ),
               validator: _validateEmail,
             ),
@@ -386,22 +382,16 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               ),
             ),
             const SizedBox(height: 14),
+            buildAuthFieldLabel(l10n?.enterOtp ?? 'Enter OTP'),
             TextFormField(
               controller: _otpController,
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.done,
               maxLength: 6,
-              decoration: InputDecoration(
-                labelText: l10n?.enterOtp ?? 'Enter OTP',
-                prefixIcon: const Icon(Icons.verified_user_outlined),
-                border: const OutlineInputBorder(),
+              decoration: authFieldDecoration(
+                HugeIcons.strokeRoundedShieldKey,
+                hintText: '123456',
                 counterText: '',
-                enabledBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFFBFDBFE)),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF2563EB), width: 2),
-                ),
               ),
               validator: _validateOtp,
             ),

@@ -74,4 +74,8 @@ flutter:
     - assets/empoy_notif_hired.png
     - assets/empoy_notif_shortlisted.png
     - assets/empoy_no_internetconnection.png
+    - assets/empoynoevents.png
+    - assets/empoysignin.png
+    - assets/empoyauth.png
+    - assets/empoywelcome.png
     - .env

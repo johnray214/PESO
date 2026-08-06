@@ -4,6 +4,7 @@ import 'change_email_page.dart';
 import 'change_password_page.dart';
 import 'locale_service.dart';
 import 'l10n/app_localizations.dart';
+import 'app_haptics.dart';
 
 /// Profile → Settings: account actions (e.g. change password).
 class SettingsPage extends StatefulWidget {
@@ -14,9 +15,12 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  late bool _hapticsEnabled;
+
   @override
   void initState() {
     super.initState();
+    _hapticsEnabled = AppHaptics.enabled;
     LocaleService.instance.addListener(_onLocaleChanged);
   }
 
@@ -206,36 +210,77 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                leading: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedGlobal,
-                  color: Color(0xFF64748B),
-                  size: 20,
-                  strokeWidth: 2.0,
-                ),
-                title: Text(
-                  l10n?.language ?? 'Language',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0F172A),
+              child: Column(
+                children: [
+                  ListTile(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                    leading: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedGlobal,
+                      color: Color(0xFF64748B),
+                      size: 20,
+                      strokeWidth: 2.0,
+                    ),
+                    title: Text(
+                      l10n?.language ?? 'Language',
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    subtitle: Text(
+                      AppLocales.displayName(currentLocale),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    trailing: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedArrowRight01,
+                      color: Color(0xFF94A3B8),
+                      size: 18,
+                      strokeWidth: 2.0,
+                    ),
+                    onTap: _showLanguageSelector,
                   ),
-                ),
-                subtitle: Text(
-                  AppLocales.displayName(currentLocale),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
+                  const Divider(
+                      height: 1,
+                      indent: 20,
+                      endIndent: 20,
+                      color: Color(0xFFF1F5F9)),
+                  SwitchListTile.adaptive(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                    secondary: const Icon(
+                      Icons.vibration_rounded,
+                      color: Color(0xFF64748B),
+                      size: 20,
+                    ),
+                    title: const Text(
+                      'Haptics & Vibration',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Vibrate on bottom nav, buttons, and actions',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    activeTrackColor: const Color(0xFF2563EB),
+                    value: _hapticsEnabled,
+                    onChanged: (val) async {
+                      setState(() => _hapticsEnabled = val);
+                      await AppHaptics.setEnabled(val);
+                      if (val) AppHaptics.lightImpact();
+                    },
                   ),
-                ),
-                trailing: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowRight01,
-                  color: Color(0xFF94A3B8),
-                  size: 18,
-                  strokeWidth: 2.0,
-                ),
-                onTap: _showLanguageSelector,
+                ],
               ),
             ),
           ),

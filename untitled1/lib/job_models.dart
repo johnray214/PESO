@@ -5,6 +5,7 @@ import 'api_service.dart';
 import 'job_action_service.dart';
 import 'skill_match_utils.dart';
 import 'l10n/app_localizations.dart';
+import 'micro_interactions.dart';
 import 'main.dart';
 
 // ─── Job Model ────────────────────────────────────────────────────────────────
@@ -1557,7 +1558,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 },
               ),
             ),
-            GestureDetector(
+            AnimatedBookmarkBounce(
+              isSaved: isSaved,
               onTap: () => widget.onSave?.call(),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -1616,7 +1618,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad + 16),
         child: Row(
           children: [
-            GestureDetector(
+            AnimatedBookmarkBounce(
+              isSaved: isSaved,
               onTap: () => widget.onSave?.call(),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),

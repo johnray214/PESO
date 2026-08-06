@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'api_service.dart';
 import 'l10n/app_localizations.dart';
 import 'app_nav.dart';
+import 'app_haptics.dart';
 
 /// A global wrapper that monitor's connectivity and shows a premium "No Internet" modal.
 class ConnectivityWrapper extends StatefulWidget {
@@ -158,7 +159,7 @@ class _ConnectivityWrapperState extends State<ConnectivityWrapper> {
         (route) => false,
       );
     } else {
-      HapticFeedback.lightImpact();
+      AppHaptics.lightImpact();
       setState(() {
         _manualRetryLoading = false;
         _shakeKey++;

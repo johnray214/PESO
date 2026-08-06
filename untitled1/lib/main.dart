@@ -29,9 +29,12 @@ import 'notification_service.dart';
 import 'locale_service.dart';
 import 'app_config.dart';
 import 'auth/signup_wizard.dart';
+import 'auth/auth_shared.dart';
+import 'app_haptics.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppHaptics.init();
 
   await Firebase.initializeApp();
   NotificationService().initialize();
@@ -303,7 +306,7 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
 
     if (!isOnline) {
-      HapticFeedback.lightImpact();
+      AppHaptics.lightImpact();
       setState(() {
         _isOffline = true;
         _shakeKey++;
@@ -379,136 +382,98 @@ class _SplashScreenState extends State<SplashScreen>
     await _proceedIfOnline();
   }
 
-  // ── Loading Pill (default state) ───────────────────────────────────────────
+  // ── Loading Status (minimal bottom rail) ───────────────────────────────────
   Widget _buildLoadingPill() {
-    return Container(
+    return Column(
       key: const ValueKey('loading'),
-      margin: const EdgeInsets.symmetric(horizontal: 40),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: Colors.white.withOpacity(0.12),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.15),
-          width: 1,
-        ),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-            child: Column(
-              children: [
-                const _SplashDots()
-                    .animate()
-                    .fadeIn(delay: 1200.ms, duration: 500.ms),
-                const SizedBox(height: 12),
-                Text(
-                  'Connecting you to opportunities...',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF0F172A).withOpacity(0.6),
-                    letterSpacing: 0.3,
-                  ),
-                ).animate().fadeIn(delay: 1400.ms, duration: 500.ms),
-              ],
-            ),
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const _SplashDots().animate().fadeIn(delay: 400.ms, duration: 400.ms),
+        const SizedBox(height: 10),
+        Text(
+          'Connecting to PESO...',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: const Color(0xFF64748B),
+            letterSpacing: 0.4,
           ),
-        ),
-      ),
+        ).animate().fadeIn(delay: 500.ms, duration: 400.ms),
+      ],
     );
   }
 
-  // ── Offline Pill (no internet state) ───────────────────────────────────────
+  // ── Offline State (clean action card) ─────────────────────────────────────
   Widget _buildOfflinePill() {
     return Container(
       key: const ValueKey('offline'),
-      margin: const EdgeInsets.symmetric(horizontal: 40),
+      margin: const EdgeInsets.symmetric(horizontal: 36),
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 24),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: Colors.white.withOpacity(0.25),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.3),
-          width: 1,
-        ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-            child: Column(
-              children: [
-                Icon(
-                  Icons.wifi_off_rounded,
-                  size: 28,
-                  color: const Color(0xFF0F172A).withOpacity(0.5),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'No internet connection',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.poppins(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF0F172A).withOpacity(0.7),
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                GestureDetector(
-                  onTap: _retry,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2563EB),
-                      borderRadius: BorderRadius.circular(14),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF2563EB).withOpacity(0.3),
-                          blurRadius: 12,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: _isRetrying
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor:
-                                  AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Text(
-                            'Retry',
-                            style: GoogleFonts.poppins(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
-                          ),
-                  ),
-                ),
-              ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.wifi_off_rounded,
+            size: 24,
+            color: Color(0xFF64748B),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No internet connection',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: const Color(0xFF1E293B),
             ),
           ),
-        ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: _retry,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 28,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFF2563EB),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: _isRetrying
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Text(
+                      'Retry',
+                      style: GoogleFonts.inter(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+            ),
+          ),
+        ],
       ),
-    )
-        .animate(key: const ValueKey('offline_main'))
-        .fadeIn(duration: 400.ms)
-        .slideY(begin: 0.1, curve: Curves.easeOut)
-        .animate(key: ValueKey('shake_$_shakeKey'))
-        .shake(hz: 8, curve: Curves.easeInOutCubic, duration: 400.ms);
+    );
   }
 
   void _navigate(Widget page) {
@@ -574,11 +539,10 @@ class _SplashScreenState extends State<SplashScreen>
               end: Alignment.bottomCenter,
               colors: [
                 Color(0xFFFFFFFF),
-                Color(0xFFE8F4FD),
-                Color(0xFFB3D4FC),
-                Color(0xFF5B9BD5),
+                Color(0xFFF8FAFC),
+                Color(0xFFEFF6FF),
               ],
-              stops: [0.0, 0.35, 0.7, 1.0],
+              stops: [0.0, 0.5, 1.0],
             ),
           ),
           child: AnimatedBuilder(
@@ -592,308 +556,105 @@ class _SplashScreenState extends State<SplashScreen>
                 ),
               );
             },
-            child: Stack(
-              children: [
-                // ── Decorative orbs (with wandering motion) ──────────────────
-                AnimatedBuilder(
-                  animation: _orbCtrl,
-                  builder: (context, _) => Positioned(
-                    top: (-size.width * 0.3) + _orbMovement.value,
-                    left: (-size.width * 0.25) + (_orbMovement.value * 1.5),
-                    child: Container(
-                      width: size.width * 0.80,
-                      height: size.width * 0.80,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF1565C0).withOpacity(0.08),
-                      ),
-                    ),
-                  ),
-                ),
-                AnimatedBuilder(
-                  animation: _orbCtrl,
-                  builder: (context, _) => Positioned(
-                    bottom: (-size.width * 0.22) - (_orbMovement.value * 0.8),
-                    right: (-size.width * 0.18) + _orbMovement.value,
-                    child: Container(
-                      width: size.width * 0.65,
-                      height: size.width * 0.65,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF5B9BD5).withOpacity(0.12),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: size.height * 0.08,
-                  right: size.width * 0.06,
-                  child: Container(
-                    width: 110,
-                    height: 110,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFFB3D4FC).withOpacity(0.5),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: size.height * 0.18,
-                  left: size.width * 0.04,
-                  child: Container(
-                    width: 70,
-                    height: 70,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF5B9BD5).withOpacity(0.15),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: size.height * 0.12,
-                  right: size.width * 0.02,
-                  child: Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF93C5FD).withOpacity(0.35),
-                    ),
-                  ),
-                ),
-
-                // ── Main content ─────────────────────────────────────────────
-                Positioned.fill(
-                  child: SafeArea(
-                    child: SizedBox(
-                      width: double.infinity,
+            child: SafeArea(
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                // ── Mascot + shadow (original asset) ─────────────────────
-                                AnimatedBuilder(
-                                  animation: Listenable.merge(
-                                      [_mascotCtrl, _floatCtrl]),
-                                  builder: (context, child) {
-                                    return Transform.translate(
-                                      offset: Offset(
-                                          0, _mascotY.value + _float.value),
-                                      child: Transform.scale(
-                                        scale: _mascotScale.value,
-                                        child: child,
-                                      ),
-                                    );
-                                  },
-                                  child: Stack(
-                                    alignment: Alignment.bottomCenter,
-                                    children: [
-                                      Container(
-                                        width: size.width * 0.28,
-                                        height: 14,
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(999),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black
-                                                  .withOpacity(0.35),
-                                              blurRadius: 28,
-                                              spreadRadius: 4,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      SizedBox(
-                                        width: size.width * 0.30,
-                                        height: size.width * 0.30,
-                                        child: Image.asset(
-                                          'assets/empoy_app_icon.png',
-                                          fit: BoxFit.contain,
-                                          errorBuilder: (_, __, ___) => Icon(
-                                            Icons.person,
-                                            size: size.width * 0.22,
-                                            color: const Color(0xFF1565C0)
-                                                .withOpacity(0.5),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                          // ── Mascot Character (Clean Spring Motion) ─────────────────
+                          AnimatedBuilder(
+                            animation:
+                                Listenable.merge([_mascotCtrl, _floatCtrl]),
+                            builder: (context, child) {
+                              return Transform.translate(
+                                offset:
+                                    Offset(0, _mascotY.value + _float.value),
+                                child: Transform.scale(
+                                  scale: _mascotScale.value,
+                                  child: child,
                                 ),
-
-                                SizedBox(height: size.height * 0.028),
-
-                                // ── Kabsat Empoy (PESO-style shimmer) + tagline ────────────
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 22),
-                                  child: Column(
-                                    children: [
-                                      AnimatedBuilder(
-                                        animation: _shimmerCtrl,
-                                        builder: (context, child) {
-                                          return ShaderMask(
-                                            blendMode: BlendMode.srcIn,
-                                            shaderCallback: (bounds) {
-                                              final shimmerX =
-                                                  _shimmer.value * bounds.width;
-                                              return LinearGradient(
-                                                begin: Alignment.centerLeft,
-                                                end: Alignment.centerRight,
-                                                colors: const [
-                                                  Color(0xFF0F172A),
-                                                  Color(0xFF0F172A),
-                                                  Color(0xFF2563EB),
-                                                  Color(0xFF60A5FA),
-                                                  Color(0xFF0F172A),
-                                                  Color(0xFF0F172A),
-                                                ],
-                                                stops: [
-                                                  0.0,
-                                                  math.max(
-                                                    0.0,
-                                                    (shimmerX / bounds.width) -
-                                                        0.25,
-                                                  ),
-                                                  (shimmerX / bounds.width)
-                                                      .clamp(0.0, 1.0),
-                                                  math.min(
-                                                    1.0,
-                                                    (shimmerX / bounds.width) +
-                                                        0.15,
-                                                  ),
-                                                  math.min(
-                                                    1.0,
-                                                    (shimmerX / bounds.width) +
-                                                        0.35,
-                                                  ),
-                                                  1.0,
-                                                ],
-                                              ).createShader(bounds);
-                                            },
-                                            child: child!,
-                                          );
-                                        },
-                                        child: Column(
-                                          children: [
-                                            Text(
-                                              'KABSAT',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 38,
-                                                fontWeight: FontWeight.w800,
-                                                color: const Color(0xFF0F2250),
-                                                letterSpacing: 4,
-                                                height: 1.05,
-                                              ),
-                                            ),
-                                            Text(
-                                              'EMPOY',
-                                              style: GoogleFonts.poppins(
-                                                fontSize: 38,
-                                                fontWeight: FontWeight.w800,
-                                                color: const Color(0xFF0F2250),
-                                                letterSpacing: 4,
-                                                height: 1.05,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Text(
-                                        'Your virtual employment companion',
-                                        textAlign: TextAlign.center,
-                                        style: GoogleFonts.poppins(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w400,
-                                          color: const Color(0xFF1D4ED8),
-                                          height: 1.35,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                                    .animate()
-                                    .fadeIn(delay: 450.ms, duration: 550.ms)
-                                    .slideY(
-                                        begin: 0.12,
-                                        curve: Curves.easeOutCubic),
-
-                                const SizedBox(height: 14),
-
-                                // ── PESO pill ───────────────────────────────────────────
-                                Container(
-                                  margin: const EdgeInsets.symmetric(
-                                      horizontal: 28),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                    vertical: 8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: const Color(0xFF3B82F6)
-                                          .withOpacity(0.55),
-                                      width: 1.2,
-                                    ),
-                                    color: const Color(0xFFDBEAFE)
-                                        .withOpacity(0.65),
-                                  ),
-                                  child: Text(
-                                    'PUBLIC EMPLOYMENT SERVICE OFFICE',
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w700,
-                                      color: const Color(0xFF1D4ED8),
-                                      letterSpacing: 1.6,
-                                      height: 1.25,
-                                    ),
-                                  ),
-                                )
-                                    .animate()
-                                    .fadeIn(delay: 650.ms, duration: 550.ms)
-                                    .slideY(
-                                        begin: 0.1, curve: Curves.easeOutCubic),
-
-                                const SizedBox(height: 10),
-
-                                Text(
-                                  'Santiago City',
-                                  style: GoogleFonts.poppins(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                    color: const Color(0xFF2563EB),
-                                    letterSpacing: 4,
-                                  ),
-                                )
-                                    .animate()
-                                    .fadeIn(delay: 800.ms, duration: 550.ms)
-                                    .slideY(
-                                        begin: 0.08,
-                                        curve: Curves.easeOutCubic),
-                              ],
+                              );
+                            },
+                            child: SizedBox(
+                              width: size.width * 0.32,
+                              height: size.width * 0.32,
+                              child: Image.asset(
+                                'assets/empoy_app_icon.png',
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.person,
+                                  size: size.width * 0.22,
+                                  color: const Color(0xFF2563EB)
+                                      .withValues(alpha: 0.5),
+                                ),
+                              ),
                             ),
                           ),
 
-                          // ── Status Pill (Loading / Offline) ──────────────────────────────────
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 400),
-                            child: _isOffline
-                                ? _buildOfflinePill()
-                                : _buildLoadingPill(),
-                          ),
-                          const SizedBox(height: 32),
+                          SizedBox(height: size.height * 0.032),
+
+                          // ── Brand Title & Tagline ──────────────────────────────
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            child: Column(
+                              children: [
+                                Text(
+                                  'KABSAT EMPOY',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 30,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF0F172A),
+                                    letterSpacing: 3.5,
+                                    height: 1.1,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Your virtual employment companion',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF2563EB),
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Public Employment Service Office  ·  Santiago City',
+                                  textAlign: TextAlign.center,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                              .animate()
+                              .fadeIn(delay: 300.ms, duration: 500.ms)
+                              .slideY(begin: 0.08, curve: Curves.easeOutCubic),
                         ],
                       ),
                     ),
-                  ),
+
+                    // ── Status (Loading / Offline) ─────────────────────────
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: _isOffline
+                          ? _buildOfflinePill()
+                          : _buildLoadingPill(),
+                    ),
+                    const SizedBox(height: 40),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -929,30 +690,32 @@ class _SplashDotsState extends State<_SplashDots>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (context, _) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (i) {
-            // Each dot's brightness peaks one-third of the cycle apart
-            final phase = (_ctrl.value * 3 - i) % 3;
-            final brightness =
-                math.sin(phase * math.pi / 1.5).clamp(0.0, 1.0).toDouble();
-            final scale = 0.55 + 0.45 * brightness;
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              width: 8 * scale,
-              height: 8 * scale,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0xFF1565C0)
-                    .withOpacity(0.35 + 0.55 * brightness),
-              ),
-            );
-          }),
-        );
-      },
+    return SizedBox(
+      height: 10,
+      child: AnimatedBuilder(
+        animation: _ctrl,
+        builder: (context, _) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              final phase = (_ctrl.value * 3 - i) % 3;
+              final brightness =
+                  math.sin(phase * math.pi / 1.5).clamp(0.0, 1.0).toDouble();
+              final opacity = (0.25 + 0.75 * brightness).clamp(0.0, 1.0);
+
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0xFF2563EB).withValues(alpha: opacity),
+                ),
+              );
+            }),
+          );
+        },
+      ),
     );
   }
 }
@@ -987,8 +750,10 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
   Widget build(BuildContext context) {
     final s = S.of(context);
 
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
-      resizeToAvoidBottomInset: true,
+      resizeToAvoidBottomInset: false,
       backgroundColor: const Color(0xFFF8FAFC),
       body: SafeArea(
         child: Column(
@@ -996,131 +761,168 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.verified_user_rounded,
-                      color: Color(0xFF2563EB),
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _isSignUpMode
-                              ? (s?.createAccount ?? 'Create account')
-                              : (s?.welcomeBack ?? 'Welcome back'),
-                          style: GoogleFonts.poppins(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF0F172A),
-                            height: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _isSignUpMode
-                              ? (s?.authSignupSubtitle ??
-                                  'Find and apply for jobs   near you.')
-                              : (s?.authLoginSubtitle ??
-                                  'Sign in to continue where you left off.'),
-                          style: GoogleFonts.poppins(
-                            fontSize: 13,
-                            height: 1.35,
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
-                child: LoginModal(
-                  key: ValueKey<bool>(_isSignUpMode),
-                  isSignUp: _isSignUpMode,
-                  renderAsModal: false,
-                  useCompactLayout: true,
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 6),
-              child: OutlinedButton.icon(
-                onPressed: _continueAsGuest,
-                icon: const Icon(Icons.explore_outlined, size: 19),
-                label: const Text('Continue as guest'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF2563EB),
-                  side: const BorderSide(color: Color(0xFFBFDBFE)),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  textStyle: GoogleFonts.poppins(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    _isSignUpMode
-                        ? (s?.alreadyHaveAccount ?? 'Already have an account?')
-                        : (s?.dontHaveAccount ?? "Don't have an account?"),
-                    style: GoogleFonts.poppins(
-                      fontSize: 13.5,
-                      color: const Color(0xFF64748B),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: _toggleAuthMode,
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      _isSignUpMode
-                          ? (s?.login ?? 'Log in')
-                          : (s?.signup ?? 'Sign up'),
-                      style: GoogleFonts.poppins(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: const Color(0xFF2563EB),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 420),
+                switchInCurve: Curves.easeOutBack,
+                switchOutCurve: Curves.easeInBack,
+                transitionBuilder: (child, animation) {
+                  final isSignUp = child.key == const ValueKey('header_signup');
+                  final startOffset = isSignUp ? const Offset(0.14, 0.0) : const Offset(-0.14, 0.0);
+                  
+                  final slideAnimation = Tween<Offset>(
+                    begin: startOffset,
+                    end: Offset.zero,
+                  ).animate(animation);
+
+                  final scaleAnimation = Tween<double>(
+                    begin: 0.88,
+                    end: 1.0,
+                  ).animate(animation);
+                  
+                  return SlideTransition(
+                    position: slideAnimation,
+                    child: ScaleTransition(
+                      scale: scaleAnimation,
+                      child: FadeTransition(
+                        opacity: animation,
+                        child: child,
                       ),
                     ),
-                  ),
-                ],
+                  );
+                },
+                child: Row(
+                  key: ValueKey<String>(_isSignUpMode ? 'header_signup' : 'header_login'),
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 96,
+                      height: 96,
+                      child: Image.asset(
+                        _isSignUpMode ? 'assets/empoyauth.png' : 'assets/empoywelcome.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _isSignUpMode
+                                ? (s?.createAccount ?? 'Create account')
+                                : (s?.welcomeBack ?? 'Welcome back'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                              height: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _isSignUpMode
+                                ? (s?.authSignupSubtitle ??
+                                    'Find and apply for jobs   near you.')
+                                : (s?.authLoginSubtitle ??
+                                    'Sign in to continue where you left off.'),
+                            style: GoogleFonts.poppins(
+                              fontSize: 13,
+                              height: 1.35,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
-      ),
-    );
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: EdgeInsets.fromLTRB(24, 8, 24, keyboardHeight + 16),
+                    child: LoginModal(
+                      key: ValueKey<bool>(_isSignUpMode),
+                      isSignUp: _isSignUpMode,
+                      renderAsModal: false,
+                      useCompactLayout: true,
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _continueAsGuest,
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedCompass01,
+                          size: 19,
+                          color: Color(0xFF2563EB),
+                          strokeWidth: 2.0,
+                        ),
+                        label: const Text('Continue as guest'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2563EB),
+                          side: const BorderSide(color: Color(0xFFBFDBFE)),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          textStyle: GoogleFonts.poppins(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            _isSignUpMode
+                                ? (s?.alreadyHaveAccount ??
+                                    'Already have an account?')
+                                : (s?.dontHaveAccount ??
+                                    "Don't have an account?"),
+                            style: GoogleFonts.poppins(
+                              fontSize: 13.5,
+                              color: const Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: _toggleAuthMode,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 6),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: Text(
+                              _isSignUpMode
+                                  ? (s?.login ?? 'Log in')
+                                  : (s?.signup ?? 'Sign up'),
+                              style: GoogleFonts.poppins(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF2563EB),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
   }
 }
 
@@ -2244,6 +2046,7 @@ class _LoginModalState extends State<LoginModal>
   Timer? _emailDebounce;
   bool _acceptedTermsAndPrivacy = false;
   int _signupStep = 0;
+  bool _isSignupMovingForward = true;
   String? _signupStepError;
 
   @override
@@ -2283,6 +2086,7 @@ class _LoginModalState extends State<LoginModal>
     setState(() {
       _isSignUpMode = isSignUp;
       _signupStep = 0;
+      _isSignupMovingForward = true;
       _signupStepError = null;
       _formKey.currentState?.reset();
       _authError = null;
@@ -2294,6 +2098,7 @@ class _LoginModalState extends State<LoginModal>
   void _goBackSignupStep() {
     if (_signupStep <= 0) return;
     setState(() {
+      _isSignupMovingForward = false;
       _signupStep -= 1;
       _signupStepError = null;
     });
@@ -2316,6 +2121,7 @@ class _LoginModalState extends State<LoginModal>
       return false;
     }
     setState(() {
+      _isSignupMovingForward = true;
       _signupStepError = null;
       _signupStep += 1;
     });
@@ -2560,27 +2366,43 @@ class _LoginModalState extends State<LoginModal>
     if (mounted) setState(() {});
   }
 
-  InputDecoration _fieldDec(String label, IconData icon, {Widget? suffix}) {
+  InputDecoration _fieldDec(dynamic icon, {Widget? suffix, String? hintText}) {
     final fill = widget.renderAsModal ? const Color(0xFFF8F9FA) : Colors.white;
     final enabledBorderColor =
         widget.renderAsModal ? Colors.grey[300]! : const Color(0xFFD8E1EC);
     return InputDecoration(
-      labelText: label,
-      labelStyle: TextStyle(
-          color: const Color(0xFF64748B), fontWeight: FontWeight.w500),
-      prefixIcon: Icon(icon, color: const Color(0xFF2563EB)),
+      hintText: hintText,
+      hintStyle: GoogleFonts.poppins(
+        color: const Color(0xFF94A3B8),
+        fontWeight: FontWeight.w400,
+        fontSize: 13.5,
+      ),
+      prefixIcon: Padding(
+        padding: const EdgeInsets.only(left: 14, right: 10),
+        child: icon is Widget
+            ? icon
+            : icon is IconData
+                ? Icon(icon, color: const Color(0xFF2563EB), size: 20)
+                : HugeIcon(
+                    icon: icon as List<List<dynamic>>,
+                    color: const Color(0xFF2563EB),
+                    size: 20,
+                    strokeWidth: 2.0,
+                  ),
+      ),
+      prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
       suffixIcon: suffix,
       filled: true,
       fillColor: fill,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: enabledBorderColor)),
       enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: enabledBorderColor)),
       focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6)),
     );
   }
@@ -2596,8 +2418,12 @@ class _LoginModalState extends State<LoginModal>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.error_outline_rounded,
-              color: Color(0xFF991B1B), size: 18),
+          const HugeIcon(
+            icon: HugeIcons.strokeRoundedAlertCircle,
+            color: Color(0xFF991B1B),
+            size: 18,
+            strokeWidth: 2.0,
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -2613,8 +2439,12 @@ class _LoginModalState extends State<LoginModal>
           const SizedBox(width: 6),
           GestureDetector(
             onTap: onDismiss ?? () => setState(() => _authError = null),
-            child: const Icon(Icons.close_rounded,
-                color: Color(0xFF991B1B), size: 18),
+            child: const HugeIcon(
+              icon: HugeIcons.strokeRoundedCancel01,
+              color: Color(0xFF991B1B),
+              size: 18,
+              strokeWidth: 2.0,
+            ),
           ),
         ],
       ),
@@ -2735,18 +2565,39 @@ class _LoginModalState extends State<LoginModal>
               ),
             ),
             Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  margin: const EdgeInsets.only(right: 12),
+                  child: Image.asset(
+                    _isSignUpMode ? 'assets/empoyauth.png' : 'assets/empoywelcome.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _isSignUpMode ? 'Create Account' : 'Welcome Back',
+                        _isSignUpMode ? 'Create account' : 'Welcome back',
                         style: const TextStyle(
-                          fontSize: 24,
+                          fontSize: 22,
                           fontWeight: FontWeight.w800,
                           color: Color(0xFF0F172A),
-                          letterSpacing: 0.5,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      Text(
+                        _isSignUpMode
+                            ? (S.of(context)?.authSignupSubtitle ??
+                                'Apply for jobs and events near you.')
+                            : 'Sign in to access your PESO account',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -2754,8 +2605,12 @@ class _LoginModalState extends State<LoginModal>
                 ),
                 if (widget.renderAsModal)
                   IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    color: Colors.grey[600],
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCancel01,
+                      color: Color(0xFF64748B),
+                      size: 20,
+                      strokeWidth: 2.0,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
               ],
@@ -2781,6 +2636,7 @@ class _LoginModalState extends State<LoginModal>
                   ],
                   SignupWizard(
                     currentStep: _signupStep,
+                    isMovingForward: _isSignupMovingForward,
                     renderAsModal: widget.renderAsModal,
                     firstNameController: _firstNameController,
                     middleInitialController: _middleInitialController,
@@ -2841,10 +2697,14 @@ class _LoginModalState extends State<LoginModal>
                   ),
                 ],
                 if (!_isSignUpMode) ...[
+                  buildAuthFieldLabel('Email'),
                   TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: _fieldDec('Email', Icons.email_outlined),
+                    decoration: _fieldDec(
+                      HugeIcons.strokeRoundedMail01,
+                      hintText: 'example@email.com',
+                    ),
                     validator: (v) {
                       if (v == null || v.isEmpty) {
                         return 'Please enter your email';
@@ -2852,20 +2712,27 @@ class _LoginModalState extends State<LoginModal>
                       return null;
                     },
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
+                  buildAuthFieldLabel('Password'),
                   TextFormField(
                     controller: _passwordController,
                     obscureText: _obscurePassword,
+                    keyboardType: TextInputType.visiblePassword,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    autofillHints: const [AutofillHints.password],
                     inputFormatters: PasswordRules.inputFormattersNoWhitespace,
                     decoration: _fieldDec(
-                      'Password',
-                      Icons.lock_outline_rounded,
+                      HugeIcons.strokeRoundedLockPassword,
+                      hintText: '••••••••',
                       suffix: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                          color: Colors.grey[600],
+                        icon: HugeIcon(
+                          icon: _obscurePassword
+                              ? HugeIcons.strokeRoundedViewOffSlash
+                              : HugeIcons.strokeRoundedView,
+                          color: Colors.grey[600]!,
+                          size: 20,
+                          strokeWidth: 2.0,
                         ),
                         onPressed: () => setState(
                           () => _obscurePassword = !_obscurePassword,
@@ -2947,258 +2814,200 @@ class _LoginModalState extends State<LoginModal>
                 ],
                 if (!_isSignUpMode) const SizedBox(height: 6),
                 const SizedBox(height: 8),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    if (_isSignUpMode && _signupStep > 0) ...[
-                      SizedBox(
-                        height: 52,
-                        child: OutlinedButton.icon(
-                          onPressed: _isSubmitting ? null : _goBackSignupStep,
-                          icon: const Icon(Icons.arrow_back_rounded, size: 18),
-                          label: Text(
-                            S.of(context)?.back ?? 'Back',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFF475569),
-                            side: const BorderSide(color: Color(0xFFE2E8F0)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                    ],
-                    Expanded(
-                      child: SizedBox(
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: _isSubmitting ||
-                                  (_isSignUpMode &&
-                                      _signupStep == 1 &&
-                                      _serverEmailError != null) ||
-                                  (_isSignUpMode &&
-                                      _signupStep == kSignupStepCount - 1 &&
-                                      !_acceptedTermsAndPrivacy)
-                              ? null
-                              : () async {
-                                  if (_isSignUpMode) {
-                                    if (_signupStep < kSignupStepCount - 1) {
-                                      _advanceSignupStep();
-                                      return;
+                if (_isSignUpMode)
+                  SignupButtonRow(
+                    showBack: _signupStep > 0,
+                    backLabel: S.of(context)?.back ?? 'Back',
+                    continueLabel: _signupStep < kSignupStepCount - 1
+                        ? (S.of(context)?.continueButton ?? 'Continue')
+                        : (S.of(context)?.createAccount ?? 'Create Account'),
+                    isSubmitting: _isSubmitting,
+                    isContinueDisabled:
+                        (_signupStep == 1 && _serverEmailError != null) ||
+                            (_signupStep == kSignupStepCount - 1 &&
+                                !_acceptedTermsAndPrivacy),
+                    onBack: _isSubmitting ? null : _goBackSignupStep,
+                    onContinue: () async {
+                      if (_signupStep < kSignupStepCount - 1) {
+                        _advanceSignupStep();
+                        return;
+                      }
+                      final stepError = SignupStepValidation.validateStep(
+                        step: _signupStep,
+                        firstName: _firstNameController.text,
+                        lastName: _lastNameController.text,
+                        phone: _phoneController.text,
+                        email: _emailController.text,
+                        password: _passwordController.text,
+                        confirmPassword: _confirmPasswordController.text,
+                        sex: _selectedSex,
+                        serverEmailError: _serverEmailError,
+                      );
+                      if (stepError != null) {
+                        setState(() => _signupStepError = stepError);
+                        return;
+                      }
+                      if (!_acceptedTermsAndPrivacy) return;
+                      setState(() {
+                        _signupStepError = null;
+                        _isSubmitting = true;
+                      });
+                      await _handleRegistration();
+                      if (mounted) {
+                        setState(() => _isSubmitting = false);
+                      }
+                    },
+                  )
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _isSubmitting
+                          ? null
+                          : () async {
+                              if (_formKey.currentState!.validate()) {
+                                setState(() {
+                                  _authError = null;
+                                  _isSubmitting = true;
+                                });
+                                if (_otpReopenCooldownSeconds > 0) {
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _authError =
+                                        'Please wait s before requesting OTP again.';
+                                    _isSubmitting = false;
+                                  });
+                                  return;
+                                }
+                                final result = await ApiService.login(
+                                  email: _emailController.text,
+                                  password: _passwordController.text,
+                                );
+
+                                if (result['success'] == true) {
+                                  UserSession().setFromApiData(
+                                    result['data'] as Map<String, dynamic>,
+                                  );
+                                  final token = UserSession().token;
+                                  if (token != null && token.isNotEmpty) {
+                                    await SessionPrefs.saveToken(token);
+                                  }
+                                  if (!mounted) return;
+                                  await JobActionService().loadFromBackend();
+                                  await NotificationService().syncTokenNow();
+                                  if (!mounted) return;
+                                  if (widget.renderAsModal)
+                                    Navigator.pop(context);
+                                  final needsOnboarding =
+                                      await OnboardingPrefs.needsPostAuth(
+                                          ignoreDebug: true);
+                                  if (!mounted) return;
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => needsOnboarding
+                                          ? const PostAuthOnboardingScreen()
+                                          : const HomePage(),
+                                    ),
+                                  );
+                                } else if (result['requires_verification'] ==
+                                    true) {
+                                  if (!mounted) return;
+                                  final initialRemainingDailySends =
+                                      _initialRemainingDailySendsFromAuthResponse(
+                                          result);
+                                  final otpResult =
+                                      await showJobseekerOtpDialog(
+                                    context: context,
+                                    email: _emailController.text.trim(),
+                                    initialRemainingDailySends:
+                                        initialRemainingDailySends,
+                                  );
+                                  if (otpResult != null &&
+                                      otpResult['success'] == true) {
+                                    final otpData = otpResult['data']
+                                            as Map<String, dynamic>? ??
+                                        {};
+                                    UserSession().setFromApiData(otpData);
+                                    final token = UserSession().token;
+                                    if (token != null && token.isNotEmpty) {
+                                      await SessionPrefs.saveToken(token);
                                     }
-                                    final stepError =
-                                        SignupStepValidation.validateStep(
-                                      step: _signupStep,
-                                      firstName: _firstNameController.text,
-                                      lastName: _lastNameController.text,
-                                      phone: _phoneController.text,
-                                      email: _emailController.text,
-                                      password: _passwordController.text,
-                                      confirmPassword:
-                                          _confirmPasswordController.text,
-                                      sex: _selectedSex,
-                                      serverEmailError: _serverEmailError,
+                                    if (!mounted) return;
+                                    await JobActionService().loadFromBackend();
+                                    if (!mounted) return;
+                                    if (widget.renderAsModal)
+                                      Navigator.pop(context);
+                                    final needsOnboarding =
+                                        await OnboardingPrefs.needsPostAuth(
+                                            ignoreDebug: true);
+                                    if (!mounted) return;
+                                    Navigator.pushReplacement(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => needsOnboarding
+                                            ? const PostAuthOnboardingScreen()
+                                            : const HomePage(),
+                                      ),
                                     );
-                                    if (stepError != null) {
-                                      setState(
-                                          () => _signupStepError = stepError);
-                                      return;
-                                    }
-                                    if (!_acceptedTermsAndPrivacy) return;
-                                    setState(() {
-                                      _signupStepError = null;
-                                      _isSubmitting = true;
-                                    });
-                                    await _handleRegistration();
-                                    if (mounted) {
-                                      setState(() => _isSubmitting = false);
-                                    }
                                     return;
                                   }
-                                  if (_formKey.currentState!.validate()) {
-                                    setState(() {
-                                      _authError = null;
-                                      _isSubmitting = true;
-                                    });
-                                    if (_otpReopenCooldownSeconds > 0) {
-                                      if (!mounted) return;
-                                      setState(() {
-                                        _authError =
-                                            'Please wait ${_otpReopenCooldownSeconds}s before requesting OTP again.';
-                                        _isSubmitting = false;
-                                      });
-                                      return;
-                                    }
-                                    final result = await ApiService.login(
-                                      email: _emailController.text,
-                                      password: _passwordController.text,
-                                    );
-
-                                    if (result['success'] == true) {
-                                      UserSession().setFromApiData(
-                                        result['data'] as Map<String, dynamic>,
-                                      );
-                                      final token = UserSession().token;
-                                      if (token != null && token.isNotEmpty) {
-                                        await SessionPrefs.saveToken(token);
-                                      }
-                                      if (!mounted) return;
-                                      // Load job action state after login
-                                      await JobActionService()
-                                          .loadFromBackend();
-                                      await NotificationService()
-                                          .syncTokenNow();
-                                      if (!mounted) return;
-                                      if (widget.renderAsModal)
-                                        Navigator.pop(context);
-                                      final needsOnboarding =
-                                          await OnboardingPrefs.needsPostAuth(
-                                              ignoreDebug: true);
-                                      if (!mounted) return;
-                                      Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => needsOnboarding
-                                              ? const PostAuthOnboardingScreen()
-                                              : const HomePage(),
-                                        ),
-                                      );
-                                    } else if (result[
-                                            'requires_verification'] ==
-                                        true) {
-                                      if (!mounted) return;
-                                      final initialRemainingDailySends =
-                                          _initialRemainingDailySendsFromAuthResponse(
-                                              result);
-                                      final otpResult =
-                                          await showJobseekerOtpDialog(
-                                        context: context,
-                                        email: _emailController.text.trim(),
-                                        initialRemainingDailySends:
-                                            initialRemainingDailySends,
-                                      );
-                                      if (otpResult != null &&
-                                          otpResult['success'] == true) {
-                                        final otpData = otpResult['data']
-                                                as Map<String, dynamic>? ??
-                                            {};
-                                        UserSession().setFromApiData(otpData);
-                                        final token = UserSession().token;
-                                        if (token != null && token.isNotEmpty) {
-                                          await SessionPrefs.saveToken(token);
-                                        }
-                                        if (!mounted) return;
-                                        await JobActionService()
-                                            .loadFromBackend();
-                                        if (!mounted) return;
-                                        if (widget.renderAsModal)
-                                          Navigator.pop(context);
-                                        final needsOnboarding =
-                                            await OnboardingPrefs.needsPostAuth(
-                                                ignoreDebug: true);
-                                        if (!mounted) return;
-                                        Navigator.pushReplacement(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => needsOnboarding
-                                                ? const PostAuthOnboardingScreen()
-                                                : const HomePage(),
-                                          ),
-                                        );
-                                        return;
-                                      }
-                                      _handleOtpCancelCooldown();
-                                      if (!mounted) return;
-                                      setState(() {
-                                        _isSubmitting = false;
-                                      });
-                                    } else {
-                                      final msg = result['message']
-                                              as String? ??
-                                          'Login failed. Check your email and password.';
-                                      if (!mounted) return;
-                                      setState(() {
-                                        _authError = msg;
-                                        _isSubmitting = false;
-                                      });
-                                    }
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF2563EB),
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                          ),
-                          child: !widget.renderAsModal
-                              ? (_isSubmitting
-                                  ? const Text(
-                                      'Please wait...',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    )
-                                  : Text(
-                                      _isSignUpMode
-                                          ? (_signupStep < kSignupStepCount - 1
-                                              ? (S
-                                                      .of(context)
-                                                      ?.continueButton ??
-                                                  'Continue')
-                                              : (S.of(context)?.createAccount ??
-                                                  'Create account'))
-                                          : (S.of(context)?.login ?? 'Log in'),
-                                      style: const TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ))
-                              : _isSubmitting && !_isSignUpMode
-                                  ? Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2.5,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                              Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        const Text(
-                                          'Signing in...',
-                                          style: TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ],
-                                    )
-                                  : Text(
-                                      _isSignUpMode
-                                          ? (S.of(context)?.signup ?? 'Sign Up')
-                                          : (S.of(context)?.login ?? 'Sign In'),
-                                      style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.w700),
-                                    ),
-                        ),
+                                  _handleOtpCancelCooldown();
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _isSubmitting = false;
+                                  });
+                                } else {
+                                  final msg = result['message'] as String? ??
+                                      'Login failed. Check your email and password.';
+                                  if (!mounted) return;
+                                  setState(() {
+                                    _authError = msg;
+                                    _isSubmitting = false;
+                                  });
+                                }
+                              }
+                            },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16)),
+                        elevation: 0,
                       ),
+                      child: _isSubmitting && !_isSignUpMode
+                          ? const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Signing in...',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              S.of(context)?.login ?? 'Sign In',
+                              style: const TextStyle(
+                                  fontSize: 18, fontWeight: FontWeight.w700),
+                            ),
                     ),
-                  ],
-                ),
+                  ),
                 const SizedBox(height: 8),
               ],
             ),
@@ -4034,6 +3843,15 @@ class _RegistrationResultDialogState extends State<_RegistrationResultDialog>
 enum ToastType { success, error, info }
 
 class CustomToast {
+  static OverlayEntry? _currentEntry;
+
+  static void dismissCurrent() {
+    if (_currentEntry != null && _currentEntry!.mounted) {
+      _currentEntry!.remove();
+      _currentEntry = null;
+    }
+  }
+
   static void show(
     BuildContext context, {
     required String message,
@@ -4042,6 +3860,8 @@ class CustomToast {
     String? actionLabel,
     VoidCallback? onAction,
   }) {
+    dismissCurrent();
+
     final overlay = Overlay.of(context);
     late OverlayEntry entry;
 
@@ -4049,31 +3869,27 @@ class CustomToast {
       builder: (context) => _ToastWidget(
         message: message,
         type: type,
+        duration: duration,
         actionLabel: actionLabel,
-        onAction: onAction == null
-            ? null
-            : () {
-                if (entry.mounted) entry.remove();
-                onAction();
-              },
+        onAction: onAction,
         onDismiss: () {
           if (entry.mounted) entry.remove();
+          if (_currentEntry == entry) {
+            _currentEntry = null;
+          }
         },
       ),
     );
 
+    _currentEntry = entry;
     overlay.insert(entry);
-    Future.delayed(duration, () {
-      if (entry.mounted) {
-        entry.remove();
-      }
-    });
   }
 }
 
 class _ToastWidget extends StatefulWidget {
   final String message;
   final ToastType type;
+  final Duration duration;
   final String? actionLabel;
   final VoidCallback? onAction;
   final VoidCallback onDismiss;
@@ -4081,6 +3897,7 @@ class _ToastWidget extends StatefulWidget {
   const _ToastWidget({
     required this.message,
     required this.type,
+    required this.duration,
     this.actionLabel,
     this.onAction,
     required this.onDismiss,
@@ -4093,34 +3910,67 @@ class _ToastWidget extends StatefulWidget {
 class _ToastWidgetState extends State<_ToastWidget>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<Offset> _offsetAnimation;
+  late Animation<double> _slideAnimation;
   late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
+  Timer? _dismissTimer;
 
   @override
   void initState() {
     super.initState();
+    AppHaptics.mediumImpact();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 340),
+      reverseDuration: const Duration(milliseconds: 240),
     );
 
-    _offsetAnimation = Tween<Offset>(
-      begin: const Offset(1.0, 0.0),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutCubic,
-    ));
+    _slideAnimation = Tween<double>(begin: -65.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeInCubic,
+      ),
+    );
+
+    _scaleAnimation = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOutBack,
+        reverseCurve: Curves.easeInCubic,
+      ),
+    );
 
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeIn),
+      CurvedAnimation(
+        parent: _controller,
+        curve: Curves.easeOut,
+        reverseCurve: Curves.easeIn,
+      ),
     );
 
     _controller.forward();
+
+    // Auto-dismiss with smooth reverse animation
+    _dismissTimer = Timer(widget.duration, () {
+      _dismissWithAnimation();
+    });
+  }
+
+  void _dismissWithAnimation([VoidCallback? afterDismiss]) {
+    _dismissTimer?.cancel();
+    if (_controller.status == AnimationStatus.dismissed) return;
+    _controller.reverse().then((_) {
+      if (mounted) {
+        widget.onDismiss();
+        afterDismiss?.call();
+      }
+    });
   }
 
   @override
   void dispose() {
+    _dismissTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -4139,96 +3989,126 @@ class _ToastWidgetState extends State<_ToastWidget>
       ToastType.info => Icons.info_rounded,
     };
 
+    final topPadding = MediaQuery.paddingOf(context).top;
+
     return Positioned(
-      top: MediaQuery.paddingOf(context).top + 20,
-      right: 20,
-      child: SlideTransition(
-        position: _offsetAnimation,
-        child: FadeTransition(
-          opacity: _fadeAnimation,
-          child: Material(
-            color: Colors.transparent,
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth:
-                    math.min(MediaQuery.sizeOf(context).width - 40, 320.0),
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-                border: Border.all(color: color.withOpacity(0.2), width: 1.5),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(icon, color: color, size: 18),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      widget.message,
-                      style: GoogleFonts.poppins(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: const Color(0xFF1E293B),
-                        letterSpacing: 0.1,
+      top: topPadding + 10,
+      left: 16,
+      right: 16,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Transform.translate(
+            offset: Offset(0, _slideAnimation.value),
+            child: Transform.scale(
+              scale: _scaleAnimation.value,
+              child: Opacity(
+                opacity: _fadeAnimation.value,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Center(
+                    child: Container(
+                      constraints: BoxConstraints(
+                        maxWidth: math.min(
+                            MediaQuery.sizeOf(context).width - 32, 420.0),
                       ),
-                    ),
-                  ),
-                  if (widget.actionLabel != null &&
-                      widget.onAction != null) ...[
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: widget.onAction,
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 11),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color: const Color(0xFFE2E8F0),
+                          width: 1.2,
                         ),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        foregroundColor: color,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.14),
+                            blurRadius: 24,
+                            offset: const Offset(0, 10),
+                          ),
+                          BoxShadow(
+                            color: color.withValues(alpha: 0.12),
+                            blurRadius: 12,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        widget.actionLabel!,
-                        style: GoogleFonts.poppins(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(icon, color: color, size: 18),
+                          ),
+                          const SizedBox(width: 10),
+                          Flexible(
+                            child: Text(
+                              widget.message,
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF0F172A),
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (widget.actionLabel != null &&
+                              widget.onAction != null) ...[
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () =>
+                                  _dismissWithAnimation(widget.onAction),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                  border: Border.all(
+                                    color: color.withValues(alpha: 0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  widget.actionLabel!,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: color,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () => _dismissWithAnimation(),
+                            child: Padding(
+                              padding: const EdgeInsets.all(2),
+                              child: Icon(
+                                Icons.close_rounded,
+                                color: const Color(0xFF94A3B8),
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () {
-                      _controller.reverse().then((_) => widget.onDismiss());
-                    },
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: Colors.grey[400],
-                      size: 18,
                     ),
                   ),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
@@ -4333,16 +4213,6 @@ class _AppDialogState extends State<AppDialog> {
     // App's primary blue color shade for top header banner & badge accent
     const headerColor = AppColors.blueAccent;
 
-    // Determine primary button base color
-    final primaryButtonColor = (widget.type == AppDialogType.destructive ||
-            widget.confirmLabel == 'Sign Out' ||
-            widget.confirmLabel == 'Delete')
-        ? const Color(0xFFDC2626)
-        : ((widget.type == AppDialogType.warning ||
-                widget.confirmLabel == 'Leave')
-            ? const Color(0xFFF97316)
-            : colors.primary);
-
     // Primary button 3D gradient colors matching button action type (red for sign out/delete, orange for leave, blue for confirm)
     final buttonGradientColors = (widget.type == AppDialogType.destructive ||
             widget.confirmLabel == 'Sign Out' ||
@@ -4361,7 +4231,7 @@ class _AppDialogState extends State<AppDialog> {
               ]
             : [
                 const Color(0xFF60A5FA), // Bright blue top gloss highlight
-                colors.primary,          // Mid primary blue
+                colors.primary, // Mid primary blue
                 const Color(0xFF1D4ED8), // Deep blue bottom depth
               ]);
 
@@ -4574,8 +4444,14 @@ class _AppDialogState extends State<AppDialog> {
                           child: InkWell(
                             onTap: isBusy
                                 ? null
-                                : (widget.onCancel ??
-                                    () => Navigator.pop(context)),
+                                : () {
+                                    AppHaptics.lightImpact();
+                                    if (widget.onCancel != null) {
+                                      widget.onCancel!();
+                                    } else {
+                                      Navigator.pop(context);
+                                    }
+                                  },
                             borderRadius: BorderRadius.circular(16),
                             child: Center(
                               child: Text(
@@ -4619,6 +4495,7 @@ class _AppDialogState extends State<AppDialog> {
                             onTap: isBusy
                                 ? null
                                 : () async {
+                                    AppHaptics.mediumImpact();
                                     if (widget.onConfirmAsync != null) {
                                       setState(() {
                                         _internalBusy = true;
@@ -4701,12 +4578,12 @@ Widget _appDialogScaleFadeTransition({
 }) {
   final curvedAnimation = CurvedAnimation(
     parent: animation,
-    curve: Curves.easeOutBack,
+    curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
   );
   return Center(
     child: ScaleTransition(
-      scale: Tween<double>(begin: 0.85, end: 1.0).animate(curvedAnimation),
+      scale: Tween<double>(begin: 0.92, end: 1.0).animate(curvedAnimation),
       child: FadeTransition(
         opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
           CurvedAnimation(parent: animation, curve: Curves.easeOut),
@@ -4733,12 +4610,13 @@ Future<T?> showAppDialog<T>({
   bool barrierDismissible = true,
   String? confirmBusyLabel,
 }) {
+  AppHaptics.lightImpact();
   return showGeneralDialog<T>(
     context: context,
     barrierDismissible: barrierDismissible,
     barrierLabel: 'Dismiss',
-    barrierColor: const Color(0xFF0F172A).withOpacity(0.5),
-    transitionDuration: const Duration(milliseconds: 280),
+    barrierColor: const Color(0xFF0F172A).withValues(alpha: 0.5),
+    transitionDuration: const Duration(milliseconds: 160),
     pageBuilder: (_, __, ___) => const SizedBox.shrink(),
     transitionBuilder: (ctx, animation, secondaryAnimation, child) {
       return _appDialogScaleFadeTransition(
