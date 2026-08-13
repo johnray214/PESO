@@ -25,8 +25,13 @@ class JobActionService extends ChangeNotifier {
     return true;
   }
 
+  bool? _cachedHasResume;
+
   /// Returns true when the current user has an uploaded resume on file.
-  Future<bool> hasResumeOnFile() async {
+  Future<bool> hasResumeOnFile({bool forceRefresh = false}) async {
+    if (!forceRefresh && _cachedHasResume != null) {
+      return _cachedHasResume!;
+    }
     final token = UserSession().token;
     if (token == null || token.isEmpty) return false;
 
@@ -35,7 +40,12 @@ class JobActionService extends ChangeNotifier {
     final data = userResult['data'];
     if (data is! Map<String, dynamic>) return false;
     final resumePath = (data['resume_path'] as String?)?.trim() ?? '';
-    return resumePath.isNotEmpty;
+    _cachedHasResume = resumePath.isNotEmpty;
+    return _cachedHasResume!;
+  }
+
+  void invalidateResumeCache() {
+    _cachedHasResume = null;
   }
 
   /// Load saved and applied jobs from backend on app start or login.
@@ -44,6 +54,7 @@ class JobActionService extends ChangeNotifier {
     if (token == null || token.isEmpty) {
       _savedJobIds.clear();
       _appliedJobIds.clear();
+      _cachedHasResume = null;
       notifyListeners();
       return;
     }

@@ -5,6 +5,8 @@ import 'api_service.dart';
 import 'job_action_service.dart';
 import 'skill_match_utils.dart';
 import 'l10n/app_localizations.dart';
+import 'micro_interactions.dart';
+import 'app_haptics.dart';
 import 'main.dart';
 
 // ─── Job Model ────────────────────────────────────────────────────────────────
@@ -35,6 +37,7 @@ class Job {
   final DateTime? deadline;
   final int matchPercentage;
   final bool isUrgent;
+  final bool isOverseas;
 
   const Job({
     required this.id,
@@ -61,6 +64,7 @@ class Job {
     this.deadline,
     this.matchPercentage = 0,
     this.isUrgent = false,
+    this.isOverseas = false,
   });
 
   String get salaryDisplay {
@@ -180,6 +184,14 @@ class Job {
             (json['is_urgent'] == '1' ||
                 json['is_urgent'].toString().toLowerCase() == 'true'));
 
+    final isOverseas = json['is_overseas'] == true ||
+        json['is_overseas'] == 1 ||
+        json['overseas'] == true ||
+        (json['is_overseas'] is String &&
+            (json['is_overseas'] == '1' ||
+                json['is_overseas'].toString().toLowerCase() == 'true')) ||
+        (employerMap?['employer_type'] == 'overseas');
+
     return Job(
       id: json['id'].toString(),
       title: (json['title'] as String?) ?? '',
@@ -210,6 +222,7 @@ class Job {
       deadline: deadline,
       matchPercentage: (json['match_percentage'] as num?)?.toInt() ?? 0,
       isUrgent: isUrgent,
+      isOverseas: isOverseas,
     );
   }
 }
@@ -776,44 +789,92 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           ],
         ),
         const SizedBox(height: 48),
-        // Urgent badge
-        if (job.isUrgent) ...[
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-              ),
-              borderRadius: BorderRadius.circular(999),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFEF4444).withOpacity(0.30),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                HugeIcon(
-                  icon: HugeIcons.strokeRoundedFire,
-                  size: 13,
-                  color: Colors.white,
-                  strokeWidth: 2.0,
-                ),
-                SizedBox(width: 4),
-                Text(
-                  'URGENT HIRING',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                    letterSpacing: 1.0,
+        // Badges (Overseas / Urgent)
+        if (job.isOverseas || job.isUrgent) ...[
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (job.isOverseas)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4F46E5), Color(0xFF3730A3)],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF4F46E5).withOpacity(0.30),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedGlobe02,
+                        size: 13,
+                        color: Colors.white,
+                        strokeWidth: 2.0,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'OVERSEAS JOB',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              if (job.isUrgent)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEF4444).withOpacity(0.30),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedFire,
+                        size: 13,
+                        color: Colors.white,
+                        strokeWidth: 2.0,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'URGENT HIRING',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 12),
         ],
@@ -1506,32 +1567,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Row(
           children: [
-            GestureDetector(
-              onTap: () => Navigator.of(context).pop(),
-              child: Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.9),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowLeft01,
-                  size: 17,
-                  color: Color(0xFF0F172A),
-                  strokeWidth: 2.0,
-                ),
-              ),
-            ),
+            const SizedBox(width: 40),
             Expanded(
               child: ValueListenableBuilder<double>(
                 valueListenable: _scrollOffset,
@@ -1558,34 +1594,30 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
               ),
             ),
             GestureDetector(
-              onTap: () => widget.onSave?.call(),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: 40,
-                height: 40,
+              onTap: () {
+                AppHaptics.lightImpact();
+                Navigator.of(context).pop();
+              },
+              child: Container(
+                width: 38,
+                height: 38,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: isSaved
-                      ? const Color(0xFF2563EB)
-                      : Colors.white.withOpacity(0.9),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: isSaved
-                        ? const Color(0xFF2563EB)
-                        : const Color(0xFFE2E8F0),
-                  ),
+                  color: Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
                     ),
                   ],
                 ),
-                child: HugeIcon(
-                  icon: HugeIcons.strokeRoundedBookmark01,
+                child: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCancel01,
                   size: 18,
-                  color: isSaved ? Colors.white : const Color(0xFF475569),
+                  color: Color(0xFF0F172A),
                   strokeWidth: 2.0,
                 ),
               ),
@@ -1616,7 +1648,8 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
         padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad + 16),
         child: Row(
           children: [
-            GestureDetector(
+            AnimatedBookmarkBounce(
+              isSaved: isSaved,
               onTap: () => widget.onSave?.call(),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),

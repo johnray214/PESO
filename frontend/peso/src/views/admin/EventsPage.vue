@@ -262,6 +262,25 @@
                 <label class="form-label">Description</label>
                 <textarea v-model="form.description" class="form-textarea" placeholder="Describe the event…" rows="2"></textarea>
               </div>
+              <div class="form-group">
+                <label class="form-label">Event Cover Poster / Banner</label>
+                <div class="image-uploader-box">
+                  <div v-if="form.imagePreview" class="image-preview-container">
+                    <img :src="form.imagePreview" alt="Event Banner" class="image-preview"/>
+                    <button type="button" class="btn-remove-image" @click="removeBannerImage">✕ Remove Banner</button>
+                  </div>
+                  <div v-else class="image-upload-dropzone" @click="$refs.bannerInput.click()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                      <circle cx="8.5" cy="8.5" r="1.5"/>
+                      <polyline points="21 15 16 10 5 21"/>
+                    </svg>
+                    <span>Click or drop event poster / banner image</span>
+                    <small style="color:#94a3b8;margin-top:2px;">PNG, JPG, WEBP up to 10MB</small>
+                  </div>
+                  <input ref="bannerInput" type="file" accept="image/*" style="display:none" @change="onBannerSelected"/>
+                </div>
+              </div>
               <div class="form-row">
                 <div class="form-group">
                   <label class="form-label">Date</label>
@@ -452,7 +471,7 @@ export default {
       monthNames: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
       // Context menu for calendar cells
       ctxMenu: { show: false, x: 0, y: 0, dateLabel: '', dateStr: '', events: [] },
-      form: { title: '', type: 'Job Fair', description: '', date: '', time: '', endTime: '', venue: '', slots: '' },
+      form: { title: '', type: 'Job Fair', description: '', date: '', time: '', endTime: '', venue: '', slots: '', imageFile: null, imageUrl: '', imagePreview: null },
       savingEvent: false,
       eventTypes: ['Job Fair', 'Seminar', 'Training', 'Livelihood Program', 'Workshop'],
       statusTabs: [
@@ -574,6 +593,7 @@ export default {
             slots:       e.max_participants   || 0,
             registered:  e.participants_count || 0,
             status:      e.status ? e.status.charAt(0).toUpperCase() + e.status.slice(1) : 'Upcoming',
+            image_url:   e.image_url || null,
             _start_time: e.start_time,
             _end_time:   e.end_time,
           }
@@ -715,7 +735,7 @@ export default {
     // ── Modal openers ────────────────────────────────────────────────
     openCreateModal(prefillIsoDate = '') {
       this.editingEvent = null
-      this.form = { title: '', type: 'Job Fair', description: '', date: prefillIsoDate || '', time: '', endTime: '', venue: '', slots: '' }
+      this.form = { title: '', type: 'Job Fair', description: '', date: prefillIsoDate || '', time: '', endTime: '', venue: '', slots: '', imageFile: null, imageUrl: '', imagePreview: null }
       this.showModal = true
     },
 
@@ -739,6 +759,9 @@ export default {
         endTime:     event._end_time   ? event._end_time.substring(0, 5)   : '',
         venue:       event.venue,
         slots:       event.slots,
+        imageFile:   null,
+        imageUrl:    event.image_url || '',
+        imagePreview: event.image_url || null,
       }
       this.showModal = true
     },
@@ -766,6 +789,20 @@ export default {
       catch { return iso }
     },
 
+    onBannerSelected(evt) {
+      const file = evt.target.files && evt.target.files[0]
+      if (!file) return
+      this.form.imageFile = file
+      this.form.imagePreview = URL.createObjectURL(file)
+    },
+
+    removeBannerImage() {
+      this.form.imageFile = null
+      this.form.imageUrl = ''
+      this.form.imagePreview = null
+      if (this.$refs.bannerInput) this.$refs.bannerInput.value = ''
+    },
+
     // ── Save ─────────────────────────────────────────────────────────
     async saveEvent() {
       if (this.savingEvent) return
@@ -777,21 +814,34 @@ export default {
 
       this.savingEvent = true
       try {
-        const payload = {
-          title:            this.form.title,
-          description:      this.form.description,
-          type:             this.form.type,
-          location:         this.form.venue,
-          event_date:       this.form.date,
-          start_time:       this.form.time,
-          end_time:         this.form.endTime || null,
-          max_participants: this.form.slots ? parseInt(this.form.slots, 10) : null,
-          status:           'upcoming',
+        const formData = new FormData()
+        formData.append('title', this.form.title)
+        formData.append('description', this.form.description || '')
+        formData.append('type', this.form.type)
+        formData.append('location', this.form.venue)
+        formData.append('event_date', this.form.date)
+        formData.append('start_time', this.form.time)
+        if (this.form.endTime) formData.append('end_time', this.form.endTime)
+        if (this.form.slots) formData.append('max_participants', this.form.slots)
+        formData.append('status', 'upcoming')
+
+        if (this.form.imageFile) {
+          formData.append('image', this.form.imageFile)
+        } else if (this.form.imageUrl) {
+          formData.append('image_url', this.form.imageUrl)
+        } else if (this.editingEvent && !this.form.imagePreview) {
+          formData.append('image_url', '')
         }
+
         if (this.editingEvent) {
-          await api.put(`/admin/events/${this.editingEvent.id}`, payload)
+          formData.append('_method', 'PUT')
+          await api.post(`/admin/events/${this.editingEvent.id}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
         } else {
-          await api.post('/admin/events', payload)
+          await api.post('/admin/events', formData, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          })
         }
         await this.fetchEvents()
         this.showModal = false
@@ -1017,7 +1067,13 @@ export default {
 .registrant-row:last-child { border-bottom: none; }
 .registrant-name { font-size: 14px; font-weight: 700; color: #1e293b; }
 .registrant-meta { font-size: 12px; color: #64748b; margin-top: 2px; }
-.registrant-time { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+.image-uploader-box { margin-top: 4px; }
+.image-upload-dropzone { border: 2px dashed #cbd5e1; border-radius: 12px; padding: 20px; text-align: center; background: #f8fafc; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #64748b; font-size: 13px; font-weight: 600; transition: all 0.15s ease; }
+.image-upload-dropzone:hover { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+.image-preview-container { position: relative; border-radius: 12px; overflow: hidden; border: 1px solid #e2e8f0; max-height: 160px; }
+.image-preview { width: 100%; height: 160px; object-fit: cover; display: block; }
+.btn-remove-image { position: absolute; top: 8px; right: 8px; background: rgba(15, 23, 42, 0.75); color: #fff; border: none; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 700; cursor: pointer; backdrop-filter: blur(4px); transition: background 0.12s; }
+.btn-remove-image:hover { background: #ef4444; }
 
 /* MODAL */
 .modal-overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.4); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kabsat Employ — PESO Santiago City Official App Showcase</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #0B0F17;
+      color: #F8FAFC;
+      overflow-x: hidden;
+    }
+    .heading-font {
+      font-family: 'Outfit', sans-serif;
+    }
+
+    /* 3D Stage Perspective */
+    .perspective-stage {
+      perspective: 1200px;
+      perspective-origin: 50% 40%;
+    }
+
+    /* 3D Phone Container */
+    .phone-container {
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      transform-style: preserve-3d;
+    }
+
+    /* Phone Shell Styling */
+    .phone-shell {
+      position: relative;
+      background: #1e293b;
+      border-radius: 46px;
+      padding: 10px;
+      box-shadow: 
+        0 25px 50px -12px rgba(0, 0, 0, 0.7),
+        0 0 0 1px rgba(255, 255, 255, 0.15),
+        inset 0 0 0 2px rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Phone Screen Frame */
+    .phone-screen {
+      position: relative;
+      border-radius: 38px;
+      overflow: hidden;
+      aspect-ratio: 9 / 19.5;
+      background: #090d16;
+    }
+
+    .phone-screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top;
+      display: block;
+    }
+
+    /* Dynamic Island Notch */
+    .phone-notch {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 85px;
+      height: 22px;
+      background: #000000;
+      border-radius: 14px;
+      z-index: 20;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    }
+
+    /* Glass Reflection Overlay */
+    .glass-reflection {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.25) 0%,
+        rgba(255, 255, 255, 0.05) 30%,
+        transparent 50%,
+        rgba(255, 255, 255, 0.03) 100%
+      );
+      pointer-events: none;
+      z-index: 15;
+    }
+
+    /* Hero Trio Positions */
+    .phone-center {
+      transform: translateZ(40px) rotateY(0deg) scale(1.05);
+      z-index: 30;
+    }
+    .phone-center:hover {
+      transform: translateZ(60px) rotateY(0deg) scale(1.08);
+    }
+
+    .phone-left {
+      transform: translateX(-25%) translateZ(-30px) rotateY(18deg) rotateX(4deg);
+      z-index: 20;
+      opacity: 0.92;
+    }
+    .phone-left:hover {
+      transform: translateX(-20%) translateZ(20px) rotateY(8deg) scale(1.02);
+      opacity: 1;
+    }
+
+    .phone-right {
+      transform: translateX(25%) translateZ(-30px) rotateY(-18deg) rotateX(4deg);
+      z-index: 20;
+      opacity: 0.92;
+    }
+    .phone-right:hover {
+      transform: translateX(20%) translateZ(20px) rotateY(-8deg) scale(1.02);
+      opacity: 1;
+    }
+
+    /* Floor Reflection */
+    .floor-reflection {
+      position: absolute;
+      bottom: -60px;
+      left: 10%;
+      right: 10%;
+      height: 120px;
+      background: radial-gradient(ellipse at center, rgba(37, 99, 235, 0.25), transparent 70%);
+      filter: blur(20px);
+      pointer-events: none;
+    }
+
+    /* Glow Orbs */
+    .glow-blue {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(37, 99, 235, 0.3) 0%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+    }
+    .glow-cyan {
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.2) 0%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-blue-600 selection:text-white">
+
+  <!-- Glow Backgrounds -->
+  <div class="glow-blue top-0 left-1/2 -translate-x-1/2"></div>
+  <div class="glow-cyan top-96 right-10"></div>
+
+  <!-- Header / Navbar -->
+  <header class="relative z-50 border-b border-slate-800/80 bg-slate-950/60 backdrop-blur-xl sticky top-0">
+    <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/30 heading-font text-xl">
+          K
+        </div>
+        <div>
+          <span class="heading-font text-xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-blue-400 bg-clip-text text-transparent">
+            Kabsat Employ
+          </span>
+          <span class="block text-xs font-semibold text-blue-400 tracking-wider uppercase">
+            PESO Santiago City
+          </span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span> Official Mobile App Showcase
+        </span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section with 3D Showcase Stage -->
+  <section class="relative pt-12 pb-24 overflow-hidden">
+    <div class="max-w-7xl mx-auto px-6 text-center">
+      
+      <!-- Title & Subtitle -->
+      <div class="max-w-3xl mx-auto space-y-4 mb-16">
+        <span class="inline-block px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest bg-blue-600/10 text-blue-400 border border-blue-500/20">
+          Public Employment Service Office — Santiago City
+        </span>
+        <h1 class="heading-font text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-none">
+          Connecting Santiagueños to <span class="bg-gradient-to-r from-blue-400 via-indigo-300 to-cyan-400 bg-clip-text text-transparent">Real Opportunities</span>
+        </h1>
+        <p class="text-slate-400 text-lg sm:text-xl max-w-2xl mx-auto font-normal">
+          Browse PESO-verified local job listings, track NSRP skills registration, manage clearances, and find career fairs in one unified platform.
+        </p>
+      </div>
+
+      <!-- 3D Phone Stage Showcase -->
+      <div class="perspective-stage relative max-w-5xl mx-auto min-h-[620px] flex items-center justify-center py-8">
+        
+        <!-- Floor Reflection Light -->
+        <div class="floor-reflection"></div>
+
+        <!-- Left Phone: Explore Page -->
+        <div class="phone-container phone-left absolute w-[260px] sm:w-[300px]">
+          <div class="phone-shell">
+            <div class="phone-notch"></div>
+            <div class="glass-reflection"></div>
+            <div class="phone-screen">
+              <img src="Explore Page.jpg" alt="Explore Jobs — Kabsat Employ">
+            </div>
+          </div>
+          <div class="mt-4 text-center">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400 bg-slate-900/80 px-3 py-1 rounded-full border border-slate-800">
+              Smart Job Search & Filters
+            </span>
+          </div>
+        </div>
+
+        <!-- Center Phone (Featured): Home Page -->
+        <div class="phone-container phone-center relative w-[280px] sm:w-[320px]">
+          <div class="phone-shell border-2 border-blue-500/50 shadow-2xl shadow-blue-600/30">
+            <div class="phone-notch"></div>
+            <div class="glass-reflection"></div>
+            <div class="phone-screen">
+              <img src="Home Page.jpg" alt="Home Feed — Kabsat Employ">
+            </div>
+          </div>
+          <div class="mt-4 text-center">
+            <span class="text-xs font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 px-4 py-1.5 rounded-full border border-blue-500/30 shadow-lg shadow-blue-500/10">
+              Official Home Feed & Urgent Hiring
+            </span>
+          </div>
+        </div>
+
+        <!-- Right Phone: Profile & Skills -->
+        <div class="phone-container phone-right absolute w-[260px] sm:w-[300px]">
+          <div class="phone-shell">
+            <div class="phone-notch"></div>
+            <div class="glass-reflection"></div>
+            <div class="phone-screen">
+              <img src="Profile Page.jpg" alt="Jobseeker Profile — Kabsat Employ">
+            </div>
+          </div>
+          <div class="mt-4 text-center">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-400 bg-slate-900/80 px-3 py-1 rounded-full border border-slate-800">
+              NSRP Profile & Verification
+            </span>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Feature Grid Section -->
+  <section class="py-20 border-t border-slate-800/80 bg-slate-950/40 relative z-10">
+    <div class="max-w-7xl mx-auto px-6">
+      
+      <div class="text-center max-w-2xl mx-auto mb-16 space-y-3">
+        <h2 class="heading-font text-3xl sm:text-4xl font-bold text-white">
+          Key Features & Interface Preview
+        </h2>
+        <p class="text-slate-400 text-base">
+          Built specifically for jobseekers and employers across Santiago City and Region II.
+        </p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        
+        <!-- Feature Card 1 -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 hover:border-blue-500/40 transition-all group">
+          <div class="rounded-2xl overflow-hidden mb-5 bg-slate-950 aspect-[9/16] relative border border-slate-800">
+            <img src="Job Details Modal.jpg" alt="Job Details Modal" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          </div>
+          <h3 class="heading-font text-lg font-bold text-white mb-1">Instant Job Details</h3>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Detailed salary ranges, qualification requirements, employer background, and direct 1-tap application.
+          </p>
+        </div>
+
+        <!-- Feature Card 2 -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 hover:border-blue-500/40 transition-all group">
+          <div class="rounded-2xl overflow-hidden mb-5 bg-slate-950 aspect-[9/16] relative border border-slate-800">
+            <img src="Map Screen.jpg" alt="Map View" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          </div>
+          <h3 class="heading-font text-lg font-bold text-white mb-1">Interactive Job Map</h3>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Locate hiring companies across Santiago City barangays with real-time map pin directions.
+          </p>
+        </div>
+
+        <!-- Feature Card 3 -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 hover:border-blue-500/40 transition-all group">
+          <div class="rounded-2xl overflow-hidden mb-5 bg-slate-950 aspect-[9/16] relative border border-slate-800">
+            <img src="Events Page.jpg" alt="Job Fairs & Events" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          </div>
+          <h3 class="heading-font text-lg font-bold text-white mb-1">PESO Fairs & Events</h3>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Stay updated with official Santiago City job fairs, special recruitment activities, and skills training schedules.
+          </p>
+        </div>
+
+        <!-- Feature Card 4 -->
+        <div class="bg-slate-900/60 border border-slate-800 rounded-3xl p-5 hover:border-blue-500/40 transition-all group">
+          <div class="rounded-2xl overflow-hidden mb-5 bg-slate-950 aspect-[9/16] relative border border-slate-800">
+            <img src="Splash Screen.jpg" alt="Official Branding" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500">
+          </div>
+          <h3 class="heading-font text-lg font-bold text-white mb-1">PESO Verified</h3>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Official mobile app of PESO Santiago City with NSRP compliance and secure user authentication.
+          </p>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="py-10 border-t border-slate-800 text-center text-xs text-slate-500">
+    <p>© 2026 Public Employment Service Office — Santiago City. All rights reserved.</p>
+    <p class="mt-1 text-slate-600">Kabsat Employ Mobile App — Flutter & Laravel Power Platform</p>
+  </footer>
+
+</body>
+</html>

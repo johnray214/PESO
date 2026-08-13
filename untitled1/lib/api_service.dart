@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'user_session.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.254.106:8000/api';
+  static const String baseUrl = 'http://192.168.1.76:8000/api';
 
   /// True when [baseUrl] points at a machine-local / emulator-typical host.
   ///
@@ -25,6 +25,10 @@ class ApiService {
     if (host.startsWith('192.168.')) return true;
     return false;
   }
+
+  /// True when the connection uses encrypted HTTPS transport.
+  static bool get isSecureConnection =>
+      baseUrl.toLowerCase().startsWith('https://');
 
   /// e.g. http://127.0.0.1:8000 — for `/storage/...` URLs.
   static String get apiOrigin {
@@ -559,6 +563,7 @@ class ApiService {
     String? search,
     List<String>? employmentTypes,
     List<String>? skills,
+    bool? isOverseas,
   }) async {
     try {
       final params = <String, String>{'page': page.toString()};
@@ -573,6 +578,9 @@ class ApiService {
       }
       if (skills != null && skills.isNotEmpty) {
         params['skills'] = skills.join(',');
+      }
+      if (isOverseas != null) {
+        params['is_overseas'] = isOverseas ? '1' : '0';
       }
       final uri = Uri.parse('$baseUrl/public/jobs').replace(
         queryParameters: params,
@@ -1192,6 +1200,7 @@ class ApiService {
     String? search,
     List<String>? employmentTypes,
     List<String>? skills,
+    bool? isOverseas,
   }) async {
     try {
       final params = <String, String>{'page': page.toString()};
@@ -1206,6 +1215,9 @@ class ApiService {
       }
       if (skills != null && skills.isNotEmpty) {
         params['skills'] = skills.join(',');
+      }
+      if (isOverseas != null) {
+        params['is_overseas'] = isOverseas ? '1' : '0';
       }
       final uri = Uri.parse('$baseUrl/jobseeker/jobs').replace(
         queryParameters: params,

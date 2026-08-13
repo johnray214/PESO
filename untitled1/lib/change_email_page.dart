@@ -6,6 +6,8 @@ import 'api_service.dart';
 import 'l10n/app_localizations.dart';
 import 'main.dart';
 import 'user_session.dart';
+import 'auth/auth_shared.dart';
+import 'package:hugeicons/hugeicons.dart';
 
 enum _ChangeEmailStep { enterEmail, verifyOtp }
 
@@ -312,20 +314,14 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
               ),
             ),
             const SizedBox(height: 14),
+            buildAuthFieldLabel(l10n?.newEmailAddress ?? 'New email address'),
             TextFormField(
               controller: _newEmailController,
               keyboardType: TextInputType.emailAddress,
               textInputAction: TextInputAction.done,
-              decoration: InputDecoration(
-                labelText: l10n?.newEmailAddress ?? 'New email address',
-                prefixIcon: const Icon(Icons.email_outlined),
-                border: const OutlineInputBorder(),
-                enabledBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFFBFDBFE)),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF2563EB), width: 2),
-                ),
+              decoration: authFieldDecoration(
+                HugeIcons.strokeRoundedMail01,
+                hintText: 'example@email.com',
               ),
               validator: _validateEmail,
             ),
@@ -369,39 +365,59 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Step 2: ${l10n?.verifyOtp ?? 'Verify OTP'}',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${l10n?.enterOtp ?? 'Enter OTP'} — $_pendingEmail',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF475569),
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: Image.asset(
+                    'assets/email_otp.gif',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Step 2: ${l10n?.verifyOtp ?? 'Verify OTP'}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${l10n?.enterOtp ?? 'Enter OTP'} — $_pendingEmail',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
+            buildAuthFieldLabel(l10n?.enterOtp ?? 'Enter OTP'),
             TextFormField(
               controller: _otpController,
               keyboardType: TextInputType.number,
               textInputAction: TextInputAction.done,
               maxLength: 6,
-              decoration: InputDecoration(
-                labelText: l10n?.enterOtp ?? 'Enter OTP',
-                prefixIcon: const Icon(Icons.verified_user_outlined),
-                border: const OutlineInputBorder(),
+              decoration: authFieldDecoration(
+                HugeIcons.strokeRoundedShieldKey,
+                hintText: '123456',
                 counterText: '',
-                enabledBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFFBFDBFE)),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: Color(0xFF2563EB), width: 2),
-                ),
               ),
               validator: _validateOtp,
             ),

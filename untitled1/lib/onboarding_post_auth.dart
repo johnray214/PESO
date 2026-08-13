@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
+import 'auth/auth_shared.dart';
 import 'home_pages.dart';
 import 'onboarding_prefs.dart';
 import 'user_session.dart';
@@ -432,7 +434,12 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
         elevation: 0,
         leading: _step > 0
             ? IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F172A)),
+                icon: const HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowLeft01,
+                  color: Color(0xFF0F172A),
+                  size: 20,
+                  strokeWidth: 2.0,
+                ),
                 onPressed: _busy ? null : () => setState(() => _step--),
               )
             : null,
@@ -516,10 +523,19 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          sel ? Icons.check_circle_rounded : Icons.circle_outlined,
-                          color: sel ? const Color(0xFF2563EB) : const Color(0xFF94A3B8),
-                        ),
+                        sel
+                            ? const HugeIcon(
+                                icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                                color: Color(0xFF2563EB),
+                                size: 22,
+                                strokeWidth: 2.0,
+                              )
+                            : const HugeIcon(
+                                icon: HugeIcons.strokeRoundedCircle,
+                                color: Color(0xFF94A3B8),
+                                size: 22,
+                                strokeWidth: 2.0,
+                              ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -604,7 +620,7 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
         ],
         _selectorField(
           label: 'Province',
-          icon: Icons.location_city_outlined,
+          icon: HugeIcons.strokeRoundedBuilding01,
           value: _provinceName,
           placeholder: _provinces.isEmpty ? 'Loading provinces...' : 'Select province',
           enabled: !_busy && _provinces.isNotEmpty,
@@ -626,7 +642,7 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
         const SizedBox(height: 12),
         _selectorField(
           label: 'City / Municipality',
-          icon: Icons.location_on_outlined,
+          icon: HugeIcons.strokeRoundedLocation01,
           value: _cityName,
           placeholder: _provinceCode == null
               ? 'Select province first'
@@ -653,7 +669,7 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
         const SizedBox(height: 12),
         _selectorField(
           label: 'Barangay',
-          icon: Icons.home_work_outlined,
+          icon: HugeIcons.strokeRoundedHome01,
           value: _barangayName,
           placeholder: _cityCode == null
               ? 'Select city first'
@@ -671,25 +687,73 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           },
         ),
         const SizedBox(height: 12),
+        buildAuthFieldLabel('Street / House No. / Landmark (Optional)'),
         TextField(
           controller: _streetController,
           decoration: InputDecoration(
-            labelText: 'Street / House No. / Landmark (Optional)',
-            prefixIcon: const Icon(Icons.pin_drop_outlined, color: Color(0xFF2563EB)),
+            hintText: 'Enter street, house no., or landmark',
+            hintStyle: GoogleFonts.poppins(
+              color: const Color(0xFF94A3B8),
+              fontWeight: FontWeight.w400,
+              fontSize: 13.5,
+            ),
+            prefixIcon: const Padding(
+              padding: EdgeInsets.only(left: 14, right: 10),
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedLocation01,
+                color: Color(0xFF2563EB),
+                size: 20,
+                strokeWidth: 2.0,
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             filled: true,
             fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6),
+            ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
+        buildAuthFieldLabel('Education / experience'),
         DropdownButtonFormField<String>(
-          value: _experienceLevel,
+          initialValue: _experienceLevel,
           decoration: InputDecoration(
-            labelText: 'Education / experience',
-            prefixIcon: const Icon(Icons.school_outlined, color: Color(0xFF2563EB)),
+            hintText: 'Select education / experience',
+            hintStyle: GoogleFonts.poppins(
+              color: const Color(0xFF94A3B8),
+              fontWeight: FontWeight.w400,
+              fontSize: 13.5,
+            ),
+            prefixIcon: const Padding(
+              padding: EdgeInsets.only(left: 14, right: 10),
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedGraduateMale,
+                color: Color(0xFF2563EB),
+                size: 20,
+                strokeWidth: 2.0,
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             filled: true,
             fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6),
+            ),
           ),
           items: _experienceLevels
               .map((e) => DropdownMenuItem(value: e, child: Text(e)))
@@ -769,7 +833,16 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           controller: _skillSearchController,
           decoration: InputDecoration(
             hintText: 'Search skills (e.g. customer service, welding)',
-            prefixIcon: const Icon(Icons.search_rounded),
+            prefixIcon: const Padding(
+              padding: EdgeInsets.only(left: 14, right: 10),
+              child: HugeIcon(
+                icon: HugeIcons.strokeRoundedSearch01,
+                color: Color(0xFF64748B),
+                size: 20,
+                strokeWidth: 2.0,
+              ),
+            ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
@@ -856,8 +929,14 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const SizedBox(height: 12),
-        Icon(Icons.notifications_active_rounded,
-            size: 72, color: const Color(0xFF2563EB).withOpacity(0.9)),
+        Center(
+          child: HugeIcon(
+            icon: HugeIcons.strokeRoundedNotification01,
+            size: 72,
+            color: const Color(0xFF2563EB).withValues(alpha: 0.9),
+            strokeWidth: 1.8,
+          ),
+        ),
         const SizedBox(height: 20),
         Text(
           'Stay in the loop',
@@ -910,10 +989,10 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           style: GoogleFonts.poppins(fontSize: 14, color: const Color(0xFF64748B)),
         ),
         const SizedBox(height: 20),
-        _tourRow(Icons.home_rounded, 'Home', 'Jobs, search, and apply.'),
-        _tourRow(Icons.event_rounded, 'Events', 'Floating button — workshops & job fairs.'),
-        _tourRow(Icons.map_rounded, 'Map', 'Explore employers and locations.'),
-        _tourRow(Icons.person_rounded, 'Profile', 'Resume, skills, and documents.'),
+        _tourRow(HugeIcons.strokeRoundedHome01, 'Home', 'Jobs, search, and apply.'),
+        _tourRow(HugeIcons.strokeRoundedCalendar03, 'Events', 'Header icon — workshops & job fairs.'),
+        _tourRow(HugeIcons.strokeRoundedLocation01, 'Map', 'Explore employers and locations.'),
+        _tourRow(HugeIcons.strokeRoundedUser, 'Profile', 'Resume, skills, and documents.'),
         const Spacer(),
         FilledButton(
           onPressed: _busy ? null : _completeOnboarding,
@@ -934,7 +1013,7 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
     );
   }
 
-  Widget _tourRow(IconData icon, String title, String subtitle) {
+  Widget _tourRow(dynamic icon, String title, String subtitle) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
@@ -943,10 +1022,17 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withOpacity(0.1),
+              color: const Color(0xFF2563EB).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, color: const Color(0xFF2563EB), size: 22),
+            child: icon is IconData
+                ? Icon(icon, color: const Color(0xFF2563EB), size: 22)
+                : HugeIcon(
+                    icon: icon as List<List<dynamic>>,
+                    color: const Color(0xFF2563EB),
+                    size: 22,
+                    strokeWidth: 2.0,
+                  ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -1033,7 +1119,12 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
                               if (!ctx.mounted) return;
                               Navigator.pop(ctx);
                             },
-                            icon: const Icon(Icons.close_rounded),
+                            icon: const HugeIcon(
+                              icon: HugeIcons.strokeRoundedCancel01,
+                              color: Color(0xFF64748B),
+                              size: 20,
+                              strokeWidth: 2.0,
+                            ),
                           ),
                         ],
                       ),
@@ -1046,7 +1137,16 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
                           controller: queryController,
                           autofocus: false,
                           decoration: InputDecoration(
-                            prefixIcon: const Icon(Icons.search_rounded),
+                            prefixIcon: const Padding(
+                              padding: EdgeInsets.only(left: 14, right: 10),
+                              child: HugeIcon(
+                                icon: HugeIcons.strokeRoundedSearch01,
+                                color: Color(0xFF64748B),
+                                size: 18,
+                                strokeWidth: 2.0,
+                              ),
+                            ),
+                            prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                             hintText: 'Search...',
                             hintStyle: const TextStyle(fontSize: 14),
                             filled: true,
@@ -1077,7 +1177,12 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
                                     final item = filtered[index];
                                     return ListTile(
                                       title: Text(item['name'] ?? '', style: const TextStyle(fontSize: 15)),
-                                      trailing: const Icon(Icons.chevron_right_rounded, size: 18, color: Color(0xFF94A3B8)),
+                                      trailing: const HugeIcon(
+                                        icon: HugeIcons.strokeRoundedArrowRight01,
+                                        size: 18,
+                                        color: Color(0xFF94A3B8),
+                                        strokeWidth: 2.0,
+                                      ),
                                       onTap: () async {
                                         if (alreadyPopped || picking) return;
                                         
@@ -1118,48 +1223,71 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
 
   Widget _selectorField({
     required String label,
-    required IconData icon,
+    required dynamic icon,
     required String? value,
     required String placeholder,
     required bool enabled,
     required VoidCallback onTap,
   }) {
     final display = (value ?? '').trim();
-    return GestureDetector(
-      onTap: enabled ? onTap : null,
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Icon(icon, color: const Color(0xFF2563EB)),
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6),
-          ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                display.isNotEmpty ? display : placeholder,
-                style: TextStyle(
-                  color: display.isNotEmpty ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
-                ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        buildAuthFieldLabel(label),
+        GestureDetector(
+          onTap: enabled ? onTap : null,
+          child: InputDecorator(
+            decoration: InputDecoration(
+              prefixIcon: Padding(
+                padding: const EdgeInsets.only(left: 14, right: 10),
+                child: icon is Widget
+                    ? icon
+                    : icon is IconData
+                        ? Icon(icon, color: const Color(0xFF2563EB), size: 20)
+                        : HugeIcon(
+                            icon: icon as List<List<dynamic>>,
+                            color: const Color(0xFF2563EB),
+                            size: 20,
+                            strokeWidth: 2.0,
+                          ),
+              ),
+              prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.6),
               ),
             ),
-            Icon(
-              Icons.expand_more_rounded,
-              color: enabled ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    display.isNotEmpty ? display : placeholder,
+                    style: GoogleFonts.poppins(
+                      fontSize: 13.5,
+                      fontWeight: display.isNotEmpty ? FontWeight.w500 : FontWeight.w400,
+                      color: display.isNotEmpty ? const Color(0xFF0F172A) : const Color(0xFF94A3B8),
+                    ),
+                  ),
+                ),
+                HugeIcon(
+                  icon: HugeIcons.strokeRoundedArrowDown01,
+                  color: enabled ? const Color(0xFF64748B) : const Color(0xFFCBD5E1),
+                  size: 20,
+                  strokeWidth: 2.0,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+      ],
     );
   }
 }

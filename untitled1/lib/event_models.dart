@@ -1,3 +1,5 @@
+import 'api_service.dart';
+
 // ─── Event Model (API: /public/events, admin events) ─────────────────────────
 class PesoEvent {
   final int id;
@@ -85,6 +87,13 @@ class PesoEvent {
     final maxParticipants = (json['max_participants'] as num?)?.toInt();
     final status = (json['status'] as String?)?.trim() ?? 'upcoming';
 
+    String? imageUrl = (json['image_url'] as String?)?.trim() ?? (json['image_path'] as String?)?.trim();
+    if (imageUrl != null && imageUrl.isNotEmpty && !imageUrl.startsWith('http')) {
+      final base = ApiService.baseUrl.replaceAll('/api', '');
+      final cleanPath = imageUrl.startsWith('/') ? imageUrl.substring(1) : imageUrl;
+      imageUrl = '$base/$cleanPath';
+    }
+
     return PesoEvent(
       id: id,
       title: title,
@@ -94,7 +103,7 @@ class PesoEvent {
       eventTime: eventTime,
       eventType: eventType,
       organizer: organizer,
-      imageUrl: json['image_url'] as String?,
+      imageUrl: imageUrl,
       participantsCount: participantsCount,
       maxParticipants: maxParticipants,
       isRegistered: isRegistered,

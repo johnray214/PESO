@@ -19,6 +19,7 @@ class Event extends Model
         'start_time',
         'end_time',
         'organizer',
+        'image_path',
         'max_participants',
         'status',
         'created_by',
@@ -28,6 +29,23 @@ class Event extends Model
         'event_date' => 'date',
         'max_participants' => 'integer',
     ];
+
+    protected $appends = [
+        'image_url',
+    ];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        if (!$this->image_path) {
+            return null;
+        }
+
+        if (filter_var($this->image_path, FILTER_VALIDATE_URL)) {
+            return $this->image_path;
+        }
+
+        return url('storage/' . ltrim($this->image_path, '/'));
+    }
 
     public function creator()
     {

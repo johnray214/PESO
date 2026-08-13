@@ -14,6 +14,7 @@ import 'pdf_picker_result.dart';
 import 'pick_pdf_io.dart' if (dart.library.html) 'pick_pdf_web.dart'
     as pdf_picker;
 import 'user_session.dart';
+import 'job_action_service.dart';
 
 enum _DocKind { resume, certificate, clearance }
 
@@ -386,6 +387,9 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
         unawaited(_persistLocalMeta(
             kind: kind, uploadedAt: now, sizeBytes: sizeBytes));
         await _loadPaths();
+        if (kind == _DocKind.resume) {
+          JobActionService().invalidateResumeCache();
+        }
         _showToast(
           '${_labelForKind(kind)} uploaded successfully',
           type: ToastType.success,
@@ -496,63 +500,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            _kBlue.withValues(alpha: 0.12),
-                            _kIndigo.withValues(alpha: 0.06),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        border:
-                            Border.all(color: _kBlue.withValues(alpha: 0.15)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'APPLICATION DOCUMENTS',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.2,
-                              color: _kBlue.withValues(alpha: 0.85),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Upload and keep these files current.',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: _kSlate900,
-                              height: 1.35,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'PESO staff and employers may review them during hiring. '
-                            'All documents must be PDF only. Max 5 MB each.',
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: _kSlate600,
-                              height: 1.45,
-                            ),
-                          ),
-                        ],
-                      ).animate().fadeIn(duration: 400.ms).slideY(
-                          begin: 0.1, end: 0, curve: Curves.easeOutCubic),
-                    ),
-                  ],
-                ),
+                child: _buildProgressHeader(),
               ),
             ),
             if (_loadingProfile)
@@ -561,7 +509,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
                     _buildDocCard(
@@ -573,7 +521,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                     )
                         .animate()
                         .fadeIn(duration: 400.ms, delay: 100.ms)
-                        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
+                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
                     const SizedBox(height: 14),
                     _buildDocCard(
                       kind: _DocKind.certificate,
@@ -584,7 +532,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                     )
                         .animate()
                         .fadeIn(duration: 400.ms, delay: 200.ms)
-                        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
+                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
                     const SizedBox(height: 14),
                     _buildDocCard(
                       kind: _DocKind.clearance,
@@ -595,13 +543,134 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                     )
                         .animate()
                         .fadeIn(duration: 400.ms, delay: 300.ms)
-                        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic),
+                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic),
                   ]),
                 ),
               ),
           ],
         ),
       ),
+    );
+  }
+
+  int get _uploadedCount {
+    int count = 0;
+    if (_resumePath != null && _resumePath!.isNotEmpty) count++;
+    if (_certificatePath != null && _certificatePath!.isNotEmpty) count++;
+    if (_barangayClearancePath != null && _barangayClearancePath!.isNotEmpty) count++;
+    return count;
+  }
+
+  Widget _buildProgressHeader() {
+    final count = _uploadedCount;
+    const total = 3;
+    final progress = count / total;
+    final isComplete = count == total;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isComplete
+                          ? const Color(0xFFF0FDF4)
+                          : const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: HugeIcon(
+                      icon: isComplete
+                          ? HugeIcons.strokeRoundedCheckmarkCircle01
+                          : HugeIcons.strokeRoundedFolder01,
+                      color: isComplete
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF2563EB),
+                      size: 20,
+                      strokeWidth: 2.0,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'DOCUMENT READINESS',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.1,
+                      color: isComplete
+                          ? const Color(0xFF16A34A)
+                          : const Color(0xFF2563EB),
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isComplete
+                      ? const Color(0xFFDCFCE7)
+                      : const Color(0xFFDBEAFE),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '$count of $total Uploaded',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: isComplete
+                        ? const Color(0xFF15803D)
+                        : const Color(0xFF1E40AF),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 7,
+              backgroundColor: const Color(0xFFF1F5F9),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isComplete ? const Color(0xFF16A34A) : const Color(0xFF2563EB),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isComplete
+                ? 'All documents are up to date! Employers and PESO staff can review your complete application profile.'
+                : 'Upload your required documents below (PDF only, max 5 MB each) so employers can review your job applications.',
+            style: const TextStyle(
+              fontSize: 12.5,
+              color: Color(0xFF64748B),
+              height: 1.4,
+            ),
+          ),
+        ],
+      ).animate().fadeIn(duration: 400.ms).slideY(
+          begin: 0.1, end: 0, curve: Curves.easeOutCubic),
     );
   }
 
@@ -621,17 +690,21 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: uploaded
+              ? const Color(0xFFE2E8F0)
+              : const Color(0xFFCBD5E1),
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -639,23 +712,23 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 44,
+                  height: 44,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(14),
+                    color: accent.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: icon is IconData
-                      ? Icon(icon, color: accent, size: 24)
+                      ? Icon(icon, color: accent, size: 22)
                       : HugeIcon(
                           icon: icon as List<List<dynamic>>,
                           color: accent,
-                          size: 24,
+                          size: 22,
                           strokeWidth: 2.0,
                         ),
                 ),
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -666,7 +739,7 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                             child: Text(
                               title,
                               style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 15.5,
                                 fontWeight: FontWeight.w700,
                                 color: _kSlate900,
                               ),
@@ -674,33 +747,53 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                           ),
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 4),
+                                horizontal: 9, vertical: 3.5),
                             decoration: BoxDecoration(
                               color: uploaded
-                                  ? const Color(0xFFDCFCE7)
-                                  : const Color(0xFFF1F5F9),
+                                  ? const Color(0xFFF0FDF4)
+                                  : const Color(0xFFFFFBEB),
                               borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              uploaded ? 'Uploaded' : 'Missing',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
+                              border: Border.all(
                                 color: uploaded
-                                    ? const Color(0xFF166534)
-                                    : _kSlate500,
+                                    ? const Color(0xFFDCFCE7)
+                                    : const Color(0xFFFDE68A),
                               ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                HugeIcon(
+                                  icon: uploaded
+                                      ? HugeIcons.strokeRoundedCheckmarkCircle01
+                                      : HugeIcons.strokeRoundedAlertCircle,
+                                  size: 13,
+                                  color: uploaded
+                                      ? const Color(0xFF16A34A)
+                                      : const Color(0xFFD97706),
+                                  strokeWidth: 2.0,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  uploaded ? 'Uploaded' : 'Missing',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: uploaded
+                                        ? const Color(0xFF16A34A)
+                                        : const Color(0xFFD97706),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         hint,
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 12.5,
                           color: _kSlate500,
-                          height: 1.35,
                         ),
                       ),
                     ],
@@ -709,30 +802,30 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
               ],
             ),
             if (uploaded && pending == null) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF1F5F9)),
                 ),
                 child: Row(
                   children: [
                     HugeIcon(
                       icon: HugeIcons.strokeRoundedPdf01,
                       color: accent,
-                      size: 18,
+                      size: 16,
                       strokeWidth: 2.0,
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _docMetaLine(kind),
                         style: const TextStyle(
-                          fontSize: 13,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: _kSlate900,
                         ),
@@ -745,34 +838,47 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
               ),
             ],
             if (pending != null) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: accent.withValues(alpha: 0.25)),
+                  color: accent.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: accent.withValues(alpha: 0.20)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      pending.name,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: _kSlate900,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        const HugeIcon(
+                          icon: HugeIcons.strokeRoundedFile01,
+                          size: 16,
+                          color: _kBlue,
+                          strokeWidth: 2.0,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            pending.name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: _kSlate900,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     const Text(
                       'Ready to upload',
-                      style: TextStyle(fontSize: 12, color: _kSlate500),
+                      style: TextStyle(fontSize: 11.5, color: _kSlate500),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
@@ -783,22 +889,24 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                             style: OutlinedButton.styleFrom(
                               foregroundColor: _kSlate600,
                               side: const BorderSide(color: Color(0xFFCBD5E1)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            child: const Text('Cancel'),
+                            child: const Text('Cancel',
+                                style: TextStyle(fontSize: 13)),
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: FilledButton.icon(
                             onPressed:
                                 uploading ? null : () => _uploadPending(kind),
                             icon: uploading
                                 ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
+                                    width: 16,
+                                    height: 16,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
                                       color: Colors.white,
@@ -806,16 +914,18 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                                   )
                                 : const HugeIcon(
                                     icon: HugeIcons.strokeRoundedCloudUpload,
-                                    size: 18,
+                                    size: 16,
                                     color: Colors.white,
                                     strokeWidth: 2.0,
                                   ),
-                            label: Text(uploading ? 'Uploading…' : 'Upload'),
+                            label: Text(uploading ? 'Uploading…' : 'Upload',
+                                style: const TextStyle(fontSize: 13)),
                             style: FilledButton.styleFrom(
                               backgroundColor: accent,
                               foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
                           ),
@@ -826,10 +936,10 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                 ),
               ),
             ],
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Row(
               children: [
-                if (uploaded && pending == null)
+                if (uploaded && pending == null) ...[
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: _openingKind == kind
@@ -837,8 +947,8 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                           : () => _viewDocument(kind),
                       icon: _openingKind == kind
                           ? const SizedBox(
-                              width: 18,
-                              height: 18,
+                              width: 16,
+                              height: 16,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : HugeIcon(
@@ -847,18 +957,21 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                               color: accent,
                               strokeWidth: 2.0,
                             ),
-                      label: Text(_openingKind == kind ? 'Opening…' : 'View'),
+                      label: Text(_openingKind == kind ? 'Opening…' : 'View',
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: accent,
-                        side: BorderSide(color: accent.withValues(alpha: 0.5)),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        side: BorderSide(color: accent.withValues(alpha: 0.4)),
+                        padding: const EdgeInsets.symmetric(vertical: 11),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                       ),
                     ),
                   ),
-                if (uploaded && pending == null) const SizedBox(width: 10),
+                  const SizedBox(width: 8),
+                ],
                 Expanded(
                   child: FilledButton.icon(
                     onPressed: uploading ? null : () => _pickForKind(kind),
@@ -867,16 +980,23 @@ class _MyDocumentsPageState extends State<MyDocumentsPage> {
                           ? HugeIcons.strokeRoundedRefresh
                           : HugeIcons.strokeRoundedAdd01,
                       size: 16,
-                      color: Colors.white,
+                      color: uploaded ? accent : Colors.white,
                       strokeWidth: 2.0,
                     ),
-                    label: Text(uploaded ? 'Replace' : 'Upload file'),
+                    label: Text(uploaded ? 'Replace' : 'Upload PDF',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: uploaded ? accent : Colors.white)),
                     style: FilledButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      backgroundColor: uploaded
+                          ? accent.withValues(alpha: 0.10)
+                          : accent,
+                      foregroundColor: uploaded ? accent : Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 11),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
                     ),
                   ),

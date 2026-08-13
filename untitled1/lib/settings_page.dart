@@ -4,6 +4,7 @@ import 'change_email_page.dart';
 import 'change_password_page.dart';
 import 'locale_service.dart';
 import 'l10n/app_localizations.dart';
+import 'app_haptics.dart';
 
 /// Profile → Settings: account actions (e.g. change password).
 class SettingsPage extends StatefulWidget {
@@ -14,9 +15,12 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  late bool _hapticsEnabled;
+
   @override
   void initState() {
     super.initState();
+    _hapticsEnabled = AppHaptics.enabled;
     LocaleService.instance.addListener(_onLocaleChanged);
   }
 
@@ -175,187 +179,251 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
         children: [
+          // Section 1: Preferences
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
-              l10n?.preferences ?? 'Preferences',
+              (l10n?.preferences ?? 'Preferences').toUpperCase(),
               style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: Color(0xFF64748B),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: Color(0xFF94A3B8),
               ),
             ),
           ),
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            clipBehavior: Clip.antiAlias,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedGlobal,
+                      color: Color(0xFF2563EB),
+                      size: 20,
+                      strokeWidth: 2.0,
+                    ),
                   ),
-                ],
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                leading: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedGlobal,
-                  color: Color(0xFF64748B),
-                  size: 20,
-                  strokeWidth: 2.0,
-                ),
-                title: Text(
-                  l10n?.language ?? 'Language',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0F172A),
+                  title: Text(
+                    l10n?.language ?? 'Language',
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
                   ),
-                ),
-                subtitle: Text(
-                  AppLocales.displayName(currentLocale),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
+                  subtitle: Text(
+                    AppLocales.displayName(currentLocale),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
                   ),
+                  trailing: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedArrowRight01,
+                    color: Color(0xFF94A3B8),
+                    size: 18,
+                    strokeWidth: 2.0,
+                  ),
+                  onTap: _showLanguageSelector,
                 ),
-                trailing: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowRight01,
-                  color: Color(0xFF94A3B8),
-                  size: 18,
-                  strokeWidth: 2.0,
+                const Divider(
+                    height: 1,
+                    thickness: 1,
+                    indent: 64,
+                    endIndent: 16,
+                    color: Color(0xFFF1F5F9)),
+                SwitchListTile.adaptive(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  secondary: Container(
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: const Icon(
+                      Icons.vibration_rounded,
+                      color: Color(0xFF2563EB),
+                      size: 20,
+                    ),
+                  ),
+                  title: const Text(
+                    'Haptics & Vibration',
+                    style: TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  subtitle: const Text(
+                    'Vibrate on bottom nav, buttons, and actions',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  activeTrackColor: const Color(0xFF2563EB),
+                  value: _hapticsEnabled,
+                  onChanged: (val) async {
+                    setState(() => _hapticsEnabled = val);
+                    await AppHaptics.setEnabled(val);
+                    if (val) AppHaptics.lightImpact();
+                  },
                 ),
-                onTap: _showLanguageSelector,
-              ),
+              ],
             ),
           ),
           const SizedBox(height: 24),
+
+          // Section 2: Account
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
-              l10n?.account ?? 'Account',
+              (l10n?.account ?? 'Account').toUpperCase(),
               style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.4,
-                color: Color(0xFF64748B),
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: Color(0xFF94A3B8),
               ),
             ),
           ),
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            clipBehavior: Clip.antiAlias,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                leading: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedMail01,
-                  color: Color(0xFF64748B),
-                  size: 20,
-                  strokeWidth: 2.0,
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
                 ),
-                title: Text(
-                  l10n?.changeEmail ?? 'Change email address',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                subtitle: Text(
-                  l10n?.changeEmailSubtitle ?? 'Secure this change using OTP verification',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                  ),
-                ),
-                trailing: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowRight01,
-                  color: Color(0xFF94A3B8),
-                  size: 18,
-                  strokeWidth: 2.0,
-                ),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const ChangeEmailPage(),
-                    ),
-                  );
-                },
-              ),
+              ],
             ),
-          ),
-          const SizedBox(height: 12),
-          Material(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            clipBehavior: Clip.antiAlias,
-            elevation: 0,
-            shadowColor: Colors.transparent,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                leading: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedLock,
-                  color: Color(0xFF64748B),
-                  size: 20,
-                  strokeWidth: 2.0,
-                ),
-                title: Text(
-                  l10n?.changePassword ?? 'Change password',
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                trailing: const HugeIcon(
-                  icon: HugeIcons.strokeRoundedArrowRight01,
-                  color: Color(0xFF94A3B8),
-                  size: 18,
-                  strokeWidth: 2.0,
-                ),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const ChangePasswordPage(),
+            child: Column(
+              children: [
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(11),
                     ),
-                  );
-                },
-              ),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedMail01,
+                      color: Color(0xFF2563EB),
+                      size: 20,
+                      strokeWidth: 2.0,
+                    ),
+                  ),
+                  title: Text(
+                    l10n?.changeEmail ?? 'Change email address',
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  subtitle: Text(
+                    l10n?.changeEmailSubtitle ??
+                        'Secure this change using OTP verification',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                    ),
+                  ),
+                  trailing: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedArrowRight01,
+                    color: Color(0xFF94A3B8),
+                    size: 18,
+                    strokeWidth: 2.0,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ChangeEmailPage(),
+                      ),
+                    );
+                  },
+                ),
+                const Divider(
+                    height: 1,
+                    thickness: 1,
+                    indent: 64,
+                    endIndent: 16,
+                    color: Color(0xFFF1F5F9)),
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF6FF),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedLock,
+                      color: Color(0xFF2563EB),
+                      size: 20,
+                      strokeWidth: 2.0,
+                    ),
+                  ),
+                  title: Text(
+                    l10n?.changePassword ?? 'Change password',
+                    style: const TextStyle(
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  trailing: const HugeIcon(
+                    icon: HugeIcons.strokeRoundedArrowRight01,
+                    color: Color(0xFF94A3B8),
+                    size: 18,
+                    strokeWidth: 2.0,
+                  ),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ChangePasswordPage(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
         ],

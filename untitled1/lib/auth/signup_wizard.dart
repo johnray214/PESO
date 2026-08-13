@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:hugeicons/hugeicons.dart';
 import '../app_config.dart';
 import '../l10n/app_localizations.dart';
 import '../legal_documents.dart';
@@ -78,11 +80,179 @@ class SignupStepValidation {
   }
 }
 
+/// Animated Back + Continue button row for the signup wizard.
+///
+/// When [showBack] is false the row shows a single full-width Continue button.
+/// When [showBack] becomes true the Back button expands from zero width
+/// (left side) while Continue shrinks to fill the remaining space — giving
+/// the illusion that the single button "splits" into two. Reversing [showBack]
+/// plays the collapse animation.
+class SignupButtonRow extends StatefulWidget {
+  const SignupButtonRow({
+    super.key,
+    required this.showBack,
+    required this.onBack,
+    required this.onContinue,
+    required this.continueLabel,
+    this.isSubmitting = false,
+    this.isContinueDisabled = false,
+    this.backLabel = 'Back',
+  });
+
+  final bool showBack;
+  final VoidCallback? onBack;
+  final VoidCallback? onContinue;
+  final String continueLabel;
+  final String backLabel;
+  final bool isSubmitting;
+  final bool isContinueDisabled;
+
+  @override
+  State<SignupButtonRow> createState() => _SignupButtonRowState();
+}
+
+class _SignupButtonRowState extends State<SignupButtonRow>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _widthFactor;  // 0 → 1 for Back button width
+  late Animation<double> _opacity;       // 0 → 1 for Back button opacity
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 480),
+      value: widget.showBack ? 1.0 : 0.0,
+    );
+    _widthFactor = CurvedAnimation(
+      parent: _ctrl,
+      curve: Curves.easeInOutCubic,
+      reverseCurve: Curves.easeInOutCubic,
+    );
+    _opacity = CurvedAnimation(
+      parent: _ctrl,
+      curve: const Interval(0.2, 1.0, curve: Curves.easeOut),
+      reverseCurve: const Interval(0.0, 0.6, curve: Curves.easeIn),
+    );
+  }
+
+  @override
+  void didUpdateWidget(SignupButtonRow old) {
+    super.didUpdateWidget(old);
+    if (widget.showBack != old.showBack) {
+      if (widget.showBack) {
+        _ctrl.forward();
+      } else {
+        _ctrl.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (context, _) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Back button — grows from zero width
+            ClipRect(
+              child: Align(
+                alignment: Alignment.centerLeft,
+                widthFactor: _widthFactor.value,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: FadeTransition(
+                    opacity: _opacity,
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            widget.isSubmitting ? null : widget.onBack,
+                        icon: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedArrowLeft01,
+                          size: 18,
+                          color: Color(0xFF475569),
+                          strokeWidth: 2.0,
+                        ),
+                        label: Text(
+                          widget.backLabel,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF475569),
+                          side:
+                              const BorderSide(color: Color(0xFFE2E8F0)),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Continue button — always Expanded so it fills remaining space
+            Expanded(
+              child: SizedBox(
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: widget.isSubmitting || widget.isContinueDisabled
+                      ? null
+                      : widget.onContinue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: const Color(0xFF93C5FD),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    elevation: 0,
+                    shadowColor: Colors.transparent,
+                  ),
+                  child: widget.isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          widget.continueLabel,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
+                        ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+
 /// Step-by-step signup form shown inside [LoginModal] when in sign-up mode.
 class SignupWizard extends StatelessWidget {
   const SignupWizard({
     super.key,
     required this.currentStep,
+    this.isMovingForward = true,
     required this.renderAsModal,
     required this.firstNameController,
     required this.middleInitialController,
@@ -107,6 +277,7 @@ class SignupWizard extends StatelessWidget {
   });
 
   final int currentStep;
+  final bool isMovingForward;
   final bool renderAsModal;
   final TextEditingController firstNameController;
   final TextEditingController middleInitialController;
@@ -149,14 +320,63 @@ class SignupWizard extends StatelessWidget {
           totalSteps: kSignupStepCount,
           stepLabels: _stepLabels(context),
         ),
-        const SizedBox(height: 20),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeInCubic,
-          child: KeyedSubtree(
-            key: ValueKey<int>(currentStep),
-            child: _buildStep(context),
+        const SizedBox(height: 12),
+        ClipRect(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 10, bottom: 4),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 550),
+              layoutBuilder: (currentChild, previousChildren) {
+                return Stack(
+                  clipBehavior: Clip.hardEdge,
+                  alignment: Alignment.topCenter,
+                  children: <Widget>[
+                    ...previousChildren,
+                    if (currentChild != null) currentChild,
+                  ],
+                );
+              },
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                final childKey = child.key;
+                final childStep =
+                    childKey is ValueKey<int> ? childKey.value : currentStep;
+                final isEntering = childStep == currentStep;
+
+                if (isEntering) {
+                  final startOffset = isMovingForward
+                      ? const Offset(1.0, 0)
+                      : const Offset(-1.0, 0);
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: startOffset,
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOutCubic,
+                    )),
+                    child: child,
+                  );
+                } else {
+                  final exitOffset = isMovingForward
+                      ? const Offset(-1.0, 0)
+                      : const Offset(1.0, 0);
+                  return SlideTransition(
+                    position: Tween<Offset>(
+                      begin: exitOffset,
+                      end: Offset.zero,
+                    ).animate(CurvedAnimation(
+                      parent: animation,
+                      curve: Curves.easeInOutCubic,
+                    )),
+                    child: child,
+                  );
+                }
+              },
+              child: KeyedSubtree(
+                key: ValueKey<int>(currentStep),
+                child: _buildStep(context),
+              ),
+            ),
           ),
         ),
       ],
@@ -172,54 +392,100 @@ class SignupWizard extends StatelessWidget {
     };
   }
 
+  Widget _buildSectionHeader(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: GoogleFonts.poppins(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: GoogleFonts.poppins(
+              fontSize: 13,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildNameStep(BuildContext context) {
     final s = S.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildSectionHeader(
+          'Personal information',
+          'Enter your full name as shown on official IDs.',
+        ),
         Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
               flex: 2,
-              child: TextFormField(
-                controller: firstNameController,
-                textInputAction: TextInputAction.next,
-                decoration: authFieldDecoration(
-                  s?.firstName ?? 'First name',
-                  Icons.person_outline_rounded,
-                  renderAsModal: renderAsModal,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  buildAuthFieldLabel(s?.firstName ?? 'First name'),
+                  TextFormField(
+                    controller: firstNameController,
+                    textInputAction: TextInputAction.next,
+                    decoration: authFieldDecoration(
+                      HugeIcons.strokeRoundedUser,
+                      hintText: 'e.g. Juan',
+                      renderAsModal: renderAsModal,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 1,
-              child: TextFormField(
-                controller: middleInitialController,
-                textCapitalization: TextCapitalization.characters,
-                maxLength: 2,
-                textInputAction: TextInputAction.next,
-                inputFormatters: [
-                  LengthLimitingTextInputFormatter(1),
-                  UpperCaseTextFormatter(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  buildAuthFieldLabel('M.I.'),
+                  TextFormField(
+                    controller: middleInitialController,
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 2,
+                    textInputAction: TextInputAction.next,
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(1),
+                      UpperCaseTextFormatter(),
+                    ],
+                    decoration: authFieldDecoration(
+                      HugeIcons.strokeRoundedText,
+                      hintText: 'A',
+                      renderAsModal: renderAsModal,
+                      counterText: '',
+                    ),
+                  ),
                 ],
-                decoration: authFieldDecoration(
-                  'M.I.',
-                  Icons.text_format_rounded,
-                  renderAsModal: renderAsModal,
-                  counterText: '',
-                ),
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
+        buildAuthFieldLabel(s?.lastName ?? 'Last name'),
         TextFormField(
           controller: lastNameController,
           textInputAction: TextInputAction.done,
           decoration: authFieldDecoration(
-            s?.lastName ?? 'Last name',
-            Icons.person_outline_rounded,
+            HugeIcons.strokeRoundedUser,
+            hintText: 'e.g. Dela Cruz',
             renderAsModal: renderAsModal,
           ),
         ),
@@ -232,17 +498,23 @@ class SignupWizard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildSectionHeader(
+          'Contact information',
+          'Enter your contact details.',
+        ),
+        buildAuthFieldLabel(s?.contactNumber ?? 'Contact number'),
         TextFormField(
           controller: phoneController,
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.next,
           decoration: authFieldDecoration(
-            s?.contactNumber ?? 'Phone number (11 digits)',
-            Icons.phone_outlined,
+            HugeIcons.strokeRoundedSmartPhone01,
+            hintText: '09XX XXX XXXX',
             renderAsModal: renderAsModal,
           ),
         ),
         const SizedBox(height: 16),
+        buildAuthFieldLabel(s?.email ?? 'Email'),
         TextFormField(
           controller: emailController,
           keyboardType: TextInputType.emailAddress,
@@ -250,8 +522,8 @@ class SignupWizard extends StatelessWidget {
           autofillHints: const [AutofillHints.email],
           onChanged: onEmailChanged,
           decoration: authFieldDecoration(
-            s?.email ?? 'Email',
-            Icons.email_outlined,
+            HugeIcons.strokeRoundedMail01,
+            hintText: 'example@email.com',
             renderAsModal: renderAsModal,
           ),
         ),
@@ -276,22 +548,33 @@ class SignupWizard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildSectionHeader(
+          'Security setup',
+          'Create a strong password for your account.',
+        ),
+        buildAuthFieldLabel(s?.password ?? 'Password'),
         TextFormField(
           controller: passwordController,
           obscureText: obscurePassword,
+          keyboardType: TextInputType.visiblePassword,
+          enableSuggestions: false,
+          autocorrect: false,
+          autofillHints: const [AutofillHints.newPassword],
           textInputAction: TextInputAction.next,
           inputFormatters: PasswordRules.inputFormattersNoWhitespace,
           onChanged: (_) => onPasswordChanged(),
           decoration: authFieldDecoration(
-            s?.password ?? 'Password',
-            Icons.lock_outline_rounded,
+            HugeIcons.strokeRoundedLockPassword,
+            hintText: '••••••••',
             renderAsModal: renderAsModal,
             suffix: IconButton(
-              icon: Icon(
-                obscurePassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                color: Colors.grey[600],
+              icon: HugeIcon(
+                icon: obscurePassword
+                    ? HugeIcons.strokeRoundedViewOffSlash
+                    : HugeIcons.strokeRoundedView,
+                color: Colors.grey[600]!,
+                size: 20,
+                strokeWidth: 2.0,
               ),
               onPressed: onTogglePassword,
             ),
@@ -300,22 +583,29 @@ class SignupWizard extends StatelessWidget {
         const SizedBox(height: 10),
         _buildPasswordRequirements(),
         const SizedBox(height: 16),
+        buildAuthFieldLabel(s?.confirmPassword ?? 'Confirm password'),
         TextFormField(
           controller: confirmPasswordController,
           obscureText: obscureConfirmPassword,
+          keyboardType: TextInputType.visiblePassword,
+          enableSuggestions: false,
+          autocorrect: false,
+          autofillHints: const [AutofillHints.newPassword],
           textInputAction: TextInputAction.done,
           inputFormatters: PasswordRules.inputFormattersNoWhitespace,
           onChanged: (_) => onPasswordChanged(),
           decoration: authFieldDecoration(
-            s?.confirmPassword ?? 'Confirm password',
-            Icons.lock_outline_rounded,
+            HugeIcons.strokeRoundedLockPassword,
+            hintText: '••••••••',
             renderAsModal: renderAsModal,
             suffix: IconButton(
-              icon: Icon(
-                obscureConfirmPassword
-                    ? Icons.visibility_outlined
-                    : Icons.visibility_off_outlined,
-                color: Colors.grey[600],
+              icon: HugeIcon(
+                icon: obscureConfirmPassword
+                    ? HugeIcons.strokeRoundedViewOffSlash
+                    : HugeIcons.strokeRoundedView,
+                color: Colors.grey[600]!,
+                size: 20,
+                strokeWidth: 2.0,
               ),
               onPressed: onToggleConfirmPassword,
             ),
@@ -343,38 +633,34 @@ class SignupWizard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _buildSectionHeader(
+          'Additional details',
+          'Provide your birthdate and gender.',
+        ),
+        buildAuthFieldLabel(s?.birthdate ?? 'Birthdate'),
         TextFormField(
           controller: dobController,
           readOnly: true,
           style: const TextStyle(
-            fontSize: 12.5,
+            fontSize: 13.5,
             color: Color(0xFF0F172A),
             fontWeight: FontWeight.w500,
           ),
           decoration: authFieldDecoration(
-            s?.birthdate ?? 'Birthdate (YYYY-MM-DD)',
-            Icons.cake_outlined,
+            HugeIcons.strokeRoundedCalendar03,
+            hintText: 'YYYY-MM-DD',
             renderAsModal: renderAsModal,
-            labelStyle: const TextStyle(
-              color: Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-              fontSize: 12.5,
-            ),
-            floatingLabelStyle: const TextStyle(
-              color: Color(0xFF64748B),
-              fontWeight: FontWeight.w500,
-              fontSize: 11,
-            ),
             isDense: true,
           ),
           onTap: onPickDob,
         ),
         const SizedBox(height: 16),
+        buildAuthFieldLabel(s?.gender ?? 'Sex'),
         DropdownButtonFormField<String>(
           initialValue: selectedSex,
           decoration: authFieldDecoration(
-            s?.gender ?? 'Sex',
-            Icons.person_outline,
+            HugeIcons.strokeRoundedUser,
+            hintText: 'Select sex',
             renderAsModal: renderAsModal,
           ),
           items: [
@@ -437,11 +723,19 @@ class SignupWizard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            ok ? Icons.check_circle_rounded : Icons.circle_outlined,
-            size: 16,
-            color: ok ? const Color(0xFF16A34A) : const Color(0xFFCBD5E1),
-          ),
+          ok
+              ? const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                  size: 16,
+                  color: Color(0xFF16A34A),
+                  strokeWidth: 2.0,
+                )
+              : const HugeIcon(
+                  icon: HugeIcons.strokeRoundedCircle,
+                  size: 16,
+                  color: Color(0xFFCBD5E1),
+                  strokeWidth: 2.0,
+                ),
           const SizedBox(width: 8),
           Expanded(
             child: Row(

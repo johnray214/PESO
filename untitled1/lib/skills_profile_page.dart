@@ -13,7 +13,9 @@ import 'job_models.dart';
 import 'job_action_service.dart';
 import 'home_pages.dart'; // Added for map navigation notifiers
 import 'skill_match_utils.dart';
+import 'micro_interactions.dart';
 import 'my_documents_page.dart';
+import 'app_haptics.dart';
 import 'main.dart';
 import 'onboarding_prefs.dart';
 import 'l10n/app_localizations.dart';
@@ -896,7 +898,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
         _editingSelectedSkills = false;
       }
     });
-    HapticFeedback.selectionClick();
+    AppHaptics.selectionClick();
     _showToast(
       added ? '$skill added' : '$skill removed',
       type: added ? ToastType.success : ToastType.info,
@@ -3060,6 +3062,9 @@ class _MatchedJobCard extends StatelessWidget {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(builder: (_) => const MyDocumentsPage()),
       );
+      if (context.mounted) {
+        return await jobActionService.hasResumeOnFile(forceRefresh: true);
+      }
     }
     return false;
   }
@@ -3150,6 +3155,8 @@ class _MatchedJobCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(24),
+          highlightColor: Colors.transparent,
+          splashColor: const Color(0x0D2563EB),
           onTap: openDetails,
           child: Padding(
             padding: const EdgeInsets.all(20),
@@ -3345,41 +3352,23 @@ class _MatchedJobCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    // Save Button
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () async {
-                          final isSignedIn = await requireAuthenticatedSession(
-                            context,
-                            message:
-                                'Please sign in or create an account to save jobs.',
-                          );
-                          if (!isSignedIn) return;
-                          await jobActionService.toggleSave(job.id);
-                        },
-                        borderRadius: BorderRadius.circular(10),
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            border: Border.all(color: const Color(0xFFE2E8F0)),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Icon(
-                            isSaved
-                                ? Icons.bookmark_rounded
-                                : Icons.bookmark_outline_rounded,
-                            size: 18,
-                            color: isSaved
-                                ? const Color(0xFF2563EB)
-                                : const Color(0xFF64748B),
-                          ),
-                        ),
-                      ),
+                    // Save Button with Elastic Bounce & Burst
+                    AnimatedBookmarkButton(
+                      isSaved: isSaved,
+                      size: 20,
+                      onTap: () async {
+                        final isSignedIn = await requireAuthenticatedSession(
+                          context,
+                          message:
+                              'Please sign in or create an account to save jobs.',
+                        );
+                        if (!isSignedIn) return;
+                        await jobActionService.toggleSave(job.id);
+                      },
                     ),
                     const SizedBox(width: 8),
-                    // Apply Now button (opens details modal first)
-                    GestureDetector(
+                    // Apply Now button with Press Compression & Medium Haptic
+                    PressableButton(
                       onTap: openDetails,
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -3389,7 +3378,7 @@ class _MatchedJobCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF2563EB).withOpacity(0.2),
+                              color: const Color(0xFF2563EB).withValues(alpha: 0.2),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),

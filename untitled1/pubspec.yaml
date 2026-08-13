@@ -66,6 +66,8 @@ flutter:
     - assets/empoy_profile.png
     - assets/PESOLOGO.jpg
     - assets/testempoy.gif
+    - assets/email_otp.gif
+    - assets/verified.gif
     - assets/empoy_app_icon.png
     - assets/empoy_final_app_icon.png
     - assets/empoy_notif_application_received.png
@@ -74,4 +76,8 @@ flutter:
     - assets/empoy_notif_hired.png
     - assets/empoy_notif_shortlisted.png
     - assets/empoy_no_internetconnection.png
+    - assets/empoynoevents.png
+    - assets/empoysignin.png
+    - assets/empoyauth.png
+    - assets/empoywelcome.png
     - .env

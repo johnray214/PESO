@@ -66,8 +66,8 @@ class _IntroOnboardingPageState extends State<IntroOnboardingPage> {
   void _next() {
     if (_page < _slides.length - 1) {
       _pageController.nextPage(
-        duration: const Duration(milliseconds: 380),
-        curve: Curves.easeOutCubic,
+        duration: const Duration(milliseconds: 450),
+        curve: Curves.fastLinearToSlowEaseIn,
       );
     } else {
       _finish();
@@ -106,16 +106,21 @@ class _IntroOnboardingPageState extends State<IntroOnboardingPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (s.assetPath != null)
-                          SizedBox(
-                            width: 220,
-                            height: 220,
-                            child: Image.asset(
-                              s.assetPath!,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.work_outline_rounded,
-                                size: 80,
-                                color: s.gradient[0],
+                          AnimatedScale(
+                            scale: index == _page ? 1.0 : 0.88,
+                            duration: const Duration(milliseconds: 450),
+                            curve: Curves.easeOutBack,
+                            child: SizedBox(
+                              width: 220,
+                              height: 220,
+                              child: Image.asset(
+                                s.assetPath!,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.work_outline_rounded,
+                                  size: 80,
+                                  color: s.gradient[0],
+                                ),
                               ),
                             ),
                           )
@@ -199,11 +204,21 @@ class _IntroOnboardingPageState extends State<IntroOnboardingPage> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: Text(
-                    _page == _slides.length - 1 ? 'Get started' : 'Next',
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: child,
+                      );
+                    },
+                    child: Text(
+                      _page == _slides.length - 1 ? 'Get started' : 'Next',
+                      key: ValueKey<String>(_page == _slides.length - 1 ? 'get_started' : 'next'),
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),
