@@ -257,6 +257,7 @@ class AdminReportController extends Controller
 
         return $query->get()->map(fn ($emp) => [
             'company'            => $emp->company_name,
+            'employerType'       => ucfirst($emp->employer_type ?? 'local'),
             'industry'           => $emp->industry,
             'city'               => $emp->city,
             'verificationStatus' => ucfirst($emp->status),
@@ -267,7 +268,7 @@ class AdminReportController extends Controller
 
     private function getJobPostingData(?string $from, ?string $to, array $filters): \Illuminate\Support\Collection
     {
-        $query = JobListing::with(['employer:id,company_name,industry']);
+        $query = JobListing::with(['employer:id,company_name,industry,employer_type']);
 
         if ($from && $to) $query->whereBetween('created_at', [$from, $to]);
         if (!empty($filters['jobStatus']))
@@ -276,13 +277,14 @@ class AdminReportController extends Controller
             $query->whereHas('employer', fn ($q) => $q->where('industry', $filters['industry']));
 
         return $query->get()->map(fn ($jl) => [
-            'title'     => $jl->title ?? '—',
-            'company'   => $jl->employer?->company_name ?? '—',
-            'industry'  => $jl->employer?->industry ?? '—',
-            'vacancies' => $jl->vacancies ?? $jl->vacancy_count ?? 1,
-            'status'    => ucfirst($jl->status ?? 'open'),
-            'date'      => $jl->posted_date?->format('M d, Y') ?? $jl->created_at?->format('M d, Y') ?? '—',
-            'month'     => $jl->posted_date?->format('F') ?? $jl->created_at?->format('F') ?? '—',
+            'title'        => $jl->title ?? '—',
+            'company'      => $jl->employer?->company_name ?? '—',
+            'employerType' => ($jl->is_overseas || ($jl->employer?->employer_type === 'overseas')) ? 'Overseas' : 'Local',
+            'industry'     => $jl->employer?->industry ?? '—',
+            'vacancies'    => $jl->vacancies ?? $jl->vacancy_count ?? 1,
+            'status'       => ucfirst($jl->status ?? 'open'),
+            'date'         => $jl->posted_date?->format('M d, Y') ?? $jl->created_at?->format('M d, Y') ?? '—',
+            'month'        => $jl->posted_date?->format('F') ?? $jl->created_at?->format('F') ?? '—',
         ]);
     }
 

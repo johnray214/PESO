@@ -66,7 +66,7 @@ class AdminJobListingController extends Controller
             $query->where('employer_id', $request->employer_id);
         }
 
-        $jobListings = $query->with(['employer:id,company_name', 'skills'])
+        $jobListings = $query->with(['employer:id,company_name,employer_type', 'skills'])
             ->withCount([
                 'applications',
                 'applications as hired_count' => fn ($q) => $q->where('status', 'hired'),

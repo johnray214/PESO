@@ -1,5 +1,12 @@
 <template>
   <div class="page">
+    <!-- Toast -->
+    <transition name="toast">
+      <div v-if="toast.show" class="toast" :class="toast.type">
+        <span class="toast-msg">{{ toast.text }}</span>
+      </div>
+    </transition>
+
     <!-- SKELETON — initial load only -->
     <template v-if="loading || tabsLoading">
       <div class="filters-bar" style="margin-bottom: 20px;">
@@ -262,6 +269,10 @@ export default {
       tabsLoading: true,
       pageLoading: false,
       drawerTabList: ['Info', 'Job Listings', 'Hired'],
+      selectedStatus: '',
+      statusRemarks: '',
+      savingEmployerStatus: false,
+      toast: { show: false, text: '', type: 'success', icon: '' },
       industryOptions: [
         'Agriculture',
         'Manufacturing',
@@ -444,9 +455,54 @@ export default {
     },
 
     openDrawer(emp) {
-      this.selected   = { ...emp, listings: [...emp.listings], hiredApplicants: [...emp.hiredApplicants] }
-      this.drawerTab  = 'Info'
-      this.drawerOpen = true
+      this.selected       = { ...emp, listings: [...emp.listings], hiredApplicants: [...emp.hiredApplicants] }
+      this.selectedStatus = emp.status || 'Pending'
+      this.statusRemarks  = emp.remarks || ''
+      this.drawerTab      = 'Info'
+      this.drawerOpen     = true
+    },
+
+    showToastMsg(text, type = 'success') {
+      if (this.toast._timer) clearTimeout(this.toast._timer)
+      this.toast = {
+        show: true,
+        text,
+        type,
+        _timer: setTimeout(() => { this.toast.show = false }, 3500),
+      }
+    },
+
+    async handleEmployerStatusSave() {
+      if (!this.selected) return
+      if (['Rejected', 'Suspended'].includes(this.selectedStatus) && !this.statusRemarks.trim()) {
+        this.showToastMsg('A reason/remark is required for rejection or suspension.', 'error')
+        return
+      }
+
+      this.savingEmployerStatus = true
+      try {
+        const payload = {
+          status: this.selectedStatus.toLowerCase(),
+          remarks: this.statusRemarks,
+        }
+        await api.patch(`/admin/employers/${this.selected.id}/status`, payload)
+
+        // Update selected and local list state
+        this.selected.status = this.selectedStatus
+        const idx = this.employers.findIndex(e => e.id === this.selected.id)
+        if (idx !== -1) {
+          this.employers[idx].status  = this.selectedStatus
+          this.employers[idx].remarks = this.statusRemarks
+        }
+
+        this.showToastMsg(`Employer status updated to ${this.selectedStatus} successfully!`, 'success')
+        await this.fetchTabCounts()
+      } catch (e) {
+        console.error(e)
+        this.showToastMsg(e?.response?.data?.message || 'Failed to update employer status', 'error')
+      } finally {
+        this.savingEmployerStatus = false
+      }
     },
 
     changePage(page) {
@@ -593,6 +649,26 @@ export default {
 .hired-job  { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 .hired-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .hired-date  { font-size: 11px; color: #94a3b8; }
+
+.section-label { font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 8px; }
+.status-options { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.status-option { padding: 8px 16px; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; font-weight: 600; font-size: 12.5px; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+.status-option:hover { background: #f1f5f9; }
+.status-option.active { background: #2563eb; color: #fff; border-color: #2563eb; box-shadow: 0 2px 6px rgba(37,99,235,0.25); }
+.remarks-textarea { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; font-size: 12.5px; color: #1e293b; outline: none; font-family: inherit; resize: vertical; box-sizing: border-box; }
+.remarks-textarea:focus { border-color: #2563eb; }
+.btn-blue-full { width: 100%; background: #2563eb; color: #fff; border: none; border-radius: 10px; padding: 12px; font-size: 13.5px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 14px; }
+.btn-blue-full:hover:not(:disabled) { background: #1d4ed8; }
+.btn-blue-full:disabled { opacity: 0.6; cursor: not-allowed; }
+.spinner-sm { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toast */
+.toast { position: fixed; top: 20px; right: 20px; z-index: 2000; padding: 12px 18px; border-radius: 10px; background: #1e293b; color: #fff; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+.toast.success { background: #16a34a; }
+.toast.error { background: #dc2626; }
+.toast-enter-active, .toast-leave-active { transition: all 0.25s ease; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(-10px); }
 
 .drawer-enter-active, .drawer-leave-active { transition: opacity 0.2s; }
 .drawer-enter-active .drawer, .drawer-leave-active .drawer { transition: transform 0.25s cubic-bezier(0.4,0,0.2,1); }

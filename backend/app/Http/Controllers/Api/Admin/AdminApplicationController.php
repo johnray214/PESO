@@ -263,17 +263,22 @@ class AdminApplicationController extends Controller
 
     public function reviewingCount()
     {
-        $count = \App\Models\Application::where('status', 'reviewing')->count();
+        $count = \Illuminate\Support\Facades\Cache::remember('admin_app_reviewing_count', 15, function () {
+            return \App\Models\Application::where('status', 'reviewing')->count();
+        });
         return response()->json(['count' => $count]);
     }
 
     public function counts()
     {
-        $statuses = ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'];
-        $counts = ['all' => Application::count()];
-        foreach ($statuses as $s) {
-            $counts[$s] = Application::where('status', $s)->count();
-        }
+        $counts = \Illuminate\Support\Facades\Cache::remember('admin_app_counts', 15, function () {
+            $statuses = ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'];
+            $res = ['all' => Application::count()];
+            foreach ($statuses as $s) {
+                $res[$s] = Application::where('status', $s)->count();
+            }
+            return $res;
+        });
         return response()->json(['success' => true, 'data' => $counts]);
     }
 }

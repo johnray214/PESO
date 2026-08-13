@@ -1345,4 +1345,23 @@ export default {
 .history-actor { font-size: 12px; color: #94a3b8; }
 .history-actor strong { color: #475569; }
 .history-loading { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── RESPONSIVE MEDIA QUERIES ── */
+@media (max-width: 768px) {
+  .page { padding: 14px; }
+  .filters-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .search-box { width: 100%; max-width: none; }
+  .search-input { width: 100%; }
+  .filter-group { width: 100%; justify-content: space-between; }
+  .filter-select { flex: 1; }
+  .main-tabs { width: 100%; justify-content: space-between; }
+  .main-tab { flex: 1; justify-content: center; padding: 8px 10px; font-size: 12px; }
+  .status-tabs { overflow-x: auto; width: 100%; padding-bottom: 4px; }
+  .tab-btn { flex-shrink: 0; white-space: nowrap; font-size: 12px; padding: 6px 10px; }
+  .data-table { display: block; overflow-x: auto; white-space: nowrap; }
+  .drawer { width: 100%; }
+  .modal-overlay { padding: 12px; }
+  .cmodal, .fancy-modal { width: 100%; max-width: none; }
+  .fm-2col { flex-direction: column; gap: 10px; }
+}
 </style>

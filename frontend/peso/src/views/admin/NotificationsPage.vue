@@ -64,7 +64,7 @@
         </div>
 
         <div
-          v-for="notif in filtered"
+          v-for="notif in paginated"
           :key="notif.id"
           :class="['notif-item', { unread: !notif.read, clickable: !notif.read }]"
           @click="handleClick(notif)"
@@ -104,6 +104,33 @@
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
             </button>
           </div>
+        </div>
+      </div>
+
+      <!-- Pagination bar -->
+      <div v-if="filtered.length > 0" class="pagination-bar">
+        <div class="pagination-info">
+          Showing {{ showingStart }}–{{ showingEnd }} of {{ filtered.length }} notifications
+        </div>
+        <div class="pagination-controls">
+          <button class="pg-btn" :disabled="currentPage === 1" @click="currentPage--">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Prev
+          </button>
+
+          <div class="pg-pages">
+            <button
+              v-for="p in totalPages"
+              :key="p"
+              :class="['pg-num', { active: p === currentPage }]"
+              @click="currentPage = p"
+            >
+              {{ p }}
+            </button>
+          </div>
+
+          <button class="pg-btn" :disabled="currentPage >= totalPages" @click="currentPage++">
+            Next <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
         </div>
       </div>
     </template>
@@ -163,6 +190,8 @@ export default {
     return {
       loading: true,
       activeFilter: 'all',
+      currentPage: 1,
+      perPage: 15,
       showDeleteConfirm: false,
       showDeleteSingleConfirm: false,
       singleDeleteTargetId: null,
@@ -171,11 +200,31 @@ export default {
     }
   },
 
+  watch: {
+    activeFilter() {
+      this.currentPage = 1
+    },
+  },
+
   computed: {
     filtered() {
       if (!this.store) return []
       if (this.activeFilter === 'unread') return this.store.notifications.filter(n => !n.read)
       return this.store.notifications
+    },
+    totalPages() {
+      return Math.ceil(this.filtered.length / this.perPage) || 1
+    },
+    paginated() {
+      const start = (this.currentPage - 1) * this.perPage
+      return this.filtered.slice(start, start + this.perPage)
+    },
+    showingStart() {
+      if (this.filtered.length === 0) return 0
+      return (this.currentPage - 1) * this.perPage + 1
+    },
+    showingEnd() {
+      return Math.min(this.currentPage * this.perPage, this.filtered.length)
     },
   },
 
@@ -202,33 +251,8 @@ export default {
       }
       // read notifications: don't navigate, just stay
     },
-
     confirmDeleteAll() {
-      // Direct assignment instead of method call in case Pinia actions didn't HMR properly
-      if (typeof this.store.deleteAll === 'function') {
-        this.store.deleteAll()
-      } else {
-        try {
-          const authUser = JSON.parse(localStorage.getItem('admin_user') || '{}')
-          const delKey = 'admin_del_notifs_' + (authUser?.id || 'guest')
-          const delIds = JSON.parse(localStorage.getItem(delKey) || '[]')
-          
-          const unreadNotifs = []
-          this.store.notifications.forEach(n => {
-            if (n.read) {
-              if (!delIds.includes(n.id)) delIds.push(n.id)
-            } else {
-              unreadNotifs.push(n)
-            }
-          })
-          localStorage.setItem(delKey, JSON.stringify(delIds))
-          
-          this.store.notifications = unreadNotifs
-          localStorage.setItem('admin_notifications', JSON.stringify(unreadNotifs))
-        } catch(e) {
-          console.warn('Delete persistence error:', e)
-        }
-      }
+      this.store.deleteAll()
       this.showDeleteConfirm = false
     },
 
@@ -238,25 +262,7 @@ export default {
     },
 
     confirmDeleteSingle() {
-      if (typeof this.store.deleteNotif === 'function') {
-        this.store.deleteNotif(this.singleDeleteTargetId)
-      } else {
-        this.store.notifications = this.store.notifications.filter(n => n.id !== this.singleDeleteTargetId)
-        localStorage.setItem('admin_notifications', JSON.stringify(this.store.notifications))
-        
-        // Also persist the deletion manually in case store wasn't updated
-        try {
-          const authUser = JSON.parse(localStorage.getItem('admin_user') || '{}')
-          const delKey = 'admin_del_notifs_' + (authUser?.id || 'guest')
-          const delIds = JSON.parse(localStorage.getItem(delKey) || '[]')
-          if (!delIds.includes(this.singleDeleteTargetId)) {
-            delIds.push(this.singleDeleteTargetId)
-            localStorage.setItem(delKey, JSON.stringify(delIds))
-          }
-        } catch(e) {
-          console.warn('Delete persistence error:', e)
-        }
-      }
+      this.store.deleteNotif(this.singleDeleteTargetId)
       this.showDeleteSingleConfirm = false
       this.singleDeleteTargetId = null
     },
@@ -404,4 +410,35 @@ export default {
 .modal-pop-enter-active { transition: all 0.22s cubic-bezier(0.34,1.56,0.64,1); }
 .modal-pop-leave-active { transition: all 0.15s ease-in; }
 .modal-pop-enter-from, .modal-pop-leave-to { opacity: 0; transform: scale(0.9); }
+
+/* PAGINATION */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.pagination-info { font-size: 12px; font-weight: 600; color: #64748b; }
+.pagination-controls { display: flex; align-items: center; gap: 8px; }
+.pg-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px;
+  border-radius: 8px; border: 1px solid #e2e8f0; background: #fff;
+  font-size: 12px; font-weight: 600; color: #475569; cursor: pointer; transition: all .15s;
+}
+.pg-btn:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; color: #1e293b; }
+.pg-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.pg-pages { display: flex; align-items: center; gap: 4px; }
+.pg-num {
+  min-width: 28px; height: 28px; border-radius: 6px; border: 1px solid transparent;
+  background: transparent; font-size: 12px; font-weight: 600; color: #64748b;
+  display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all .15s;
+}
+.pg-num:hover { background: #f1f5f9; color: #1e293b; }
+.pg-num.active { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 700; }
 </style>

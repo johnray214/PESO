@@ -300,4 +300,12 @@ export default {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+@media (max-width: 768px) {
+  .page { padding: 14px; }
+  .filters-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .filter-group { flex-wrap: wrap; }
+  .notif-item { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .notif-actions { width: 100%; justify-content: flex-end; }
+}
 </style>

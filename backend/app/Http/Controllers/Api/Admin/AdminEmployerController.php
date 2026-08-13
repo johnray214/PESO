@@ -44,7 +44,7 @@ class AdminEmployerController extends Controller
             }
         ]);
 
-        $employers = $query->orderByDesc('created_at')->paginate(15);
+        $employers = $query->orderByDesc('created_at')->orderByDesc('id')->paginate(15);
 
         // Attach derived counts before passing to resource
         $employers->getCollection()->transform(function ($emp) {
@@ -90,7 +90,7 @@ class AdminEmployerController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $validated = $request->validate([
-            'status'  => ['required', Rule::in(['verified', 'rejected', 'suspended'])],
+            'status'  => ['required', Rule::in(['pending', 'verified', 'rejected', 'suspended'])],
             'remarks' => ['nullable', 'string', 'max:1000'],
         ]);
 
@@ -203,11 +203,14 @@ class AdminEmployerController extends Controller
 
     public function counts()
     {
-        $statuses = ['verified', 'pending', 'suspended', 'rejected'];
-        $counts = ['all' => Employer::count()];
-        foreach ($statuses as $s) {
-            $counts[$s] = Employer::where('status', $s)->count();
-        }
+        $counts = \Illuminate\Support\Facades\Cache::remember('admin_employer_counts', 15, function () {
+            $statuses = ['verified', 'pending', 'suspended', 'rejected'];
+            $res = ['all' => Employer::count()];
+            foreach ($statuses as $s) {
+                $res[$s] = Employer::where('status', $s)->count();
+            }
+            return $res;
+        });
         return response()->json(['success' => true, 'data' => $counts]);
     }
 }

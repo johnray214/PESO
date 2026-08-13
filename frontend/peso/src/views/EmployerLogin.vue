@@ -496,4 +496,12 @@ export default {
   color: #fff;
   text-decoration: none;
 }
+
+/* ── RESPONSIVE MEDIA QUERIES ── */
+@media (max-width: 992px) {
+  .auth-wrapper { flex-direction: column; }
+  .left-panel { display: none; }
+  .right-panel { width: 100%; padding: 32px 20px; }
+  .auth-box { max-width: 100%; }
+}
 </style>

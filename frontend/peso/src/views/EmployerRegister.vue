@@ -895,4 +895,14 @@ export default {
 .type-card-icon { font-size: 20px; flex-shrink: 0; }
 .type-card-title { font-size: 12.5px; font-weight: 700; color: #0f172a; }
 .type-card-sub { font-size: 10.5px; color: #64748b; margin-top: 1px; }
+
+/* ── RESPONSIVE MEDIA QUERIES ── */
+@media (max-width: 992px) {
+  .auth-wrapper { flex-direction: column; }
+  .left-panel { display: none; }
+  .right-panel { width: 100%; padding: 32px 20px; }
+  .auth-box { max-width: 100%; }
+  .form-row-2 { grid-template-columns: 1fr; }
+  .employer-type-cards { grid-template-columns: 1fr; }
+}
 </style>
