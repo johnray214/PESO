@@ -336,22 +336,24 @@ final ValueNotifier<int> shellOpenEventsRequestNotifier = ValueNotifier<int>(0);
 final ValueNotifier<int> mapUserSkillsRevisionNotifier = ValueNotifier<int>(0);
 
 /// Reliable live updates after register/unregister (StatefulBuilder can miss rebuilds on web).
-class _EventDetailDialog extends StatefulWidget {
+class _EventDetailSheet extends StatefulWidget {
   final PesoEvent initialEvent;
   final VoidCallback onRegistrationChanged;
   final BuildContext hostContext;
+  final Animation<double>? routeAnimation;
 
-  const _EventDetailDialog({
+  const _EventDetailSheet({
     required this.initialEvent,
     required this.onRegistrationChanged,
     required this.hostContext,
+    this.routeAnimation,
   });
 
   @override
-  State<_EventDetailDialog> createState() => _EventDetailDialogState();
+  State<_EventDetailSheet> createState() => _EventDetailSheetState();
 }
 
-class _EventDetailDialogState extends State<_EventDetailDialog> {
+class _EventDetailSheetState extends State<_EventDetailSheet> {
   late PesoEvent _event;
   bool _busy = false;
 
@@ -361,10 +363,10 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
     _event = widget.initialEvent;
   }
 
-  Future<void> _onPrimaryAction(BuildContext dialogContext) async {
+  Future<void> _onPrimaryAction(BuildContext sheetContext) async {
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
-      Navigator.of(dialogContext).pop();
+      Navigator.of(sheetContext).pop();
       await requireAuthenticatedSession(
         widget.hostContext,
         message: 'Please sign in or create an account to register for events.',
@@ -378,8 +380,7 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (res['success'] == true) {
-      HapticFeedback
-          .lightImpact(); // Added subtle buzz for event registration toggle
+      HapticFeedback.lightImpact();
       final data = res['data'];
       final pc = data is Map<String, dynamic>
           ? (data['participants_count'] as num?)?.toInt()
@@ -417,179 +418,347 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
   @override
   Widget build(BuildContext context) {
     final primaryDisabled = _busy || (!_event.isRegistered && _event.isFull);
+    final sheetHeight = MediaQuery.sizeOf(context).height * 0.88;
+    final bottomPadding = MediaQuery.paddingOf(context).bottom;
 
-    return Dialog(
-      backgroundColor: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Header Image/Color area
-              Container(
-                height: 120,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB),
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(24)),
-                ),
-                child: Stack(
+    final isForward =
+        widget.routeAnimation?.status == AnimationStatus.forward ||
+            widget.routeAnimation?.status == AnimationStatus.completed;
+
+    // Body animation: delayed stagger on forward opening (0.50 -> 1.0)
+    // Instant collapse on reverse closing (1.0 -> 0.85 -> transparent) so white box disappears immediately
+    final bodyAnim = widget.routeAnimation != null
+        ? CurvedAnimation(
+            parent: widget.routeAnimation!,
+            curve: const Interval(0.50, 1.0, curve: Curves.easeOutCubic),
+            reverseCurve: const Interval(0.85, 1.0, curve: Curves.easeIn),
+          )
+        : null;
+
+    // Container background animation: fades white background out quickly on reverse dismissal
+    final containerBgAnim = widget.routeAnimation != null
+        ? CurvedAnimation(
+            parent: widget.routeAnimation!,
+            curve: const Interval(0.0, 1.0, curve: Curves.linear),
+            reverseCurve: const Interval(0.70, 1.0, curve: Curves.easeOut),
+          )
+        : null;
+
+    Widget wrapStaggered(Widget child) {
+      if (bodyAnim == null) return child;
+      return FadeTransition(
+        opacity: bodyAnim,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.15),
+            end: Offset.zero,
+          ).animate(bodyAnim),
+          child: child,
+        ),
+      );
+    }
+
+    final containerDecoration = AnimatedBuilder(
+      animation: containerBgAnim ?? const AlwaysStoppedAnimation(1.0),
+      builder: (context, child) {
+        final alpha = containerBgAnim != null ? containerBgAnim.value : 1.0;
+        return Container(
+          height: sheetHeight,
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: alpha.clamp(0.0, 1.0)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: child,
+        );
+      },
+      child: Column(
+        children: [
+          // Main scrollable detail content
+          Expanded(
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (notification is OverscrollNotification &&
+                    notification.overscroll < -6) {
+                  Navigator.of(context).pop();
+                  return true;
+                }
+                return false;
+              },
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(
+                    parent: AlwaysScrollableScrollPhysics()),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Positioned(
-                      right: -20,
-                      top: -20,
-                      child: HugeIcon(
-                        icon: HugeIcons.strokeRoundedCalendar03,
-                        size: 120,
-                        color: Colors.white.withOpacity(0.1),
-                        strokeWidth: 1.5,
-                      ),
-                    ),
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: IconButton(
-                        icon: const HugeIcon(
-                          icon: HugeIcons.strokeRoundedCancel01,
-                          color: Colors.white,
-                          size: 18,
-                          strokeWidth: 2.0,
-                        ),
-                        onPressed: () => Navigator.pop(context),
-                        style: IconButton.styleFrom(
-                          backgroundColor: Colors.white12,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              _event.typeLabel.toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.white,
-                                letterSpacing: 1.1,
+                    // Cover Image Header Banner extending to the top
+                    Hero(
+                      tag: 'event_header_${_event.id}',
+                      child: Material(
+                        color: Colors.transparent,
+                        child: ClipRRect(
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(28)),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onVerticalDragUpdate: (details) {
+                              if (details.primaryDelta != null &&
+                                  details.primaryDelta! > 6) {
+                                Navigator.of(context).pop();
+                              }
+                            },
+                            onVerticalDragEnd: (details) {
+                              if (details.velocity.pixelsPerSecond.dy > 120) {
+                                Navigator.of(context).pop();
+                              }
+                            },
+                            child: Container(
+                              height: 190,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFF1E3A8A),
+                              ),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (_event.imageUrl != null &&
+                                      _event.imageUrl!.isNotEmpty) ...[
+                                    Image.network(
+                                      _event.imageUrl!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Container(
+                                        decoration: const BoxDecoration(
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              Color(0xFF1E3A8A),
+                                              Color(0xFF2563EB)
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    Container(
+                                      decoration: const BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Colors.black45,
+                                            Colors.transparent,
+                                            Colors.black87,
+                                          ],
+                                          stops: [0.0, 0.4, 1.0],
+                                        ),
+                                      ),
+                                    ),
+                                  ] else ...[
+                                    Container(
+                                      decoration: const BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                          colors: [
+                                            Color(0xFF1E3A8A),
+                                            Color(0xFF2563EB)
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      right: -20,
+                                      top: -20,
+                                      child: HugeIcon(
+                                        icon: HugeIcons.strokeRoundedCalendar03,
+                                        size: 140,
+                                        color: Colors.white
+                                            .withValues(alpha: 0.12),
+                                        strokeWidth: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                  // Close button
+                                  Positioned(
+                                    top: 12,
+                                    right: 14,
+                                    child: IconButton(
+                                      icon: const HugeIcon(
+                                        icon: HugeIcons.strokeRoundedCancel01,
+                                        color: Colors.white,
+                                        size: 18,
+                                        strokeWidth: 2.0,
+                                      ),
+                                      onPressed: () => Navigator.pop(context),
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Colors.black38,
+                                        shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(12)),
+                                      ),
+                                    ),
+                                  ),
+                                  // Category pill & Title overlay
+                                  Positioned(
+                                    left: 20,
+                                    bottom: 16,
+                                    right: 20,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF2563EB),
+                                            borderRadius: BorderRadius.circular(20),
+                                          ),
+                                          child: Text(
+                                            _event.typeLabel.toUpperCase(),
+                                            style: const TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                              color: Colors.white,
+                                              letterSpacing: 0.8,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          _event.title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.white,
+                                            height: 1.2,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _event.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    // Detail Metadata & Long Description Body (staggered)
+                    wrapStaggered(
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _detailInfoRow(HugeIcons.strokeRoundedCalendar03,
+                                _event.formattedDate),
+                            if (_event.eventTime != null)
+                              _detailInfoRow(HugeIcons.strokeRoundedClock01,
+                                  _event.eventTime!),
+                            _detailInfoRow(HugeIcons.strokeRoundedLocation01,
+                                _event.location),
+                            _detailInfoRow(HugeIcons.strokeRoundedUserGroup,
+                                _event.slotsLabel),
+                            if (_event.organizer != null)
+                              _detailInfoRow(HugeIcons.strokeRoundedBuilding01,
+                                  'Organized by ${_event.organizer}'),
+                            const SizedBox(height: 18),
+                            const Text(
+                              'About this Event',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                                color: Color(0xFF0F172A),
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 8),
+                            Text(
+                              _event.description,
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Colors.grey[700],
+                                height: 1.6,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _detailInfoRow(HugeIcons.strokeRoundedCalendar03,
-                        _event.formattedDate),
-                    if (_event.eventTime != null)
-                      _detailInfoRow(
-                          HugeIcons.strokeRoundedClock01, _event.eventTime!),
-                    _detailInfoRow(
-                        HugeIcons.strokeRoundedLocation01, _event.location),
-                    _detailInfoRow(
-                        HugeIcons.strokeRoundedUserGroup, _event.slotsLabel),
-                    if (_event.organizer != null)
-                      _detailInfoRow(HugeIcons.strokeRoundedBuilding01,
-                          'Organized by ${_event.organizer}'),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'About this Event',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F172A),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _event.description,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                        height: 1.6,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: primaryDisabled
-                          ? null
-                          : () => _onPrimaryAction(context),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _event.isRegistered
-                            ? const Color(0xFFEF4444)
-                            : const Color(0xFF2563EB),
-                        minimumSize: const Size(double.infinity, 56),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                        elevation: 0,
-                      ),
-                      child: _busy
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2.5, color: Colors.white),
-                            )
-                          : Text(
-                              _event.isRegistered
-                                  ? 'Cancel Registration'
-                                  : 'Register Now',
-                              style: const TextStyle(
-                                  fontSize: 16, fontWeight: FontWeight.w700),
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+
+          // Sticky Bottom Action Bar (staggered delay)
+          wrapStaggered(
+            Container(
+              padding: EdgeInsets.fromLTRB(20, 12, 20, bottomPadding + 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: const Border(
+                  top: BorderSide(color: Color(0xFFE2E8F0), width: 1),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: FilledButton(
+                onPressed:
+                    primaryDisabled ? null : () => _onPrimaryAction(context),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _event.isRegistered
+                      ? const Color(0xFFEF4444)
+                      : const Color(0xFF2563EB),
+                  minimumSize: const Size(double.infinity, 52),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                child: _busy
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2.5, color: Colors.white),
+                      )
+                    : Text(
+                        _event.isRegistered
+                            ? 'Cancel Registration'
+                            : 'Register Now',
+                        style: const TextStyle(
+                            fontSize: 15.5, fontWeight: FontWeight.w700),
+                      ),
+              ),
+            ),
+          ),
+        ],
       ),
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: containerDecoration,
     );
   }
 
   Widget _detailInfoRow(dynamic icon, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF2563EB).withOpacity(0.08),
+              color: const Color(0xFF2563EB).withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
             ),
             child: icon is IconData
@@ -624,6 +793,41 @@ class _EventDetailDialogState extends State<_EventDetailDialog> {
 
 /// Events page keeps its own [Future] so register/cancel updates the list
 /// immediately (parent [_reloadEventsFuture] alone does not rebuild an open page).
+void openEventDetailModal(
+  BuildContext context,
+  PesoEvent event, {
+  VoidCallback? onRegistrationChanged,
+}) {
+  Navigator.of(context).push(
+    PageRouteBuilder<void>(
+      opaque: false,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.50),
+      transitionDuration: const Duration(milliseconds: 380),
+      reverseTransitionDuration: const Duration(milliseconds: 320),
+      pageBuilder: (pageContext, animation, secondaryAnimation) {
+        final curve = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curve,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: _EventDetailSheet(
+              initialEvent: event,
+              onRegistrationChanged: onRegistrationChanged ?? () {},
+              hostContext: context,
+              routeAnimation: animation,
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
+
 class _EventsPage extends StatefulWidget {
   final BuildContext homeContext;
   final VoidCallback onParentReloadEvents;
@@ -656,13 +860,10 @@ class _EventsPageState extends State<_EventsPage> {
   }
 
   void _openEventDetail(PesoEvent e) {
-    showDialog(
-      context: context,
-      builder: (ctx) => _EventDetailDialog(
-        initialEvent: e,
-        onRegistrationChanged: _afterRegistrationChanged,
-        hostContext: widget.homeContext,
-      ),
+    openEventDetailModal(
+      context,
+      e,
+      onRegistrationChanged: _afterRegistrationChanged,
     );
   }
 
@@ -674,11 +875,12 @@ class _EventsPageState extends State<_EventsPage> {
         elevation: 0,
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF0F172A),
+        automaticallyImplyLeading: false,
         titleSpacing: 20,
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(9),
               decoration: BoxDecoration(
                 color: const Color(0xFF2563EB).withOpacity(0.1),
                 shape: BoxShape.circle,
@@ -691,32 +893,57 @@ class _EventsPageState extends State<_EventsPage> {
               ),
             ),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  S.of(context)?.events ?? 'Events',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Color(0xFF0F172A),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    S.of(context)?.events ?? 'Events',
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F172A),
+                      letterSpacing: -0.3,
+                    ),
                   ),
-                ),
-                Text(
-                  LocaleService.instance.locale.languageCode == 'tl'
-                      ? 'Manatiling updated sa job fairs at seminars'
-                      : 'Stay updated on job fairs and seminars',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w500,
+                  Text(
+                    LocaleService.instance.locale.languageCode == 'tl'
+                        ? 'Manatiling updated sa job fairs at seminars'
+                        : 'Stay updated on job fairs and seminars',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: IconButton(
+              icon: const HugeIcon(
+                icon: HugeIcons.strokeRoundedCancel01,
+                color: Color(0xFF475569),
+                size: 18,
+                strokeWidth: 2.0,
+              ),
+              onPressed: () => Navigator.pop(context),
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xFFF1F5F9),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _future,
@@ -778,6 +1005,8 @@ class _EventsPageState extends State<_EventsPage> {
   }
 
   Widget _buildEventCard(PesoEvent e) {
+    final hasImage = e.imageUrl != null && e.imageUrl!.isNotEmpty;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -786,8 +1015,8 @@ class _EventsPageState extends State<_EventsPage> {
         border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -797,134 +1026,276 @@ class _EventsPageState extends State<_EventsPage> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () => _openEventDetail(e),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Date Section
-                Container(
-                  width: 80,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF2563EB),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        e.dateBadgeDay,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                          height: 1.1,
-                        ),
-                      ),
-                      Text(
-                        e.dateBadgeMonthUpper,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white70,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        e.dateBadgeYear,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white54,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Content Section
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              e.typeLabel.toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF2563EB),
-                                letterSpacing: 1,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Cover Banner Image
+              Hero(
+                tag: 'event_header_${e.id}',
+                child: Material(
+                  color: Colors.transparent,
+                  child: ClipRRect(
+                    borderRadius:
+                        const BorderRadius.vertical(top: Radius.circular(20)),
+                    child: SizedBox(
+                      height: 140,
+                      width: double.infinity,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (hasImage) ...[
+                            Image.network(
+                              e.imageUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                decoration: const BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Color(0xFF1E40AF),
+                                      Color(0xFF3B82F6)
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
-                            const Spacer(),
-                            if (e.isRegistered)
-                              const HugeIcon(
-                                icon: HugeIcons.strokeRoundedCheckmarkCircle01,
-                                size: 16,
-                                color: Colors.green,
-                                strokeWidth: 2.0,
-                              )
+                            Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.black38,
+                                    Colors.transparent,
+                                    Colors.black45
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ] else ...[
+                            Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color(0xFF1E3A8A),
+                                    Color(0xFF2563EB)
+                                  ],
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              right: -10,
+                              bottom: -20,
+                              child: HugeIcon(
+                                icon: HugeIcons.strokeRoundedCalendar03,
+                                size: 110,
+                                color: Colors.white.withOpacity(0.12),
+                                strokeWidth: 1.5,
+                              ),
+                            ),
                           ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          e.title,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
+
+                          // Floating Date Badge (Top-Left)
+                          Positioned(
+                            top: 12,
+                            left: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.15),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    e.dateBadgeDay,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF1E40AF),
+                                      height: 1.0,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        e.dateBadgeMonthUpper,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF1E40AF),
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                      Text(
+                                        e.dateBadgeYear,
+                                        style: const TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF64748B),
+                                          height: 1.0,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            const HugeIcon(
-                              icon: HugeIcons.strokeRoundedClock01,
-                              size: 14,
-                              color: Color(0xFF64748B),
-                              strokeWidth: 2.0,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              e.eventTime ?? 'TBA',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF64748B),
-                                  fontWeight: FontWeight.w500),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const HugeIcon(
-                              icon: HugeIcons.strokeRoundedLocation01,
-                              size: 14,
-                              color: Color(0xFF64748B),
-                              strokeWidth: 2.0,
-                            ),
-                            const SizedBox(width: 4),
-                            Expanded(
+
+                          // Floating Category Badge (Top-Right)
+                          Positioned(
+                            top: 12,
+                            right: 12,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2563EB),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.2),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
                               child: Text(
-                                e.location,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                                e.typeLabel.toUpperCase(),
                                 style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF64748B),
-                                    fontWeight: FontWeight.w500),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: 0.8,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+
+              // Card Details
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            e.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF0F172A),
+                              height: 1.2,
+                            ),
+                          ),
+                        ),
+                        if (e.isRegistered) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDCFCE7),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                HugeIcon(
+                                  icon:
+                                      HugeIcons.strokeRoundedCheckmarkCircle01,
+                                  size: 14,
+                                  color: Color(0xFF16A34A),
+                                  strokeWidth: 2.0,
+                                ),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Registered',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF16A34A),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const HugeIcon(
+                          icon: HugeIcons.strokeRoundedClock01,
+                          size: 14,
+                          color: Color(0xFF64748B),
+                          strokeWidth: 2.0,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          e.eventTime ?? 'TBA',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: Color(0xFF64748B),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        const HugeIcon(
+                          icon: HugeIcons.strokeRoundedLocation01,
+                          size: 14,
+                          color: Color(0xFF64748B),
+                          strokeWidth: 2.0,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            e.location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: Color(0xFF64748B),
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1465,10 +1836,10 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       ShowcaseView.get().startShowCase([
         _showcaseMascot,
+        _showcaseEventsFab,
         _showcaseBell,
         _showcaseSearch,
         _showcaseJobCard,
-        _showcaseEventsFab,
         _showcaseNavBar,
       ]);
     });
@@ -1584,129 +1955,6 @@ class _HomePageState extends State<HomePage> {
                 descTextStyle: const TextStyle(
                     fontSize: 13.5, height: 1.4, color: Colors.white),
                 child: _buildFloatingNavBar(context),
-              ),
-            ),
-          ),
-          // Floating Events button: always 3rd child; hide off-Home so Stack order never shifts
-          Positioned(
-            right: 20,
-            bottom: bottomPadding + 92,
-            child: Visibility(
-              visible: _selectedIndex == 0,
-              maintainState: true,
-              maintainAnimation: true,
-              maintainSize: false,
-              child: FutureBuilder<Map<String, dynamic>>(
-                future: _eventsFuture,
-                builder: (context, snapshot) {
-                  final count = snapshot.hasData &&
-                          snapshot.data!['success'] == true &&
-                          snapshot.data!['data'] != null
-                      ? _parseEventsPayload(snapshot.data!).length
-                      : 0;
-                  if (snapshot.connectionState == ConnectionState.done &&
-                      snapshot.hasData &&
-                      snapshot.data!['success'] == true) {
-                    if (_lastSeenEventCount != count) {
-                      final prev = _lastSeenEventCount;
-                      _lastSeenEventCount = count;
-                      if (prev >= 0 && count > prev) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (mounted) _pulseEventsFab();
-                        });
-                      }
-                    }
-                  }
-                  return Showcase(
-                    key: _showcaseEventsFab,
-                    title: 'Events',
-                    description:
-                        'Workshops, job fairs, and PESO events. The badge shows how many are upcoming.',
-                    targetBorderRadius: BorderRadius.circular(16),
-                    tooltipBackgroundColor: const Color(0xFF1D4ED8),
-                    textColor: Colors.white,
-                    titleTextStyle: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white),
-                    descTextStyle: const TextStyle(
-                        fontSize: 13.5, height: 1.4, color: Colors.white),
-                    child: AnimatedScale(
-                      scale: _fabPulseScale,
-                      duration: const Duration(milliseconds: 240),
-                      curve: Curves.easeOutBack,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: _openEventsPage,
-                          borderRadius: BorderRadius.circular(16),
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF2563EB),
-                                  borderRadius: BorderRadius.circular(16),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: const Color(0xFF2563EB)
-                                          .withValues(alpha: 0.4),
-                                      blurRadius: 16,
-                                      offset: const Offset(0, 6),
-                                    ),
-                                  ],
-                                ),
-                                child: const Center(
-                                  child: HugeIcon(
-                                    icon: HugeIcons.strokeRoundedCalendar03,
-                                    color: Colors.white,
-                                    size: 26,
-                                    strokeWidth: 2.0,
-                                  ),
-                                ),
-                              ),
-                              if (count > 0)
-                                Positioned(
-                                  top: -4,
-                                  right: -4,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: Colors.red,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.2),
-                                          blurRadius: 4,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    constraints:
-                                        const BoxConstraints(minWidth: 24),
-                                    child: Text(
-                                      count > 99 ? '99+' : '$count',
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
               ),
             ),
           ),
@@ -1905,6 +2153,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
   final ValueNotifier<String> _searchTextNotifier = ValueNotifier<String>('');
   String _searchText = ''; // Still keep for getter convenience if needed
   String _sortOption = 'Latest';
+  bool? _selectedOverseasFilter; // null = all, false = local, true = overseas
   final Set<String> _selectedEmploymentTypes = <String>{};
   final Set<String> _selectedSkillFilters = <String>{};
   String _skillFilterQuery = '';
@@ -2326,6 +2575,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
             search: searchQuery,
             employmentTypes: empTypes,
             skills: skillFilters,
+            isOverseas: _selectedOverseasFilter,
           )
         : await ApiService.getJobListings(
             page: targetPage,
@@ -2333,6 +2583,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
             search: searchQuery,
             employmentTypes: empTypes,
             skills: skillFilters,
+            isOverseas: _selectedOverseasFilter,
           );
     if (!mounted) return;
     if (result['success'] == true) {
@@ -2475,6 +2726,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
   bool get _hasActiveFilters =>
       _searchText.trim().isNotEmpty ||
+      _selectedOverseasFilter != null ||
       _selectedEmploymentTypes.isNotEmpty ||
       _selectedSkillFilters.isNotEmpty;
 
@@ -2700,6 +2952,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                               TextButton(
                                 onPressed: () {
                                   setSheetState(() {
+                                    _selectedOverseasFilter = null;
                                     _selectedEmploymentTypes.clear();
                                     _selectedSkillFilters.clear();
                                     _skillFilterQuery = '';
@@ -2715,6 +2968,49 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Job Scope',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF64748B),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _buildScopeFilterChip(
+                                label: 'All Jobs',
+                                isSelected: _selectedOverseasFilter == null,
+                                onTap: () {
+                                  setSheetState(
+                                      () => _selectedOverseasFilter = null);
+                                  setState(() {});
+                                },
+                              ),
+                              _buildScopeFilterChip(
+                                label: 'Local Jobs',
+                                isSelected: _selectedOverseasFilter == false,
+                                onTap: () {
+                                  setSheetState(
+                                      () => _selectedOverseasFilter = false);
+                                  setState(() {});
+                                },
+                              ),
+                              _buildScopeFilterChip(
+                                label: 'Overseas Jobs',
+                                isSelected: _selectedOverseasFilter == true,
+                                onTap: () {
+                                  setSheetState(
+                                      () => _selectedOverseasFilter = true);
+                                  setState(() {});
+                                },
                               ),
                             ],
                           ),
@@ -2745,34 +3041,33 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                   });
                                   setState(() {});
                                 },
-                                child: AnimatedScale(
-                                  scale: isSelected ? 1.04 : 1.0,
+                                child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 180),
                                   curve: Curves.easeOutCubic,
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 9),
-                                    decoration: BoxDecoration(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 15, vertical: 9),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? const Color(0xFFDBEAFE)
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
                                       color: isSelected
-                                          ? const Color(0xFFDBEAFE)
-                                          : const Color(0xFFF1F5F9),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: isSelected
-                                            ? const Color(0xFF93C5FD)
-                                            : const Color(0xFFE2E8F0),
-                                        width: isSelected ? 1.5 : 1,
-                                      ),
+                                          ? const Color(0xFF2563EB)
+                                          : const Color(0xFFE2E8F0),
+                                      width: isSelected ? 1.5 : 1,
                                     ),
-                                    child: Text(
-                                      type,
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: isSelected
-                                            ? const Color(0xFF1D4ED8)
-                                            : const Color(0xFF0F172A),
-                                      ),
+                                  ),
+                                  child: Text(
+                                    type,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w700
+                                          : FontWeight.w600,
+                                      color: isSelected
+                                          ? const Color(0xFF1D4ED8)
+                                          : const Color(0xFF0F172A),
                                     ),
                                   ),
                                 ),
@@ -3080,6 +3375,39 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     );
   }
 
+  Widget _buildScopeFilterChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 9),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFFDBEAFE) : const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color:
+                isSelected ? const Color(0xFF2563EB) : const Color(0xFFE2E8F0),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color:
+                isSelected ? const Color(0xFF1D4ED8) : const Color(0xFF0F172A),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -3148,8 +3476,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
     _greetingText = _buildGreeting(l10n);
     // Server returns filtered total in meta.total, so use it directly
     final totalJobs = _jobsTotalCount ?? _jobs.length;
-    final jobsCountLabel =
-        l10n?.jobsFound(totalJobs) ?? '$totalJobs Jobs Found';
+    final jobsCountLabel = '$totalJobs Jobs Available';
     final topPadding = MediaQuery.paddingOf(context).top;
     return Scaffold(
       backgroundColor: const Color(0xFFF1F5F9),
@@ -3177,8 +3504,8 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                   fontSize: 13.5, height: 1.4, color: Colors.white),
               child: Container(
                 width: double.infinity,
-                height: 155 + topPadding,
-                padding: EdgeInsets.fromLTRB(20, 12 + topPadding, 16, 32),
+                height: 102 + topPadding,
+                padding: EdgeInsets.fromLTRB(16, 8 + topPadding, 12, 12),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
@@ -3191,27 +3518,19 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                   borderRadius: BorderRadius.zero,
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF2563EB).withOpacity(0.35),
-                      blurRadius: 12,
+                      color: const Color(0xFF2563EB).withOpacity(0.30),
+                      blurRadius: 10,
                       offset: const Offset(0, 4),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    // Robot mascot — idle vs poked use separate position/size (see _mascotIdle* / _mascotPoked*).
+                    // Robot mascot — compact height peeking from bottom-left
                     Positioned(
-                      left:
-                          _homeMascotPoked ? _mascotPokedLeft : _mascotIdleLeft,
-                      bottom: _homeMascotPoked
-                          ? _mascotPokedBottom
-                          : _mascotIdleBottom,
+                      left: _homeMascotPoked ? -6 : -4,
+                      bottom: _homeMascotPoked ? -25.5 : -29,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapDown: (_) {
@@ -3226,11 +3545,14 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                               : 300;
                           final remaining = 300 - elapsed;
                           if (remaining > 0) {
-                            Future.delayed(Duration(milliseconds: remaining), () {
-                              if (mounted) setState(() => _homeMascotPoked = false);
+                            Future.delayed(Duration(milliseconds: remaining),
+                                () {
+                              if (mounted)
+                                setState(() => _homeMascotPoked = false);
                             });
                           } else {
-                            if (mounted) setState(() => _homeMascotPoked = false);
+                            if (mounted)
+                              setState(() => _homeMascotPoked = false);
                           }
                         },
                         onTapCancel: () {
@@ -3240,32 +3562,26 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                           _homeMascotPoked
                               ? 'assets/empoy_poked.png'
                               : 'assets/empoyhomepagev2.png',
-                          width: _homeMascotPoked
-                              ? _mascotPokedWidth
-                              : _mascotIdleWidth,
-                          height: _homeMascotPoked
-                              ? _mascotPokedHeight
-                              : _mascotIdleHeight,
+                          width: _homeMascotPoked ? 89 : 92,
+                          height: _homeMascotPoked ? 89 : 92,
                           fit: BoxFit.contain,
                           errorBuilder: (context, error, stackTrace) {
-                            debugPrint('Image load error: $error');
                             return Icon(
                               Icons.smart_toy_rounded,
-                              size: 72,
+                              size: 56,
                               color: Colors.white.withOpacity(0.9),
                             );
                           },
                         ),
                       ),
                     ),
-                    // Greeting text + notifications
-                    // Vertical position: Alignment(x, y) — y: -1=top, 0=center, 1=bottom
+                    // Greeting text + header actions (Calendar & Notifications)
                     Align(
-                      alignment: const Alignment(0, 0.38),
+                      alignment: const Alignment(0, 0.20),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const SizedBox(width: 132),
+                          const SizedBox(width: 84),
                           Expanded(
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -3277,10 +3593,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                           .replaceFirst(', Kabsat', '')
                                       : _getPhilippinesGreeting(),
                                   style: GoogleFonts.poppins(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.white.withOpacity(0.98),
-                                    height: 1.2,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white.withOpacity(0.90),
+                                    height: 1.1,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -3289,34 +3605,70 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                       ? 'Kabsat'
                                       : UserSession().displayName,
                                   style: GoogleFonts.poppins(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w900,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
                                     color: Colors.white,
-                                    letterSpacing: 0.2,
-                                    height: 1.2,
+                                    letterSpacing: 0.1,
+                                    height: 1.1,
                                   ),
                                   overflow: TextOverflow.ellipsis,
-                                  maxLines: 2,
+                                  maxLines: 1,
                                 ),
                               ],
                             ),
                           ),
+                          // Calendar Events Button
+                          Showcase(
+                            key: _showcaseEventsFab,
+                            title: 'Job Fairs & Events',
+                            description:
+                                'Explore upcoming job fairs, recruitment activities, and career events.',
+                            targetShapeBorder: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            tooltipBackgroundColor: const Color(0xFF1D4ED8),
+                            textColor: Colors.white,
+                            titleTextStyle: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white),
+                            descTextStyle: const TextStyle(
+                                fontSize: 13, height: 1.4, color: Colors.white),
+                            child: IconButton(
+                              onPressed: () {
+                                AppHaptics.lightImpact();
+                                shellOpenEventsRequestNotifier.value++;
+                              },
+                              icon: const HugeIcon(
+                                icon: HugeIcons.strokeRoundedCalendar03,
+                                color: Colors.white,
+                                size: 22,
+                                strokeWidth: 2.0,
+                              ),
+                              style: IconButton.styleFrom(
+                                backgroundColor: Colors.white.withOpacity(0.15),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          // Notification Bell Button
                           Showcase(
                             key: _showcaseBell,
                             title: 'Notifications',
                             description:
-                                'Application updates and PESO alerts land here. Red dot means unread.',
+                                'Application updates and PESO alerts land here.',
                             targetShapeBorder: const CircleBorder(),
                             tooltipBackgroundColor: const Color(0xFF1D4ED8),
                             textColor: Colors.white,
                             titleTextStyle: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: FontWeight.w800,
                                 color: Colors.white),
                             descTextStyle: const TextStyle(
-                                fontSize: 13.5,
-                                height: 1.4,
-                                color: Colors.white),
+                                fontSize: 13, height: 1.4, color: Colors.white),
                             child: Stack(
                               clipBehavior: Clip.none,
                               children: [
@@ -3335,26 +3687,33 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                       icon:
                                           HugeIcons.strokeRoundedNotification01,
                                       color: Colors.white,
-                                      size: 24,
+                                      size: 22,
                                       strokeWidth: 2.0,
+                                    ),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor:
+                                          Colors.white.withOpacity(0.15),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
                                     ),
                                   ),
                                 ),
                                 if (_unreadNotificationCount > 0)
                                   Positioned(
-                                    right: 8,
-                                    top: 8,
+                                    right: 4,
+                                    top: 4,
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 5, vertical: 2),
+                                          horizontal: 4, vertical: 2),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFEF4444),
                                         borderRadius:
                                             BorderRadius.circular(999),
                                       ),
                                       constraints: const BoxConstraints(
-                                        minWidth: 16,
-                                        minHeight: 16,
+                                        minWidth: 14,
+                                        minHeight: 14,
                                       ),
                                       child: Center(
                                         child: Text(
@@ -3363,7 +3722,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                               : '$_unreadNotificationCount',
                                           style: const TextStyle(
                                             color: Colors.white,
-                                            fontSize: 10,
+                                            fontSize: 9,
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
@@ -3533,62 +3892,167 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    // Horizontal Quick Filters
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        children: _employmentTypes.map((type) {
-                          final isSelected =
-                              _selectedEmploymentTypes.contains(type);
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 10),
-                            child: InkWell(
-                              onTap: () {
-                                AppHaptics.selectionClick();
-                                setState(() {
-                                  if (isSelected) {
-                                    _selectedEmploymentTypes.remove(type);
-                                  } else {
-                                    _selectedEmploymentTypes.add(type);
-                                  }
-                                });
-                                // Re-fetch from server with updated filter
-                                unawaited(_fetchJobs(showPageLoader: false));
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xFF2563EB)
-                                      : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: isSelected
+                    const SizedBox(height: 14),
+                    // Horizontal Quick Filters with right edge fade & breathing room
+                    ShaderMask(
+                      shaderCallback: (Rect bounds) {
+                        return const LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Colors.black,
+                            Colors.black,
+                            Colors.black,
+                            Colors.transparent,
+                          ],
+                          stops: [0.0, 0.85, 0.94, 1.0],
+                        ).createShader(bounds);
+                      },
+                      blendMode: BlendMode.dstIn,
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.only(left: 20, right: 36),
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(right: 10),
+                              child: InkWell(
+                                onTap: () {
+                                  AppHaptics.selectionClick();
+                                  setState(() {
+                                    _selectedOverseasFilter =
+                                        _selectedOverseasFilter == false
+                                            ? null
+                                            : false;
+                                  });
+                                  unawaited(_fetchJobs(showPageLoader: false));
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: _selectedOverseasFilter == false
                                         ? const Color(0xFF2563EB)
-                                        : const Color(0xFFE2E8F0),
-                                    width: 1,
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _selectedOverseasFilter == false
+                                          ? const Color(0xFF2563EB)
+                                          : const Color(0xFFE2E8F0),
+                                      width: 1,
+                                    ),
                                   ),
-                                ),
-                                child: Text(
-                                  type,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : const Color(0xFF475569),
+                                  child: Text(
+                                    'Local',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: _selectedOverseasFilter == false
+                                          ? Colors.white
+                                          : const Color(0xFF475569),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          );
-                        }).toList(),
+                            Padding(
+                              padding: const EdgeInsets.only(right: 10),
+                              child: InkWell(
+                                onTap: () {
+                                  AppHaptics.selectionClick();
+                                  setState(() {
+                                    _selectedOverseasFilter =
+                                        _selectedOverseasFilter == true
+                                            ? null
+                                            : true;
+                                  });
+                                  unawaited(_fetchJobs(showPageLoader: false));
+                                },
+                                borderRadius: BorderRadius.circular(12),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: _selectedOverseasFilter == true
+                                        ? const Color(0xFF4F46E5)
+                                        : const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _selectedOverseasFilter == true
+                                          ? const Color(0xFF4F46E5)
+                                          : const Color(0xFFE2E8F0),
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    'Overseas',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: _selectedOverseasFilter == true
+                                          ? Colors.white
+                                          : const Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            ..._employmentTypes.map((type) {
+                              final isSelected =
+                                  _selectedEmploymentTypes.contains(type);
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 10),
+                                child: InkWell(
+                                  onTap: () {
+                                    AppHaptics.selectionClick();
+                                    setState(() {
+                                      if (isSelected) {
+                                        _selectedEmploymentTypes.remove(type);
+                                      } else {
+                                        _selectedEmploymentTypes.add(type);
+                                      }
+                                    });
+                                    // Re-fetch from server with updated filter
+                                    unawaited(
+                                        _fetchJobs(showPageLoader: false));
+                                  },
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFF2563EB)
+                                          : const Color(0xFFF1F5F9),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? const Color(0xFF2563EB)
+                                            : const Color(0xFFE2E8F0),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      type,
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w700,
+                                        color: isSelected
+                                            ? Colors.white
+                                            : const Color(0xFF475569),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -4248,145 +4712,185 @@ class _JobCardState extends State<_JobCard> {
             splashColor: const Color(0x0D2563EB),
             borderRadius: BorderRadius.circular(24),
             child: Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Row: Logo and Primary Info
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CompanyLogoBox(
-                      job: job,
-                      size: 50,
-                      borderRadius: 14,
-                      boxShadow: [
-                        BoxShadow(
-                          color: job.companyColor.withOpacity(0.12),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            job.title,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF0F172A),
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                          const SizedBox(height: 1),
-                          Text(
-                            job.company,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF64748B),
-                              fontWeight: FontWeight.w600,
-                            ),
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Row: Logo and Primary Info
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CompanyLogoBox(
+                        job: job,
+                        size: 46,
+                        borderRadius: 12,
+                        boxShadow: [
+                          BoxShadow(
+                            color: job.companyColor.withOpacity(0.12),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
-                    ),
-                    if (job.matchPercentage > 0) ...[
                       const SizedBox(width: 12),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDF4),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                              color: const Color(0xFF10B981).withOpacity(0.2)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF10B981).withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              job.title,
+                              style: const TextStyle(
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                                letterSpacing: -0.2,
+                                height: 1.2,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              job.company,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF475569),
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const HugeIcon(
-                              icon: HugeIcons.strokeRoundedStar,
-                              size: 12,
-                              color: Color(0xFF059669),
-                              strokeWidth: 2.0,
-                            ),
-                            const SizedBox(height: 1),
-                            Text(
-                              '${job.matchPercentage}%',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF059669),
-                                letterSpacing: -0.5,
+                      ),
+                      if (job.matchPercentage > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0FDF4),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFF10B981)
+                                    .withValues(alpha: 0.25)),
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const HugeIcon(
+                                    icon: HugeIcons.strokeRoundedStar,
+                                    size: 11,
+                                    color: Color(0xFF059669),
+                                    strokeWidth: 2.0,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '${job.matchPercentage}%',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFF059669),
+                                      letterSpacing: -0.3,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const Text(
-                              'Match',
-                              style: TextStyle(
-                                fontSize: 8,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF059669),
-                                letterSpacing: 0.2,
+                              const SizedBox(height: 1),
+                              const Text(
+                                'Match',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF059669),
+                                  letterSpacing: 0.2,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  Container(
+                    width: double.infinity,
+                    height: 1,
+                    margin: const EdgeInsets.only(top: 10, bottom: 10),
+                    color: const Color(0xFFF1F5F9),
+                  ),
+
+                  // Flattened Metadata Row (Location & Type)
+                  Row(
+                    children: [
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedLocation01,
+                        size: 13.5,
+                        color: Color(0xFF64748B),
+                        strokeWidth: 2.0,
+                      ),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          job.location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6),
+                        child: Text(
+                          '·',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedBriefcase01,
+                        size: 13.5,
+                        color: Color(0xFF64748B),
+                        strokeWidth: 2.0,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        job.employmentTypeLabel,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
                         ),
                       ),
                     ],
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Metadata Row
-                Row(
-                  children: [
-                    Flexible(
-                        child: _buildChip(
-                            HugeIcons.strokeRoundedLocation01, job.location)),
-                    const SizedBox(width: 8),
-                    _buildChip(HugeIcons.strokeRoundedBriefcase01,
-                        job.employmentTypeLabel),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Salary Band (Full Width)
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
                   ),
-                  child: Row(
+                  const SizedBox(height: 5),
+
+                  // Flattened Salary Row (PESO compliant)
+                  Row(
                     children: [
                       const HugeIcon(
                         icon: HugeIcons.strokeRoundedMoney01,
-                        size: 16,
+                        size: 14,
                         color: Color(0xFF2563EB),
                         strokeWidth: 2.0,
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 5),
                       Expanded(
                         child: Text(
                           job.salaryDisplay,
                           style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF0F172A),
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF1E293B),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -4394,53 +4898,114 @@ class _JobCardState extends State<_JobCard> {
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 6),
 
-                // Footer Buttons (Anchored to Right)
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    AnimatedBookmarkBounce(
-                      isSaved: isSaved,
-                      onTap: widget.onSave,
-                      child: _buildActionButton(
-                        icon: isSaved
-                            ? Icons.bookmark_rounded
-                            : HugeIcons.strokeRoundedBookmark01,
-                        color: isSaved
-                            ? const Color(0xFF2563EB)
-                            : const Color(0xFF64748B),
-                        isSelected: isSaved,
+                  // Footer Row: Bottom-Left Badges (Overseas / Urgent) & Action Buttons
+                  Row(
+                    children: [
+                      if (job.isOverseas)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEEF2FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFFC7D2FE), width: 1),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              HugeIcon(
+                                icon: HugeIcons.strokeRoundedGlobe02,
+                                size: 13,
+                                color: Color(0xFF4F46E5),
+                                strokeWidth: 2.0,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Overseas',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF4338CA),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else if (job.isUrgent)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFFFCA5A5), width: 1),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              HugeIcon(
+                                icon: HugeIcons.strokeRoundedFire,
+                                size: 13,
+                                color: Color(0xFFEF4444),
+                                strokeWidth: 2.0,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Urgent',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const Spacer(),
+                      AnimatedBookmarkBounce(
+                        isSaved: isSaved,
                         onTap: widget.onSave,
-                        pulseScale: _savePulse,
+                        child: _buildActionButton(
+                          icon: isSaved
+                              ? Icons.bookmark_rounded
+                              : HugeIcons.strokeRoundedBookmark01,
+                          color: isSaved
+                              ? const Color(0xFF2563EB)
+                              : const Color(0xFF64748B),
+                          isSelected: isSaved,
+                          onTap: widget.onSave,
+                          pulseScale: _savePulse,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    _buildActionButton(
-                      icon: isApplied
-                          ? HugeIcons.strokeRoundedCheckmarkCircle01
-                          : HugeIcons.strokeRoundedArrowRight01,
-                      color: isApplied
-                          ? const Color(0xFF10B981)
-                          : const Color(0xFF2563EB),
-                      isSelected: isApplied,
-                      label: isApplied
-                          ? (S.of(context)?.applied ?? 'Applied')
-                          : (S.of(context)?.apply ?? 'Apply'),
-                      onTap: widget.onApply,
-                      pulseScale: _applyPulse,
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 10),
+                      _buildActionButton(
+                        icon: isApplied
+                            ? HugeIcons.strokeRoundedCheckmarkCircle01
+                            : HugeIcons.strokeRoundedArrowRight01,
+                        color: isApplied
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFF2563EB),
+                        isSelected: isApplied,
+                        label: isApplied
+                            ? (S.of(context)?.applied ?? 'Applied')
+                            : (S.of(context)?.apply ?? 'Apply'),
+                        onTap: widget.onApply,
+                        pulseScale: _applyPulse,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildChip(dynamic icon, String text) {
     return Container(
@@ -4496,8 +5061,8 @@ class _JobCardState extends State<_JobCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: EdgeInsets.symmetric(
-            horizontal: label != null ? 16 : 12,
-            vertical: 10,
+            horizontal: label != null ? 14 : 10,
+            vertical: 7.5,
           ),
           decoration: BoxDecoration(
             color: isSelected ? color : color.withOpacity(0.08),
@@ -4560,7 +5125,7 @@ class _JobCardCompact extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withValues(alpha: 0.04),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -4572,7 +5137,7 @@ class _JobCardCompact extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(18),
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(13),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -4580,7 +5145,7 @@ class _JobCardCompact extends StatelessWidget {
                   children: [
                     CompanyLogoBox(
                       job: job,
-                      size: 36,
+                      size: 38,
                       borderRadius: 10,
                     ),
                     const Spacer(),
@@ -4592,7 +5157,8 @@ class _JobCardCompact extends StatelessWidget {
                           color: const Color(0xFFF0FDF4),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                              color: const Color(0xFF10B981).withOpacity(0.2)),
+                              color: const Color(0xFF10B981)
+                                  .withValues(alpha: 0.25)),
                         ),
                         child: Text(
                           '${job.matchPercentage}%',
@@ -4611,68 +5177,39 @@ class _JobCardCompact extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFF0F172A),
                     height: 1.25,
-                    letterSpacing: -0.3,
+                    letterSpacing: -0.2,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   job.company,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 11.5,
                     color: Color(0xFF64748B),
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const HugeIcon(
-                        icon: HugeIcons.strokeRoundedMoney01,
-                        size: 11,
-                        color: Color(0xFF2563EB),
-                        strokeWidth: 2.0,
-                      ),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text(
-                          job.salaryDisplay,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF0F172A),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
+                // Hairline divider
+                const Divider(
+                    height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 7),
+                // Location Row
                 Row(
                   children: [
                     const HugeIcon(
                       icon: HugeIcons.strokeRoundedLocation01,
                       size: 12,
-                      color: Color(0xFF94A3B8),
+                      color: Color(0xFF64748B),
                       strokeWidth: 2.0,
                     ),
-                    const SizedBox(width: 3),
+                    const SizedBox(width: 4),
                     Expanded(
                       child: Text(
                         job.location,
@@ -4680,16 +5217,58 @@ class _JobCardCompact extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontSize: 11,
-                          color: Color(0xFF94A3B8),
+                          color: Color(0xFF64748B),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 5),
+                // Salary Row
                 Row(
                   children: [
+                    const HugeIcon(
+                      icon: HugeIcons.strokeRoundedMoney01,
+                      size: 13,
+                      color: Color(0xFF2563EB),
+                      strokeWidth: 2.0,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        job.salaryDisplay,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Spacer(),
+                Row(
+                  children: [
+                    if (job.isOverseas) ...[
+                      Container(
+                        padding: const EdgeInsets.all(4.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEEF2FF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFC7D2FE)),
+                        ),
+                        child: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedGlobe02,
+                          size: 11.5,
+                          color: Color(0xFF4F46E5),
+                          strokeWidth: 2.0,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                    ],
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
@@ -8421,6 +9000,25 @@ class _JobListItem extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (job.isOverseas) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF4F46E5),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'OVERSEAS',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                            if (job.isUrgent) const SizedBox(width: 4),
+                          ],
                           if (job.isUrgent)
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -12102,10 +12700,11 @@ class _HomePageSkeleton extends StatelessWidget {
         right: false,
         child: Column(
           children: [
+            // Compact Header Skeleton (matching 102 + topPadding)
             Container(
               width: double.infinity,
-              height: 155 + topPadding,
-              padding: EdgeInsets.fromLTRB(20, 12 + topPadding, 16, 32),
+              height: 102 + topPadding,
+              padding: EdgeInsets.fromLTRB(16, 8 + topPadding, 12, 12),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
@@ -12117,167 +12716,147 @@ class _HomePageSkeleton extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFF2563EB).withOpacity(0.35),
-                    blurRadius: 12,
+                    color: const Color(0xFF2563EB).withValues(alpha: 0.30),
+                    blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
                 ],
               ),
               child: Row(
                 children: const [
-                  _PageSkeletonBox(width: 116, height: 116, radius: 18),
-                  SizedBox(width: 16),
+                  _PageSkeletonBox(width: 80, height: 75, radius: 14),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _PageSkeletonBox(width: 210, height: 18, radius: 10),
-                        SizedBox(height: 12),
-                        _PageSkeletonBox(
-                            width: double.infinity, height: 34, radius: 12),
+                        _PageSkeletonBox(width: 110, height: 12, radius: 6),
+                        SizedBox(height: 6),
+                        _PageSkeletonBox(width: 150, height: 16, radius: 8),
                       ],
                     ),
                   ),
-                  SizedBox(width: 14),
-                  _PageSkeletonBox(width: 42, height: 42, radius: 21),
+                  SizedBox(width: 8),
+                  _PageSkeletonBox(width: 38, height: 38, radius: 12),
+                  SizedBox(width: 6),
+                  _PageSkeletonBox(width: 38, height: 38, radius: 12),
                 ],
               ),
             ),
+
+            // Body Content Skeleton
             Expanded(
               child: ListView(
                 physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 36),
+                padding: const EdgeInsets.only(top: 12),
                 children: [
-                  const _PageSkeletonBox(
-                      width: double.infinity, height: 82, radius: 24),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: const [
-                      Expanded(
-                        child: _PageSkeletonBox(
-                            width: double.infinity, height: 50, radius: 16),
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: _PageSkeletonBox(
-                            width: double.infinity, height: 50, radius: 16),
-                      ),
-                    ],
+                  // Compact Search Bar Row
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: const [
+                        Expanded(
+                          child: _PageSkeletonBox(
+                              width: double.infinity, height: 48, radius: 16),
+                        ),
+                        SizedBox(width: 10),
+                        _PageSkeletonBox(width: 48, height: 48, radius: 16),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: const [
-                      Expanded(
-                        child: _PageSkeletonBox(
-                            width: double.infinity, height: 38, radius: 14),
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: _PageSkeletonBox(
-                            width: double.infinity, height: 38, radius: 14),
-                      ),
-                      SizedBox(width: 10),
-                      Expanded(
-                        child: _PageSkeletonBox(
-                            width: double.infinity, height: 38, radius: 14),
-                      ),
-                    ],
+                  const SizedBox(height: 12),
+
+                  // Filter Pills Row
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(left: 20),
+                    child: Row(
+                      children: const [
+                        _PageSkeletonBox(width: 68, height: 32, radius: 12),
+                        SizedBox(width: 10),
+                        _PageSkeletonBox(width: 88, height: 32, radius: 12),
+                        SizedBox(width: 10),
+                        _PageSkeletonBox(width: 95, height: 32, radius: 12),
+                        SizedBox(width: 10),
+                        _PageSkeletonBox(width: 80, height: 32, radius: 12),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: const [
-                      _PageSkeletonBox(width: 180, height: 24, radius: 10),
-                      Spacer(),
-                      _PageSkeletonBox(width: 54, height: 54, radius: 18),
-                      SizedBox(width: 10),
-                      _PageSkeletonBox(width: 120, height: 44, radius: 16),
-                    ],
+                  const SizedBox(height: 16),
+
+                  // Jobs Available Header + Sort Dropdown
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: const [
+                        _PageSkeletonBox(width: 140, height: 18, radius: 8),
+                        Spacer(),
+                        _PageSkeletonBox(width: 34, height: 34, radius: 12),
+                        SizedBox(width: 8),
+                        _PageSkeletonBox(width: 85, height: 32, radius: 20),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 14),
+
+                  // Flattened Job Cards Skeleton
                   ...List.generate(
                     3,
                     (_) => Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
                       child: Container(
-                        padding: const EdgeInsets.all(18),
+                        padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(color: const Color(0xFFE2E8F0)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.03),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
-                        child: const Column(
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                _PageSkeletonBox(
-                                    width: 72, height: 72, radius: 20),
-                                SizedBox(width: 16),
-                                Expanded(
+                                const _PageSkeletonBox(
+                                    width: 46, height: 46, radius: 12),
+                                const SizedBox(width: 12),
+                                const Expanded(
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                       _PageSkeletonBox(
-                                          width: double.infinity,
-                                          height: 24,
-                                          radius: 10),
-                                      SizedBox(height: 10),
+                                          width: 160, height: 16, radius: 8),
+                                      SizedBox(height: 6),
                                       _PageSkeletonBox(
-                                          width: 210, height: 18, radius: 10),
+                                          width: 110, height: 13, radius: 6),
                                     ],
                                   ),
                                 ),
-                                SizedBox(width: 12),
+                                const SizedBox(width: 8),
+                                const _PageSkeletonBox(
+                                    width: 52, height: 36, radius: 10),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            const _PageSkeletonBox(
+                                width: 220, height: 13, radius: 6),
+                            const SizedBox(height: 8),
+                            const _PageSkeletonBox(
+                                width: 140, height: 13, radius: 6),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: const [
                                 _PageSkeletonBox(
-                                    width: 74, height: 74, radius: 18),
-                              ],
-                            ),
-                            SizedBox(height: 16),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _PageSkeletonBox(
-                                      width: double.infinity,
-                                      height: 34,
-                                      radius: 12),
-                                ),
-                                SizedBox(width: 10),
-                                Expanded(
-                                  child: _PageSkeletonBox(
-                                      width: double.infinity,
-                                      height: 34,
-                                      radius: 12),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 12),
-                            _PageSkeletonBox(
-                                width: double.infinity, height: 48, radius: 14),
-                            SizedBox(height: 16),
-                            _PageSkeletonBox(
-                                width: double.infinity, height: 16, radius: 10),
-                            SizedBox(height: 8),
-                            _PageSkeletonBox(
-                                width: 240, height: 16, radius: 10),
-                            SizedBox(height: 16),
-                            Row(
-                              children: [
+                                    width: 78, height: 26, radius: 10),
                                 Spacer(),
                                 _PageSkeletonBox(
-                                    width: 56, height: 56, radius: 18),
-                                SizedBox(width: 12),
+                                    width: 38, height: 38, radius: 12),
+                                SizedBox(width: 10),
                                 _PageSkeletonBox(
-                                    width: 154, height: 56, radius: 18),
+                                    width: 90, height: 38, radius: 12),
                               ],
                             ),
                           ],

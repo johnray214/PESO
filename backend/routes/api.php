@@ -19,6 +19,26 @@ Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
     return Broadcast::auth($request);
 })->middleware('auth:employer');
 
+// Public Controllers
+use App\Http\Controllers\Api\Public\PublicEmployerController;
+use App\Http\Controllers\Api\Public\PublicEventController;
+use App\Http\Controllers\Api\Public\PublicExploreController;
+use App\Http\Controllers\Api\Public\PublicMapController;
+use App\Http\Controllers\Api\Public\PublicSkillsController;
+use App\Http\Controllers\Api\Public\LegsFeedbackController;
+use App\Http\Controllers\Api\Public\PublicStorageController;
+
+if (app()->environment('local')) {
+    Route::get('/debug-notifs', function() {
+        return \App\Models\NotificationRead::with('notification')->where('recipient_type', 'employer')->orderByDesc('created_at')->limit(10)->get();
+    });
+}
+
+// Pusher private channel auth endpoint for employers (stateless, uses Bearer token)
+Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
+    return Broadcast::auth($request);
+})->middleware('auth:employer');
+
 // Admin Controllers
 use App\Http\Controllers\Api\Admin\AdminDashboardController;
 use App\Http\Controllers\Api\Admin\AdminUserController;
@@ -33,12 +53,7 @@ use App\Http\Controllers\Api\Admin\AdminArchiveController;
 use App\Http\Controllers\Api\Admin\AdminActivityFeedController;
 use App\Http\Controllers\Api\Admin\AdminJobseekerDocumentController;
 use App\Http\Controllers\Api\Admin\AdminInvitationController;
-use App\Http\Controllers\Api\Public\PublicEventController;
-use App\Http\Controllers\Api\Public\PublicExploreController;
-use App\Http\Controllers\Api\Public\PublicMapController;
-use App\Http\Controllers\Api\Public\PublicSkillsController;
-use App\Http\Controllers\Api\Public\LegsFeedbackController;
-use App\Http\Controllers\Api\Public\PublicStorageController;
+
 // Employer Controllers
 use App\Http\Controllers\Api\Employer\EmployerDashboardController;
 use App\Http\Controllers\Api\Employer\EmployerJobListingController;
@@ -62,27 +77,36 @@ use App\Http\Controllers\Api\Jobseeker\JobseekerEventRegistrationController;
 |--------------------------------------------------------------------------
 */
 
-// Admin Auth
-Route::post('/admin/login', [AdminAuthController::class, 'login']);
-Route::post('/admin/forgot-password', [AdminAuthController::class, 'forgotPassword']);
-Route::post('/admin/reset-password', [AdminAuthController::class, 'resetPassword']);
-Route::post('/peso-employee/login', [AdminAuthController::class, 'login']); // Alias for frontend
+// Admin Auth (throttled)
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/admin/login', [AdminAuthController::class, 'login']);
+    Route::post('/admin/forgot-password', [AdminAuthController::class, 'forgotPassword']);
+    Route::post('/admin/reset-password', [AdminAuthController::class, 'resetPassword']);
+    Route::post('/peso-employee/login', [AdminAuthController::class, 'login']); // Alias for frontend
+});
 
-// Employer Auth
-Route::post('/employer/login', [EmployerAuthController::class, 'login']);
-Route::post('/employer/register', [EmployerAuthController::class, 'register']);
-Route::post('/employer/forgot-password', [EmployerAuthController::class, 'forgotPassword']);
-Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPassword']);
-Route::post('/employer/resubmit', [EmployerAuthController::class, 'resubmit']);
+// Employer Auth (throttled)
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/employer/login', [EmployerAuthController::class, 'login']);
+    Route::post('/employer/register', [EmployerAuthController::class, 'register']);
+    Route::post('/employer/forgot-password', [EmployerAuthController::class, 'forgotPassword']);
+    Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPassword']);
+    Route::post('/employer/resubmit', [EmployerAuthController::class, 'resubmit']);
+});
 
-// Jobseeker Auth
-Route::post('/jobseeker/login', [JobseekerAuthController::class, 'login']);
-Route::get('/jobseeker/check-email', [JobseekerAuthController::class, 'checkEmail']);
-Route::post('/jobseeker/register', [JobseekerAuthController::class, 'register']);
-Route::post('/jobseeker/verify-otp', [JobseekerAuthController::class, 'verifyOtp']);
-Route::post('/jobseeker/resend-otp', [JobseekerAuthController::class, 'resendOtp']);
-Route::post('/jobseeker/forgot-password', [JobseekerAuthController::class, 'forgotPassword']);
-Route::post('/jobseeker/reset-password', [JobseekerAuthController::class, 'resetPassword']);
+// Jobseeker Auth (throttled & strict OTP rate limits)
+Route::middleware('throttle:10,1')->group(function () {
+    Route::post('/jobseeker/login', [JobseekerAuthController::class, 'login']);
+    Route::get('/jobseeker/check-email', [JobseekerAuthController::class, 'checkEmail']);
+    Route::post('/jobseeker/register', [JobseekerAuthController::class, 'register']);
+    Route::post('/jobseeker/forgot-password', [JobseekerAuthController::class, 'forgotPassword']);
+    Route::post('/jobseeker/reset-password', [JobseekerAuthController::class, 'resetPassword']);
+});
+
+Route::middleware('throttle:6,1')->group(function () {
+    Route::post('/jobseeker/verify-otp', [JobseekerAuthController::class, 'verifyOtp']);
+    Route::post('/jobseeker/resend-otp', [JobseekerAuthController::class, 'resendOtp']);
+});
 
 // Public Job Listings
 Route::get('/public/jobs', [JobseekerJobListingController::class, 'index']);
@@ -95,9 +119,9 @@ Route::get('/public/explore', PublicExploreController::class);
 Route::get('/jobs', [JobseekerJobListingController::class, 'index']);
 Route::get('/jobs/{id}', [JobseekerJobListingController::class, 'show']);
 
-// Public Employers
-Route::get('/public/employers', [AdminEmployerController::class, 'index']);
-Route::get('/public/employers/{id}', [AdminEmployerController::class, 'show']);
+// Public Employers (sanitized public output)
+Route::get('/public/employers', [PublicEmployerController::class, 'index']);
+Route::get('/public/employers/{id}', [PublicEmployerController::class, 'show']);
 
 // Public Events (used by mobile app Jobs page)
 Route::get('/public/events', [PublicEventController::class, 'index']);
@@ -113,10 +137,11 @@ Route::get('/public/storage/{path}', [PublicStorageController::class, 'show'])
 // Public Skills Catalog (used by jobseekers to pick skills)
 Route::get('/public/skills', [PublicSkillsController::class, 'index']);
 
-// LEGS Feedback (public – no auth required)
-Route::post('/legs-feedback', [LegsFeedbackController::class, 'store']);
+// LEGS Feedback (public – no auth required, throttled)
+Route::post('/legs-feedback', [LegsFeedbackController::class, 'store'])->middleware('throttle:10,1');
 
-Route::post('/lma/generate-excel', [LmaController::class, 'generateExcel']);
+// LMA Report Generator (requires auth & rate limiting to prevent server abuse)
+Route::post('/lma/generate-excel', [LmaController::class, 'generateExcel'])->middleware(['auth:sanctum', 'throttle:10,1']);
 /*
 |--------------------------------------------------------------------------
 | ADMIN ROUTES

@@ -31,6 +31,7 @@ import 'app_config.dart';
 import 'auth/signup_wizard.dart';
 import 'auth/auth_shared.dart';
 import 'app_haptics.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,6 +60,7 @@ Future<void> main() async {
   await dotenv.load(fileName: ".env");
 
   await LocaleService.instance.load();
+  await OtpLockoutPrefs.load(); // Restore any active OTP lockouts from disk.
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
@@ -231,7 +233,7 @@ class _SplashScreenState extends State<SplashScreen>
     )..repeat(reverse: true);
     _exitCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 550),
     );
 
     _mascotScale = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -249,11 +251,11 @@ class _SplashScreenState extends State<SplashScreen>
     _orbMovement = Tween<double>(begin: -20.0, end: 20.0).animate(
       CurvedAnimation(parent: _orbCtrl, curve: Curves.easeInOut),
     );
-    _exitScale = Tween<double>(begin: 1.0, end: 1.4).animate(
-      CurvedAnimation(parent: _exitCtrl, curve: Curves.easeInOutCubic),
+    _exitScale = Tween<double>(begin: 1.0, end: 1.12).animate(
+      CurvedAnimation(parent: _exitCtrl, curve: Curves.easeOutCubic),
     );
     _exitOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(parent: _exitCtrl, curve: Curves.easeIn),
+      CurvedAnimation(parent: _exitCtrl, curve: Curves.easeOutQuad),
     );
 
     // 1. Start Mascot Animation
@@ -328,9 +330,7 @@ class _SplashScreenState extends State<SplashScreen>
       final hasSession = await SessionPrefs.restoreSession();
       if (!mounted) return;
 
-      // ── EXIT SEQUENCE ──────────────────────────────────────────────────────
-      await _exitCtrl.forward();
-      if (!mounted) return;
+      Widget targetPage;
 
       if (hasSession) {
         // Load saved/applied jobs + sync FCM token before entering home
@@ -340,9 +340,9 @@ class _SplashScreenState extends State<SplashScreen>
 
         final needsPostAuth =
             await OnboardingPrefs.needsPostAuth(ignoreDebug: true);
-        _navigate(
-          needsPostAuth ? const PostAuthOnboardingScreen() : const HomePage(),
-        );
+        targetPage = needsPostAuth
+            ? const PostAuthOnboardingScreen()
+            : const HomePage();
       } else {
         final hasGuestSession = await SessionPrefs.isGuestSession();
         if (!mounted) return;
@@ -350,24 +350,30 @@ class _SplashScreenState extends State<SplashScreen>
         if (hasGuestSession) {
           UserSession().enterGuestMode();
           JobActionService().clear();
-          _navigate(const HomePage());
-          return;
-        }
-
-        final introDone = await OnboardingPrefs.isIntroDone(ignoreDebug: true);
-        if (!mounted) return;
-
-        if (!introDone) {
-          _navigate(IntroOnboardingPage(
-            onComplete: (introCtx) => _navigateFromIntro(introCtx),
-          ));
+          targetPage = const HomePage();
         } else {
-          _navigate(const AuthEntryPage());
+          final introDone = await OnboardingPrefs.isIntroDone(ignoreDebug: true);
+          if (!mounted) return;
+
+          if (!introDone) {
+            targetPage = IntroOnboardingPage(
+              onComplete: (introCtx) => _navigateFromIntro(introCtx),
+            );
+          } else {
+            targetPage = const AuthEntryPage();
+          }
         }
       }
+
+      // ── SYNCHRONIZED EXIT & NAVIGATE ──────────────────────────────────────
+      _exitCtrl.forward();
+      _navigate(targetPage);
     } catch (e) {
       debugPrint('Splash Init Error: $e');
-      if (mounted) _navigate(const AuthEntryPage());
+      if (mounted) {
+        _exitCtrl.forward();
+        _navigate(const AuthEntryPage());
+      }
     }
   }
 
@@ -485,10 +491,30 @@ class _SplashScreenState extends State<SplashScreen>
     Navigator.pushReplacement(
       context,
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) => page,
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
+        transitionDuration: const Duration(milliseconds: 550),
+        reverseTransitionDuration: const Duration(milliseconds: 550),
+        pageBuilder: (context, animation, secondaryAnimation) => page,
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final scaleAnimation = Tween<double>(begin: 0.94, end: 1.0).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ),
+          );
+          final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.75, curve: Curves.easeOut),
+            ),
+          );
+
+          return FadeTransition(
+            opacity: fadeAnimation,
+            child: ScaleTransition(
+              scale: scaleAnimation,
+              child: child,
+            ),
+          );
         },
       ),
     );
@@ -500,10 +526,30 @@ class _SplashScreenState extends State<SplashScreen>
 
     Navigator.of(introContext).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 400),
-        pageBuilder: (_, __, ___) => const AuthEntryPage(),
-        transitionsBuilder: (_, animation, __, child) {
-          return FadeTransition(opacity: animation, child: child);
+        transitionDuration: const Duration(milliseconds: 550),
+        reverseTransitionDuration: const Duration(milliseconds: 550),
+        pageBuilder: (context, animation, secondaryAnimation) => const AuthEntryPage(),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final scaleAnimation = Tween<double>(begin: 0.94, end: 1.0).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ),
+          );
+          final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+            CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.75, curve: Curves.easeOut),
+            ),
+          );
+
+          return FadeTransition(
+            opacity: fadeAnimation,
+            child: ScaleTransition(
+              scale: scaleAnimation,
+              child: child,
+            ),
+          );
         },
       ),
     );
@@ -767,8 +813,10 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
                 switchOutCurve: Curves.easeInBack,
                 transitionBuilder: (child, animation) {
                   final isSignUp = child.key == const ValueKey('header_signup');
-                  final startOffset = isSignUp ? const Offset(0.14, 0.0) : const Offset(-0.14, 0.0);
-                  
+                  final startOffset = isSignUp
+                      ? const Offset(0.14, 0.0)
+                      : const Offset(-0.14, 0.0);
+
                   final slideAnimation = Tween<Offset>(
                     begin: startOffset,
                     end: Offset.zero,
@@ -778,7 +826,7 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
                     begin: 0.88,
                     end: 1.0,
                   ).animate(animation);
-                  
+
                   return SlideTransition(
                     position: slideAnimation,
                     child: ScaleTransition(
@@ -791,14 +839,17 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
                   );
                 },
                 child: Row(
-                  key: ValueKey<String>(_isSignUpMode ? 'header_signup' : 'header_login'),
+                  key: ValueKey<String>(
+                      _isSignUpMode ? 'header_signup' : 'header_login'),
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
                       width: 96,
                       height: 96,
                       child: Image.asset(
-                        _isSignUpMode ? 'assets/empoyauth.png' : 'assets/empoywelcome.png',
+                        _isSignUpMode
+                            ? 'assets/empoyauth.png'
+                            : 'assets/empoywelcome.png',
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -838,91 +889,90 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
                 ),
               ),
             ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    keyboardDismissBehavior:
-                        ScrollViewKeyboardDismissBehavior.onDrag,
-                    padding: EdgeInsets.fromLTRB(24, 8, 24, keyboardHeight + 16),
-                    child: LoginModal(
-                      key: ValueKey<bool>(_isSignUpMode),
-                      isSignUp: _isSignUpMode,
-                      renderAsModal: false,
-                      useCompactLayout: true,
+            Expanded(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: EdgeInsets.fromLTRB(24, 8, 24, keyboardHeight + 16),
+                child: LoginModal(
+                  key: ValueKey<bool>(_isSignUpMode),
+                  isSignUp: _isSignUpMode,
+                  renderAsModal: false,
+                  useCompactLayout: true,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _continueAsGuest,
+                    icon: const HugeIcon(
+                      icon: HugeIcons.strokeRoundedCompass01,
+                      size: 19,
+                      color: Color(0xFF2563EB),
+                      strokeWidth: 2.0,
+                    ),
+                    label: const Text('Continue as guest'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF2563EB),
+                      side: const BorderSide(color: Color(0xFFBFDBFE)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      textStyle: GoogleFonts.poppins(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    mainAxisSize: MainAxisSize.min,
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      OutlinedButton.icon(
-                        onPressed: _continueAsGuest,
-                        icon: const HugeIcon(
-                          icon: HugeIcons.strokeRoundedCompass01,
-                          size: 19,
-                          color: Color(0xFF2563EB),
-                          strokeWidth: 2.0,
-                        ),
-                        label: const Text('Continue as guest'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF2563EB),
-                          side: const BorderSide(color: Color(0xFFBFDBFE)),
-                          padding: const EdgeInsets.symmetric(vertical: 13),
-                          textStyle: GoogleFonts.poppins(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
+                      Text(
+                        _isSignUpMode
+                            ? (s?.alreadyHaveAccount ??
+                                'Already have an account?')
+                            : (s?.dontHaveAccount ?? "Don't have an account?"),
+                        style: GoogleFonts.poppins(
+                          fontSize: 13.5,
+                          color: const Color(0xFF64748B),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            _isSignUpMode
-                                ? (s?.alreadyHaveAccount ??
-                                    'Already have an account?')
-                                : (s?.dontHaveAccount ??
-                                    "Don't have an account?"),
-                            style: GoogleFonts.poppins(
-                              fontSize: 13.5,
-                              color: const Color(0xFF64748B),
-                              fontWeight: FontWeight.w500,
-                            ),
+                      TextButton(
+                        onPressed: _toggleAuthMode,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        child: Text(
+                          _isSignUpMode
+                              ? (s?.login ?? 'Log in')
+                              : (s?.signup ?? 'Sign up'),
+                          style: GoogleFonts.poppins(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: const Color(0xFF2563EB),
                           ),
-                          TextButton(
-                            onPressed: _toggleAuthMode,
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 6),
-                              minimumSize: Size.zero,
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            ),
-                            child: Text(
-                              _isSignUpMode
-                                  ? (s?.login ?? 'Log in')
-                                  : (s?.signup ?? 'Sign up'),
-                              style: GoogleFonts.poppins(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF2563EB),
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -2019,9 +2069,9 @@ class LoginModal extends StatefulWidget {
   State<LoginModal> createState() => _LoginModalState();
 }
 
-class _LoginModalState extends State<LoginModal>
-    with SingleTickerProviderStateMixin {
+class _LoginModalState extends State<LoginModal> with TickerProviderStateMixin {
   late AnimationController _animationController;
+  late AnimationController _bannerShakeController;
   late Animation<Offset> _slideAnimation;
   final _formKey = GlobalKey<FormState>();
   final _firstNameController = TextEditingController();
@@ -2055,6 +2105,8 @@ class _LoginModalState extends State<LoginModal>
     _isSignUpMode = widget.isSignUp;
     _animationController = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 400));
+    _bannerShakeController = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 380));
     _slideAnimation = Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
         .animate(CurvedAnimation(
             parent: _animationController, curve: Curves.easeOutCubic));
@@ -2068,6 +2120,7 @@ class _LoginModalState extends State<LoginModal>
   @override
   void dispose() {
     _animationController.dispose();
+    _bannerShakeController.dispose();
     _otpReopenCooldownTimer?.cancel();
     _emailDebounce?.cancel();
     _firstNameController.dispose();
@@ -2200,7 +2253,7 @@ class _LoginModalState extends State<LoginModal>
           _passwordController.clear();
           _confirmPasswordController.clear();
           _authError =
-              'This email is already registered but not verified. Sign in to continue verification.';
+              'Registration incomplete. Please sign in to verify your email.';
           _isSubmitting = false;
         });
         return;
@@ -2213,7 +2266,7 @@ class _LoginModalState extends State<LoginModal>
         if (errorMessage.toLowerCase().contains('email') &&
             (errorMessage.toLowerCase().contains('registered') ||
                 errorMessage.toLowerCase().contains('taken'))) {
-          emailError = 'Email is already registered.';
+          emailError = 'Email is already registered. Please sign in.';
         }
       } else if (result['errors'] != null) {
         final errors = result['errors'] as Map<String, dynamic>;
@@ -2223,7 +2276,7 @@ class _LoginModalState extends State<LoginModal>
             final msg = _friendlyRegistrationError(value.first.toString());
             errorList.add(msg);
             if (key == 'email') {
-              emailError = 'Email is already registered.';
+              emailError = 'Email is already registered. Please sign in.';
             }
           }
         });
@@ -2260,7 +2313,7 @@ class _LoginModalState extends State<LoginModal>
         lower.contains('duplicate entry')) {
       if (lower.contains('email') ||
           lower.contains('jobseekers_email_unique')) {
-        return 'Email is already registered.';
+        return 'Email is already registered. Please sign in.';
       }
       return 'Registration failed because the submitted information conflicts with an existing record.';
     }
@@ -2408,45 +2461,53 @@ class _LoginModalState extends State<LoginModal>
   }
 
   Widget _buildTopErrorBanner(String message, {VoidCallback? onDismiss}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFEE2E2),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFCA5A5)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const HugeIcon(
-            icon: HugeIcons.strokeRoundedAlertCircle,
-            color: Color(0xFF991B1B),
-            size: 18,
-            strokeWidth: 2.0,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                color: Color(0xFF991B1B),
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-                height: 1.3,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: onDismiss ?? () => setState(() => _authError = null),
-            child: const HugeIcon(
-              icon: HugeIcons.strokeRoundedCancel01,
+    return AnimatedBuilder(
+      animation: _bannerShakeController,
+      builder: (context, child) {
+        final val = _bannerShakeController.value;
+        final offset = math.sin(val * 4 * math.pi) * (1.0 - val) * 9.0;
+        return Transform.translate(offset: Offset(offset, 0), child: child);
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFEE2E2),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFFCA5A5)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const HugeIcon(
+              icon: HugeIcons.strokeRoundedAlertCircle,
               color: Color(0xFF991B1B),
               size: 18,
               strokeWidth: 2.0,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(
+                  color: Color(0xFF991B1B),
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  height: 1.3,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: onDismiss ?? () => setState(() => _authError = null),
+              child: const HugeIcon(
+                icon: HugeIcons.strokeRoundedCancel01,
+                color: Color(0xFF991B1B),
+                size: 18,
+                strokeWidth: 2.0,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2572,7 +2633,9 @@ class _LoginModalState extends State<LoginModal>
                   height: 56,
                   margin: const EdgeInsets.only(right: 12),
                   child: Image.asset(
-                    _isSignUpMode ? 'assets/empoyauth.png' : 'assets/empoywelcome.png',
+                    _isSignUpMode
+                        ? 'assets/empoyauth.png'
+                        : 'assets/empoywelcome.png',
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -2676,7 +2739,7 @@ class _LoginModalState extends State<LoginModal>
                             if (res['success'] == true &&
                                 res['exists'] == true) {
                               setState(() => _serverEmailError =
-                                  'Email is already registered.');
+                                  'Email is already registered. Please sign in.');
                             }
                           }
                         },
@@ -2866,6 +2929,25 @@ class _LoginModalState extends State<LoginModal>
                       onPressed: _isSubmitting
                           ? null
                           : () async {
+                              // Check lockout FIRST before clearing the banner.
+                              final email = _emailController.text.trim();
+                              final lockoutSecs = _OtpVerificationDialog
+                                  .remainingLockoutSeconds(email);
+                              if (lockoutSecs > 0) {
+                                if (!_bannerShakeController.isAnimating) {
+                                  _bannerShakeController.forward(from: 0.0);
+                                  AppHaptics.heavyImpact();
+                                  final m = lockoutSecs ~/ 60;
+                                  final s = lockoutSecs % 60;
+                                  final timeStr =
+                                      '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+                                  setState(() {
+                                    _authError =
+                                        'Too many wrong OTP attempts. Try again in $timeStr.';
+                                  });
+                                }
+                                return;
+                              }
                               if (_formKey.currentState!.validate()) {
                                 setState(() {
                                   _authError = null;
@@ -2914,6 +2996,23 @@ class _LoginModalState extends State<LoginModal>
                                 } else if (result['requires_verification'] ==
                                     true) {
                                   if (!mounted) return;
+                                  // Check client-side lockout BEFORE opening
+                                  // the OTP modal to avoid wasting daily sends.
+                                  final lockoutSecs = _OtpVerificationDialog
+                                      .remainingLockoutSeconds(
+                                          _emailController.text.trim());
+                                  if (lockoutSecs > 0) {
+                                    final m = lockoutSecs ~/ 60;
+                                    final s = lockoutSecs % 60;
+                                    final timeStr =
+                                        '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+                                    setState(() {
+                                      _authError =
+                                          'Too many wrong OTP attempts. Try again in $timeStr.';
+                                      _isSubmitting = false;
+                                    });
+                                    return;
+                                  }
                                   final initialRemainingDailySends =
                                       _initialRemainingDailySendsFromAuthResponse(
                                           result);
@@ -3035,6 +3134,44 @@ class _LoginModalState extends State<LoginModal>
   }
 }
 
+/// Persists OTP lockout expiry timestamps to SharedPreferences so they survive
+/// app restarts and hot reloads. Keys are `otp_lockout_<email>`.
+class OtpLockoutPrefs {
+  static const _prefix = 'otp_lockout_';
+
+  /// Called once at app startup to load any active lockouts into the
+  /// in-memory map of [_OtpVerificationDialog].
+  static Future<void> load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final now = DateTime.now();
+    for (final key in prefs.getKeys()) {
+      if (!key.startsWith(_prefix)) continue;
+      final isoString = prefs.getString(key);
+      if (isoString == null) continue;
+      final until = DateTime.tryParse(isoString);
+      if (until == null || until.isBefore(now)) {
+        // Already expired — clean up the stale entry.
+        prefs.remove(key);
+      } else {
+        final email = key.substring(_prefix.length);
+        _OtpVerificationDialog._lockoutMap[email] = until;
+      }
+    }
+  }
+
+  /// Saves a lockout entry for [email] with expiry [until] to disk.
+  static Future<void> persist(String email, DateTime until) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_prefix$email', until.toIso8601String());
+  }
+
+  /// Removes the lockout entry for [email] from disk.
+  static Future<void> remove(String email) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('$_prefix$email');
+  }
+}
+
 class _OtpVerificationDialog extends StatefulWidget {
   final String email;
   final int? initialRemainingDailySends;
@@ -3043,27 +3180,96 @@ class _OtpVerificationDialog extends StatefulWidget {
     this.initialRemainingDailySends,
   });
 
+  /// In-memory cache of per-email lockout expiry times.
+  /// Populated from SharedPreferences at app start via [OtpLockoutPrefs.load].
+  static final Map<String, DateTime> _lockoutMap = {};
+
+  /// Sets lockout for the given email (in memory + persisted to disk).
+  static void setLockout(String email, int seconds) {
+    final until = DateTime.now().add(Duration(seconds: seconds));
+    _lockoutMap[email] = until;
+    OtpLockoutPrefs.persist(email, until); // fire-and-forget
+  }
+
+  /// Clears lockout for the given email (in memory + from disk).
+  static void clearLockout(String email) {
+    _lockoutMap.remove(email);
+    OtpLockoutPrefs.remove(email); // fire-and-forget
+  }
+
+  /// Returns remaining lockout seconds for [email] (0 if not locked out).
+  static int remainingLockoutSeconds(String email) {
+    final until = _lockoutMap[email];
+    if (until == null) return 0;
+    final remaining = until.difference(DateTime.now()).inSeconds;
+    if (remaining <= 0) {
+      _lockoutMap.remove(email);
+      OtpLockoutPrefs.remove(email);
+      return 0;
+    }
+    return remaining;
+  }
+
   @override
   State<_OtpVerificationDialog> createState() => _OtpVerificationDialogState();
 }
 
-class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
+class _OtpVerificationDialogState extends State<_OtpVerificationDialog>
+    with TickerProviderStateMixin {
+  // Resume lockout from static expiry if modal was reopened while still locked out.
+  int _resumeLockoutSeconds() {
+    return _OtpVerificationDialog.remainingLockoutSeconds(widget.email);
+  }
+
   final _otpController = TextEditingController();
   final FocusNode _otpFocusNode = FocusNode();
   Timer? _cooldownTimer;
+  Timer? _lockoutTimer;
   int _resendCooldown = 0;
+  int _lockoutSeconds = 0;
+  bool _isLockedOut = false;
   int? _remainingDailySends;
   String? _statusNote;
   bool _statusIsWarning = false;
   bool _isVerifying = false;
   bool _isResending = false;
+  bool _isSuccess = false;
   String? _error;
+
+  late AnimationController _shakeController;
+  late AnimationController _successController;
+  late Animation<double> _successScaleAnimation;
 
   @override
   void initState() {
     super.initState();
     _remainingDailySends = widget.initialRemainingDailySends;
+
+    // Resume lockout if user closed and reopened the modal while still locked out.
+    final resumeSeconds = _resumeLockoutSeconds();
+    if (resumeSeconds > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _startLockoutTimer(resumeSeconds);
+      });
+    }
+
     _startResendCooldown(const Duration(seconds: 60));
+
+    _shakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+
+    _successController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+
+    _successScaleAnimation = CurvedAnimation(
+      parent: _successController,
+      curve: Curves.elasticOut,
+    );
+
     _otpFocusNode.addListener(() {
       if (mounted) setState(() {});
     });
@@ -3079,14 +3285,68 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
   @override
   void dispose() {
     _cooldownTimer?.cancel();
+    _lockoutTimer?.cancel();
+    _shakeController.dispose();
+    _successController.dispose();
     _otpController.dispose();
     _otpFocusNode.dispose();
     super.dispose();
   }
 
+  void _triggerShake() {
+    if (_shakeController.isAnimating) return;
+    _shakeController.forward(from: 0.0);
+    AppHaptics.heavyImpact();
+  }
+
+  void _startLockoutTimer(int seconds) {
+    _lockoutTimer?.cancel();
+    // Persist expiry keyed to this email so only this account is locked.
+    _OtpVerificationDialog.setLockout(widget.email, seconds);
+    setState(() {
+      _lockoutSeconds = seconds;
+      _isLockedOut = true;
+      _error =
+          'Too many wrong attempts. Locked out for ${_formatLockoutTime(seconds)}.';
+    });
+    _lockoutTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_lockoutSeconds <= 1) {
+        timer.cancel();
+        _OtpVerificationDialog.clearLockout(widget.email);
+        setState(() {
+          _lockoutSeconds = 0;
+          _isLockedOut = false;
+          _error = null;
+        });
+      } else {
+        setState(() {
+          _lockoutSeconds--;
+          _error =
+              'Too many wrong attempts. Locked out for ${_formatLockoutTime(_lockoutSeconds)}.';
+        });
+      }
+    });
+  }
+
+  String _formatLockoutTime(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
   Future<void> _verify() async {
+    if (_isSuccess || _isVerifying) return;
+    if (_isLockedOut) {
+      _triggerShake();
+      return;
+    }
     final otp = _otpController.text.trim();
     if (otp.length != 6) {
+      _triggerShake();
       setState(
           () => _error = 'Please enter the 6-digit OTP sent to your email.');
       return;
@@ -3100,19 +3360,36 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
       otpCode: otp,
     );
     if (!mounted) return;
-    setState(() => _isVerifying = false);
     if (res['success'] == true) {
       setState(() {
-        _statusNote = 'Email verified successfully. Redirecting...';
+        _isVerifying = false;
+        _isSuccess = true;
+        _statusNote = 'Email verified successfully! Redirecting...';
         _statusIsWarning = false;
       });
       FocusManager.instance.primaryFocus?.unfocus();
-      Navigator.of(context, rootNavigator: true).pop(res);
+      _successController.forward(from: 0.0);
+      AppHaptics.mediumImpact();
+
+      await Future.delayed(const Duration(milliseconds: 2200));
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop(res);
+      }
       return;
     }
+    _triggerShake();
     final msg = _friendlyOtpMessage(res);
+    final isTooMany = msg.contains('Too many wrong attempts') ||
+        (res['message']?.toString().toLowerCase().contains('too many') ??
+            false);
+    if (isTooMany) {
+      _startLockoutTimer(15 * 60);
+    }
     setState(() {
-      _error = msg;
+      _isVerifying = false;
+      if (!isTooMany) {
+        _error = msg;
+      }
       _statusNote = null;
     });
   }
@@ -3120,91 +3397,193 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
   Widget _buildOtpBoxes() {
     final code = _otpController.text;
     final isFocused = _otpFocusNode.hasFocus;
-    return GestureDetector(
-      onTap: () => FocusScope.of(context).requestFocus(_otpFocusNode),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
+    const successColor = Color(0xFF10B981);
+    const errorColor = Color(0xFFEF4444);
+    const primaryColor = Color(0xFF2563EB);
+
+    Color containerBg = const Color(0xFFF8FAFC);
+    Border border = Border.all(color: const Color(0xFFE2E8F0));
+    List<BoxShadow> boxShadows = [
+      BoxShadow(
+        color: const Color(0xFF0F172A).withOpacity(0.03),
+        blurRadius: 8,
+        offset: const Offset(0, 3),
+      ),
+    ];
+
+    if (_isSuccess) {
+      containerBg = const Color(0xFFECFDF5);
+      border = Border.all(color: successColor, width: 1.8);
+      boxShadows = [
+        BoxShadow(
+          color: successColor.withOpacity(0.20),
+          blurRadius: 16,
+          offset: const Offset(0, 6),
         ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Positioned.fill(
-              child: TextField(
-                controller: _otpController,
-                focusNode: _otpFocusNode,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                textInputAction: TextInputAction.done,
-                inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(6),
-                ],
-                enableInteractiveSelection: false,
-                cursorColor: Colors.transparent,
-                style: const TextStyle(color: Colors.transparent),
-                decoration: const InputDecoration(
-                  border: InputBorder.none,
-                  counterText: '',
-                  contentPadding: EdgeInsets.zero,
+      ];
+    } else if (_error != null) {
+      containerBg = const Color(0xFFFEF2F2);
+      border = Border.all(color: errorColor, width: 1.5);
+      boxShadows = [
+        BoxShadow(
+          color: errorColor.withOpacity(0.15),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ];
+    }
+
+    return GestureDetector(
+      onTap: () {
+        if (!_isSuccess) {
+          FocusScope.of(context).requestFocus(_otpFocusNode);
+        }
+      },
+      child: Center(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeOutBack,
+          width: _isSuccess ? 76.0 : 316.0,
+          height: _isSuccess ? 76.0 : 80.0,
+          padding: _isSuccess
+              ? const EdgeInsets.all(10)
+              : const EdgeInsets.fromLTRB(14, 15, 14, 15),
+          decoration: BoxDecoration(
+            color: containerBg,
+            borderRadius: BorderRadius.circular(_isSuccess ? 20 : 16),
+            border: border,
+            boxShadow: boxShadows,
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            switchInCurve: Curves.easeOutBack,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, animation) {
+              return ScaleTransition(
+                scale: animation,
+                child: FadeTransition(
+                  opacity: animation,
+                  child: child,
                 ),
-                onTapOutside: (_) => FocusScope.of(context).unfocus(),
-              ),
-            ),
-            IgnorePointer(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: List.generate(6, (index) {
-                  final hasChar = index < code.length;
-                  final isActive = isFocused &&
-                      (index == code.length ||
-                          (code.length == 6 && index == 5));
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    width: 40,
-                    height: 50,
+              );
+            },
+            child: _isSuccess
+                ? SizedBox(
+                    key: const ValueKey('otp_success_square_gif'),
+                    width: 56,
+                    height: 56,
+                    child: Image.asset(
+                      'assets/verified.gif',
+                      fit: BoxFit.contain,
+                    ),
+                  )
+                : Stack(
+                    key: const ValueKey('otp_inputs_stack'),
                     alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isActive
-                            ? const Color(0xFF2563EB)
-                            : const Color(0xFFE2E8F0),
-                        width: isActive ? 2 : 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF0F172A).withOpacity(0.04),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                    children: [
+                    Positioned.fill(
+                      child: TextField(
+                        controller: _otpController,
+                        focusNode: _otpFocusNode,
+                        autofocus: true,
+                        readOnly: _isSuccess || _isLockedOut,
+                        keyboardType: TextInputType.number,
+                        textInputAction: TextInputAction.done,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          LengthLimitingTextInputFormatter(6),
+                        ],
+                        enableInteractiveSelection: false,
+                        cursorColor: Colors.transparent,
+                        style: const TextStyle(color: Colors.transparent),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          counterText: '',
+                          contentPadding: EdgeInsets.zero,
                         ),
-                      ],
-                    ),
-                    child: Text(
-                      hasChar ? code[index] : '',
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.5,
-                        color: Color(0xFF111827),
+                        onTapOutside: (_) => FocusScope.of(context).unfocus(),
                       ),
                     ),
-                  );
-                }),
-              ),
-            ),
-          ],
+                    IgnorePointer(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: List.generate(6, (index) {
+                          final hasChar = index < code.length;
+                          final isActive = !readOnlyState &&
+                              isFocused &&
+                              (index == code.length ||
+                                  (code.length == 6 && index == 5));
+
+                          Color boxBg = Colors.white;
+                          Color boxBorder = const Color(0xFFE2E8F0);
+                          double borderWidth = 1.2;
+                          Color textColor = const Color(0xFF111827);
+
+                          if (_isSuccess) {
+                            boxBg = const Color(0xFFD1FAE5);
+                            boxBorder = successColor;
+                            borderWidth = 2;
+                            textColor = const Color(0xFF047857);
+                          } else if (_error != null && hasChar) {
+                            boxBorder = errorColor;
+                            textColor = const Color(0xFFB91C1C);
+                          } else if (isActive) {
+                            boxBorder = primaryColor;
+                            borderWidth = 2;
+                          }
+
+                          return AnimatedScale(
+                            scale: isActive ? 1.06 : 1.0,
+                            duration: const Duration(milliseconds: 150),
+                            curve: Curves.easeOutBack,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              width: 40,
+                              height: 50,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: boxBg,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: boxBorder,
+                                  width: borderWidth,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: isActive
+                                        ? primaryColor.withOpacity(0.12)
+                                        : const Color(0xFF0F172A).withOpacity(0.04),
+                                    blurRadius: isActive ? 10 : 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                hasChar ? code[index] : '',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 0.5,
+                                  color: textColor,
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ),
+                  ],
+                ),
+          ),
         ),
       ),
     );
   }
 
+  bool get readOnlyState => _isSuccess || _isLockedOut;
+
   Future<void> _resend() async {
-    if (_resendCooldown > 0) return;
+    if (_resendCooldown > 0 || _isSuccess) return;
     setState(() {
       _isResending = true;
       _error = null;
@@ -3236,6 +3615,7 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
         _statusIsWarning = true;
       });
     } else {
+      _triggerShake();
       setState(() {
         _statusNote = msg;
         _statusIsWarning = true;
@@ -3274,6 +3654,10 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
     if (message.contains('invalid verification code')) {
       return 'Incorrect OTP. Please check the code and try again.';
     }
+    if (message.contains('too many incorrect otp attempts') ||
+        message.contains('too many attempts')) {
+      return 'Too many wrong attempts. Please wait 15 minutes before trying again.';
+    }
     if (message.contains('verification code has expired')) {
       return 'This OTP has expired. Tap Resend OTP to get a new code.';
     }
@@ -3290,25 +3674,34 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
     if (_statusNote == null || _statusNote!.isEmpty) {
       return const SizedBox.shrink();
     }
-    final color =
-        _statusIsWarning ? const Color(0xFFB45309) : const Color(0xFF2563EB);
-    final bg =
-        _statusIsWarning ? const Color(0xFFFFF7ED) : const Color(0xFFEFF6FF);
-    return Container(
+    final color = _isSuccess
+        ? const Color(0xFF047857)
+        : _statusIsWarning
+            ? const Color(0xFFB45309)
+            : const Color(0xFF2563EB);
+    final bg = _isSuccess
+        ? const Color(0xFFD1FAE5)
+        : _statusIsWarning
+            ? const Color(0xFFFFF7ED)
+            : const Color(0xFFEFF6FF);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
       margin: const EdgeInsets.only(top: 10),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.25)),
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            _statusIsWarning
-                ? Icons.info_outline_rounded
-                : Icons.check_circle_outline_rounded,
+            _isSuccess
+                ? Icons.check_circle_rounded
+                : _statusIsWarning
+                    ? Icons.info_outline_rounded
+                    : Icons.check_circle_outline_rounded,
             size: 18,
             color: color,
           ),
@@ -3332,8 +3725,11 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
   @override
   Widget build(BuildContext context) {
     const primary = Color(0xFF2563EB);
+    const successColor = Color(0xFF10B981);
+    final activeThemeColor = _isSuccess ? successColor : primary;
+
     return PopScope(
-      canPop: true,
+      canPop: !_isVerifying && !_isSuccess,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
           FocusManager.instance.primaryFocus?.unfocus();
@@ -3341,15 +3737,16 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
       },
       child: Material(
         color: Colors.transparent,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
           constraints: const BoxConstraints(maxWidth: 360),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: primary.withOpacity(0.15),
-                blurRadius: 32,
+                color: activeThemeColor.withOpacity(_isSuccess ? 0.25 : 0.15),
+                blurRadius: _isSuccess ? 40 : 32,
                 offset: const Offset(0, 16),
               ),
               BoxShadow(
@@ -3364,14 +3761,15 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Container(
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
-                        primary.withOpacity(0.10),
-                        primary.withOpacity(0.02),
+                        activeThemeColor.withOpacity(0.12),
+                        activeThemeColor.withOpacity(0.02),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -3382,32 +3780,55 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                   ),
                   child: Column(
                     children: [
-                      Container(
-                        width: 56,
-                        height: 56,
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 300),
+                        width: 100,
+                        height: 100,
+                        clipBehavior: Clip.antiAlias,
                         decoration: BoxDecoration(
-                          color: primary.withOpacity(0.12),
+                          color: activeThemeColor.withOpacity(0.12),
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: primary.withOpacity(0.22),
+                            color: activeThemeColor.withOpacity(0.30),
                             width: 2,
                           ),
                         ),
-                        child: const Icon(
-                          Icons.mark_email_read_rounded,
-                          color: primary,
-                          size: 28,
+                        child: ScaleTransition(
+                          scale: _isSuccess
+                              ? _successScaleAnimation
+                              : const AlwaysStoppedAnimation(1.0),
+                          child: _isSuccess
+                              ? Padding(
+                                  padding: const EdgeInsets.all(6.0),
+                                  child: Image.asset(
+                                    'assets/verified.gif',
+                                    fit: BoxFit.contain,
+                                  ),
+                                )
+                              : Transform.scale(
+                                  scale: 1.36,
+                                  child: Image.asset(
+                                    'assets/email_otp.gif',
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
                         ),
                       ),
                       const SizedBox(height: 16),
-                      Text(
-                        'Verify your email',
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.poppins(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF0F172A),
-                          height: 1.3,
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        child: Text(
+                          _isSuccess ? 'Email Verified!' : 'Verify your email',
+                          key: ValueKey<bool>(_isSuccess),
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.poppins(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: _isSuccess
+                                ? const Color(0xFF047857)
+                                : const Color(0xFF0F172A),
+                            height: 1.3,
+                          ),
                         ),
                       ),
                     ],
@@ -3419,7 +3840,9 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Enter the 6-digit OTP sent to ${widget.email}.',
+                        _isSuccess
+                            ? 'Your email has been confirmed. Signing you in...'
+                            : 'Enter the 6-digit OTP sent to ${widget.email}.',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.poppins(
                           fontSize: 13.5,
@@ -3430,7 +3853,7 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                       const SizedBox(height: 16),
                       _buildOtpBoxes(),
                       _buildStatusBanner(),
-                      if (_remainingDailySends != null) ...[
+                      if (_remainingDailySends != null && !_isSuccess) ...[
                         const SizedBox(height: 10),
                         Text(
                           '$_remainingDailySends sends left today',
@@ -3444,95 +3867,168 @@ class _OtpVerificationDialogState extends State<_OtpVerificationDialog> {
                       ],
                       if (_error != null) ...[
                         const SizedBox(height: 10),
-                        Text(
-                          _error!,
-                          textAlign: TextAlign.center,
-                          style: GoogleFonts.poppins(
-                            color: const Color(0xFFDC2626),
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
+                        AnimatedBuilder(
+                          animation: _shakeController,
+                          builder: (context, child) {
+                            final val = _shakeController.value;
+                            final offset =
+                                math.sin(val * 4 * math.pi) * (1.0 - val) * 9.0;
+                            return Transform.translate(
+                              offset: Offset(offset, 0),
+                              child: child,
+                            );
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(10),
+                              border:
+                                  Border.all(color: const Color(0xFFFCA5A5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded,
+                                    size: 16, color: Color(0xFFDC2626)),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _error!,
+                                    style: GoogleFonts.poppins(
+                                      color: const Color(0xFFDC2626),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.center,
-                        child: TextButton(
-                          onPressed: _isResending ||
-                                  _isVerifying ||
-                                  _resendCooldown > 0
-                              ? null
-                              : _resend,
-                          style: TextButton.styleFrom(
-                            foregroundColor: primary,
-                          ),
-                          child: Text(
-                            _isResending
-                                ? 'Resending...'
-                                : _resendCooldown > 0
-                                    ? 'Resend in ${_resendCooldown}s'
-                                    : 'Resend OTP',
-                            style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
+                      if (!_isSuccess) ...[
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.center,
+                          child: TextButton(
+                            onPressed: _isResending ||
+                                    _isVerifying ||
+                                    _resendCooldown > 0
+                                ? null
+                                : _resend,
+                            style: TextButton.styleFrom(
+                              foregroundColor: primary,
+                            ),
+                            child: Text(
+                              _isResending
+                                  ? 'Resending...'
+                                  : _resendCooldown > 0
+                                      ? 'Resend in ${_resendCooldown}s'
+                                      : 'Resend OTP',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 4),
+                      ],
+                      const SizedBox(height: 8),
                       Row(
                         children: [
-                          Expanded(
-                            child: TextButton(
-                              onPressed: _isVerifying
-                                  ? null
-                                  : () {
-                                      FocusManager.instance.primaryFocus
-                                          ?.unfocus();
-                                      Navigator.of(context, rootNavigator: true)
-                                          .pop();
-                                    },
-                              style: TextButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  side: const BorderSide(
-                                      color: Color(0xFFE2E8F0)),
+                          if (!_isSuccess) ...[
+                            Expanded(
+                              child: TextButton(
+                                onPressed: _isVerifying
+                                    ? null
+                                    : () {
+                                        FocusManager.instance.primaryFocus
+                                            ?.unfocus();
+                                        Navigator.of(context,
+                                                rootNavigator: true)
+                                            .pop();
+                                      },
+                                style: TextButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                    side: const BorderSide(
+                                        color: Color(0xFFE2E8F0)),
+                                  ),
+                                  backgroundColor: const Color(0xFFF8FAFC),
                                 ),
-                                backgroundColor: const Color(0xFFF8FAFC),
-                              ),
-                              child: Text(
-                                'Cancel',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: const Color(0xFF64748B),
+                                child: Text(
+                                  'Cancel',
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF64748B),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
+                            const SizedBox(width: 12),
+                          ],
                           Expanded(
-                            child: FilledButton(
-                              onPressed: (_isVerifying || _isResending)
-                                  ? null
-                                  : _verify,
-                              style: FilledButton.styleFrom(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 14),
-                                backgroundColor: primary,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 250),
+                              child: FilledButton(
+                                onPressed:
+                                    (_isVerifying || _isResending || _isSuccess)
+                                        ? null
+                                        : _verify,
+                                style: FilledButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  backgroundColor: activeThemeColor,
+                                  disabledBackgroundColor: _isSuccess
+                                      ? successColor
+                                      : primary.withOpacity(0.5),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  elevation: 0,
                                 ),
-                                elevation: 0,
-                              ),
-                              child: Text(
-                                _isVerifying ? 'Verifying...' : 'Verify',
-                                style: GoogleFonts.poppins(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 200),
+                                  child: _isSuccess
+                                      ? Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            const Icon(Icons.check_rounded,
+                                                size: 18, color: Colors.white),
+                                            const SizedBox(width: 6),
+                                            Text(
+                                              'Verified ✓',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : _isVerifying
+                                          ? const SizedBox(
+                                              width: 18,
+                                              height: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2.2,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : Text(
+                                              'Verify',
+                                              style: GoogleFonts.poppins(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
                                 ),
                               ),
                             ),
@@ -4454,12 +4950,19 @@ class _AppDialogState extends State<AppDialog> {
                                   },
                             borderRadius: BorderRadius.circular(16),
                             child: Center(
-                              child: Text(
-                                widget.cancelLabel,
-                                style: GoogleFonts.poppins(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF475569),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    widget.cancelLabel,
+                                    maxLines: 1,
+                                    style: GoogleFonts.poppins(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                      color: const Color(0xFF475569),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),
@@ -4520,41 +5023,48 @@ class _AppDialogState extends State<AppDialog> {
                                   },
                             borderRadius: BorderRadius.circular(16),
                             child: Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isBusy) ...[
-                                    const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2.2,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                Colors.white),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                  ],
-                                  Text(
-                                    (isBusy && widget.confirmBusyLabel != null)
-                                        ? widget.confirmBusyLabel!
-                                        : widget.confirmLabel,
-                                    style: GoogleFonts.poppins(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      color: Colors.white,
-                                      shadows: const [
-                                        Shadow(
-                                          color: Color(0x40000000),
-                                          offset: Offset(0, 1),
-                                          blurRadius: 2,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 6),
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (isBusy) ...[
+                                        const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2.2,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                    Colors.white),
+                                          ),
                                         ),
+                                        const SizedBox(width: 8),
                                       ],
-                                    ),
+                                      Text(
+                                        (isBusy && widget.confirmBusyLabel != null)
+                                            ? widget.confirmBusyLabel!
+                                            : widget.confirmLabel,
+                                        maxLines: 1,
+                                        style: GoogleFonts.poppins(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                          shadows: const [
+                                            Shadow(
+                                              color: Color(0x40000000),
+                                              offset: Offset(0, 1),
+                                              blurRadius: 2,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                             ),
                           ),
@@ -4639,7 +5149,7 @@ Future<T?> showAppDialog<T>({
   );
 }
 
-/// Email OTP entry — same barrier + scale/fade animation as [showAppDialog].
+/// Email OTP entry — smooth backdrop blur + spring scale/fade dialog transition.
 Future<Map<String, dynamic>?> showJobseekerOtpDialog({
   required BuildContext context,
   required String email,
@@ -4649,23 +5159,32 @@ Future<Map<String, dynamic>?> showJobseekerOtpDialog({
     context: context,
     barrierDismissible: false,
     barrierLabel: 'Dismiss',
-    barrierColor: const Color(0xFF0F172A).withOpacity(0.5),
-    transitionDuration: const Duration(milliseconds: 280),
-    pageBuilder: (_, __, ___) => const SizedBox.shrink(),
-    transitionBuilder: (ctx, animation, _, __) {
+    barrierColor: const Color(0xFF0F172A).withOpacity(0.55),
+    transitionDuration: const Duration(milliseconds: 320),
+    pageBuilder: (ctx, animation, secondaryAnimation) {
+      return _OtpVerificationDialog(
+        email: email,
+        initialRemainingDailySends: initialRemainingDailySends,
+      );
+    },
+    transitionBuilder: (ctx, animation, secondaryAnimation, child) {
       final curved = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutBack,
         reverseCurve: Curves.easeInCubic,
       );
-      return Center(
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.88, end: 1.0).animate(curved),
-          child: FadeTransition(
-            opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut),
-            child: _OtpVerificationDialog(
-              email: email,
-              initialRemainingDailySends: initialRemainingDailySends,
+      return BackdropFilter(
+        filter: ImageFilter.blur(
+          sigmaX: 5.0 * animation.value,
+          sigmaY: 5.0 * animation.value,
+        ),
+        child: Center(
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.90, end: 1.0).animate(curved),
+            child: FadeTransition(
+              opacity:
+                  CurvedAnimation(parent: animation, curve: Curves.easeOut),
+              child: child,
             ),
           ),
         ),

@@ -82,6 +82,7 @@ class _ProfileTabState extends State<ProfileTab> {
   int _appliedCount = 0;
   int _interviewCount = 0;
   int _savedCount = 0;
+  int _unreadApplicationsCount = 0;
   List<int>? _avatarBytes;
   Timer? _statsRefreshTimer;
   bool _isStatsRefreshing = false;
@@ -134,10 +135,26 @@ class _ProfileTabState extends State<ProfileTab> {
       int applied = 0;
       int interview = 0;
       int saved = 0;
+      int unreadApps = 0;
+      final prefs = await SharedPreferences.getInstance();
 
       if (appsResult['success'] == true) {
         final list = appsResult['data'] as List<dynamic>? ?? [];
         applied = list.length;
+        for (final item in list) {
+          final map = item as Map<String, dynamic>;
+          final appId = map['id']?.toString() ?? '';
+          final currentStatus = map['status']?.toString() ?? 'pending';
+          if (appId.isNotEmpty) {
+            final key = 'app_status_$appId';
+            final lastSeenStatus = prefs.getString(key);
+            if (lastSeenStatus == null) {
+              await prefs.setString(key, currentStatus);
+            } else if (lastSeenStatus != currentStatus) {
+              unreadApps++;
+            }
+          }
+        }
         interview = list.where((item) {
           final map = item as Map<String, dynamic>;
           final rawStatus = (map['status'] as String? ?? '')
@@ -175,13 +192,15 @@ class _ProfileTabState extends State<ProfileTab> {
       final hasChanges = _appliedCount != applied ||
           _interviewCount != interview ||
           _savedCount != saved ||
-          _missingDocsCount != missing;
+          _missingDocsCount != missing ||
+          _unreadApplicationsCount != unreadApps;
       if (hasChanges) {
         setState(() {
           _appliedCount = applied;
           _interviewCount = interview;
           _savedCount = saved;
           _missingDocsCount = missing;
+          _unreadApplicationsCount = unreadApps;
         });
       }
     } catch (_) {
@@ -395,165 +414,293 @@ class _ProfileTabState extends State<ProfileTab> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 6, horizontal: 6),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: AppColors.divider),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: const Color(0xFFE2E8F0)),
+                            boxShadow: [
+                              BoxShadow(
+                                color:
+                                    const Color(0xFF0F172A).withOpacity(0.04),
+                                blurRadius: 14,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _buildCompactStat('$_appliedCount',
-                                  l10n?.statApplied ?? 'Applied'),
-                              Container(
-                                  width: 1,
-                                  height: 28,
-                                  color: AppColors.divider),
-                              _buildCompactStat('$_interviewCount',
-                                  l10n?.statProcessing ?? 'Processing'),
-                              Container(
-                                  width: 1,
-                                  height: 28,
-                                  color: AppColors.divider),
                               _buildCompactStat(
-                                  '$_savedCount', l10n?.statSaved ?? 'Saved'),
+                                  '$_appliedCount',
+                                  l10n?.statApplied ?? 'Applied',
+                                  onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const MyApplicationsPage()),
+                                );
+                                _loadStats();
+                              }),
+                              Container(
+                                  width: 1,
+                                  height: 32,
+                                  color: const Color(0xFFF1F5F9)),
+                              _buildCompactStat(
+                                  '$_interviewCount',
+                                  l10n?.statProcessing ?? 'Processing',
+                                  onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const MyApplicationsPage()),
+                                );
+                                _loadStats();
+                              }),
+                              Container(
+                                  width: 1,
+                                  height: 32,
+                                  color: const Color(0xFFF1F5F9)),
+                              _buildCompactStat(
+                                  '$_savedCount', l10n?.statSaved ?? 'Saved',
+                                  onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) => const SavedJobsPage()),
+                                );
+                                _loadStats();
+                              }),
                             ],
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 100),
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      _buildMenuItem(
-                        icon: HugeIcons.strokeRoundedFolder01,
-                        title: l10n?.myApplications ?? 'My Applications',
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => const MyApplicationsPage()),
-                          );
-                          _loadStats();
-                        },
-                      ),
-                      _buildMenuItem(
-                        icon: HugeIcons.strokeRoundedBookmark01,
-                        title: l10n?.savedJobs ?? 'Saved Jobs',
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => const SavedJobsPage()),
-                          );
-                          _loadStats();
-                        },
-                      ),
-                      _buildMenuItem(
-                        icon: HugeIcons.strokeRoundedFileBadge,
-                        title: l10n?.skillsProfile ?? 'Skills Profile',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => const SkillsProfilePage()),
+                      // Section 1: Career & Jobs
+                      _buildSectionHeader('CAREER & JOBS'),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  const Color(0xFF0F172A).withOpacity(0.03),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
                         ),
-                      ),
-                      _buildMenuItem(
-                        icon: HugeIcons.strokeRoundedFile01,
-                        title: l10n?.myDocuments ?? 'My Documents',
-                        trailing: _missingDocsCount > 0
-                            ? Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFFFBEB),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                      color: const Color(0xFFFDE68A), width: 1),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const HugeIcon(
-                                        icon:
-                                            HugeIcons.strokeRoundedAlertCircle,
-                                        size: 14,
-                                        color: Color(0xFFD97706),
-                                        strokeWidth: 2.0),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$_missingDocsCount more',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFFD97706),
+                        child: Column(
+                          children: [
+                            _buildGroupedMenuItem(
+                              icon: HugeIcons.strokeRoundedFolder01,
+                              title: l10n?.myApplications ?? 'My Applications',
+                              isFirst: true,
+                              trailing: _unreadApplicationsCount > 0
+                                  ? Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFEF4444),
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFFEF4444)
+                                                .withOpacity(0.30),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF0FDF4),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(
-                                      color: const Color(0xFFDCFCE7), width: 1),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const HugeIcon(
-                                        icon: HugeIcons
-                                            .strokeRoundedCheckmarkCircle01,
-                                        size: 14,
-                                        color: Color(0xFF16A34A),
-                                        strokeWidth: 2.0),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      l10n?.docsComplete ?? 'Complete',
-                                      style: const TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
-                                        color: Color(0xFF16A34A),
+                                      child: Text(
+                                        '$_unreadApplicationsCount new',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                          color: Colors.white,
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
+                                    )
+                                  : null,
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const MyApplicationsPage()),
+                                );
+                                _loadStats();
+                              },
+                            ),
+                            _buildHairlineDivider(),
+                            _buildGroupedMenuItem(
+                              icon: HugeIcons.strokeRoundedBookmark01,
+                              title: l10n?.savedJobs ?? 'Saved Jobs',
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) => const SavedJobsPage()),
+                                );
+                                _loadStats();
+                              },
+                            ),
+                            _buildHairlineDivider(),
+                            _buildGroupedMenuItem(
+                              icon: HugeIcons.strokeRoundedFileBadge,
+                              title: l10n?.skillsProfile ?? 'Skills Profile',
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => const SkillsProfilePage()),
                               ),
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                                builder: (_) => const MyDocumentsPage()),
-                          );
-                          _loadStats();
-                        },
-                      ),
-                      _buildMenuItem(
-                        icon: HugeIcons.strokeRoundedAccountSetting01,
-                        title: l10n?.settings ?? 'Settings',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => const SettingsPage()),
+                            ),
+                            _buildHairlineDivider(),
+                            _buildGroupedMenuItem(
+                              icon: HugeIcons.strokeRoundedFile01,
+                              title: l10n?.myDocuments ?? 'My Documents',
+                              isLast: true,
+                              trailing: _missingDocsCount > 0
+                                  ? Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFFFBEB),
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                        border: Border.all(
+                                            color: const Color(0xFFFDE68A),
+                                            width: 1),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const HugeIcon(
+                                              icon: HugeIcons
+                                                  .strokeRoundedAlertCircle,
+                                              size: 14,
+                                              color: Color(0xFFD97706),
+                                              strokeWidth: 2.0),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            '$_missingDocsCount more',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFFD97706),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF0FDF4),
+                                        borderRadius:
+                                            BorderRadius.circular(10),
+                                        border: Border.all(
+                                            color: const Color(0xFFDCFCE7),
+                                            width: 1),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const HugeIcon(
+                                              icon: HugeIcons
+                                                  .strokeRoundedCheckmarkCircle01,
+                                              size: 14,
+                                              color: Color(0xFF16A34A),
+                                              strokeWidth: 2.0),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            l10n?.docsComplete ?? 'Complete',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700,
+                                              color: Color(0xFF16A34A),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                      builder: (_) => const MyDocumentsPage()),
+                                );
+                                _loadStats();
+                              },
+                            ),
+                          ],
                         ),
                       ),
-                      _buildMenuItem(
-                        icon: HugeIcons.strokeRoundedHelpCircle,
-                        title: l10n?.helpSupport ?? 'Help & Support',
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                              builder: (_) => const HelpSupportPage()),
+                      const SizedBox(height: 20),
+
+                      // Section 2: Preferences & Support
+                      _buildSectionHeader('PREFERENCES & SUPPORT'),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  const Color(0xFF0F172A).withOpacity(0.03),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            _buildGroupedMenuItem(
+                              icon: HugeIcons.strokeRoundedAccountSetting01,
+                              title: l10n?.settings ?? 'Settings',
+                              isFirst: true,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => const SettingsPage()),
+                              ),
+                            ),
+                            _buildHairlineDivider(),
+                            _buildGroupedMenuItem(
+                              icon: HugeIcons.strokeRoundedHelpCircle,
+                              title: l10n?.helpSupport ?? 'Help & Support',
+                              isLast: true,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                    builder: (_) => const HelpSupportPage()),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 12),
-                      _buildMenuItem(
-                        icon: HugeIcons.strokeRoundedLogout01,
-                        title: l10n?.signOut ?? 'Sign Out',
-                        isSignOut: true,
-                        onTap: () => _confirmSignOut(context),
+                      const SizedBox(height: 20),
+
+                      // Section 3: Account
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFFFCA5A5)),
+                        ),
+                        child: _buildGroupedMenuItem(
+                          icon: HugeIcons.strokeRoundedLogout01,
+                          title: l10n?.signOut ?? 'Sign Out',
+                          isSignOut: true,
+                          isFirst: true,
+                          isLast: true,
+                          onTap: () => _confirmSignOut(context),
+                        ),
                       ),
                     ]),
                   ),
@@ -701,27 +848,139 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
-  Widget _buildCompactStat(String value, String label) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            color: Color(0xFF0F172A),
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w800,
+          color: Color(0xFF94A3B8),
+          letterSpacing: 0.8,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHairlineDivider() {
+    return const Divider(
+      height: 1,
+      thickness: 1,
+      color: Color(0xFFF1F5F9),
+      indent: 64,
+      endIndent: 16,
+    );
+  }
+
+  Widget _buildGroupedMenuItem({
+    required dynamic icon,
+    required String title,
+    required VoidCallback onTap,
+    Widget? trailing,
+    bool isSignOut = false,
+    bool isFirst = false,
+    bool isLast = false,
+  }) {
+    final iconBg = isSignOut
+        ? const Color(0xFFFEF2F2)
+        : const Color(0xFFEFF6FF);
+    final iconFg =
+        isSignOut ? const Color(0xFFEF4444) : const Color(0xFF2563EB);
+
+    final borderRadius = BorderRadius.vertical(
+      top: isFirst ? const Radius.circular(20) : Radius.zero,
+      bottom: isLast ? const Radius.circular(20) : Radius.zero,
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: borderRadius,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: icon is IconData
+                    ? Icon(icon, size: 20, color: iconFg)
+                    : HugeIcon(
+                        icon: icon as List<List<dynamic>>,
+                        size: 20,
+                        color: iconFg,
+                        strokeWidth: 2.0,
+                      ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
+                    color: isSignOut ? const Color(0xFFDC2626) : const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              if (trailing != null) ...[
+                trailing,
+                const SizedBox(width: 8),
+              ],
+              HugeIcon(
+                icon: HugeIcons.strokeRoundedArrowRight01,
+                size: 18,
+                color: isSignOut ? const Color(0xFFFCA5A5) : const Color(0xFF94A3B8),
+                strokeWidth: 2.0,
+              ),
+            ],
           ),
         ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 10.5,
-            color: Color(0xFF64748B),
-            fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+
+  Widget _buildCompactStat(String value, String label, {VoidCallback? onTap}) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: Color(0xFF64748B),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -2918,6 +3177,16 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         ));
       }
 
+      final prefs = await SharedPreferences.getInstance();
+      for (final item in list) {
+        final map = item as Map<String, dynamic>;
+        final id = map['id']?.toString();
+        final rawStatus = map['status']?.toString() ?? 'pending';
+        if (id != null) {
+          await prefs.setString('app_status_$id', rawStatus);
+        }
+      }
+
       setState(() {
         _applications
           ..clear()
@@ -2975,14 +3244,83 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                         physics: const AlwaysScrollableScrollPhysics(
                           parent: ClampingScrollPhysics(),
                         ),
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-                        itemCount: _applications.length,
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                        itemCount: _applications.length + 1,
                         itemBuilder: (context, index) {
-                          final app = _applications[index];
+                          if (index == 0) {
+                            return _buildHeaderSummary();
+                          }
+                          final app = _applications[index - 1];
                           return _ApplicationCard(application: app);
                         },
                       ),
                     ),
+    );
+  }
+
+  Widget _buildHeaderSummary() {
+    final count = _applications.length;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const HugeIcon(
+              icon: HugeIcons.strokeRoundedFolder01,
+              color: Color(0xFF2563EB),
+              size: 20,
+              strokeWidth: 2.0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'APPLICATION TRACKER',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                    color: Color(0xFF2563EB),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  count == 1
+                      ? '1 Application Submitted'
+                      : '$count Applications Submitted',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -2998,26 +3336,26 @@ class _ApplicationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final job = application.job;
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           onTap: () => _openApplicationDetail(context, application),
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -3026,23 +3364,23 @@ class _ApplicationCard extends StatelessWidget {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
                       child: CompanyLogoBox(
                         job: job,
-                        size: 52,
-                        borderRadius: 14,
+                        size: 48,
+                        borderRadius: 12,
                         boxShadow: const [],
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3050,27 +3388,27 @@ class _ApplicationCard extends StatelessWidget {
                           Text(
                             job.title,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF0F172A),
-                              letterSpacing: -0.5,
+                              letterSpacing: -0.4,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Text(
                             job.company,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 13.5,
                               color: AppColors.blueAccent,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           Row(
                             children: [
                               const Icon(Icons.location_on_rounded,
-                                  size: 14, color: Color(0xFF94A3B8)),
-                              const SizedBox(width: 4),
+                                  size: 13, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 3),
                               Expanded(
                                 child: Text(
                                   job.location,
@@ -3088,60 +3426,46 @@ class _ApplicationCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 14),
+                const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(
-                      flex: 3,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: application.statusColor.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color:
-                                    application.statusColor.withOpacity(0.2)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(application.statusIcon,
-                                  size: 14, color: application.statusColor),
-                              const SizedBox(width: 6),
-                              Flexible(
-                                child: Text(
-                                  application.compactBadgeLabel,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    color: application.statusColor,
-                                    letterSpacing: 0.35,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
-                          ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: application.statusColor.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: application.statusColor.withValues(alpha: 0.25),
                         ),
                       ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(application.statusIcon,
+                              size: 13, color: application.statusColor),
+                          const SizedBox(width: 5),
+                          Text(
+                            application.compactBadgeLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: application.statusColor,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      flex: 2,
-                      child: Text(
-                        'Applied ${application.appliedDate}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.grey[500],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.end,
+                    Text(
+                      'Applied ${application.appliedDate}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF94A3B8),
                       ),
                     ),
                   ],
@@ -3497,16 +3821,20 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                         physics: const AlwaysScrollableScrollPhysics(
                           parent: ClampingScrollPhysics(),
                         ),
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-                        itemCount: _savedJobs.length + (_isLoadingMore ? 1 : 0),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                        itemCount: _savedJobs.length + 1 + (_isLoadingMore ? 1 : 0),
                         itemBuilder: (context, index) {
-                          if (index >= _savedJobs.length) {
+                          if (index == 0) {
+                            return _buildHeaderSummary();
+                          }
+                          final jobIndex = index - 1;
+                          if (jobIndex >= _savedJobs.length) {
                             return const Padding(
                               padding: EdgeInsets.only(top: 4, bottom: 12),
                               child: _SavedJobSkeletonCard(),
                             );
                           }
-                          final saved = _savedJobs[index];
+                          final saved = _savedJobs[jobIndex];
                           final isApplied =
                               _jobActionService.isApplied(saved.job.id);
                           return _SavedJobCard(
@@ -3518,6 +3846,70 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                         },
                       ),
                     ),
+    );
+  }
+
+  Widget _buildHeaderSummary() {
+    final count = _savedJobs.length;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const HugeIcon(
+              icon: HugeIcons.strokeRoundedBookmark01,
+              color: Color(0xFF2563EB),
+              size: 20,
+              strokeWidth: 2.0,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'SAVED LISTINGS',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                    color: Color(0xFF2563EB),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  count == 1 ? '1 Job Saved' : '$count Jobs Saved',
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3589,28 +3981,28 @@ class _SavedJobCard extends StatelessWidget {
     }
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withOpacity(0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           highlightColor: Colors.transparent,
           splashColor: const Color(0x0D2563EB),
           onTap: openDetails,
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -3619,23 +4011,23 @@ class _SavedJobCard extends StatelessWidget {
                   children: [
                     Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(14),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
                         ],
                       ),
                       child: CompanyLogoBox(
                         job: job,
-                        size: 52,
-                        borderRadius: 14,
+                        size: 48,
+                        borderRadius: 12,
                         boxShadow: const [],
                       ),
                     ),
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3643,27 +4035,27 @@ class _SavedJobCard extends StatelessWidget {
                           Text(
                             job.title,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF0F172A),
-                              letterSpacing: -0.5,
+                              letterSpacing: -0.4,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 3),
                           Text(
                             job.company,
                             style: const TextStyle(
-                              fontSize: 14,
+                              fontSize: 13.5,
                               color: AppColors.blueAccent,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 4),
                           Row(
                             children: [
                               const Icon(Icons.location_on_rounded,
-                                  size: 14, color: Color(0xFF94A3B8)),
-                              const SizedBox(width: 4),
+                                  size: 13, color: Color(0xFF94A3B8)),
+                              const SizedBox(width: 3),
                               Expanded(
                                 child: Text(
                                   job.location,
@@ -3680,46 +4072,29 @@ class _SavedJobCard extends StatelessWidget {
                       ),
                     ),
                     if (job.matchPercentage > 0) ...[
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 6),
+                            horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: const Color(0xFFF0FDF4),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: const Color(0xFF10B981).withOpacity(0.2),
+                            color: const Color(0xFF10B981).withValues(alpha: 0.2),
                           ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF10B981).withOpacity(0.05),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
                         ),
-                        child: Column(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.star_rounded,
                                 size: 12, color: Color(0xFF059669)),
-                            const SizedBox(height: 1),
+                            const SizedBox(width: 2),
                             Text(
                               '${job.matchPercentage}%',
                               style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                color: Color(0xFF059669),
-                                letterSpacing: -0.5,
-                              ),
-                            ),
-                            const Text(
-                              'Match',
-                              style: TextStyle(
-                                fontSize: 8,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.w800,
                                 color: Color(0xFF059669),
-                                letterSpacing: 0.2,
                               ),
                             ),
                           ],
@@ -3728,30 +4103,30 @@ class _SavedJobCard extends StatelessWidget {
                     ],
                   ],
                 ),
-                const SizedBox(height: 16),
-                const Divider(height: 1, color: Color(0xFFF1F5F9)),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
+                const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(Icons.payments_outlined,
-                        size: 16, color: Colors.grey[500]),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.payments_outlined,
+                        size: 15, color: Color(0xFF94A3B8)),
+                    const SizedBox(width: 5),
                     Expanded(
                       child: Text(
                         job.salaryDisplay,
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: const TextStyle(
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w700,
-                          color: Colors.grey[700],
+                          color: Color(0xFF334155),
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 10),
                     GestureDetector(
                       onTap: onUnsave,
                       child: Container(
-                        padding: const EdgeInsets.all(8),
+                        padding: const EdgeInsets.all(7),
                         decoration: BoxDecoration(
                           color: const Color(0xFFFEF2F2),
                           borderRadius: BorderRadius.circular(10),
@@ -3772,12 +4147,12 @@ class _SavedJobCard extends StatelessWidget {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
+                            horizontal: 14, vertical: 7),
                         decoration: BoxDecoration(
                           color: isApplied
                               ? const Color(0xFF10B981)
                               : AppColors.blueAccent,
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -3806,24 +4181,21 @@ class _SavedJobCard extends StatelessWidget {
                     ),
                   ],
                 ),
-
-                // Saved date
-                Padding(
-                  padding: const EdgeInsets.only(top: 8),
-                  child: Row(
-                    children: [
-                      Icon(Icons.bookmark_rounded,
-                          size: 12, color: Colors.grey[400]),
-                      const SizedBox(width: 4),
-                      Text(
-                        savedJob.savedDate,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[400],
-                        ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    const Icon(Icons.bookmark_rounded,
+                        size: 12, color: Color(0xFFCBD5E1)),
+                    const SizedBox(width: 4),
+                    Text(
+                      savedJob.savedDate,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w500,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -3835,6 +4207,70 @@ class _SavedJobCard extends StatelessWidget {
 }
 
 // ─── Application Status Banner ────────────────────────────────────────────────
+
+class _RotatingHourglassIcon extends StatefulWidget {
+  final double size;
+  final Color color;
+
+  const _RotatingHourglassIcon({
+    super.key,
+    this.size = 16,
+    required this.color,
+  });
+
+  @override
+  State<_RotatingHourglassIcon> createState() => _RotatingHourglassIconState();
+}
+
+class _RotatingHourglassIconState extends State<_RotatingHourglassIcon>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    );
+    _controller.repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final progress = _controller.value;
+        // 0.0 -> 0.2307 is 0ms to 600ms (rotate 180 deg)
+        // 0.2307 -> 1.0 is 600ms to 2600ms (pause for 2 seconds)
+        double turns;
+        if (progress <= 0.2307) {
+          final t = progress / 0.2307;
+          final curveT = Curves.easeInOutCubic.transform(t);
+          turns = curveT * 0.5;
+        } else {
+          turns = 0.5;
+        }
+        return RotationTransition(
+          turns: AlwaysStoppedAnimation(turns),
+          child: child,
+        );
+      },
+      child: Icon(
+        Icons.hourglass_top_rounded,
+        size: widget.size,
+        color: widget.color,
+      ),
+    );
+  }
+}
 
 class _ApplicationStatusBanner extends StatelessWidget {
   final _Application application;
@@ -3857,14 +4293,15 @@ class _ApplicationStatusBanner extends StatelessWidget {
       'Placement': 2,
     };
     final currentStep = statusToStep[application.status] ?? 0;
+    final isProcessing = application.status == 'Processing';
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: application.statusColor.withOpacity(0.06),
+        color: application.statusColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: application.statusColor.withOpacity(0.25),
+          color: application.statusColor.withValues(alpha: 0.25),
         ),
       ),
       child: Column(
@@ -3874,14 +4311,16 @@ class _ApplicationStatusBanner extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 32,
-                height: 32,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
-                  color: application.statusColor.withOpacity(0.15),
+                  color: application.statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(application.statusIcon,
-                    size: 16, color: application.statusColor),
+                child: Center(
+                  child: Icon(application.statusIcon,
+                      size: 17, color: application.statusColor),
+                ),
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -3898,17 +4337,18 @@ class _ApplicationStatusBanner extends StatelessWidget {
                         letterSpacing: 0.5,
                       ),
                     ),
+                    const SizedBox(height: 1),
                     Text(
                       application.status,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 14.5,
                         fontWeight: FontWeight.w800,
                         color: application.statusColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (application.status == 'Processing' &&
+                    if (isProcessing &&
                         (application.processingStage?.isNotEmpty ?? false))
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
@@ -3945,50 +4385,110 @@ class _ApplicationStatusBanner extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
 
           // Progress timeline
           Row(
             children: List.generate(steps.length, (index) {
-              final isDone = index <= currentStep;
+              final isPassed = index < currentStep;
+              final isCurrent = index == currentStep;
               final isLast = index == steps.length - 1;
+
+              Widget stepNodeIcon;
+              if (isPassed) {
+                stepNodeIcon = const Icon(Icons.check_rounded,
+                    size: 12, color: Colors.white);
+              } else if (isCurrent) {
+                if (index == 1) {
+                  stepNodeIcon = const _RotatingHourglassIcon(
+                      size: 12, color: Colors.white);
+                } else if (index == 0) {
+                  stepNodeIcon = const Icon(Icons.edit_note_rounded,
+                      size: 12, color: Colors.white);
+                } else {
+                  stepNodeIcon = const Icon(Icons.work_rounded,
+                      size: 12, color: Colors.white);
+                }
+              } else {
+                stepNodeIcon = Text(
+                  '${index + 1}',
+                  style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF94A3B8),
+                      fontWeight: FontWeight.w700),
+                );
+              }
+
+              final nodeCircle = AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: (isPassed || isCurrent)
+                      ? application.statusColor
+                      : const Color(0xFFE2E8F0),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(child: stepNodeIcon),
+              );
+
+              Widget nodeWidget;
+              if (isCurrent) {
+                nodeWidget = SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Expanding sonar aura behind node circle
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: application.statusColor.withValues(alpha: 0.30),
+                        ),
+                      )
+                          .animate(onPlay: (c) => c.repeat())
+                          .scale(
+                              begin: const Offset(0.7, 0.7),
+                              end: const Offset(1.35, 1.35),
+                              duration: 1400.ms,
+                              curve: Curves.easeOut)
+                          .fade(
+                              begin: 0.7,
+                              end: 0.0,
+                              duration: 1400.ms,
+                              curve: Curves.easeOut),
+                      // Solid stationary node circle
+                      nodeCircle,
+                    ],
+                  ),
+                );
+              } else {
+                nodeWidget = SizedBox(
+                  width: 32,
+                  height: 32,
+                  child: Center(child: nodeCircle),
+                );
+              }
+
               return Expanded(
                 child: Row(
                   children: [
                     Expanded(
                       child: Column(
                         children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 300),
-                            width: 22,
-                            height: 22,
-                            decoration: BoxDecoration(
-                              color: isDone
-                                  ? application.statusColor
-                                  : const Color(0xFFE2E8F0),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Center(
-                              child: isDone
-                                  ? const Icon(Icons.check_rounded,
-                                      size: 12, color: Colors.white)
-                                  : Text(
-                                      '${index + 1}',
-                                      style: const TextStyle(
-                                          fontSize: 10,
-                                          color: Color(0xFF94A3B8),
-                                          fontWeight: FontWeight.w700),
-                                    ),
-                            ),
-                          ),
-                          const SizedBox(height: 4),
+                          nodeWidget,
+                          const SizedBox(height: 6),
                           Text(
                             steps[index],
                             style: TextStyle(
-                              fontSize: 8,
-                              fontWeight:
-                                  isDone ? FontWeight.w700 : FontWeight.w500,
-                              color: isDone
+                              fontSize: 9,
+                              fontWeight: (isPassed || isCurrent)
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: (isPassed || isCurrent)
                                   ? application.statusColor
                                   : const Color(0xFF94A3B8),
                             ),
@@ -4005,7 +4505,7 @@ class _ApplicationStatusBanner extends StatelessWidget {
                         child: Container(
                           height: 2,
                           margin: const EdgeInsets.only(bottom: 18),
-                          color: index < currentStep
+                          color: isPassed
                               ? application.statusColor
                               : const Color(0xFFE2E8F0),
                         ),
@@ -4016,14 +4516,15 @@ class _ApplicationStatusBanner extends StatelessWidget {
             }),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
           // Next steps advice
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFF1F5F9)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,

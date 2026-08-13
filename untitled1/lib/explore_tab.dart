@@ -296,46 +296,17 @@ class _ExploreTabState extends State<ExploreTab>
         if (item is! Map) continue;
         final map = Map<String, dynamic>.from(item);
         final status = (map['status'] ?? '').toString().toLowerCase();
-        if (status != 'upcoming' && status != 'ongoing') continue;
+        if (status != 'upcoming') continue;
         final e = PesoEvent.fromJson(map, isRegistered: false);
         final day =
             DateTime(e.eventDate.year, e.eventDate.month, e.eventDate.day);
         if (day.isBefore(today)) continue;
         eligible.add(e);
       }
-      if (eligible.isEmpty) {
-        setState(() {
-          _nearestDayEvents = [];
-          _eventsLoaded = true;
-        });
-        return;
-      }
 
-      DateTime? nearestDay;
-      for (final e in eligible) {
-        final day =
-            DateTime(e.eventDate.year, e.eventDate.month, e.eventDate.day);
-        if (nearestDay == null || day.isBefore(nearestDay)) {
-          nearestDay = day;
-        }
-      }
-      if (nearestDay == null) {
-        setState(() {
-          _nearestDayEvents = [];
-          _eventsLoaded = true;
-        });
-        return;
-      }
-
-      var sameDay = eligible.where((e) {
-        final day =
-            DateTime(e.eventDate.year, e.eventDate.month, e.eventDate.day);
-        return day.year == nearestDay!.year &&
-            day.month == nearestDay.month &&
-            day.day == nearestDay.day;
-      }).toList();
-
-      sameDay.sort((a, b) {
+      eligible.sort((a, b) {
+        final cmpDate = a.eventDate.compareTo(b.eventDate);
+        if (cmpDate != 0) return cmpDate;
         final ta = a.eventTime ?? '';
         final tb = b.eventTime ?? '';
         final byTime = ta.compareTo(tb);
@@ -344,7 +315,7 @@ class _ExploreTabState extends State<ExploreTab>
       });
 
       setState(() {
-        _nearestDayEvents = sameDay;
+        _nearestDayEvents = eligible;
         _eventsLoaded = true;
       });
     } catch (_) {
@@ -1039,7 +1010,7 @@ class _ExploreTabState extends State<ExploreTab>
               final job = entry.value;
               return Padding(
                 padding: EdgeInsets.only(
-                    bottom: index == jobs.length - 1 ? 0 : 10),
+                    bottom: index == jobs.length - 1 ? 0 : 8),
                 child: _RecommendedJobCard(
                   job: job,
                   isSaved: _jobActionService.isSaved(job.id),
@@ -1062,18 +1033,18 @@ class _ExploreTabState extends State<ExploreTab>
     if (!_eventsLoaded && _nearestDayEvents.isEmpty) {
       return const Padding(
         padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
-        child: _SkeletonCard(height: 124),
+        child: _SkeletonCard(height: 220),
       );
     }
 
     if (_nearestDayEvents.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ExploreSectionHeader(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          child: _ExploreSectionHeader(
             icon: HugeIcons.strokeRoundedCalendar03,
             iconColor: _kExplorePrimaryBlue,
             title: s?.exploreUpcomingPesoEvents ?? 'Upcoming PESO events',
@@ -1083,16 +1054,20 @@ class _ExploreTabState extends State<ExploreTab>
               shellOpenEventsRequestNotifier.value++;
             },
           ),
-          const SizedBox(height: 12),
-          _ExploreUpcomingEventsCard(
-            events: _nearestDayEvents,
-            onOpenEvents: () {
-              AppHaptics.lightImpact();
-              shellOpenEventsRequestNotifier.value++;
-            },
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 12),
+        _AutoGlideEventsCarousel(
+          events: _nearestDayEvents,
+          onEventTap: (event) {
+            AppHaptics.lightImpact();
+            openEventDetailModal(
+              context,
+              event,
+              onRegistrationChanged: () => _loadNearestDayEvents(),
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -1673,15 +1648,15 @@ class _RecommendedJobCard extends StatelessWidget {
         splashColor: const Color(0x0D2563EB),
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: const Color(0xFFE2E8F0)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.025),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
@@ -1694,23 +1669,19 @@ class _RecommendedJobCard extends StatelessWidget {
                     photoUrl: job.companyPhotoPath,
                     initial: job.companyInitial,
                     color: job.companyColor,
+                    size: 34,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          job.company,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      job.company,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFF64748B),
+                      ),
                     ),
                   ),
                   AnimatedBookmarkButton(
@@ -1721,26 +1692,26 @@ class _RecommendedJobCard extends StatelessWidget {
                         : (s?.save ?? 'Save'),
                     activeColor: _kExplorePrimaryBlue,
                     inactiveColor: const Color(0xFF64748B),
-                    size: 19,
+                    size: 17,
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
               Text(
                 job.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(
-                  fontSize: 15.5,
+                  fontSize: 13.5,
                   fontWeight: FontWeight.w800,
                   color: const Color(0xFF0F172A),
-                  height: 1.25,
+                  height: 1.2,
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: 6,
+                runSpacing: 6,
                 children: [
                   _MiniMetaPill(
                     icon: HugeIcons.strokeRoundedClock01,
@@ -1756,6 +1727,12 @@ class _RecommendedJobCard extends StatelessWidget {
                       label: s?.exploreMatchPercent(job.matchPercentage) ??
                           '${job.matchPercentage}% match',
                       color: const Color(0xFF0D9488),
+                    ),
+                  if (job.isOverseas)
+                    _MiniMetaPill(
+                      icon: HugeIcons.strokeRoundedGlobe02,
+                      label: 'Overseas',
+                      color: const Color(0xFF4F46E5),
                     ),
                   if (job.isUrgent)
                     _MiniMetaPill(
@@ -1891,27 +1868,27 @@ class _MiniMetaPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(8),
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           icon is IconData
-              ? Icon(icon, size: 12, color: color)
+              ? Icon(icon, size: 11, color: color)
               : HugeIcon(
                   icon: icon as List<List<dynamic>>,
-                  size: 12,
+                  size: 11,
                   color: color,
                   strokeWidth: 1.8,
                 ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 3.5),
           Text(
             label,
             style: GoogleFonts.inter(
-              fontSize: 11,
+              fontSize: 10.5,
               fontWeight: FontWeight.w700,
               color: color,
             ),
@@ -1984,181 +1961,267 @@ class _ExploreUpcomingEventsCardState
         DateFormat('MMM', s?.localeName).format(events.first.eventDate);
     final dayLabel = DateFormat('d').format(events.first.eventDate);
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: widget.onOpenEvents,
-        borderRadius: BorderRadius.circular(12),
-        child: Ink(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.025),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onOpenEvents,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Top Cover Banner Image Header
+              SizedBox(
+                height: 125,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: _kExplorePrimaryBlue.withValues(alpha: 0.10),
-                        borderRadius: BorderRadius.circular(10),
+                    if (events.first.imageUrl != null &&
+                        events.first.imageUrl!.isNotEmpty) ...[
+                      Image.network(
+                        events.first.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          decoration: const BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                            ),
+                          ),
+                        ),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            monthLabel.toUpperCase(),
-                            style: GoogleFonts.inter(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w800,
-                              color: _kExplorePrimaryBlue,
-                            ),
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [Colors.black38, Colors.transparent, Colors.black54],
                           ),
-                          Text(
-                            dayLabel,
-                            style: GoogleFonts.inter(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF0F172A),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            events.length > 1
-                                ? (s?.exploreEventsThisDay(events.length) ??
-                                    '${events.length} events this day')
-                                : (s?.exploreUpcomingEvent ?? 'Upcoming event'),
-                            style: GoogleFonts.inter(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              color: const Color(0xFF64748B),
-                            ),
+                    ] else ...[
+                      Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            dateLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.inter(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: const Color(0xFF0F172A),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      color: Color(0xFF94A3B8),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 68,
-                  child: PageView(
-                    controller: _pageController,
-                    onPageChanged: (i) => setState(() => _pageIndex = i),
-                    children: events.map((e) {
-                      final meta = <String>[];
-                      final t = e.eventTime?.trim();
-                      if (t != null && t.isNotEmpty) meta.add(t);
-                      if (e.location.trim().isNotEmpty) {
-                        meta.add(e.location.trim());
-                      }
-                      return Align(
-                        alignment: Alignment.centerLeft,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              e.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: const Color(0xFF0F172A),
-                                height: 1.25,
-                              ),
+                      Positioned(
+                        right: -10,
+                        bottom: -20,
+                        child: HugeIcon(
+                          icon: HugeIcons.strokeRoundedCalendar03,
+                          size: 100,
+                          color: Colors.white.withValues(alpha: 0.12),
+                          strokeWidth: 1.5,
+                        ),
+                      ),
+                    ],
+
+                    // Top-Left Floating Date Badge
+                    Positioned(
+                      top: 10,
+                      left: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
                             ),
-                            if (meta.isNotEmpty) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                meta.join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF64748B),
-                                ),
-                              ),
-                            ],
                           ],
                         ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-                Row(
-                  children: [
-                    if (events.length > 1)
-                      Expanded(
                         child: Row(
-                          children: List.generate(events.length, (i) {
-                            final active = i == _pageIndex;
-                            return AnimatedContainer(
-                              duration: const Duration(milliseconds: 200),
-                              width: active ? 14 : 6,
-                              height: 6,
-                              margin: const EdgeInsets.only(right: 5),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(3),
-                                color: active
-                                    ? _kExplorePrimaryBlue
-                                    : const Color(0xFFE2E8F0),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              dayLabel,
+                              style: GoogleFonts.inter(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF1E40AF),
+                                height: 1.0,
                               ),
-                            );
-                          }),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              monthLabel.toUpperCase(),
+                              style: GoogleFonts.inter(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF1E40AF),
+                                height: 1.0,
+                              ),
+                            ),
+                          ],
                         ),
-                      )
-                    else
-                      const Spacer(),
-                    Text(
-                      s?.exploreViewDetails ?? 'View details',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: _kExplorePrimaryBlue,
+                      ),
+                    ),
+
+                    // Top-Right Floating Category Badge
+                    Positioned(
+                      top: 10,
+                      right: 10,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: _kExplorePrimaryBlue,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.2),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          events.first.typeLabel.toUpperCase(),
+                          style: GoogleFonts.inter(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+
+                    // Date subtitle overlay at bottom of cover photo
+                    Positioned(
+                      left: 12,
+                      bottom: 8,
+                      right: 12,
+                      child: Text(
+                        dateLabel,
+                        style: GoogleFonts.inter(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                          shadows: [
+                            const Shadow(
+                              color: Colors.black54,
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
+              ),
+
+              // Bottom Details Section
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: 64,
+                      child: PageView(
+                        controller: _pageController,
+                        onPageChanged: (i) => setState(() => _pageIndex = i),
+                        children: events.map((e) {
+                          final meta = <String>[];
+                          final t = e.eventTime?.trim();
+                          if (t != null && t.isNotEmpty) meta.add(t);
+                          if (e.location.trim().isNotEmpty) {
+                            meta.add(e.location.trim());
+                          }
+                          return Align(
+                            alignment: Alignment.centerLeft,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  e.title,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF0F172A),
+                                    height: 1.2,
+                                  ),
+                                ),
+                                if (meta.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    meta.join(' · '),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.inter(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                      color: const Color(0xFF64748B),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (events.length > 1)
+                          Expanded(
+                            child: Row(
+                              children: List.generate(events.length, (i) {
+                                final active = i == _pageIndex;
+                                return AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  width: active ? 14 : 6,
+                                  height: 6,
+                                  margin: const EdgeInsets.only(right: 5),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(3),
+                                    color: active
+                                        ? _kExplorePrimaryBlue
+                                        : const Color(0xFFE2E8F0),
+                                  ),
+                                );
+                              }),
+                            ),
+                          )
+                        else
+                          const Spacer(),
+                        Text(
+                          s?.exploreViewDetails ?? 'View details',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: _kExplorePrimaryBlue,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -2234,24 +2297,23 @@ class _SnapshotStripCell extends StatelessWidget {
   }
 }
 
-// ─── Auto-Glide Company Carousel ─────────────────────────────────────────────
+// ─── Auto-Glide Events Carousel ──────────────────────────────────────────────
 
-class _AutoGlideCompanyCarousel extends StatefulWidget {
-  final List<Map<String, dynamic>> companies;
-  final void Function(String name, String? photoUrl) onCompanyTap;
+class _AutoGlideEventsCarousel extends StatefulWidget {
+  final List<PesoEvent> events;
+  final void Function(PesoEvent event) onEventTap;
 
-  const _AutoGlideCompanyCarousel({
-    required this.companies,
-    required this.onCompanyTap,
+  const _AutoGlideEventsCarousel({
+    required this.events,
+    required this.onEventTap,
   });
 
   @override
-  State<_AutoGlideCompanyCarousel> createState() =>
-      __AutoGlideCompanyCarouselState();
+  State<_AutoGlideEventsCarousel> createState() =>
+      __AutoGlideEventsCarouselState();
 }
 
-class __AutoGlideCompanyCarouselState
-    extends State<_AutoGlideCompanyCarousel> {
+class __AutoGlideEventsCarouselState extends State<_AutoGlideEventsCarousel> {
   late final ScrollController _scrollController;
   Timer? _glideTimer;
   Timer? _resumeTimer;
@@ -2285,8 +2347,9 @@ class __AutoGlideCompanyCarouselState
   }
 
   void _startAutoGlide() {
+    if (widget.events.length <= 1) return;
     _glideTimer?.cancel();
-    _glideTimer = Timer.periodic(const Duration(milliseconds: 3200), (_) {
+    _glideTimer = Timer.periodic(const Duration(milliseconds: 3800), (_) {
       if (_isUserInteracting ||
           !_scrollController.hasClients ||
           !_isWidgetInViewport()) {
@@ -2295,7 +2358,9 @@ class __AutoGlideCompanyCarouselState
 
       final maxExtent = _scrollController.position.maxScrollExtent;
       final currentOffset = _scrollController.offset;
-      const step = 188.0; // card width (176) + padding (12)
+      // step = itemExtent = cardWidth + gap = (screen - 20 - 48) + 12
+      final screenW = MediaQuery.sizeOf(context).width;
+      final step = (screenW - 20.0 - 48.0) + 12.0;
 
       final currentIndex = (currentOffset / step).round();
       final nextIndex = currentIndex + 1;
@@ -2304,7 +2369,7 @@ class __AutoGlideCompanyCarouselState
       if (targetOffset >= maxExtent + 20) {
         _scrollController.animateTo(
           0.0,
-          duration: const Duration(milliseconds: 600),
+          duration: const Duration(milliseconds: 700),
           curve: Curves.easeOutCubic,
         );
       } else {
@@ -2321,7 +2386,9 @@ class __AutoGlideCompanyCarouselState
     if (!_scrollController.hasClients) return;
     final maxExtent = _scrollController.position.maxScrollExtent;
     final currentOffset = _scrollController.offset;
-    const step = 188.0;
+    // step = itemExtent = cardWidth + gap = (screen - 20 - 48) + 12
+    final screenW = MediaQuery.sizeOf(context).width;
+    final step = (screenW - 20.0 - 48.0) + 12.0;
 
     final targetIndex = (currentOffset / step).round();
     final targetOffset = (targetIndex * step).clamp(0.0, maxExtent);
@@ -2356,6 +2423,15 @@ class __AutoGlideCompanyCarouselState
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    // Visible card width: screen - leftPadding(20) - rightPeek(48)
+    const kGap = 12.0;
+    const kLeftPad = 20.0;
+    const kPeek = 48.0;
+    final cardWidth = screenWidth - kLeftPad - kPeek;
+    // Each item = card + gap, so the ListView item width is cardWidth + gap
+    final itemWidth = cardWidth + kGap;
+
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollStartNotification &&
@@ -2367,24 +2443,474 @@ class __AutoGlideCompanyCarouselState
         return false;
       },
       child: SizedBox(
+        height: 235,
+        child: ListView.builder(
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.only(left: kLeftPad),
+          itemCount: widget.events.length,
+          itemExtent: itemWidth, // exact item width for perfect snapping
+          itemBuilder: (context, index) {
+            final e = widget.events[index];
+            return Padding(
+              padding: const EdgeInsets.only(right: kGap),
+              child: _EventCarouselCard(
+                event: e,
+                onTap: () => widget.onEventTap(e),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _EventCarouselCard extends StatelessWidget {
+  final PesoEvent event;
+  final VoidCallback onTap;
+
+  const _EventCarouselCard({
+    required this.event,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final s = S.of(context);
+    final hasImage = event.imageUrl != null && event.imageUrl!.isNotEmpty;
+    final dateLabel =
+        DateFormat('EEEE, MMM d', s?.localeName).format(event.eventDate);
+    final monthLabel =
+        DateFormat('MMM', s?.localeName).format(event.eventDate);
+    final dayLabel = DateFormat('d').format(event.eventDate);
+
+    final meta = <String>[];
+    final t = event.eventTime?.trim();
+    if (t != null && t.isNotEmpty) meta.add(t);
+    if (event.location.trim().isNotEmpty) {
+      meta.add(event.location.trim());
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Top Cover Banner Image Header
+              Hero(
+                tag: 'event_header_${event.id}',
+                child: Material(
+                  color: Colors.transparent,
+                  child: SizedBox(
+                    height: 125,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (hasImage) ...[
+                          Image.network(
+                            event.imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(0xFF1E3A8A),
+                                    Color(0xFF2563EB)
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black38,
+                                  Colors.transparent,
+                                  Colors.black54
+                                ],
+                              ),
+                            ),
+                          ),
+                        ] else ...[
+                          Container(
+                            decoration: const BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [Color(0xFF1E3A8A), Color(0xFF2563EB)],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: -10,
+                            bottom: -20,
+                            child: HugeIcon(
+                              icon: HugeIcons.strokeRoundedCalendar03,
+                              size: 100,
+                              color: Colors.white.withValues(alpha: 0.12),
+                              strokeWidth: 1.5,
+                            ),
+                          ),
+                        ],
+
+                        // Top-Left Floating Date Badge
+                        Positioned(
+                          top: 10,
+                          left: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  dayLabel,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF1E40AF),
+                                    height: 1.0,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  monthLabel.toUpperCase(),
+                                  style: GoogleFonts.inter(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: const Color(0xFF1E40AF),
+                                    height: 1.0,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Top-Right Floating Category Badge
+                        Positioned(
+                          top: 10,
+                          right: 10,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: _kExplorePrimaryBlue,
+                              borderRadius: BorderRadius.circular(20),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Text(
+                              event.typeLabel.toUpperCase(),
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                                color: Colors.white,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ),
+                        ),
+
+                        // Date subtitle overlay at bottom of cover photo
+                        Positioned(
+                          left: 12,
+                          bottom: 8,
+                          right: 12,
+                          child: Text(
+                            dateLabel,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              shadows: [
+                                const Shadow(
+                                  color: Colors.black54,
+                                  blurRadius: 4,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Bottom Details Section
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            event.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.inter(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                              height: 1.2,
+                            ),
+                          ),
+                          if (meta.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              meta.join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                                color: const Color(0xFF64748B),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text(
+                            s?.exploreViewDetails ?? 'View details',
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              color: _kExplorePrimaryBlue,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          const Icon(
+                            Icons.arrow_forward_ios_rounded,
+                            size: 10,
+                            color: _kExplorePrimaryBlue,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Continuous Marquee Company Carousel ────────────────────────────────────
+// Continuous smooth gliding ticker (infinite loop). Touch pauses instantly;
+// lifting finger keeps it stationary for 4 seconds before resuming.
+
+class _AutoGlideCompanyCarousel extends StatefulWidget {
+  final List<Map<String, dynamic>> companies;
+  final void Function(String name, String? photoUrl) onCompanyTap;
+
+  const _AutoGlideCompanyCarousel({
+    required this.companies,
+    required this.onCompanyTap,
+  });
+
+  @override
+  State<_AutoGlideCompanyCarousel> createState() =>
+      __AutoGlideCompanyCarouselState();
+}
+
+class __AutoGlideCompanyCarouselState extends State<_AutoGlideCompanyCarousel>
+    with SingleTickerProviderStateMixin {
+  late final ScrollController _scrollController;
+  late final AnimationController _ticker;
+  Timer? _resumeTimer;
+
+  /// Speed of continuous sliding marquee in pixels per second
+  static const double _kVelocity = 48.0;
+
+  /// Card width (176) + padding (12)
+  static const double _kItemWidth = 188.0;
+
+  bool _isPaused = false;
+  bool _isFingerDown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+    _ticker = AnimationController(
+      vsync: this,
+      duration: const Duration(days: 365),
+    )..addListener(_onTick);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.companies.isEmpty) return;
+      final mid = _oneLoopWidth;
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(mid);
+      }
+      _ticker.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    _resumeTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  double get _oneLoopWidth => widget.companies.length * _kItemWidth;
+
+  bool _isWidgetInViewport() {
+    if (!mounted) return false;
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null || !renderBox.attached) return false;
+
+    final position = renderBox.localToGlobal(Offset.zero);
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    return position.dy < screenHeight &&
+        (position.dy + renderBox.size.height) > 0;
+  }
+
+  void _onTick() {
+    if (_isPaused ||
+        _isFingerDown ||
+        !mounted ||
+        !_scrollController.hasClients ||
+        !_isWidgetInViewport()) {
+      return;
+    }
+
+    const frameMs = 1000.0 / 60.0;
+    final step = _kVelocity * (frameMs / 1000.0);
+
+    double next = _scrollController.offset + step;
+    final loopWidth = _oneLoopWidth;
+
+    if (loopWidth > 0 && next >= loopWidth * 2) {
+      next -= loopWidth;
+      _scrollController.jumpTo(next);
+      return;
+    }
+    _scrollController.jumpTo(next);
+  }
+
+  void _pauseMarquee() {
+    _resumeTimer?.cancel();
+    _isPaused = true;
+  }
+
+  void _scheduleResume() {
+    _resumeTimer?.cancel();
+    // Keep stationary for 4 full seconds after finger is lifted / drag ends
+    _resumeTimer = Timer(const Duration(milliseconds: 4000), () {
+      if (mounted && !_isFingerDown) {
+        setState(() {
+          _isPaused = false;
+        });
+      }
+    });
+  }
+
+  void _onPointerDown(PointerDownEvent _) {
+    _isFingerDown = true;
+    _pauseMarquee();
+  }
+
+  void _onPointerUp(PointerUpEvent _) {
+    _isFingerDown = false;
+    _scheduleResume();
+  }
+
+  void _onPointerCancel(PointerCancelEvent _) {
+    _isFingerDown = false;
+    _scheduleResume();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.companies.isEmpty) return const SizedBox.shrink();
+
+    // Triple list for seamless infinite loop [copy A][copy B][copy C]
+    final looped = [
+      ...widget.companies,
+      ...widget.companies,
+      ...widget.companies,
+    ];
+
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
+      child: SizedBox(
         height: 118,
         child: ListView.builder(
           controller: _scrollController,
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.only(right: 20),
-          itemCount: widget.companies.length,
+          padding: EdgeInsets.zero,
+          itemCount: looped.length,
+          itemExtent: _kItemWidth,
           itemBuilder: (context, index) {
-            final company = widget.companies[index];
-            return _CompanyCard(
-              name: company['name'] as String? ?? '',
-              initial: (company['initial'] as String?) ?? '',
-              photoUrl: company['photo_url'] as String?,
-              jobCount: (company['job_count'] as num?)?.toInt() ?? 0,
-              delay: index * 60,
-              onTap: () => widget.onCompanyTap(
-                company['name'] as String? ?? '',
-                company['photo_url'] as String?,
+            final company = looped[index];
+            final realIndex = index % widget.companies.length;
+            return Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: _CompanyCard(
+                name: company['name'] as String? ?? '',
+                initial: (company['initial'] as String?) ?? '',
+                photoUrl: company['photo_url'] as String?,
+                jobCount: (company['job_count'] as num?)?.toInt() ?? 0,
+                delay: realIndex * 40,
+                onTap: () => widget.onCompanyTap(
+                  company['name'] as String? ?? '',
+                  company['photo_url'] as String?,
+                ),
               ),
             );
           },
@@ -2395,6 +2921,7 @@ class __AutoGlideCompanyCarouselState
 }
 
 // ─── Company Card Widget ──────────────────────────────────────────────────────
+
 
 class _CompanyCard extends StatelessWidget {
   final String name;

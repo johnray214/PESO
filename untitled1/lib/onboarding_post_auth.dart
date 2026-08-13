@@ -990,7 +990,7 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
         ),
         const SizedBox(height: 20),
         _tourRow(HugeIcons.strokeRoundedHome01, 'Home', 'Jobs, search, and apply.'),
-        _tourRow(HugeIcons.strokeRoundedCalendar03, 'Events', 'Floating button — workshops & job fairs.'),
+        _tourRow(HugeIcons.strokeRoundedCalendar03, 'Events', 'Header icon — workshops & job fairs.'),
         _tourRow(HugeIcons.strokeRoundedLocation01, 'Map', 'Explore employers and locations.'),
         _tourRow(HugeIcons.strokeRoundedUser, 'Profile', 'Resume, skills, and documents.'),
         const Spacer(),

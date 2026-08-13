@@ -365,21 +365,47 @@ class _ChangeEmailPageState extends State<ChangeEmailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Step 2: ${l10n?.verifyOtp ?? 'Verify OTP'}',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '${l10n?.enterOtp ?? 'Enter OTP'} — $_pendingEmail',
-              style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF475569),
-              ),
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFBFDBFE)),
+                  ),
+                  child: Image.asset(
+                    'assets/email_otp.gif',
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Step 2: ${l10n?.verifyOtp ?? 'Verify OTP'}',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${l10n?.enterOtp ?? 'Enter OTP'} — $_pendingEmail',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: Color(0xFF475569),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             buildAuthFieldLabel(l10n?.enterOtp ?? 'Enter OTP'),

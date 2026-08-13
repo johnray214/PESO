@@ -50,6 +50,10 @@ class JobseekerJobListingController extends Controller
             });
         }
 
+        if ($request->has('is_overseas')) {
+            $query->where('is_overseas', $request->boolean('is_overseas'));
+        }
+
         $jobseeker = $request->user();
         
         // Haversine distance calculation if jobseeker has location

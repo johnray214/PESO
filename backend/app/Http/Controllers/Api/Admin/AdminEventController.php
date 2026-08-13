@@ -85,11 +85,20 @@ class AdminEventController extends Controller
             'location' => 'required|string|max:255',
             'event_date' => 'required|date',
             'start_time' => 'required|string',
-            'end_time' => 'nullable|string|after:start_time',
+            'end_time' => 'nullable|string',
             'organizer' => 'nullable|string|max:255',
             'max_participants' => 'nullable|numeric|min:1',
             'status' => ['sometimes', Rule::in(['upcoming', 'ongoing', 'completed', 'cancelled'])],
+            'image' => 'nullable|image|max:10240',
+            'image_url' => 'nullable|string',
         ]);
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('events', 'public');
+            $validated['image_path'] = $path;
+        } elseif ($request->has('image_url') && filter_var($request->image_url, FILTER_VALIDATE_URL)) {
+            $validated['image_path'] = $request->image_url;
+        }
 
         $validated['created_by'] = $request->user()->id;
         
@@ -121,11 +130,20 @@ class AdminEventController extends Controller
             'location' => 'sometimes|string|max:255',
             'event_date' => 'sometimes|date',
             'start_time' => 'sometimes|string',
-            'end_time' => 'nullable|string|after:start_time',
+            'end_time' => 'nullable|string',
             'organizer' => 'nullable|string|max:255',
             'max_participants' => 'nullable|numeric|min:1',
             'status' => ['sometimes', Rule::in(['upcoming', 'ongoing', 'completed', 'cancelled'])],
+            'image' => 'nullable|image|max:10240',
+            'image_url' => 'nullable|string',
         ]);
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('events', 'public');
+            $validated['image_path'] = $path;
+        } elseif ($request->has('image_url')) {
+            $validated['image_path'] = $request->image_url;
+        }
 
         $event->update($validated);
         $event->loadCount(['registrations as participants_count']);
