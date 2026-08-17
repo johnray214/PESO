@@ -33,6 +33,7 @@ import 'onboarding_prefs.dart';
 import 'package:geolocator/geolocator.dart' show LocationPermission;
 import 'l10n/app_localizations.dart';
 import 'locale_service.dart';
+import 'notification_swipe_card.dart';
 
 final String mapboxToken = dotenv.env['MAPBOX_TOKEN'] ?? '';
 
@@ -9074,6 +9075,16 @@ class NotificationsTab extends StatefulWidget {
   State<NotificationsTab> createState() => _NotificationsTabState();
 }
 
+class _DeletedNotificationEntry {
+  final Map<String, dynamic> notification;
+  final int originalIndex;
+
+  _DeletedNotificationEntry({
+    required this.notification,
+    required this.originalIndex,
+  });
+}
+
 class _NotificationsTabState extends State<NotificationsTab>
     with TickerProviderStateMixin {
   bool _isLoading = true;
@@ -9082,6 +9093,11 @@ class _NotificationsTabState extends State<NotificationsTab>
   final _jobActionService = JobActionService();
   Timer? _pollTimer;
   bool _isPolling = false;
+
+  late final AnimationController _undoToastAnim;
+  Timer? _undoToastTimer;
+  final List<_DeletedNotificationEntry> _undoQueue = [];
+  bool _isDeleteAllUndo = false;
 
   static const String _deleteFabLabel = 'Delete all';
   static const double _deleteFabCompact = 56;
@@ -9106,6 +9122,10 @@ class _NotificationsTabState extends State<NotificationsTab>
   @override
   void initState() {
     super.initState();
+    _undoToastAnim = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
     _deleteFabAnim = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1320),
@@ -9123,6 +9143,9 @@ class _NotificationsTabState extends State<NotificationsTab>
 
   @override
   void dispose() {
+    _flushPendingDelete();
+    _undoToastTimer?.cancel();
+    _undoToastAnim.dispose();
     _deleteAllExitAnim?.dispose();
     _deleteFabAnim.dispose();
     NotificationService.removeListener(_onPushReceived);
@@ -10047,10 +10070,66 @@ class _NotificationsTabState extends State<NotificationsTab>
     );
   }
 
+  void _flushPendingDelete() {
+    _undoToastTimer?.cancel();
+    _undoToastTimer = null;
+    if (_undoQueue.isNotEmpty) {
+      if (mounted) _undoToastAnim.value = 0.0;
+      _commitPendingDeletes();
+    }
+  }
+
+  void _undoLastDelete() {
+    _undoToastTimer?.cancel();
+    _undoToastTimer = null;
+    if (_undoQueue.isNotEmpty && mounted) {
+      final itemsToRestore = List<_DeletedNotificationEntry>.from(_undoQueue);
+      _undoQueue.clear();
+      _isDeleteAllUndo = false;
+      _undoToastAnim.reverse();
+
+      setState(() {
+        for (final entry in itemsToRestore) {
+          final id = entry.notification['id'];
+          if (!_notifications.any((item) => item['id'] == id)) {
+            final insertIdx = (entry.originalIndex <= _notifications.length)
+                ? entry.originalIndex
+                : _notifications.length;
+            _notifications.insert(insertIdx, entry.notification);
+          }
+        }
+      });
+      AppHaptics.mediumImpact();
+    }
+  }
+
+  void _commitPendingDeletes() {
+    if (_undoQueue.isEmpty) return;
+    final itemsToCommit = List<_DeletedNotificationEntry>.from(_undoQueue);
+    _undoQueue.clear();
+    _isDeleteAllUndo = false;
+
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) return;
+
+    for (final entry in itemsToCommit) {
+      final notifId = entry.notification['id'];
+      final parsedId = notifId is int
+          ? notifId
+          : int.tryParse(notifId.toString()) ?? 0;
+      if (parsedId > 0) {
+        ApiService.deleteJobseekerNotification(
+          token: token,
+          id: parsedId,
+        );
+      }
+    }
+  }
+
   Future<void> _deleteNotification(int idxInSortedList,
-      {bool allowSatisfactionSurvey = false}) async {
+      {bool allowSatisfactionSurvey = false, bool withUndoNet = true}) async {
     AppHaptics.mediumImpact();
-    // Use the sorted list to find the actual notification object
+
     final n = _sortedNotifications[idxInSortedList];
     final notifId = n['id'];
 
@@ -10060,19 +10139,45 @@ class _NotificationsTabState extends State<NotificationsTab>
       return;
     }
 
-    // Immediately remove from the underlying source list by finding the matching ID
-    // This fixed the "Dismissible widget still part of tree" and index-mismatch error.
+    // If previous undo was from "Delete All", flush it first before individual swipes
+    if (_isDeleteAllUndo) {
+      _flushPendingDelete();
+    }
+
+    _undoQueue.add(_DeletedNotificationEntry(
+      notification: Map<String, dynamic>.from(n),
+      originalIndex: idxInSortedList,
+    ));
+    _isDeleteAllUndo = false;
+
     setState(() {
       _notifications.removeWhere((item) => item['id'] == notifId);
     });
 
-    final token = UserSession().token;
-    if (token == null || token.isEmpty || notifId == null) return;
+    if (withUndoNet && mounted) {
+      _undoToastTimer?.cancel();
+      _undoToastAnim.forward(from: 0.0);
 
-    await ApiService.deleteJobseekerNotification(
-      token: token,
-      id: notifId is int ? notifId : int.tryParse(notifId.toString()) ?? 0,
-    );
+      // Rolling 4.5 second window on every new swipe
+      _undoToastTimer = Timer(const Duration(milliseconds: 4500), () {
+        if (!mounted) return;
+        _undoToastAnim.reverse().then((_) {
+          _commitPendingDeletes();
+        });
+      });
+    } else {
+      final token = UserSession().token;
+      if (token == null || token.isEmpty || notifId == null) return;
+      final parsedId = notifId is int
+          ? notifId
+          : int.tryParse(notifId.toString()) ?? 0;
+      if (parsedId > 0) {
+        await ApiService.deleteJobseekerNotification(
+          token: token,
+          id: parsedId,
+        );
+      }
+    }
   }
 
   Future<void> _deleteNotificationByItem(Map<String, dynamic> n,
@@ -10139,6 +10244,16 @@ class _NotificationsTabState extends State<NotificationsTab>
       return;
     }
 
+    _flushPendingDelete();
+    _undoQueue.clear();
+    for (int i = 0; i < deletable.length; i++) {
+      _undoQueue.add(_DeletedNotificationEntry(
+        notification: Map<String, dynamic>.from(deletable[i]),
+        originalIndex: i,
+      ));
+    }
+    _isDeleteAllUndo = true;
+
     controller.dispose();
     setState(() {
       _deleteAllExitAnim = null;
@@ -10147,24 +10262,17 @@ class _NotificationsTabState extends State<NotificationsTab>
     });
 
     if (!mounted) return;
-    final token = UserSession().token;
-    if (token == null || token.isEmpty) return;
 
-    var allOk = true;
-    for (final item in deletable) {
-      final rawId = item['id'];
-      final id = rawId is int ? rawId : int.tryParse(rawId.toString()) ?? 0;
-      if (id == 0) continue;
-      final ok = await ApiService.deleteJobseekerNotification(
-        token: token,
-        id: id,
-      );
-      if (!ok) allOk = false;
-    }
-    if (!mounted) return;
-    if (!allOk) {
-      await _loadNotifications(showLoader: false);
-    }
+    _undoToastTimer?.cancel();
+    _undoToastAnim.forward(from: 0.0);
+
+    // 5.5 second grace window for Delete All
+    _undoToastTimer = Timer(const Duration(milliseconds: 5500), () {
+      if (!mounted) return;
+      _undoToastAnim.reverse().then((_) {
+        _commitPendingDeletes();
+      });
+    });
   }
 
   Future<void> _confirmDeleteAllNotifications() async {
@@ -10624,7 +10732,10 @@ class _NotificationsTabState extends State<NotificationsTab>
           ),
         ),
       ),
-      body: _isLoading
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: _isLoading
           ? const _NotificationsPageSkeleton()
           : _errorMessage != null
               ? Center(
@@ -10818,7 +10929,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                   }
                                 }
 
-                                Widget card;
+                                Widget innerCard;
                                 if (type == 'invitation') {
                                   final jobListing = notif['job_listing']
                                       as Map<String, dynamic>?;
@@ -10834,47 +10945,40 @@ class _NotificationsTabState extends State<NotificationsTab>
                                           'company_name'] as String? ??
                                       'An employer';
 
-                                  card = Dismissible(
-                                    key: ValueKey('notif_$id'),
-                                    direction: DismissDirection.endToStart,
-                                    background: _buildDismissBackground(),
-                                    onDismissed: (_) =>
-                                        _deleteNotification(index),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: _buildCardDecoration(
-                                          isRead, const Color(0xFF2563EB)),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Material(
-                                          color: Colors.white,
-                                          child: InkWell(
-                                            onTap: () {
-                                              _openNotification(n);
-                                              _openInvitationJob(n);
-                                            },
-                                            child: Padding(
-                                              padding: const EdgeInsets.all(16),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  _buildInvitationHeader(
-                                                      subject,
-                                                      timeAgo,
-                                                      dateFormatted,
-                                                      isRead),
-                                                  const SizedBox(height: 12),
-                                                  _buildJobBriefBox(
-                                                      companyName,
-                                                      jobTitle,
-                                                      jobLocation,
-                                                      jobType,
-                                                      jobListing),
-                                                  const SizedBox(height: 16),
-                                                  _buildViewInvitationChip(),
-                                                ],
-                                              ),
+                                  innerCard = Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: _buildCardDecoration(
+                                        isRead, const Color(0xFF2563EB)),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Material(
+                                        color: Colors.white,
+                                        child: InkWell(
+                                          onTap: () {
+                                            _openNotification(n);
+                                            _openInvitationJob(n);
+                                          },
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(16),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                _buildInvitationHeader(
+                                                    subject,
+                                                    timeAgo,
+                                                    dateFormatted,
+                                                    isRead),
+                                                const SizedBox(height: 12),
+                                                _buildJobBriefBox(
+                                                    companyName,
+                                                    jobTitle,
+                                                    jobLocation,
+                                                    jobType,
+                                                    jobListing),
+                                                const SizedBox(height: 16),
+                                                _buildViewInvitationChip(),
+                                              ],
                                             ),
                                           ),
                                         ),
@@ -10882,62 +10986,58 @@ class _NotificationsTabState extends State<NotificationsTab>
                                     ),
                                   );
                                 } else if (type == 'satisfaction_survey') {
-                                  card = Dismissible(
-                                    key: ValueKey('notif_$id'),
-                                    direction: DismissDirection.none,
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 24),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF0F7FF),
-                                        borderRadius: BorderRadius.circular(16),
-                                        border: Border.all(
-                                            color: const Color(0xFFE2E8F0)),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: const Color(0xFF2563EB)
-                                                .withOpacity(0.06),
-                                            blurRadius: 15,
-                                            offset: const Offset(0, 6),
+                                  innerCard = Container(
+                                    margin: const EdgeInsets.only(bottom: 24),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF0F7FF),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                          color: const Color(0xFFE2E8F0)),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(0xFF2563EB)
+                                              .withValues(alpha: 0.06),
+                                          blurRadius: 15,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Stack(
+                                        children: [
+                                          // Main Content
+                                          Padding(
+                                            padding:
+                                                const EdgeInsets.fromLTRB(
+                                                    25, 20, 20, 20),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                _buildSurveyHeader(timeAgo,
+                                                    dateFormatted, isRead),
+                                                const SizedBox(height: 18),
+                                                _buildSurveyMessageBox(
+                                                    message),
+                                                const SizedBox(height: 18),
+                                                _buildRateButton(() =>
+                                                    _showRatingDialog(n)),
+                                              ],
+                                            ),
+                                          ),
+                                          // Vertical Accent Bar
+                                          Positioned(
+                                            left: 0,
+                                            top: 0,
+                                            bottom: 0,
+                                            width: 5,
+                                            child: Container(
+                                                color:
+                                                    const Color(0xFF2563EB)),
                                           ),
                                         ],
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Stack(
-                                          children: [
-                                            // Main Content
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      25, 20, 20, 20),
-                                              child: Column(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  _buildSurveyHeader(timeAgo,
-                                                      dateFormatted, isRead),
-                                                  const SizedBox(height: 18),
-                                                  _buildSurveyMessageBox(
-                                                      message),
-                                                  const SizedBox(height: 18),
-                                                  _buildRateButton(() =>
-                                                      _showRatingDialog(n)),
-                                                ],
-                                              ),
-                                            ),
-                                            // Vertical Accent Bar
-                                            Positioned(
-                                              left: 0,
-                                              top: 0,
-                                              bottom: 0,
-                                              width: 5,
-                                              child: Container(
-                                                  color:
-                                                      const Color(0xFF2563EB)),
-                                            ),
-                                          ],
-                                        ),
                                       ),
                                     ),
                                   );
@@ -10958,146 +11058,139 @@ class _NotificationsTabState extends State<NotificationsTab>
                                   const Color interviewColor =
                                       Color(0xFF8B5CF6);
 
-                                  card = Dismissible(
-                                    key: ValueKey('notif_$id'),
-                                    direction: DismissDirection.endToStart,
-                                    background: _buildDismissBackground(),
-                                    onDismissed: (_) =>
-                                        _deleteNotification(index),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: _buildCardDecoration(
-                                          isRead, interviewColor),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Material(
-                                          color: Colors.white,
-                                          child: InkWell(
-                                            onTap: () {
-                                              _openNotification(n);
-                                              _showInterviewScheduleModal(
-                                                context,
-                                                companyName: interviewCompany,
-                                                jobTitle: interviewJobTitle,
-                                                meta: meta,
-                                              );
-                                            },
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      16, 14, 16, 14),
-                                              child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  _buildStatusLeading(
-                                                      interviewColor,
-                                                      'assets/empoy_notif_interview.png'),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Row(
-                                                          children: [
-                                                            Expanded(
-                                                              child: Text(
-                                                                subject,
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 15,
-                                                                  fontWeight: isRead
-                                                                      ? FontWeight
-                                                                          .w500
-                                                                      : FontWeight
-                                                                          .w700,
-                                                                  color: const Color(
-                                                                      0xFF0F172A),
-                                                                ),
+                                  innerCard = Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: _buildCardDecoration(
+                                        isRead, interviewColor),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Material(
+                                        color: Colors.white,
+                                        child: InkWell(
+                                          onTap: () {
+                                            _openNotification(n);
+                                            _showInterviewScheduleModal(
+                                              context,
+                                              companyName: interviewCompany,
+                                              jobTitle: interviewJobTitle,
+                                              meta: meta,
+                                            );
+                                          },
+                                          child: Padding(
+                                            padding:
+                                                const EdgeInsets.fromLTRB(
+                                                    16, 14, 16, 14),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                _buildStatusLeading(
+                                                    interviewColor,
+                                                    'assets/empoy_notif_interview.png'),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child: Text(
+                                                              subject,
+                                                              style:
+                                                                  TextStyle(
+                                                                fontSize: 15,
+                                                                fontWeight: isRead
+                                                                    ? FontWeight
+                                                                        .w500
+                                                                    : FontWeight
+                                                                        .w700,
+                                                                color: const Color(
+                                                                    0xFF0F172A),
                                                               ),
                                                             ),
-                                                            if (!isRead)
-                                                              _buildUnreadDot(
-                                                                  interviewColor),
+                                                          ),
+                                                          if (!isRead)
+                                                            _buildUnreadDot(
+                                                                interviewColor),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 4),
+                                                      RichText(
+                                                        text: TextSpan(
+                                                          style: const TextStyle(
+                                                              fontSize: 13,
+                                                              color: Color(
+                                                                  0xFF64748B),
+                                                              height: 1.4),
+                                                          children:
+                                                              _parseMessageWithBold(
+                                                            'Interview for **$interviewJobTitle** at **$interviewCompany**.',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 6),
+                                                      Text(
+                                                          '$timeAgo • $dateFormatted',
+                                                          style: const TextStyle(
+                                                              fontSize: 11,
+                                                              color: Color(
+                                                                  0xFF94A3B8))),
+                                                      const SizedBox(
+                                                          height: 10),
+                                                      // "View Schedule" chip
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                horizontal:
+                                                                    10,
+                                                                vertical: 5),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: const Color(
+                                                              0xFFF5F3FF),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                      999),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize
+                                                                  .min,
+                                                          children: const [
+                                                            Icon(
+                                                                Icons
+                                                                    .calendar_month_rounded,
+                                                                size: 14,
+                                                                color: Color(
+                                                                    0xFF7C3AED)),
+                                                            SizedBox(
+                                                                width: 5),
+                                                            Text(
+                                                              'View Schedule',
+                                                              style:
+                                                                  TextStyle(
+                                                                fontSize: 11,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Color(
+                                                                    0xFF6D28D9),
+                                                              ),
+                                                            ),
                                                           ],
                                                         ),
-                                                        const SizedBox(
-                                                            height: 4),
-                                                        RichText(
-                                                          text: TextSpan(
-                                                            style: const TextStyle(
-                                                                fontSize: 13,
-                                                                color: Color(
-                                                                    0xFF64748B),
-                                                                height: 1.4),
-                                                            children:
-                                                                _parseMessageWithBold(
-                                                              'Interview for **$interviewJobTitle** at **$interviewCompany**.',
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 6),
-                                                        Text(
-                                                            '$timeAgo • $dateFormatted',
-                                                            style: const TextStyle(
-                                                                fontSize: 11,
-                                                                color: Color(
-                                                                    0xFF94A3B8))),
-                                                        const SizedBox(
-                                                            height: 10),
-                                                        // "View Schedule" chip
-                                                        Container(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      10,
-                                                                  vertical: 5),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: const Color(
-                                                                0xFFF5F3FF),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        999),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: const [
-                                                              Icon(
-                                                                  Icons
-                                                                      .calendar_month_rounded,
-                                                                  size: 14,
-                                                                  color: Color(
-                                                                      0xFF7C3AED)),
-                                                              SizedBox(
-                                                                  width: 5),
-                                                              Text(
-                                                                'View Schedule',
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 11,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  color: Color(
-                                                                      0xFF6D28D9),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
-                                              ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ),
@@ -11142,154 +11235,147 @@ class _NotificationsTabState extends State<NotificationsTab>
                                           null;
                                   const Color offerColor = Color(0xFF0EA5E9);
 
-                                  card = Dismissible(
-                                    key: ValueKey('notif_$id'),
-                                    direction: DismissDirection.endToStart,
-                                    background: _buildDismissBackground(),
-                                    onDismissed: (_) =>
-                                        _deleteNotification(index),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: _buildCardDecoration(
-                                          isRead, offerColor),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Material(
-                                          color: Colors.white,
-                                          child: InkWell(
-                                            onTap: () {
-                                              _openNotification(n);
-                                              _showOfferDecisionModal(
-                                                notificationItem: n,
-                                                jobTitle: offerJobTitle,
-                                                companyName: offerCompany,
-                                                startDate: startDate,
-                                                salary: salary,
-                                                employmentType:
-                                                    formatEmploymentTypeLabel(
-                                                        empTypeRaw),
-                                                hasKnownApplicationId:
-                                                    hasKnownAppId,
-                                              );
-                                            },
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      16, 14, 16, 14),
-                                              child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  _buildStatusLeading(
-                                                      offerColor,
-                                                      'assets/empoy_notif_hired.png'),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Row(
-                                                          children: [
-                                                            Expanded(
-                                                              child: Text(
-                                                                subject,
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 15,
-                                                                  fontWeight: isRead
-                                                                      ? FontWeight
-                                                                          .w500
-                                                                      : FontWeight
-                                                                          .w700,
-                                                                  color: const Color(
-                                                                      0xFF0F172A),
-                                                                ),
+                                  innerCard = Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: _buildCardDecoration(
+                                        isRead, offerColor),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Material(
+                                        color: Colors.white,
+                                        child: InkWell(
+                                          onTap: () {
+                                            _openNotification(n);
+                                            _showOfferDecisionModal(
+                                              notificationItem: n,
+                                              jobTitle: offerJobTitle,
+                                              companyName: offerCompany,
+                                              startDate: startDate,
+                                              salary: salary,
+                                              employmentType:
+                                                  formatEmploymentTypeLabel(
+                                                      empTypeRaw),
+                                              hasKnownApplicationId:
+                                                  hasKnownAppId,
+                                            );
+                                          },
+                                          child: Padding(
+                                            padding:
+                                                const EdgeInsets.fromLTRB(
+                                                    16, 14, 16, 14),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                _buildStatusLeading(
+                                                    offerColor,
+                                                    'assets/empoy_notif_hired.png'),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child: Text(
+                                                              subject,
+                                                              style:
+                                                                  TextStyle(
+                                                                fontSize: 15,
+                                                                fontWeight: isRead
+                                                                    ? FontWeight
+                                                                        .w500
+                                                                    : FontWeight
+                                                                        .w700,
+                                                                color: const Color(
+                                                                    0xFF0F172A),
                                                               ),
                                                             ),
-                                                            if (!isRead)
-                                                              _buildUnreadDot(
-                                                                  offerColor),
+                                                          ),
+                                                          if (!isRead)
+                                                            _buildUnreadDot(
+                                                                offerColor),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 4),
+                                                      RichText(
+                                                        text: TextSpan(
+                                                          style:
+                                                              const TextStyle(
+                                                            fontSize: 13,
+                                                            color: Color(
+                                                                0xFF64748B),
+                                                            height: 1.4,
+                                                          ),
+                                                          children:
+                                                              _parseMessageWithBold(
+                                                            '**$offerCompany** has offered you the **$offerJobTitle** role. Please choose to accept or reject this offer.',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 6),
+                                                      Text(
+                                                        '$timeAgo • $dateFormatted',
+                                                        style: const TextStyle(
+                                                            fontSize: 11,
+                                                            color: Color(
+                                                                0xFF94A3B8)),
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 10),
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                horizontal:
+                                                                    10,
+                                                                vertical: 5),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: const Color(
+                                                              0xFFE0F2FE),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                      999),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize
+                                                                  .min,
+                                                          children: const [
+                                                            Icon(
+                                                                Icons
+                                                                    .gavel_rounded,
+                                                                size: 14,
+                                                                color: Color(
+                                                                    0xFF0369A1)),
+                                                            SizedBox(
+                                                                width: 5),
+                                                            Text(
+                                                              'Respond to Offer',
+                                                              style:
+                                                                  TextStyle(
+                                                                fontSize: 11,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Color(
+                                                                    0xFF075985),
+                                                              ),
+                                                            ),
                                                           ],
                                                         ),
-                                                        const SizedBox(
-                                                            height: 4),
-                                                        RichText(
-                                                          text: TextSpan(
-                                                            style:
-                                                                const TextStyle(
-                                                              fontSize: 13,
-                                                              color: Color(
-                                                                  0xFF64748B),
-                                                              height: 1.4,
-                                                            ),
-                                                            children:
-                                                                _parseMessageWithBold(
-                                                              '**$offerCompany** has offered you the **$offerJobTitle** role. Please choose to accept or reject this offer.',
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 6),
-                                                        Text(
-                                                          '$timeAgo • $dateFormatted',
-                                                          style: const TextStyle(
-                                                              fontSize: 11,
-                                                              color: Color(
-                                                                  0xFF94A3B8)),
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 10),
-                                                        Container(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      10,
-                                                                  vertical: 5),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: const Color(
-                                                                0xFFE0F2FE),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        999),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: const [
-                                                              Icon(
-                                                                  Icons
-                                                                      .gavel_rounded,
-                                                                  size: 14,
-                                                                  color: Color(
-                                                                      0xFF0369A1)),
-                                                              SizedBox(
-                                                                  width: 5),
-                                                              Text(
-                                                                'Respond to Offer',
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 11,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  color: Color(
-                                                                      0xFF075985),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
-                                              ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ),
@@ -11326,150 +11412,143 @@ class _NotificationsTabState extends State<NotificationsTab>
                                           'Full-time';
                                   const Color hiredColor = Color(0xFF10B981);
 
-                                  card = Dismissible(
-                                    key: ValueKey('notif_$id'),
-                                    direction: DismissDirection.endToStart,
-                                    background: _buildDismissBackground(),
-                                    onDismissed: (_) =>
-                                        _deleteNotification(index),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: _buildCardDecoration(
-                                          isRead, hiredColor),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Material(
-                                          color: Colors.white,
-                                          child: InkWell(
-                                            onTap: () {
-                                              _openNotification(n);
-                                              _showHiredOfferModal(
-                                                context,
-                                                jobTitle: hiredJobTitle,
-                                                companyName: hiredCompany,
-                                                startDate: hiredStartDate,
-                                                salary: hiredSalary,
-                                                employmentType:
-                                                    formatEmploymentTypeLabel(
-                                                        hiredEmpType),
-                                              );
-                                            },
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      16, 14, 16, 14),
-                                              child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  _buildStatusLeading(
-                                                      hiredColor,
-                                                      'assets/empoy_notif_hired.png'),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Row(
-                                                          children: [
-                                                            Expanded(
-                                                              child: Text(
-                                                                subject,
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 15,
-                                                                  fontWeight: isRead
-                                                                      ? FontWeight
-                                                                          .w500
-                                                                      : FontWeight
-                                                                          .w700,
-                                                                  color: const Color(
-                                                                      0xFF0F172A),
-                                                                ),
+                                  innerCard = Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: _buildCardDecoration(
+                                        isRead, hiredColor),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Material(
+                                        color: Colors.white,
+                                        child: InkWell(
+                                          onTap: () {
+                                            _openNotification(n);
+                                            _showHiredOfferModal(
+                                              context,
+                                              jobTitle: hiredJobTitle,
+                                              companyName: hiredCompany,
+                                              startDate: hiredStartDate,
+                                              salary: hiredSalary,
+                                              employmentType:
+                                                  formatEmploymentTypeLabel(
+                                                      hiredEmpType),
+                                            );
+                                          },
+                                          child: Padding(
+                                            padding:
+                                                const EdgeInsets.fromLTRB(
+                                                    16, 14, 16, 14),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                _buildStatusLeading(
+                                                    hiredColor,
+                                                    'assets/empoy_notif_hired.png'),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child: Text(
+                                                              subject,
+                                                              style:
+                                                                  TextStyle(
+                                                                fontSize: 15,
+                                                                fontWeight: isRead
+                                                                    ? FontWeight
+                                                                        .w500
+                                                                    : FontWeight
+                                                                        .w700,
+                                                                color: const Color(
+                                                                    0xFF0F172A),
                                                               ),
                                                             ),
-                                                            if (!isRead)
-                                                              _buildUnreadDot(
-                                                                  hiredColor),
+                                                          ),
+                                                          if (!isRead)
+                                                            _buildUnreadDot(
+                                                                hiredColor),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 4),
+                                                      RichText(
+                                                        text: TextSpan(
+                                                          style: const TextStyle(
+                                                              fontSize: 13,
+                                                              color: Color(
+                                                                  0xFF64748B),
+                                                              height: 1.4),
+                                                          children:
+                                                              _parseMessageWithBold(
+                                                            'Offer extended for **$hiredJobTitle** at **$hiredCompany**.',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 6),
+                                                      Text(
+                                                          '$timeAgo • $dateFormatted',
+                                                          style: const TextStyle(
+                                                              fontSize: 11,
+                                                              color: Color(
+                                                                  0xFF94A3B8))),
+                                                      const SizedBox(
+                                                          height: 10),
+                                                      // "View Offer" chip
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                horizontal:
+                                                                    10,
+                                                                vertical: 5),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: const Color(
+                                                              0xFFF0FDF4),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                      999),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize
+                                                                  .min,
+                                                          children: const [
+                                                            Icon(
+                                                                Icons
+                                                                    .workspace_premium_rounded,
+                                                                size: 14,
+                                                                color: Color(
+                                                                    0xFF059669)),
+                                                            SizedBox(
+                                                                width: 5),
+                                                            Text(
+                                                              'View Offer',
+                                                              style:
+                                                                  TextStyle(
+                                                                fontSize: 11,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Color(
+                                                                    0xFF047857),
+                                                              ),
+                                                            ),
                                                           ],
                                                         ),
-                                                        const SizedBox(
-                                                            height: 4),
-                                                        RichText(
-                                                          text: TextSpan(
-                                                            style: const TextStyle(
-                                                                fontSize: 13,
-                                                                color: Color(
-                                                                    0xFF64748B),
-                                                                height: 1.4),
-                                                            children:
-                                                                _parseMessageWithBold(
-                                                              'Offer extended for **$hiredJobTitle** at **$hiredCompany**.',
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 6),
-                                                        Text(
-                                                            '$timeAgo • $dateFormatted',
-                                                            style: const TextStyle(
-                                                                fontSize: 11,
-                                                                color: Color(
-                                                                    0xFF94A3B8))),
-                                                        const SizedBox(
-                                                            height: 10),
-                                                        // "View Offer" chip
-                                                        Container(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      10,
-                                                                  vertical: 5),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: const Color(
-                                                                0xFFF0FDF4),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        999),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: const [
-                                                              Icon(
-                                                                  Icons
-                                                                      .workspace_premium_rounded,
-                                                                  size: 14,
-                                                                  color: Color(
-                                                                      0xFF059669)),
-                                                              SizedBox(
-                                                                  width: 5),
-                                                              Text(
-                                                                'View Offer',
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 11,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  color: Color(
-                                                                      0xFF047857),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
-                                              ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ),
@@ -11498,148 +11577,141 @@ class _NotificationsTabState extends State<NotificationsTab>
                                           dateFormatted;
                                   const Color rejColor = Color(0xFFEF4444);
 
-                                  card = Dismissible(
-                                    key: ValueKey('notif_$id'),
-                                    direction: DismissDirection.endToStart,
-                                    background: _buildDismissBackground(),
-                                    onDismissed: (_) =>
-                                        _deleteNotification(index),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: _buildCardDecoration(
-                                          isRead, rejColor),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(16),
-                                        child: Material(
-                                          color: Colors.white,
-                                          child: InkWell(
-                                            onTap: () {
-                                              _openNotification(n);
-                                              _showRejectedModal(
-                                                context,
-                                                jobTitle: rejJobTitle,
-                                                companyName: rejCompany,
-                                                updateDate: rejUpdateDate,
-                                              );
-                                            },
-                                            child: Padding(
-                                              padding:
-                                                  const EdgeInsets.fromLTRB(
-                                                      16, 14, 16, 14),
-                                              child: Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  _buildStatusLeading(rejColor,
-                                                      'assets/empoy_notif_rejected.png'),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Row(
-                                                          children: [
-                                                            Expanded(
-                                                              child: Text(
-                                                                subject,
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 15,
-                                                                  fontWeight: isRead
-                                                                      ? FontWeight
-                                                                          .w500
-                                                                      : FontWeight
-                                                                          .w700,
-                                                                  color: const Color(
-                                                                      0xFF0F172A),
-                                                                ),
+                                  innerCard = Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: _buildCardDecoration(
+                                        isRead, rejColor),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(16),
+                                      child: Material(
+                                        color: Colors.white,
+                                        child: InkWell(
+                                          onTap: () {
+                                            _openNotification(n);
+                                            _showRejectedModal(
+                                              context,
+                                              jobTitle: rejJobTitle,
+                                              companyName: rejCompany,
+                                              updateDate: rejUpdateDate,
+                                            );
+                                          },
+                                          child: Padding(
+                                            padding:
+                                                const EdgeInsets.fromLTRB(
+                                                    16, 14, 16, 14),
+                                            child: Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                _buildStatusLeading(rejColor,
+                                                    'assets/empoy_notif_rejected.png'),
+                                                const SizedBox(width: 12),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child: Text(
+                                                              subject,
+                                                              style:
+                                                                  TextStyle(
+                                                                fontSize: 15,
+                                                                fontWeight: isRead
+                                                                    ? FontWeight
+                                                                        .w500
+                                                                    : FontWeight
+                                                                        .w700,
+                                                                color: const Color(
+                                                                    0xFF0F172A),
                                                               ),
                                                             ),
-                                                            if (!isRead)
-                                                              _buildUnreadDot(
-                                                                  rejColor),
+                                                          ),
+                                                          if (!isRead)
+                                                            _buildUnreadDot(
+                                                                rejColor),
+                                                        ],
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 4),
+                                                      RichText(
+                                                        text: TextSpan(
+                                                          style: const TextStyle(
+                                                              fontSize: 13,
+                                                              color: Color(
+                                                                  0xFF64748B),
+                                                              height: 1.4),
+                                                          children:
+                                                              _parseMessageWithBold(
+                                                            'Application for **$rejJobTitle** at **$rejCompany**.',
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(
+                                                          height: 6),
+                                                      Text(
+                                                          '$timeAgo • $dateFormatted',
+                                                          style: const TextStyle(
+                                                              fontSize: 11,
+                                                              color: Color(
+                                                                  0xFF94A3B8))),
+                                                      const SizedBox(
+                                                          height: 10),
+                                                      // "View Details" chip
+                                                      Container(
+                                                        padding:
+                                                            const EdgeInsets
+                                                                .symmetric(
+                                                                horizontal:
+                                                                    10,
+                                                                vertical: 5),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          color: const Color(
+                                                              0xFFFEF2F2),
+                                                          borderRadius:
+                                                              BorderRadius
+                                                                  .circular(
+                                                                      999),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisSize:
+                                                              MainAxisSize
+                                                                  .min,
+                                                          children: [
+                                                            const Icon(
+                                                                Icons
+                                                                    .info_outline_rounded,
+                                                                size: 14,
+                                                                color: Color(
+                                                                    0xFFDC2626)),
+                                                            const SizedBox(
+                                                                width: 5),
+                                                            Text(
+                                                              S
+                                                                      .of(context)
+                                                                      ?.viewDetails ??
+                                                                  'View Details',
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontSize: 11,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w600,
+                                                                color: Color(
+                                                                    0xFFB91C1C),
+                                                              ),
+                                                            ),
                                                           ],
                                                         ),
-                                                        const SizedBox(
-                                                            height: 4),
-                                                        RichText(
-                                                          text: TextSpan(
-                                                            style: const TextStyle(
-                                                                fontSize: 13,
-                                                                color: Color(
-                                                                    0xFF64748B),
-                                                                height: 1.4),
-                                                            children:
-                                                                _parseMessageWithBold(
-                                                              'Application for **$rejJobTitle** at **$rejCompany**.',
-                                                            ),
-                                                          ),
-                                                        ),
-                                                        const SizedBox(
-                                                            height: 6),
-                                                        Text(
-                                                            '$timeAgo • $dateFormatted',
-                                                            style: const TextStyle(
-                                                                fontSize: 11,
-                                                                color: Color(
-                                                                    0xFF94A3B8))),
-                                                        const SizedBox(
-                                                            height: 10),
-                                                        // "View Details" chip
-                                                        Container(
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      10,
-                                                                  vertical: 5),
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            color: const Color(
-                                                                0xFFFEF2F2),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        999),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize:
-                                                                MainAxisSize
-                                                                    .min,
-                                                            children: [
-                                                              Icon(
-                                                                  Icons
-                                                                      .info_outline_rounded,
-                                                                  size: 14,
-                                                                  color: Color(
-                                                                      0xFFDC2626)),
-                                                              SizedBox(
-                                                                  width: 5),
-                                                              Text(
-                                                                S
-                                                                        .of(context)
-                                                                        ?.viewDetails ??
-                                                                    'View Details',
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 11,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w600,
-                                                                  color: Color(
-                                                                      0xFFB91C1C),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
+                                                      ),
+                                                    ],
                                                   ),
-                                                ],
-                                              ),
+                                                ),
+                                              ],
                                             ),
                                           ),
                                         ),
@@ -11653,39 +11725,41 @@ class _NotificationsTabState extends State<NotificationsTab>
                                   String? statusAsset =
                                       _getStatusAsset(type, subject, message);
 
-                                  card = Dismissible(
-                                    key: ValueKey('notif_$id'),
-                                    direction: DismissDirection.endToStart,
-                                    background: _buildDismissBackground(),
-                                    onDismissed: (_) =>
-                                        _deleteNotification(index),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 12),
-                                      decoration: _buildCardDecoration(
-                                          isRead, statusColor),
-                                      child: ListTile(
-                                        onTap: () => _openNotification(n),
-                                        leading: _buildStatusLeading(
-                                            statusColor, statusAsset),
-                                        title: Text(
-                                          subject,
-                                          style: TextStyle(
-                                            fontSize: 15,
-                                            fontWeight: isRead
-                                                ? FontWeight.w500
-                                                : FontWeight.w700,
-                                            color: const Color(0xFF0F172A),
-                                          ),
+                                  innerCard = Container(
+                                    margin: const EdgeInsets.only(bottom: 12),
+                                    decoration: _buildCardDecoration(
+                                        isRead, statusColor),
+                                    child: ListTile(
+                                      onTap: () => _openNotification(n),
+                                      leading: _buildStatusLeading(
+                                          statusColor, statusAsset),
+                                      title: Text(
+                                        subject,
+                                        style: TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: isRead
+                                            ? FontWeight.w500
+                                            : FontWeight.w700,
+                                          color: const Color(0xFF0F172A),
                                         ),
-                                        subtitle: _buildGenericSubtitle(
-                                            message, timeAgo, dateFormatted),
-                                        trailing: !isRead
-                                            ? _buildUnreadDot(statusColor)
-                                            : null,
                                       ),
+                                      subtitle: _buildGenericSubtitle(
+                                          message, timeAgo, dateFormatted),
+                                      trailing: !isRead
+                                          ? _buildUnreadDot(statusColor)
+                                          : null,
                                     ),
                                   );
                                 }
+
+                                final card = NotificationSwipeCard(
+                                  key: ValueKey('notif_$id'),
+                                  enabled: !_isProtectedSatisfactionSurvey(n),
+                                  isFirstCard: index == 0,
+                                  onDismissed: () => _deleteNotification(index,
+                                      withUndoNet: true),
+                                  child: innerCard,
+                                );
 
                                 final deletableCount = sortedList
                                     .where((x) =>
@@ -11729,6 +11803,15 @@ class _NotificationsTabState extends State<NotificationsTab>
                           ),
                         ),
                 ),
+          ),
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: _notifications.isEmpty ? 20.0 : 84.0,
+            child: _buildUndoToast(),
+          ),
+        ],
+      ),
       floatingActionButton:
           _notifications.isEmpty ? null : _buildAnimatedDeleteAllFab(),
     );
@@ -11736,16 +11819,107 @@ class _NotificationsTabState extends State<NotificationsTab>
 
   // ── Helper Builders ─────────────────────────────────────────────────────────
 
-  Widget _buildDismissBackground() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEF4444),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      alignment: Alignment.centerRight,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: const Icon(Icons.delete_rounded, color: Colors.white),
+  Widget _buildUndoToast() {
+    return AnimatedBuilder(
+      animation: _undoToastAnim,
+      builder: (context, child) {
+        if (_undoToastAnim.value == 0.0 || _undoQueue.isEmpty) {
+          return const SizedBox.shrink();
+        }
+        final slideY = (1.0 - _undoToastAnim.value) * 60.0;
+        final opacity = _undoToastAnim.value.clamp(0.0, 1.0);
+        final count = _undoQueue.length;
+
+        String labelText;
+        if (_isDeleteAllUndo) {
+          labelText = 'All $count notifications deleted';
+        } else if (count == 1) {
+          labelText = 'Notification deleted';
+        } else {
+          labelText = '$count notifications deleted';
+        }
+
+        return Transform.translate(
+          offset: Offset(0, slideY),
+          child: Opacity(
+            opacity: opacity,
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.22),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.delete_sweep_rounded,
+                        color: Colors.white, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.25),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      ),
+                      child: Text(
+                        labelText,
+                        key: ValueKey('undo_label_${count}_$_isDeleteAllUndo'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13.5,
+                          color: Colors.white,
+                          letterSpacing: -0.1,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _undoLastDelete,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        child: Text(
+                          'UNDO',
+                          style: GoogleFonts.poppins(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                            color: const Color(0xFF38BDF8),
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 

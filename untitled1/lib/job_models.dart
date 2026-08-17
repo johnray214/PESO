@@ -576,6 +576,10 @@ void showJobDetailSheet(
   bool isSaved = false,
   VoidCallback? onSave,
   VoidCallback? onViewMap,
+  String? customActionLabel,
+  dynamic customActionIcon,
+  List<Color>? customActionGradientColors,
+  VoidCallback? onCustomActionTap,
 }) {
   showModalBottomSheet(
     context: context,
@@ -598,6 +602,10 @@ void showJobDetailSheet(
                 isSaved: isSaved,
                 onSave: onSave,
                 onViewMap: onViewMap,
+                customActionLabel: customActionLabel,
+                customActionIcon: customActionIcon,
+                customActionGradientColors: customActionGradientColors,
+                onCustomActionTap: onCustomActionTap,
               ),
             ),
           ),
@@ -616,6 +624,10 @@ class JobDetailSheet extends StatefulWidget {
   final bool isSaved;
   final VoidCallback? onSave;
   final VoidCallback? onViewMap;
+  final String? customActionLabel;
+  final dynamic customActionIcon;
+  final List<Color>? customActionGradientColors;
+  final VoidCallback? onCustomActionTap;
 
   const JobDetailSheet({
     super.key,
@@ -626,6 +638,10 @@ class JobDetailSheet extends StatefulWidget {
     this.isSaved = false,
     this.onSave,
     this.onViewMap,
+    this.customActionLabel,
+    this.customActionIcon,
+    this.customActionGradientColors,
+    this.onCustomActionTap,
   });
 
   @override
@@ -1680,61 +1696,103 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: GestureDetector(
-                onTap: isApplied ? null : () => widget.onApply?.call(),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  height: 54,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isApplied
+              child: Builder(
+                builder: (context) {
+                  final hasCustomAction = widget.onCustomActionTap != null;
+                  final isEnabled = !isApplied || hasCustomAction;
+                  final onTap = hasCustomAction
+                      ? widget.onCustomActionTap
+                      : (isApplied ? null : () => widget.onApply?.call());
+
+                  final defaultGradient = isApplied
+                      ? [
+                          const Color(0xFF10B981),
+                          const Color(0xFF059669),
+                        ]
+                      : [
+                          const Color(0xFF2563EB),
+                          const Color(0xFF1D4ED8),
+                        ];
+
+                  final gradientColors = widget.customActionGradientColors ??
+                      (hasCustomAction
                           ? [
-                              const Color(0xFF10B981),
-                              const Color(0xFF059669),
+                              const Color(0xFF0EA5E9),
+                              const Color(0xFF0284C7),
                             ]
-                          : [
-                              const Color(0xFF2563EB),
-                              const Color(0xFF1D4ED8),
-                            ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isApplied
-                                ? const Color(0xFF10B981)
-                                : const Color(0xFF2563EB))
-                            .withOpacity(0.35),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      HugeIcon(
-                        icon: isApplied
-                            ? HugeIcons.strokeRoundedCheckmarkCircle01
-                            : HugeIcons.strokeRoundedSent,
+                          : defaultGradient);
+
+                  final label = widget.customActionLabel ??
+                      (isApplied ? 'Applied' : 'Apply Now');
+
+                  final dynamic customIcon = widget.customActionIcon;
+
+                  Widget iconWidget;
+                  if (customIcon != null) {
+                    if (customIcon is IconData) {
+                      iconWidget = Icon(
+                        customIcon,
+                        size: 18,
+                        color: Colors.white,
+                      );
+                    } else {
+                      iconWidget = HugeIcon(
+                        icon: customIcon as List<List<dynamic>>,
                         size: 18,
                         color: Colors.white,
                         strokeWidth: 2.0,
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        isApplied ? 'Applied' : 'Apply Now',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          letterSpacing: -0.2,
+                      );
+                    }
+                  } else {
+                    iconWidget = HugeIcon(
+                      icon: isApplied
+                          ? HugeIcons.strokeRoundedCheckmarkCircle01
+                          : HugeIcons.strokeRoundedSent,
+                      size: 18,
+                      color: Colors.white,
+                      strokeWidth: 2.0,
+                    );
+                  }
+
+                  return GestureDetector(
+                    onTap: isEnabled ? onTap : null,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      height: 54,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: gradientColors,
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
                         ),
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: gradientColors.first.withOpacity(0.35),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          iconWidget,
+                          const SizedBox(width: 10),
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],

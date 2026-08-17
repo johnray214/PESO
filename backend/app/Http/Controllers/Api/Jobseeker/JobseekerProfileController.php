@@ -117,7 +117,6 @@ class JobseekerProfileController extends Controller
                     $targetJobIds = array_column($highMatchJobs, 'id');
                     $existingIds = \App\Models\Notification::query()
                         ->where('type', 'match')
-                        ->where('created_by', $jobseeker->id)
                         ->whereIn('job_listing_id', $targetJobIds)
                         ->pluck('job_listing_id')
                         ->map(fn ($id) => (int) $id)
@@ -139,7 +138,7 @@ class JobseekerProfileController extends Controller
                             'scheduled_at'   => null,
                             'sent_at'        => $now,
                             'status'         => 'sent',
-                            'created_by'     => $jobseeker->id,
+                            'created_by'     => null,
                         ]);
 
                         \App\Models\NotificationRead::create([

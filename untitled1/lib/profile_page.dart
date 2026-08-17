@@ -30,6 +30,7 @@ import 'main.dart';
 import 'home_pages.dart'; // Added to access global map notifiers
 import 'skill_match_utils.dart';
 import 'l10n/app_localizations.dart';
+import 'job_offer_modal.dart';
 
 const String _kProfileHeaderMascotAsset = 'assets/empoy_profile.png';
 const double _kProfileHeaderMascotImageSize = 170;
@@ -431,8 +432,7 @@ class _ProfileTabState extends State<ProfileTab> {
                           ),
                           child: Row(
                             children: [
-                              _buildCompactStat(
-                                  '$_appliedCount',
+                              _buildCompactStat('$_appliedCount',
                                   l10n?.statApplied ?? 'Applied',
                                   onTap: () async {
                                 await Navigator.of(context).push(
@@ -446,8 +446,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                   width: 1,
                                   height: 32,
                                   color: const Color(0xFFF1F5F9)),
-                              _buildCompactStat(
-                                  '$_interviewCount',
+                              _buildCompactStat('$_interviewCount',
                                   l10n?.statProcessing ?? 'Processing',
                                   onTap: () async {
                                 await Navigator.of(context).push(
@@ -491,8 +490,7 @@ class _ProfileTabState extends State<ProfileTab> {
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                           boxShadow: [
                             BoxShadow(
-                              color:
-                                  const Color(0xFF0F172A).withOpacity(0.03),
+                              color: const Color(0xFF0F172A).withOpacity(0.03),
                               blurRadius: 10,
                               offset: const Offset(0, 3),
                             ),
@@ -572,8 +570,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                           horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFFFFBEB),
-                                        borderRadius:
-                                            BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                             color: const Color(0xFFFDE68A),
                                             width: 1),
@@ -604,8 +601,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                           horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
                                         color: const Color(0xFFF0FDF4),
-                                        borderRadius:
-                                            BorderRadius.circular(10),
+                                        borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                             color: const Color(0xFFDCFCE7),
                                             width: 1),
@@ -653,8 +649,7 @@ class _ProfileTabState extends State<ProfileTab> {
                           border: Border.all(color: const Color(0xFFE2E8F0)),
                           boxShadow: [
                             BoxShadow(
-                              color:
-                                  const Color(0xFF0F172A).withOpacity(0.03),
+                              color: const Color(0xFF0F172A).withOpacity(0.03),
                               blurRadius: 10,
                               offset: const Offset(0, 3),
                             ),
@@ -882,9 +877,8 @@ class _ProfileTabState extends State<ProfileTab> {
     bool isFirst = false,
     bool isLast = false,
   }) {
-    final iconBg = isSignOut
-        ? const Color(0xFFFEF2F2)
-        : const Color(0xFFEFF6FF);
+    final iconBg =
+        isSignOut ? const Color(0xFFFEF2F2) : const Color(0xFFEFF6FF);
     final iconFg =
         isSignOut ? const Color(0xFFEF4444) : const Color(0xFF2563EB);
 
@@ -926,7 +920,9 @@ class _ProfileTabState extends State<ProfileTab> {
                   style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w700,
-                    color: isSignOut ? const Color(0xFFDC2626) : const Color(0xFF0F172A),
+                    color: isSignOut
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF0F172A),
                   ),
                 ),
               ),
@@ -937,7 +933,9 @@ class _ProfileTabState extends State<ProfileTab> {
               HugeIcon(
                 icon: HugeIcons.strokeRoundedArrowRight01,
                 size: 18,
-                color: isSignOut ? const Color(0xFFFCA5A5) : const Color(0xFF94A3B8),
+                color: isSignOut
+                    ? const Color(0xFFFCA5A5)
+                    : const Color(0xFF94A3B8),
                 strokeWidth: 2.0,
               ),
             ],
@@ -1795,7 +1793,6 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
     );
   }
 
-
   Widget _labeledField(String label, Widget child, {String? helper}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1994,7 +1991,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                   boxShadow: isActive
                       ? [
                           BoxShadow(
-                            color: const Color(0xFF2563EB).withValues(alpha: 0.28),
+                            color:
+                                const Color(0xFF2563EB).withValues(alpha: 0.28),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
                           ),
@@ -2005,12 +2003,9 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     HugeIcon(
-                      icon: _tabs[i]['icon']
-                          as List<List<dynamic>>,
+                      icon: _tabs[i]['icon'] as List<List<dynamic>>,
                       size: 14,
-                      color: isActive
-                          ? Colors.white
-                          : const Color(0xFF64748B),
+                      color: isActive ? Colors.white : const Color(0xFF64748B),
                       strokeWidth: 2.0,
                     ),
                     const SizedBox(width: 5),
@@ -2019,9 +2014,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: isActive
-                            ? Colors.white
-                            : const Color(0xFF64748B),
+                        color:
+                            isActive ? Colors.white : const Color(0xFF64748B),
                       ),
                     ),
                   ],
@@ -2055,7 +2049,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                          color:
+                              const Color(0xFF2563EB).withValues(alpha: 0.25),
                           blurRadius: 18,
                           offset: const Offset(0, 6),
                         ),
@@ -2164,8 +2159,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                       LengthLimitingTextInputFormatter(1),
                       UpperCaseTextFormatter(),
                     ],
-                    decoration:
-                        _fieldDec('L.', null).copyWith(counterText: ''),
+                    decoration: _fieldDec('L.', null).copyWith(counterText: ''),
                   ),
                 ),
               ),
@@ -2191,8 +2185,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
             'Phone number',
             TextFormField(
               controller: _phoneController,
-              decoration:
-                  _fieldDec('09XXXXXXXXX', HugeIcons.strokeRoundedCall),
+              decoration: _fieldDec('09XXXXXXXXX', HugeIcons.strokeRoundedCall),
               keyboardType: TextInputType.phone,
               validator: (v) {
                 final value = v?.trim() ?? '';
@@ -2223,8 +2216,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                           DateTime(now.year - 21, now.month, now.day);
                       final rawDob = _dobController.text.trim();
                       if (rawDob.isNotEmpty) {
-                        final datePart =
-                            rawDob.split(RegExp(r'[T\s]')).first;
+                        final datePart = rawDob.split(RegExp(r'[T\s]')).first;
                         final parts = datePart.split('-');
                         if (parts.length == 3) {
                           final y = int.tryParse(parts[0]);
@@ -2257,19 +2249,17 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                 child: _labeledField(
                   'Sex',
                   DropdownButtonFormField<String>(
-                    value: ['male', 'female']
-                            .contains(_selectedSex?.toLowerCase())
-                        ? _selectedSex?.toLowerCase()
-                        : null,
-                    decoration: _fieldDec(
-                        'Select sex', HugeIcons.strokeRoundedUser),
+                    value:
+                        ['male', 'female'].contains(_selectedSex?.toLowerCase())
+                            ? _selectedSex?.toLowerCase()
+                            : null,
+                    decoration:
+                        _fieldDec('Select sex', HugeIcons.strokeRoundedUser),
                     items: const [
                       DropdownMenuItem(value: 'male', child: Text('Male')),
-                      DropdownMenuItem(
-                          value: 'female', child: Text('Female')),
+                      DropdownMenuItem(value: 'female', child: Text('Female')),
                     ],
-                    onChanged: (value) =>
-                        setState(() => _selectedSex = value),
+                    onChanged: (value) => setState(() => _selectedSex = value),
                     validator: (value) {
                       if (value == null || value.isEmpty) return 'Required';
                       return null;
@@ -2351,8 +2341,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                         label: const Text('Change in Settings'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: AppColors.blueAccent,
-                          side:
-                              const BorderSide(color: Color(0xFF93C5FD)),
+                          side: const BorderSide(color: Color(0xFF93C5FD)),
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
                             vertical: 9,
@@ -2444,8 +2433,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
               decoration: BoxDecoration(
                 color: const Color(0xFFF8FAFC),
                 borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
+                border: Border.all(color: const Color(0xFFE2E8F0), width: 1.5),
               ),
               child: Column(
                 children: [
@@ -2495,8 +2483,7 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
                     color: Color(0xFF64748B),
                     strokeWidth: 2.0,
                   ),
-                  onDeleted:
-                      _isSaving ? null : () => _removeJobExperience(exp),
+                  onDeleted: _isSaving ? null : () => _removeJobExperience(exp),
                 );
               }).toList(),
             ),
@@ -2517,9 +2504,8 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
             label: 'Province',
             icon: HugeIcons.strokeRoundedBuilding01,
             value: _provinceName,
-            placeholder: _provinces.isEmpty
-                ? 'Loading provinces...'
-                : 'Select province',
+            placeholder:
+                _provinces.isEmpty ? 'Loading provinces...' : 'Select province',
             enabled: !_isSaving && _provinces.isNotEmpty,
             onTap: () async {
               if (_isSaving || _provinces.isEmpty || _updatingLocation) return;
@@ -2822,10 +2808,14 @@ String _formatApplicationDate(DateTime dt) {
 // ─── Application Model ────────────────────────────────────────────────────────
 
 class _Application {
+  final int? id;
   final Job job;
   final String appliedDate;
   final String status;
+  final String? rawStatus;
   final String? processingStage;
+  final String? offerResponse;
+  final DateTime? offerSentAt;
   final Color statusColor;
   final IconData statusIcon;
 
@@ -2837,17 +2827,25 @@ class _Application {
   String get compactBadgeLabel {
     if (status == 'Processing' && (processingStage?.isNotEmpty ?? false)) {
       final stage = processingStage!;
-      if (stage == 'For Job Offer') return 'JOB OFFER';
+      if (stage == 'For Job Offer') {
+        if (offerResponse == 'accepted') return 'OFFER ACCEPTED';
+        if (offerResponse == 'declined') return 'OFFER DECLINED';
+        return 'JOB OFFER';
+      }
       return stage.toUpperCase();
     }
     return status.toUpperCase();
   }
 
   const _Application({
+    this.id,
     required this.job,
     required this.appliedDate,
     required this.status,
+    this.rawStatus,
     this.processingStage,
+    this.offerResponse,
+    this.offerSentAt,
     required this.statusColor,
     this.statusIcon = Icons.info_outline_rounded,
   });
@@ -3167,11 +3165,23 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
             statusIcon = Icons.app_registration_rounded;
         }
 
+        final rawId = map['id'];
+        final appId =
+            rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
+        final offerResponse = map['offer_response']?.toString().toLowerCase();
+        final rawOfferSentAt = map['offer_sent_at']?.toString();
+        final offerSentAt =
+            rawOfferSentAt != null ? DateTime.tryParse(rawOfferSentAt) : null;
+
         apps.add(_Application(
+          id: appId,
           job: job,
           appliedDate: appliedDate,
           status: normalizedStatus,
+          rawStatus: rawStatus,
           processingStage: processingStage,
+          offerResponse: offerResponse,
+          offerSentAt: offerSentAt,
           statusColor: statusColor,
           statusIcon: statusIcon,
         ));
@@ -3251,7 +3261,10 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                             return _buildHeaderSummary();
                           }
                           final app = _applications[index - 1];
-                          return _ApplicationCard(application: app);
+                          return _ApplicationCard(
+                            application: app,
+                            onRefresh: _fetchApplications,
+                          );
                         },
                       ),
                     ),
@@ -3329,8 +3342,12 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
 
 class _ApplicationCard extends StatelessWidget {
   final _Application application;
+  final VoidCallback? onRefresh;
 
-  const _ApplicationCard({required this.application});
+  const _ApplicationCard({
+    required this.application,
+    this.onRefresh,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -3353,7 +3370,8 @@ class _ApplicationCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () => _openApplicationDetail(context, application),
+          onTap: () => _openApplicationDetail(context, application,
+              onRefresh: onRefresh),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -3427,7 +3445,8 @@ class _ApplicationCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                const Divider(
+                    height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -3439,7 +3458,8 @@ class _ApplicationCard extends StatelessWidget {
                         color: application.statusColor.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: application.statusColor.withValues(alpha: 0.25),
+                          color:
+                              application.statusColor.withValues(alpha: 0.25),
                         ),
                       ),
                       child: Row(
@@ -3479,16 +3499,67 @@ class _ApplicationCard extends StatelessWidget {
   }
 }
 
-void _openApplicationDetail(BuildContext context, _Application application) {
+Future<void> _openOfferModal(
+  BuildContext context,
+  _Application application, {
+  VoidCallback? onRefresh,
+}) async {
+  final appId = application.id;
+  if (appId == null || appId <= 0) {
+    CustomToast.show(
+      context,
+      message: 'Unable to locate your application record for this offer.',
+      type: ToastType.error,
+    );
+    return;
+  }
+  await showJobOfferDecisionSheet(
+    context: context,
+    applicationId: appId,
+    jobTitle: application.job.title,
+    companyName: application.job.company,
+    startDate: 'To be agreed upon',
+    salary: application.job.salaryDisplay,
+    employmentType: application.job.employmentTypeLabel,
+    initialResponse: application.offerResponse,
+    onResponseSubmitted: () {
+      Navigator.of(context, rootNavigator: true).pop();
+      onRefresh?.call();
+    },
+  );
+}
+
+void _openApplicationDetail(
+  BuildContext context,
+  _Application application, {
+  VoidCallback? onRefresh,
+}) {
   final job = application.job;
-  final banner = _ApplicationStatusBanner(application: application);
+  final isPendingOffer = application.rawStatus == 'for_job_offer' &&
+      (application.offerResponse == null || application.offerResponse!.isEmpty);
+
+  final banner = _ApplicationStatusBanner(
+    application: application,
+    onReviewOffer: isPendingOffer
+        ? () => _openOfferModal(context, application, onRefresh: onRefresh)
+        : null,
+  );
   final jobActionService = JobActionService();
+
   showJobDetailSheet(
     context,
     job,
     headerBanner: banner,
     isApplied: true,
     isSaved: jobActionService.isSaved(job.id),
+    customActionLabel: isPendingOffer ? 'Review Job Offer' : null,
+    customActionIcon: isPendingOffer ? Icons.gavel_rounded : null,
+    customActionGradientColors: isPendingOffer
+        ? [const Color(0xFF0EA5E9), const Color(0xFF0284C7)]
+        : null,
+    onCustomActionTap: isPendingOffer
+        ? () => _openOfferModal(context, application, onRefresh: onRefresh)
+        : null,
     onViewMap: () {
       Navigator.of(context).pop(); // Pop modal
       Navigator.of(context)
@@ -3822,7 +3893,8 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                           parent: ClampingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                        itemCount: _savedJobs.length + 1 + (_isLoadingMore ? 1 : 0),
+                        itemCount:
+                            _savedJobs.length + 1 + (_isLoadingMore ? 1 : 0),
                         itemBuilder: (context, index) {
                           if (index == 0) {
                             return _buildHeaderSummary();
@@ -4080,7 +4152,8 @@ class _SavedJobCard extends StatelessWidget {
                           color: const Color(0xFFF0FDF4),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                            color:
+                                const Color(0xFF10B981).withValues(alpha: 0.2),
                           ),
                         ),
                         child: Row(
@@ -4104,7 +4177,8 @@ class _SavedJobCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 14),
-                const Divider(height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
+                const Divider(
+                    height: 1, thickness: 1, color: Color(0xFFF1F5F9)),
                 const SizedBox(height: 12),
                 Row(
                   children: [
@@ -4274,8 +4348,12 @@ class _RotatingHourglassIconState extends State<_RotatingHourglassIcon>
 
 class _ApplicationStatusBanner extends StatelessWidget {
   final _Application application;
+  final VoidCallback? onReviewOffer;
 
-  const _ApplicationStatusBanner({required this.application});
+  const _ApplicationStatusBanner({
+    required this.application,
+    this.onReviewOffer,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -4294,14 +4372,21 @@ class _ApplicationStatusBanner extends StatelessWidget {
     };
     final currentStep = statusToStep[application.status] ?? 0;
     final isProcessing = application.status == 'Processing';
+    final isPendingOffer = application.rawStatus == 'for_job_offer' &&
+        (application.offerResponse == null ||
+            application.offerResponse!.isEmpty);
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: application.statusColor.withValues(alpha: 0.06),
+        color: isPendingOffer
+            ? const Color(0xFF0284C7).withValues(alpha: 0.06)
+            : application.statusColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: application.statusColor.withValues(alpha: 0.25),
+          color: isPendingOffer
+              ? const Color(0xFF0284C7).withValues(alpha: 0.35)
+              : application.statusColor.withValues(alpha: 0.25),
         ),
       ),
       child: Column(
@@ -4314,12 +4399,21 @@ class _ApplicationStatusBanner extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: application.statusColor.withValues(alpha: 0.15),
+                  color: isPendingOffer
+                      ? const Color(0xFF0284C7).withValues(alpha: 0.15)
+                      : application.statusColor.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Center(
-                  child: Icon(application.statusIcon,
-                      size: 17, color: application.statusColor),
+                  child: Icon(
+                    isPendingOffer
+                        ? Icons.gavel_rounded
+                        : application.statusIcon,
+                    size: 17,
+                    color: isPendingOffer
+                        ? const Color(0xFF0284C7)
+                        : application.statusColor,
+                  ),
                 ),
               ),
               const SizedBox(width: 10),
@@ -4343,7 +4437,9 @@ class _ApplicationStatusBanner extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w800,
-                        color: application.statusColor,
+                        color: isPendingOffer
+                            ? const Color(0xFF0284C7)
+                            : application.statusColor,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -4357,7 +4453,9 @@ class _ApplicationStatusBanner extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: application.statusColor,
+                            color: isPendingOffer
+                                ? const Color(0xFF0284C7)
+                                : application.statusColor,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -4400,8 +4498,11 @@ class _ApplicationStatusBanner extends StatelessWidget {
                     size: 12, color: Colors.white);
               } else if (isCurrent) {
                 if (index == 1) {
-                  stepNodeIcon = const _RotatingHourglassIcon(
-                      size: 12, color: Colors.white);
+                  stepNodeIcon = isPendingOffer
+                      ? const Icon(Icons.gavel_rounded,
+                          size: 12, color: Colors.white)
+                      : const _RotatingHourglassIcon(
+                          size: 12, color: Colors.white);
                 } else if (index == 0) {
                   stepNodeIcon = const Icon(Icons.edit_note_rounded,
                       size: 12, color: Colors.white);
@@ -4419,13 +4520,17 @@ class _ApplicationStatusBanner extends StatelessWidget {
                 );
               }
 
+              final nodeColor = isPendingOffer && isCurrent
+                  ? const Color(0xFF0284C7)
+                  : application.statusColor;
+
               final nodeCircle = AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 width: 24,
                 height: 24,
                 decoration: BoxDecoration(
                   color: (isPassed || isCurrent)
-                      ? application.statusColor
+                      ? nodeColor
                       : const Color(0xFFE2E8F0),
                   shape: BoxShape.circle,
                 ),
@@ -4446,7 +4551,7 @@ class _ApplicationStatusBanner extends StatelessWidget {
                         height: 30,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: application.statusColor.withValues(alpha: 0.30),
+                          color: nodeColor.withValues(alpha: 0.30),
                         ),
                       )
                           .animate(onPlay: (c) => c.repeat())
@@ -4489,7 +4594,7 @@ class _ApplicationStatusBanner extends StatelessWidget {
                                   ? FontWeight.w700
                                   : FontWeight.w500,
                               color: (isPassed || isCurrent)
-                                  ? application.statusColor
+                                  ? nodeColor
                                   : const Color(0xFF94A3B8),
                             ),
                             textAlign: TextAlign.center,
@@ -4529,12 +4634,19 @@ class _ApplicationStatusBanner extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.info_outline_rounded,
-                    size: 16, color: application.statusColor),
+                Icon(
+                  isPendingOffer
+                      ? Icons.celebration_rounded
+                      : Icons.info_outline_rounded,
+                  size: 16,
+                  color: isPendingOffer
+                      ? const Color(0xFF0284C7)
+                      : application.statusColor,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    _getNextStepAdvice(application.status),
+                    _getNextStepAdvice(application),
                     style: const TextStyle(
                       fontSize: 12,
                       color: Color(0xFF475569),
@@ -4550,8 +4662,17 @@ class _ApplicationStatusBanner extends StatelessWidget {
     );
   }
 
-  String _getNextStepAdvice(String status) {
-    switch (status) {
+  String _getNextStepAdvice(_Application app) {
+    if (app.rawStatus == 'for_job_offer') {
+      final response = app.offerResponse?.toLowerCase();
+      if (response == 'accepted') {
+        return 'Congratulations! You accepted this job offer. The employer will reach out regarding onboarding details.';
+      } else if (response == 'declined') {
+        return 'You declined this job offer. Keep applying to other opportunities.';
+      }
+      return ' You have received a job offer for this role! Tap "Review Job Offer" below to review terms and accept or decline.';
+    }
+    switch (app.status) {
       case 'Registration':
         return 'Your application has been registered. It will be processed by the employer for acceptance or denial.';
       case 'Processing':

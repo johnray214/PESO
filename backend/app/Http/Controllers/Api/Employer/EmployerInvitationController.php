@@ -41,7 +41,7 @@ class EmployerInvitationController extends Controller
             'scheduled_at'   => null,
             'sent_at'        => now(),
             'status'         => 'sent',
-            'created_by'     => $employer->id,
+            'created_by'     => null,
         ]);
 
         NotificationRead::create([

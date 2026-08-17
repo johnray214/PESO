@@ -184,9 +184,10 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
     async updateStatus(applicantId, newStatus, extraData = {}) {
       const item = this.applicants.find((a) => a.id === applicantId)
       const prevStatus = item?.status
+      const normalizedStatus = (newStatus || '').toLowerCase().replace(/\s+/g, '_')
       if (item) {
         item.status = newStatus
-        if (newStatus === 'for_job_offer') {
+        if (normalizedStatus === 'for_job_offer') {
           if (extraData.send_offer) {
             item.offerSentAt = new Date().toISOString()
           } else if (prevStatus !== 'for_job_offer' && prevStatus !== 'For Job Offer') {
@@ -197,7 +198,7 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
         }
       }
       try {
-        await employerApi.updateApplicationStatus(applicantId, newStatus.toLowerCase(), extraData)
+        await employerApi.updateApplicationStatus(applicantId, normalizedStatus, extraData)
       } catch (e) {
         if (item && prevStatus) item.status = prevStatus
         console.error('[ApplicantsStore] updateStatus error:', e)

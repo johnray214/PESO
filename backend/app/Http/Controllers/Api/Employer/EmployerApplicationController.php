@@ -103,6 +103,10 @@ class EmployerApplicationController extends Controller
         $employer = $request->user();
         \Illuminate\Support\Facades\Log::info("UpdateStatus Payload:", $request->all());
         
+        if ($request->has('status')) {
+            $request->merge(['status' => str_replace(' ', '_', strtolower((string) $request->input('status')))]);
+        }
+
         $validated = $request->validate([
             'status'     => ['required', Rule::in(['reviewing', 'shortlisted', 'interview', 'for_job_offer', 'hired', 'rejected'])],
             'start_date' => ['nullable', 'date'],
@@ -393,7 +397,7 @@ class EmployerApplicationController extends Controller
                 'scheduled_at'   => null,
                 'sent_at'        => now(),
                 'status'         => 'sent',
-                'created_by'     => $employer->id,
+                'created_by'     => null,
             ]);
 
             NotificationRead::create([
@@ -412,7 +416,7 @@ class EmployerApplicationController extends Controller
                     'scheduled_at'   => null,
                     'sent_at'        => now(),
                     'status'         => 'sent',
-                    'created_by'     => $employer->id, // Or null if system
+                    'created_by'     => null,
                 ]);
 
                 NotificationRead::create([
@@ -593,7 +597,7 @@ class EmployerApplicationController extends Controller
             'scheduled_at' => null,
             'sent_at'    => now(),
             'status'     => 'sent',
-            'created_by' => $employer->id,
+            'created_by' => null,
         ]);
         NotificationRead::create([
             'notification_id' => $jobseekerNotif->id,
@@ -610,7 +614,7 @@ class EmployerApplicationController extends Controller
             'scheduled_at' => null,
             'sent_at'    => now(),
             'status'     => 'sent',
-            'created_by' => $employer->id,
+            'created_by' => null,
         ]);
         NotificationRead::create([
             'notification_id' => $employerNotif->id,
