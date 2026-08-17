@@ -230,6 +230,8 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     Route::get('/activity-feed', [AdminActivityFeedController::class, 'index']);
     Route::patch('/activity-feed/{id}/read', [AdminActivityFeedController::class, 'markRead']);
     Route::post('/activity-feed/read-all', [AdminActivityFeedController::class, 'markAllRead']);
+    Route::delete('/activity-feed/{id}', [AdminActivityFeedController::class, 'destroy']);
+    Route::post('/activity-feed/clear-read', [AdminActivityFeedController::class, 'clearRead']);
 
     Route::get('/download', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');

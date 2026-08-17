@@ -109,12 +109,18 @@
         </div>
         <div class="featured-right">
           <div class="featured-countdown">
-            <div class="countdown-label">Starts in</div>
-            <div class="countdown-blocks">
+            <div class="countdown-label">
+              {{ countdown.length ? 'Starts in' : 'Event Status' }}
+            </div>
+            <div v-if="countdown.length" class="countdown-blocks">
               <div v-for="unit in countdown" :key="unit.label" class="cblock">
                 <div class="cblock-val">{{ unit.value }}</div>
                 <div class="cblock-label">{{ unit.label }}</div>
               </div>
+            </div>
+            <div v-else class="cblock" style="min-width:140px;background:rgba(255,255,255,0.2);border-color:rgba(255,255,255,0.3);">
+              <div class="cblock-val" style="font-size:14px;font-weight:700;">Ongoing</div>
+              <div class="cblock-label" style="color:rgba(255,255,255,0.85);">Event Active Today</div>
             </div>
           </div>
         </div>
@@ -474,19 +480,26 @@ const summaryStats = computed(() => [
 
 // ── Featured ───────────────────────────────────────────────────────
 const featuredEvent = computed(() => {
+  if (!events.value.length) return null
+
+  // 1. Look for upcoming events in the future
+  const upcoming = events.value
+    .filter(e => e.event_date && e.event_date.getTime() > now.value.getTime())
+    .sort((a, b) => a.event_date - b.event_date)
+  if (upcoming.length) return upcoming[0]
+
+  // 2. Look for ongoing events
   const ongoing = events.value.filter(e => e.status === 'Ongoing')
   if (ongoing.length) return ongoing[0]
 
-  return events.value
-    .filter(e => e.status === 'Upcoming' && e.event_date)
-    .sort((a, b) => a.event_date - b.event_date)[0] || null
+  return events.value[0] || null
 })
 
 // ── Countdown ──────────────────────────────────────────────────────
 const countdown = computed(() => {
   if (!featuredEvent.value?.event_date) return []
-  const diff = featuredEvent.value.event_date - now.value
-  if (diff <= 0) return [{ value: '00', label: 'days' }, { value: '00', label: 'hrs' }, { value: '00', label: 'min' }]
+  const diff = featuredEvent.value.event_date.getTime() - now.value.getTime()
+  if (diff <= 0) return []
   return [
     { value: String(Math.floor(diff / 86400000)).padStart(2, '0'),                     label: 'days' },
     { value: String(Math.floor((diff % 86400000) / 3600000)).padStart(2, '0'),         label: 'hrs'  },

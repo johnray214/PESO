@@ -354,18 +354,6 @@
                 </div>
               </div>
 
-              <!-- Status Tab -->
-              <div v-if="drawerTab === 'Status'">
-                <div class="section-label">Update Status</div>
-                <div class="status-options">
-                  <button v-for="st in statusOptionsFor(selected)" :key="st" :class="['status-option', { active: selected?.status === st }]" @click="selected.status = st">{{ st }}</button>
-                </div>
-                <button class="btn-blue-full mt12" @click="handleDrawerSave" :disabled="savingStatus">
-                  <span v-if="savingStatus" class="spinner-invite" style="border-top-color:#fff; border-color:rgba(255,255,255,0.4); margin-right:6px;"></span>
-                  {{ savingStatus ? 'Saving…' : 'Save Changes' }}
-                </button>
-              </div>
-
               <!-- History Tab -->
               <div v-if="drawerTab === 'History'">
                 <div v-if="historyLoading" class="history-loading">
@@ -478,7 +466,7 @@ export default {
       potentialSearchApplied: '', potentialPage: 1, potentialEmployerFilter: '',
       // Drawer
       drawerOpen: false, drawerTab: 'Profile', selected: null,
-      drawerTabList: ['Profile', 'Files', 'Status', 'History'],
+      drawerTabList: ['Profile', 'Files', 'History'],
       fileList: [
         { label:'Resume / CV', key:'resume' },
         { label:'Certificate / Diploma', key:'cert' },
@@ -718,6 +706,7 @@ export default {
           this.applicants[idx].status = this.selected.status
         }
         
+        await this.fetchTabCounts()
         this.showToastMsg('Status updated successfully!')
       } catch (e) {
         this.showToastMsg(e?.response?.data?.message || 'Failed to update status', 'error')

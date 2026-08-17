@@ -787,4 +787,20 @@ export default {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ── RESPONSIVE MEDIA QUERIES ── */
+@media (max-width: 768px) {
+  .page { padding: 14px; }
+  .profile-banner { flex-direction: column; align-items: flex-start; text-align: left; }
+  .profile-banner-left { flex-direction: column; align-items: flex-start; }
+  .banner-avatar-wrap { margin-bottom: 8px; }
+  .meta-pills { flex-wrap: wrap; }
+  .banner-actions { width: 100%; margin-top: 10px; }
+  .edit-profile-btn { width: 100%; justify-content: center; }
+  .tabs-bar { overflow-x: auto; width: 100%; }
+  .tab-btn { flex-shrink: 0; }
+  .info-grid { grid-template-columns: 1fr; }
+  .form-row.two { grid-template-columns: 1fr; }
+  .perks-edit-grid { grid-template-columns: 1fr; }
+}
 </style>

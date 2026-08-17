@@ -1110,6 +1110,58 @@ export default {
 .btn-amber:hover:not(:disabled) { background: #1a5f8a; }
 .btn-amber:disabled { opacity: 0.7; cursor: not-allowed; }
 
+/* Listing Status Tabs Bar */
+.listing-tabs-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #f1f5f9;
+  border-radius: 12px;
+  padding: 5px;
+  width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.listing-main-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.listing-main-tab:hover {
+  background: #f8fafc;
+  color: #1e293b;
+}
+.listing-main-tab.active {
+  background: #eff8ff;
+  color: #1a5f8a;
+  font-weight: 700;
+}
+.ltab-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: #f1f5f9;
+  color: #64748b;
+}
+.listing-main-tab.active .ltab-pill {
+  background: #2872A1;
+  color: #fff;
+}
+
 .skeleton { background: #e2e8f0; border-radius: 4px; animation: pulse 1.5s infinite; }
 @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 0.3; } 100% { opacity: 0.6; } }
 
@@ -1317,4 +1369,27 @@ select.form-input { -webkit-appearance: none; appearance: none; background-image
 .hired-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .hired-badge-chip { font-size: 10px; font-weight: 700; background: #f0fdf4; color: #22c55e; border-radius: 99px; padding: 3px 9px; }
 .hired-date { font-size: 11px; color: #94a3b8; }
+
+/* ── RESPONSIVE MEDIA QUERIES ── */
+@media (max-width: 768px) {
+  .page { padding: 14px; }
+  .filters-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .search-box { width: 100%; max-width: none; }
+  .search-input { width: 100%; }
+  .filter-group { width: 100%; justify-content: space-between; }
+  .filter-select { flex: 1; }
+  .btn-amber { width: 100%; }
+  .listing-tabs-bar { width: 100%; justify-content: space-between; gap: 4px; }
+  .listing-main-tab { flex: 1; justify-content: center; padding: 7px 8px; font-size: 12px; }
+  .jobs-grid { grid-template-columns: 1fr; }
+  .modal-overlay { padding: 12px; }
+  .modal { width: 100%; max-width: 100%; max-height: 92vh; border-radius: 16px; margin: 0; display: flex; flex-direction: column; }
+  .modal-body { padding: 16px; overflow-y: auto; max-height: calc(92vh - 120px); gap: 12px; }
+  .modal-footer { padding: 12px 16px; justify-content: space-between; gap: 8px; }
+  .modal-footer .btn-ghost, .modal-footer .btn-amber { flex: 1; text-align: center; }
+  .form-row, .form-row.two { grid-template-columns: 1fr !important; gap: 10px; }
+  .salary-options { grid-template-columns: 1fr !important; gap: 8px; }
+  .catalog-controls { grid-template-columns: 1fr !important; gap: 8px; }
+  .drawer { width: 100%; }
+}
 </style>

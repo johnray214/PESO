@@ -12,12 +12,17 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
 
+use Illuminate\Support\Facades\Cache;
+
 class AdminDashboardController extends Controller
 {
     public function index(Request $request)
     {
-        $period = $request->input('period', 'monthly');
-        $year   = now()->year;
+        $cacheKey = 'admin_dash_' . md5(json_encode($request->all()));
+
+        $dashboardData = Cache::remember($cacheKey, 15, function () use ($request) {
+            $period = $request->input('period', 'monthly');
+            $year   = now()->year;
 
         [$from, $to, $prevFrom, $prevTo] = $this->resolvePeriod($period, $request);
 
@@ -194,9 +199,7 @@ class AdminDashboardController extends Controller
                 'vacancies' => (int) $e->vacancies,
             ]);
 
-        return response()->json([
-            'success' => true,
-            'data' => [
+            return [
                 'stats'             => $stats,
                 'registrationChart' => $registrationChart,
                 'placementChart'    => $placementChart,
@@ -206,7 +209,12 @@ class AdminDashboardController extends Controller
                 'recentApplicants'  => $recentApplicants,
                 'upcomingEvents'    => $upcomingEvents,
                 'topEmployers'      => $topEmployers,
-            ],
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'data'    => $dashboardData,
         ]);
     }
 

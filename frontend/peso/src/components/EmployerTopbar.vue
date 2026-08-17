@@ -1,6 +1,13 @@
 <template>
   <header class="topbar">
     <div class="topbar-left">
+      <button type="button" class="mobile-menu-btn" @click="$emit('toggle-sidebar')" aria-label="Toggle Navigation">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
       <template v-if="!authStore.isAppReady">
         <div class="skeleton" style="width: 150px; height: 18px; border-radius: 4px; margin-bottom: 4px;"></div>
         <div class="skeleton" style="width: 100px; height: 12px; border-radius: 4px;"></div>
@@ -290,6 +297,56 @@ export default {
 .logout-item:disabled { opacity: 0.65; cursor: not-allowed; }
 .btn-spin { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(239,68,68,0.3); border-top-color: #ef4444; border-radius: 50%; animation: spin 0.65s linear infinite; flex-shrink: 0; }
 .dropdown-notif-badge { margin-left: auto; background: #2872A1; color: #fff; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 99px; }
+
+.mobile-menu-btn {
+  display: none;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px;
+  color: #1e293b;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  transition: all 0.15s;
+}
+.mobile-menu-btn:hover {
+  background: #eff8ff;
+  border-color: #bae6fd;
+  color: #2872A1;
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: inline-flex;
+  }
+  .topbar-sub, .urole-t {
+    display: none;
+  }
+  .topbar-title {
+    font-size: 15px;
+  }
+  .notif-panel {
+    position: fixed;
+    top: 64px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: calc(100vw - 24px);
+    z-index: 1000;
+    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.22);
+  }
+  .user-dropdown {
+    position: fixed;
+    top: 64px;
+    right: 12px;
+    width: calc(100vw - 24px);
+    max-width: 280px;
+    z-index: 1000;
+    box-shadow: 0 16px 48px rgba(15, 23, 42, 0.22);
+  }
+}
 
 /* Transition */
 .panel-enter-active, .panel-leave-active { transition: opacity 0.15s, transform 0.15s; }

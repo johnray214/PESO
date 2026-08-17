@@ -218,75 +218,77 @@
             </button>
           </div>
 
-          <table class="potential-table">
-            <thead>
-              <tr>
-                <th style="width:220px">Jobseeker</th>
-                <th>Matched Skills</th>
-                <th style="width:190px">Matches Your Listing</th>
-                <th style="width:160px">Skill Match Score</th>
-                <th style="width:130px">Location</th>
-                <th style="width:110px">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(a,ri) in pagedPotential" :key="a.name"
-                  class="potential-row table-row-anim"
-                  :style="{ animationDelay: (ri*0.05)+'s' }">
-                <td>
-                  <div class="person-cell">
-                    <div class="pot-avatar" :style="{ background: a.color }">{{ a.name[0] }}</div>
-                    <div>
-                      <span class="person-name">{{ a.name }}</span>
-                      <span class="person-loc">{{ a.education }}</span>
+          <div class="table-scroll-wrap">
+            <table class="potential-table">
+              <thead>
+                <tr>
+                  <th style="width:220px">Jobseeker</th>
+                  <th>Matched Skills</th>
+                  <th style="width:190px">Matches Your Listing</th>
+                  <th style="width:160px">Skill Match Score</th>
+                  <th style="width:130px">Location</th>
+                  <th style="width:110px">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(a,ri) in pagedPotential" :key="a.name"
+                    class="potential-row table-row-anim"
+                    :style="{ animationDelay: (ri*0.05)+'s' }">
+                  <td>
+                    <div class="person-cell">
+                      <div class="pot-avatar" :style="{ background: a.color }">{{ a.name[0] }}</div>
+                      <div>
+                        <span class="person-name">{{ a.name }}</span>
+                        <span class="person-loc">{{ a.education }}</span>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td>
-                  <div class="skill-tag-group">
-                    <span v-for="tag in a.skills" :key="tag" class="skill-tag matched-tag">{{ tag }}</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="listing-match-cell">
-                    <div class="listing-color-bar" :style="{ background: a.jobColor }"></div>
-                    <div>
-                      <p class="listing-title">{{ a.bestFor }}</p>
-                      <p class="listing-hint">Active listing</p>
+                  </td>
+                  <td>
+                    <div class="skill-tag-group">
+                      <span v-for="tag in a.skills" :key="tag" class="skill-tag matched-tag">{{ tag }}</span>
                     </div>
-                  </div>
-                </td>
-                <td>
-                  <div class="score-cell">
-                    <div class="score-track">
-                      <div class="score-fill"
-                           :style="{
-                             width: scoreAnimated ? a.score+'%' : '0%',
-                             background: scoreColor(a.score),
-                             transitionDelay: (ri*0.06)+'s'
-                           }"></div>
+                  </td>
+                  <td>
+                    <div class="listing-match-cell">
+                      <div class="listing-color-bar" :style="{ background: a.jobColor }"></div>
+                      <div>
+                        <p class="listing-title">{{ a.bestFor }}</p>
+                        <p class="listing-hint">Active listing</p>
+                      </div>
                     </div>
-                    <span class="score-num" :style="{ color: scoreColor(a.score) }">{{ a.score }}%</span>
-                  </div>
-                </td>
-                <td>
-                  <div class="loc-cell">
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    {{ a.location }}
-                  </div>
-                </td>
-                <td>
-                  <span class="not-applied-badge"><span class="na-dot"></span>Not Applied</span>
-                </td>
-              </tr>
-              <tr v-if="filteredPotential.length===0">
-                <td colspan="6" class="empty-row">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5" style="display:block;margin:0 auto 8px"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                  No jobseekers found matching your current filters.
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                  </td>
+                  <td>
+                    <div class="score-cell">
+                      <div class="score-track">
+                        <div class="score-fill"
+                             :style="{
+                               width: scoreAnimated ? a.score+'%' : '0%',
+                               background: scoreColor(a.score),
+                               transitionDelay: (ri*0.06)+'s'
+                             }"></div>
+                      </div>
+                      <span class="score-num" :style="{ color: scoreColor(a.score) }">{{ a.score }}%</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="loc-cell">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                      {{ a.location }}
+                    </div>
+                  </td>
+                  <td>
+                    <span class="not-applied-badge"><span class="na-dot"></span>Not Applied</span>
+                  </td>
+                </tr>
+                <tr v-if="filteredPotential.length===0">
+                  <td colspan="6" class="empty-row">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#e2e8f0" stroke-width="1.5" style="display:block;margin:0 auto 8px"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                    No jobseekers found matching your current filters.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
           <div class="table-footer">
             <span class="table-count">
@@ -310,29 +312,31 @@
           <div class="card table-card">
             <div class="card-header">
               <div><h3>Recent Applicants</h3><p class="card-sub">Latest applications to your job listings</p></div>
-              <a href="#" class="see-all">See All</a>
+              <router-link to="/employer/applicants" class="see-all">See All</router-link>
             </div>
-            <table class="data-table">
-              <thead><tr><th>Applicant</th><th>Skills</th><th>Applied For</th><th>Date</th><th>Status</th></tr></thead>
-              <tbody>
-                <tr v-for="(a,i) in recentApplicants" :key="a.name"
-                    class="table-row-anim" :style="{ animationDelay: (i*0.06)+'s' }">
-                  <td>
-                    <div class="person-cell">
-                      <div class="person-avatar" :style="{ background: a.color }">{{ a.name[0] }}</div>
-                      <div><span class="person-name">{{ a.name }}</span><span class="person-loc">{{ a.location }}</span></div>
-                    </div>
-                  </td>
-                  <td><span class="skill-tag">{{ a.skill }}</span></td>
-                  <td class="job-cell">{{ a.job }}</td>
-                  <td class="date-cell">{{ a.date }}</td>
-                  <td><span class="status-badge" :class="a.statusClass">{{ a.status }}</span></td>
-                </tr>
-                <tr v-if="!recentApplicants.length">
-                  <td colspan="5" class="empty-row">No recent applicants yet.</td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="table-scroll-wrap">
+              <table class="data-table">
+                <thead><tr><th>Applicant</th><th>Skills</th><th>Applied For</th><th>Date</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr v-for="(a,i) in recentApplicants" :key="a.name"
+                      class="table-row-anim" :style="{ animationDelay: (i*0.06)+'s' }">
+                    <td>
+                      <div class="person-cell">
+                        <div class="person-avatar" :style="{ background: a.color }">{{ a.name[0] }}</div>
+                        <div><span class="person-name">{{ a.name }}</span><span class="person-loc">{{ a.location }}</span></div>
+                      </div>
+                    </td>
+                    <td><span class="skill-tag">{{ a.skill }}</span></td>
+                    <td class="job-cell">{{ a.job }}</td>
+                    <td class="date-cell">{{ a.date }}</td>
+                    <td><span class="status-badge" :class="a.statusClass">{{ a.status }}</span></td>
+                  </tr>
+                  <tr v-if="!recentApplicants.length">
+                    <td colspan="5" class="empty-row">No recent applicants yet.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div class="card jobs-card">
@@ -805,6 +809,12 @@ export default {
 .see-all { font-size: 12px; color: #2872A1; text-decoration: none; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 .see-all:hover { text-decoration: underline; }
 
+.table-scroll-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* ── LEGEND ──────────────────────────────────────────────────────── */
 .legend { display: flex; align-items: center; gap: 14px; font-size: 11.5px; color: #64748b; flex-wrap: wrap; flex-shrink: 0; }
 .legend-item { display: flex; align-items: center; gap: 6px; }
@@ -971,4 +981,43 @@ export default {
 @keyframes slideInRight { from { opacity:0; transform:translateX(14px); } to { opacity:1; transform:translateX(0); } }
 .table-row-anim { animation: slideUp 0.35s ease both; }
 .slide-in-right { animation: slideInRight 0.4s ease both; }
+
+/* ── RESPONSIVE MEDIA QUERIES ── */
+@media (max-width: 1024px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .mid-row { grid-template-columns: 1fr; }
+  .bottom-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .page { padding: 14px; gap: 12px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .stat-card { padding: 14px 12px; border-radius: 12px; }
+  .stat-top { margin-bottom: 8px; }
+  .stat-icon { width: 34px; height: 34px; border-radius: 10px; }
+  .stat-value { font-size: 22px; margin-bottom: 2px; }
+  .stat-label { font-size: 11.5px; font-weight: 600; margin-bottom: 2px; }
+  .stat-sub { font-size: 10px; }
+  .period-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .period-pills { width: 100%; justify-content: space-between; overflow-x: auto; padding-bottom: 2px; }
+  .period-pill { flex: 1; text-align: center; padding: 6px 8px; font-size: 11.5px; }
+  .custom-range { width: 100%; justify-content: space-between; }
+  .date-input { flex: 1; min-width: 120px; }
+  .last-updated { margin-left: 0; margin-top: 4px; }
+  .card-header { flex-direction: column; align-items: flex-start; }
+  .chart-summary { flex-direction: column; gap: 10px; align-items: flex-start; }
+  .summary-item { justify-content: flex-start; width: 100%; }
+  .summary-divider { display: none; }
+  .potential-header { flex-direction: column; align-items: stretch; }
+  .potential-controls { width: 100%; }
+  .search-box { width: 100%; max-width: none; }
+  .search-input { width: 100%; }
+  .potential-table, .data-table { display: block; overflow-x: auto; white-space: nowrap; }
+}
+
+@media (max-width: 480px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-card { padding: 12px 10px; }
+  .stat-value { font-size: 20px; }
+}
 </style>

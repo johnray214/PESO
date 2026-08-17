@@ -22,6 +22,20 @@
           <router-link to="/employer/login" class="btn-outline-nav">Log In</router-link>
           <router-link to="/employer/register" class="btn-primary-nav ripple-btn" @click="ripple">Register</router-link>
         </div>
+        <button type="button" class="mobile-toggle" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="Toggle Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Mobile Drawer -->
+      <div :class="['nav-mobile-drawer', { open: mobileMenuOpen }]">
+        <button type="button" class="nav-link" @click="scrollTo('features'); mobileMenuOpen = false">Features</button>
+        <button type="button" class="nav-link" @click="scrollTo('how'); mobileMenuOpen = false">How It Works</button>
+        <button type="button" class="nav-link" @click="scrollTo('benefits'); mobileMenuOpen = false">Benefits</button>
+        <div class="mobile-nav-actions">
+          <router-link to="/employer/login" class="btn-outline-nav" @click="mobileMenuOpen = false">Log In</router-link>
+          <router-link to="/employer/register" class="btn-primary-nav" @click="mobileMenuOpen = false">Register</router-link>
+        </div>
       </div>
     </nav>
 
@@ -365,6 +379,7 @@ export default {
     return {
       pesoLogo,
       scrolled: false,
+      mobileMenuOpen: false,
       activeSection: '',
       heroVisible:     false,
       trustVisible:    false,
@@ -1007,5 +1022,60 @@ export default {
   top: 50%;
   transform: translateY(-50%);
   z-index: 10;
+}
+
+/* ── MOBILE RESPONSIVENESS ── */
+.mobile-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: #1e293b;
+  cursor: pointer;
+  padding: 4px;
+}
+.nav-mobile-drawer {
+  display: none;
+}
+
+@media (max-width: 992px) {
+  .hero-inner { grid-template-columns: 1fr; gap: 32px; text-align: center; }
+  .hero-title { font-size: 32px; }
+  .hero-sub { margin: 0 auto 24px; }
+  .hero-cta { justify-content: center; }
+  .hero-stats { justify-content: center; }
+  .features-grid { grid-template-columns: repeat(2, 1fr); }
+  .steps-grid { grid-template-columns: 1fr; }
+  .split-inner { grid-template-columns: 1fr; }
+  .benefits-grid { grid-template-columns: repeat(2, 1fr); }
+  .trust-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 768px) {
+  .nav-links, .nav-actions { display: none; }
+  .mobile-toggle { display: block; }
+  .nav-mobile-drawer {
+    display: flex; flex-direction: column; gap: 14px; position: absolute;
+    top: 100%; left: 0; right: 0; background: #fff; border-bottom: 1px solid #e2e8f0;
+    padding: 16px 20px; box-shadow: 0 12px 32px rgba(0,0,0,0.1); opacity: 0;
+    pointer-events: none; transform: translateY(-10px); transition: all 0.25s ease;
+  }
+  .nav-mobile-drawer.open { opacity: 1; pointer-events: auto; transform: translateY(0); }
+  .mobile-nav-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+
+  .hero-title { font-size: 26px; }
+  .hero-cta { flex-direction: column; }
+  .hero-stats { grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .features-grid { grid-template-columns: 1fr; }
+  .benefits-grid { grid-template-columns: 1fr; }
+  .trust-grid { grid-template-columns: repeat(2, 1fr); }
+  .cta-card { padding: 32px 20px; text-align: center; }
+  .cta-btns { flex-direction: column; }
+  .footer-inner { flex-direction: column; gap: 24px; text-align: center; }
+  .footer-links { justify-content: center; }
+}
+
+@media (max-width: 480px) {
+  .hero-stats { grid-template-columns: 1fr; }
+  .trust-grid { grid-template-columns: 1fr; }
 }
 </style>
