@@ -18,7 +18,7 @@ class JobseekerSavedJobController extends Controller
 
         $saved = JobseekerSavedJob::where('jobseeker_id', $jobseeker->id)
             ->with([
-                'jobListing:id,title,type,location,salary_range,description,slots,deadline,posted_date,created_at,employer_id',
+                'jobListing:id,title,type,location,salary_range,description,slots,deadline,posted_date,created_at,employer_id,program,employer_name',
                 'jobListing.employer:id,company_name',
                 'jobListing.skills:id,job_listing_id,skill',
             ])

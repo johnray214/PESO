@@ -2049,7 +2049,7 @@ class _HomePageState extends State<HomePage> {
                         Expanded(
                           child: _buildNavItem(
                             1,
-                            icon: HugeIcons.strokeRoundedCompass01,
+                            icon: HugeIcons.strokeRoundedDiscoverCircle,
                             label: l10n?.navExplore ?? 'Explore',
                           ),
                         ),
@@ -3411,59 +3411,6 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const _HomePageSkeleton();
-    }
-
-    if (_errorMessage != null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFFF1F5F9),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.cloud_off_rounded,
-                    size: 72, color: Colors.grey[300]),
-                const SizedBox(height: 16),
-                const Text(
-                  'Could not load jobs',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _errorMessage!,
-                  textAlign: TextAlign.center,
-                  style:
-                      const TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: _fetchJobs,
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Retry'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2563EB),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     // Reload avatar when user has one but we haven't loaded it yet (e.g. after updating profile)
     if (UserSession().avatarPath != null &&
         _avatarBytes == null &&
@@ -3740,9 +3687,59 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                 ),
               ),
             ), // end Showcase (mascot)
-            // Search & Filter section: punchy white card with quick filters
-            Showcase(
-              key: _showcaseSearch,
+
+            if (_isLoading)
+              const Expanded(child: _HomeBodySkeleton())
+            else if (_errorMessage != null)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.cloud_off_rounded,
+                            size: 72, color: Colors.grey[300]),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Could not load jobs',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _errorMessage!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 14, color: Color(0xFF64748B)),
+                        ),
+                        const SizedBox(height: 24),
+                        ElevatedButton.icon(
+                          onPressed: _fetchJobs,
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Retry'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2563EB),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 24, vertical: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              )
+            else ...[
+              // Search & Filter section: punchy white card with quick filters
+              Showcase(
+                key: _showcaseSearch,
               title: 'Search & Filter',
               description:
                   'Search by job title or company. Tap the filter icon to narrow by type, sort, and skills.',
@@ -4221,9 +4218,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                     key: const ValueKey<String>(
                                         'home_jobs_grid'),
                                     controller: _jobListScrollController,
+                                    cacheExtent: 600,
                                     physics:
                                         const AlwaysScrollableScrollPhysics(
-                                      parent: ClampingScrollPhysics(),
+                                      parent: BouncingScrollPhysics(),
                                     ),
                                     padding: EdgeInsets.only(
                                       left: 20,
@@ -4263,26 +4261,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                           onTap: () =>
                                               _showJobDetails(context, job),
                                           onSave: () => _toggleSaveJob(job),
-                                        )
-                                            .animate()
-                                            .fadeIn(
-                                              duration: 280.ms,
-                                              delay: ((index % _jobsPageSize)
-                                                          .clamp(0, 4) *
-                                                      24)
-                                                  .ms,
-                                              curve: Curves.easeOutCubic,
-                                            )
-                                            .scale(
-                                              begin: const Offset(0.95, 0.95),
-                                              end: const Offset(1, 1),
-                                              duration: 280.ms,
-                                              delay: ((index % _jobsPageSize)
-                                                          .clamp(0, 4) *
-                                                      24)
-                                                  .ms,
-                                              curve: Curves.easeOutCubic,
-                                            ),
+                                        ),
                                       );
                                     },
                                   )
@@ -4290,9 +4269,10 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                     key: const ValueKey<String>(
                                         'home_jobs_list'),
                                     controller: _jobListScrollController,
+                                    cacheExtent: 600,
                                     physics:
                                         const AlwaysScrollableScrollPhysics(
-                                      parent: ClampingScrollPhysics(),
+                                      parent: BouncingScrollPhysics(),
                                     ),
                                     padding: EdgeInsets.only(
                                       left: 20,
@@ -4330,26 +4310,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                                           onSave: () => _toggleSaveJob(job),
                                           onApply: () =>
                                               _showJobDetails(context, job),
-                                        )
-                                            .animate()
-                                            .fadeIn(
-                                              duration: 320.ms,
-                                              delay: ((index % _jobsPageSize)
-                                                          .clamp(0, 4) *
-                                                      28)
-                                                  .ms,
-                                              curve: Curves.easeOutCubic,
-                                            )
-                                            .slideY(
-                                              begin: 0.07,
-                                              end: 0,
-                                              duration: 320.ms,
-                                              delay: ((index % _jobsPageSize)
-                                                          .clamp(0, 4) *
-                                                      28)
-                                                  .ms,
-                                              curve: Curves.easeOutCubic,
-                                            ),
+                                        ),
                                       );
                                       if (index == 0) {
                                         card = Showcase(
@@ -4405,6 +4366,7 @@ class _HomeTabState extends State<HomeTab> with SingleTickerProviderStateMixin {
                 },
               ),
             ),
+            ],
           ],
         ),
       ),
@@ -4901,10 +4863,79 @@ class _JobCardState extends State<_JobCard> {
                   ),
                   const SizedBox(height: 6),
 
-                  // Footer Row: Bottom-Left Badges (Overseas / Urgent) & Action Buttons
+                  // Footer Row: Bottom-Left Badges (DOLE / PESO / Overseas / Urgent) & Action Buttons
                   Row(
                     children: [
-                      if (job.isOverseas)
+                      if (job.isDoleProgram) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFFBFDBFE), width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const HugeIcon(
+                                icon: HugeIcons.strokeRoundedBerlin,
+                                size: 13,
+                                color: Color(0xFF1D4ED8),
+                                strokeWidth: 2.0,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                job.program != null &&
+                                        job.program!.trim().isNotEmpty &&
+                                        job.program!.toLowerCase() != 'none'
+                                    ? 'DOLE • ${job.program}'
+                                    : 'DOLE Program',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF1E40AF),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ] else if (job.isPesoOffice) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F9FF),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFFBAE6FD), width: 1),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              HugeIcon(
+                                icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                                size: 13,
+                                color: Color(0xFF0284C7),
+                                strokeWidth: 2.0,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'PESO Santiago',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF0369A1),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      if (job.isOverseas) ...[
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 6),
@@ -4934,8 +4965,10 @@ class _JobCardState extends State<_JobCard> {
                               ),
                             ],
                           ),
-                        )
-                      else if (job.isUrgent)
+                        ),
+                        if (job.isUrgent) const SizedBox(width: 6),
+                      ],
+                      if (job.isUrgent)
                         Container(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 6),
@@ -5187,7 +5220,7 @@ class _JobCardCompact extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  job.company,
+                  job.compactCompanyName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -5253,6 +5286,39 @@ class _JobCardCompact extends StatelessWidget {
                 const Spacer(),
                 Row(
                   children: [
+                    if (job.isDoleProgram) ...[
+                      Container(
+                        padding: const EdgeInsets.all(4.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEFF6FF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFBFDBFE)),
+                        ),
+                        child: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedBerlin,
+                          size: 11.5,
+                          color: Color(0xFF1D4ED8),
+                          strokeWidth: 2.0,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                    ] else if (job.isPesoOffice) ...[
+                      Container(
+                        padding: const EdgeInsets.all(4.5),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F9FF),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFFBAE6FD)),
+                        ),
+                        child: const HugeIcon(
+                          icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                          size: 11.5,
+                          color: Color(0xFF0284C7),
+                          strokeWidth: 2.0,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                    ],
                     if (job.isOverseas) ...[
                       Container(
                         padding: const EdgeInsets.all(4.5),
@@ -7154,7 +7220,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                                 alignment: Alignment.center,
                                                 child: HugeIcon(
                                                   icon: HugeIcons
-                                                      .strokeRoundedBuilding01,
+                                                      .strokeRoundedBuilding02,
                                                   color: Colors.white,
                                                   size: isSelected ? 22 : 18,
                                                   strokeWidth: 2.0,
@@ -7168,7 +7234,7 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                               alignment: Alignment.center,
                                               child: HugeIcon(
                                                 icon: HugeIcons
-                                                    .strokeRoundedBuilding01,
+                                                    .strokeRoundedBuilding02,
                                                 color: Colors.white,
                                                 size: isSelected ? 22 : 18,
                                                 strokeWidth: 2.0,
@@ -9085,6 +9151,22 @@ class _DeletedNotificationEntry {
   });
 }
 
+class _CriticalNotificationWarning {
+  final String title;
+  final String message;
+  final IconData icon;
+  final Color iconColor;
+  final String confirmLabel;
+
+  _CriticalNotificationWarning({
+    required this.title,
+    required this.message,
+    required this.icon,
+    required this.iconColor,
+    this.confirmLabel = 'Delete Anyway',
+  });
+}
+
 class _NotificationsTabState extends State<NotificationsTab>
     with TickerProviderStateMixin {
   bool _isLoading = true;
@@ -9703,7 +9785,11 @@ class _NotificationsTabState extends State<NotificationsTab>
       applicationId: applicationId,
       response: response,
     );
-    return result['success'] == true;
+    if (result['success'] == true) {
+      JobActionService().recordOfferResponse(applicationId, response);
+      return true;
+    }
+    return false;
   }
 
   Future<void> _showOfferDecisionModal({
@@ -9718,10 +9804,7 @@ class _NotificationsTabState extends State<NotificationsTab>
     int? resolvedAppId;
     String? selectedResponse;
     bool isSubmitting = false;
-    bool isHydratingOfferState = true;
     bool hasStartedHydration = false;
-    bool isActionCooldown = true;
-    bool hasStartedActionCooldown = false;
 
     await showModalBottomSheet(
       context: context,
@@ -9738,34 +9821,36 @@ class _NotificationsTabState extends State<NotificationsTab>
               try {
                 initialState = await _resolveOfferState(notificationItem);
               } catch (_) {
-                if (!mounted || !ctx.mounted) return;
-                setModalState(() {
-                  isHydratingOfferState = false;
-                });
                 return;
               }
               if (!mounted || !ctx.mounted) return;
               setModalState(() {
                 resolvedAppId = initialState.applicationId;
                 selectedResponse = initialState.offerResponse;
-                isHydratingOfferState = false;
-              });
-            }());
-          }
-          if (!hasStartedActionCooldown) {
-            hasStartedActionCooldown = true;
-            unawaited(() async {
-              await Future<void>.delayed(const Duration(milliseconds: 1500));
-              if (!mounted || !ctx.mounted) return;
-              setModalState(() {
-                isActionCooldown = false;
               });
             }());
           }
 
           Future<void> handleResponse(String response) async {
-            if (isSubmitting || selectedResponse != null || isActionCooldown)
-              return;
+            if (isSubmitting || selectedResponse != null) return;
+
+            final isAccept = response == 'accepted';
+            final confirmed = await showAppDialog<bool>(
+              context: context,
+              type: isAccept ? AppDialogType.confirm : AppDialogType.destructive,
+              icon: isAccept ? Icons.check_circle_rounded : Icons.cancel_outlined,
+              title: isAccept ? 'Accept Job Offer?' : 'Decline Job Offer?',
+              message: isAccept
+                  ? 'You are accepting the offer from $companyName for the $jobTitle role. This will notify the employer and move forward with your hiring.'
+                  : 'Are you sure you want to decline the offer from $companyName for the $jobTitle role? This action cannot be undone.',
+              confirmLabel: isAccept ? 'Confirm & Accept' : 'Decline Offer',
+              cancelLabel: isAccept ? 'Cancel' : 'Keep Offer',
+              onConfirm: () => Navigator.of(context).pop(true),
+              onCancel: () => Navigator.of(context).pop(false),
+            );
+
+            if (confirmed != true || !mounted || !ctx.mounted) return;
+
             setModalState(() => isSubmitting = true);
 
             resolvedAppId ??=
@@ -9916,24 +10001,6 @@ class _NotificationsTabState extends State<NotificationsTab>
                       ),
                     ),
                   ),
-                  if (!hasKnownApplicationId)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8, left: 20, right: 20),
-                      child: Text(
-                        'Preparing offer reference...',
-                        style:
-                            TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                      ),
-                    ),
-                  if (isHydratingOfferState)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 6, left: 20, right: 20),
-                      child: Text(
-                        'Loading offer status...',
-                        style:
-                            TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                      ),
-                    ),
                   if (selectedResponse != null)
                     Padding(
                       padding:
@@ -9975,39 +10042,30 @@ class _NotificationsTabState extends State<NotificationsTab>
                         Expanded(
                           child: OutlinedButton(
                             onPressed: (isSubmitting ||
-                                    selectedResponse != null ||
-                                    isActionCooldown)
+                                    selectedResponse != null)
                                 ? null
                                 : () => handleResponse('declined'),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: isActionCooldown
-                                  ? const Color(0xFF94A3B8)
-                                  : selectedResponse == null
-                                      ? const Color(0xFFB91C1C)
-                                      : const Color(0xFF94A3B8),
+                              foregroundColor: selectedResponse == null
+                                  ? const Color(0xFFB91C1C)
+                                  : const Color(0xFF94A3B8),
                               side: BorderSide(
-                                color: isActionCooldown
-                                    ? const Color(0xFFE2E8F0)
-                                    : selectedResponse == null
-                                        ? const Color(0xFFFCA5A5)
-                                        : const Color(0xFFE2E8F0),
+                                color: selectedResponse == null
+                                    ? const Color(0xFFFCA5A5)
+                                    : const Color(0xFFE2E8F0),
                               ),
-                              backgroundColor: isActionCooldown
-                                  ? const Color(0xFFF1F5F9)
-                                  : selectedResponse == 'declined'
-                                      ? const Color(0xFFFEF2F2)
-                                      : Colors.white,
+                              backgroundColor: selectedResponse == 'declined'
+                                  ? const Color(0xFFFEF2F2)
+                                  : Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
                             child: Text(
-                              isActionCooldown
-                                  ? 'Reject Offer'
-                                  : selectedResponse == 'declined'
-                                      ? 'Rejected'
-                                      : 'Reject Offer',
+                              selectedResponse == 'declined'
+                                  ? 'Rejected'
+                                  : 'Reject Offer',
                               style:
                                   const TextStyle(fontWeight: FontWeight.w700),
                             ),
@@ -10017,23 +10075,18 @@ class _NotificationsTabState extends State<NotificationsTab>
                         Expanded(
                           child: ElevatedButton(
                             onPressed: (isSubmitting ||
-                                    selectedResponse != null ||
-                                    isActionCooldown)
+                                    selectedResponse != null)
                                 ? null
                                 : () => handleResponse('accepted'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: isActionCooldown
-                                  ? const Color(0xFFCBD5E1)
-                                  : selectedResponse == 'accepted'
-                                      ? const Color(0xFF047857)
-                                      : (selectedResponse == null
-                                          ? const Color(0xFF059669)
-                                          : const Color(0xFFCBD5E1)),
-                              foregroundColor: isActionCooldown
-                                  ? const Color(0xFF475569)
-                                  : selectedResponse == null
-                                      ? Colors.white
-                                      : const Color(0xFF475569),
+                              backgroundColor: selectedResponse == 'accepted'
+                                  ? const Color(0xFF047857)
+                                  : (selectedResponse == null
+                                      ? const Color(0xFF059669)
+                                      : const Color(0xFFCBD5E1)),
+                              foregroundColor: selectedResponse == null
+                                  ? Colors.white
+                                  : const Color(0xFF475569),
                               padding: const EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
@@ -10124,6 +10177,121 @@ class _NotificationsTabState extends State<NotificationsTab>
         );
       }
     }
+  }
+
+  _CriticalNotificationWarning? _getCriticalWarning(Map<String, dynamic> item) {
+    final notif = item['notification'] as Map<String, dynamic>? ?? {};
+    final type = (notif['type'] as String? ?? '').toLowerCase();
+    final meta = notif['meta'] as Map<String, dynamic>? ?? {};
+    final subject = (notif['subject'] as String? ?? '').toLowerCase();
+
+    // 1. Job Offer notification check
+    if (type == 'status_for_job_offer_sent' ||
+        type == 'job_offer' ||
+        subject.contains('job offer')) {
+      final response = meta['offer_response']?.toString().toLowerCase();
+      // If already accepted or declined, no longer high-stakes
+      if (response != 'accepted' && response != 'declined') {
+        final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+        final jobTitle = meta['job_title'] as String? ??
+            jobListing?['title'] as String? ??
+            'the role';
+        final company = meta['company_name'] as String? ??
+            (jobListing?['employer'] as Map<String, dynamic>?)?['company_name']
+                as String? ??
+            'the employer';
+
+        return _CriticalNotificationWarning(
+          title: 'Job Offer Pending',
+          message:
+              'You have not responded to the job offer from $company for "$jobTitle" yet. Deleting this notification will remove your quick access to accept or decline.',
+          icon: Icons.gavel_rounded,
+          iconColor: const Color(0xFF0284C7),
+          confirmLabel: 'Delete Anyway',
+        );
+      }
+    }
+
+    // 2. Interview Scheduled check
+    if (type == 'status_interview' ||
+        type == 'interview' ||
+        subject.contains('interview')) {
+      final dateStr = meta['interview_date']?.toString();
+      final timeStr = meta['interview_time']?.toString();
+
+      bool isUpcoming = true;
+      if (dateStr != null && dateStr.isNotEmpty) {
+        final parsedDate = DateTime.tryParse(dateStr);
+        if (parsedDate != null &&
+            parsedDate
+                .isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
+          isUpcoming = false;
+        }
+      }
+
+      if (isUpcoming) {
+        final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+        final jobTitle = jobListing?['title'] as String? ?? 'the position';
+        final company = (jobListing?['employer']
+                as Map<String, dynamic>?)?['company_name'] as String? ??
+            'the employer';
+        final schedule = (dateStr != null && dateStr.isNotEmpty)
+            ? ' on $dateStr${timeStr != null ? ' at $timeStr' : ''}'
+            : '';
+
+        return _CriticalNotificationWarning(
+          title: 'Upcoming Interview',
+          message:
+              'You have an interview for "$jobTitle" with $company$schedule. Deleting this will remove the schedule details and access from your notifications.',
+          icon: Icons.calendar_month_rounded,
+          iconColor: const Color(0xFF7C3AED),
+          confirmLabel: 'Delete Anyway',
+        );
+      }
+    }
+
+    // 3. Direct Job Invitation check
+    if (type == 'invitation' || subject.contains('invitation')) {
+      final isRead = _isReadNotification(item);
+      // If unread/not yet opened
+      if (!isRead) {
+        final jobListing = notif['job_listing'] as Map<String, dynamic>?;
+        final jobTitle = jobListing?['title'] as String? ?? 'a position';
+        final company = (jobListing?['employer']
+                as Map<String, dynamic>?)?['company_name'] as String? ??
+            'An employer';
+
+        return _CriticalNotificationWarning(
+          title: 'Employer Invitation',
+          message:
+              '$company specifically invited your profile to apply for "$jobTitle". Are you sure you want to dismiss this invitation?',
+          icon: Icons.mark_email_unread_rounded,
+          iconColor: const Color(0xFF2563EB),
+          confirmLabel: 'Dismiss Invitation',
+        );
+      }
+    }
+
+    return null;
+  }
+
+  Future<bool> _confirmSwipeDismiss(Map<String, dynamic> n) async {
+    final criticalWarning = _getCriticalWarning(n);
+    if (criticalWarning == null) return true;
+
+    final proceed = await showAppDialog<bool>(
+      context: context,
+      type: AppDialogType.destructive,
+      icon: criticalWarning.icon,
+      title: criticalWarning.title,
+      message: criticalWarning.message,
+      confirmLabel: criticalWarning.confirmLabel,
+      cancelLabel: 'Keep Notification',
+      onConfirm: () => Navigator.of(context).pop(true),
+      onCancel: () => Navigator.of(context).pop(false),
+    );
+
+    return proceed == true;
   }
 
   Future<void> _deleteNotification(int idxInSortedList,
@@ -10297,15 +10465,29 @@ class _NotificationsTabState extends State<NotificationsTab>
       return;
     }
 
+    final hasCriticalPending =
+        _notifications.any((n) => _getCriticalWarning(n) != null);
+
+    String dialogMessage;
+    if (hasCriticalPending) {
+      dialogMessage =
+          'You have active job offers, scheduled interviews, or direct invitations in your notifications. Deleting all will clear them from your inbox.';
+    } else if (hasProtected) {
+      dialogMessage =
+          'This removes all notifications except your pending experience rating. That stays until you submit your feedback.';
+    } else {
+      dialogMessage =
+          'This will remove all notifications from your account.';
+    }
+
     final confirmed = await showAppDialog<bool>(
       context: context,
       type: AppDialogType.destructive,
       icon: Icons.delete_sweep_rounded,
       title: 'Delete All Notifications?',
-      message: hasProtected
-          ? 'This removes all notifications except your pending experience rating. That stays until you submit your feedback. This cannot be undone for the items removed.'
-          : 'This will remove all notifications from your account. This cannot be undone.',
+      message: dialogMessage,
       confirmLabel: 'Delete all',
+      cancelLabel: 'Cancel',
       onConfirm: () => Navigator.of(context).pop(true),
       onCancel: () => Navigator.of(context).pop(false),
     );
@@ -11756,6 +11938,7 @@ class _NotificationsTabState extends State<NotificationsTab>
                                   key: ValueKey('notif_$id'),
                                   enabled: !_isProtectedSatisfactionSurvey(n),
                                   isFirstCard: index == 0,
+                                  confirmDismiss: () => _confirmSwipeDismiss(n),
                                   onDismissed: () => _deleteNotification(index,
                                       withUndoNet: true),
                                   child: innerCard,
@@ -12832,6 +13015,133 @@ class _NotificationsTabState extends State<NotificationsTab>
   }
 }
 
+class _HomeBodySkeleton extends StatelessWidget {
+  const _HomeBodySkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.only(top: 12),
+      children: [
+        // Compact Search Bar Row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: const [
+              Expanded(
+                child: _PageSkeletonBox(
+                    width: double.infinity, height: 48, radius: 16),
+              ),
+              SizedBox(width: 10),
+              _PageSkeletonBox(width: 48, height: 48, radius: 16),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // Filter Pills Row
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(left: 20),
+          child: Row(
+            children: const [
+              _PageSkeletonBox(width: 68, height: 32, radius: 12),
+              SizedBox(width: 10),
+              _PageSkeletonBox(width: 88, height: 32, radius: 12),
+              SizedBox(width: 10),
+              _PageSkeletonBox(width: 95, height: 32, radius: 12),
+              SizedBox(width: 10),
+              _PageSkeletonBox(width: 80, height: 32, radius: 12),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // Jobs Available Header + Sort Dropdown
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: const [
+              _PageSkeletonBox(width: 140, height: 18, radius: 8),
+              Spacer(),
+              _PageSkeletonBox(width: 34, height: 34, radius: 12),
+              SizedBox(width: 8),
+              _PageSkeletonBox(width: 85, height: 32, radius: 20),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+
+        // Flattened Job Cards Skeleton
+        ...List.generate(
+          3,
+          (_) => Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      _PageSkeletonBox(
+                          width: 46, height: 46, radius: 12),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            _PageSkeletonBox(
+                                width: 160, height: 16, radius: 8),
+                            SizedBox(height: 6),
+                            _PageSkeletonBox(
+                                width: 110, height: 13, radius: 6),
+                          ],
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      _PageSkeletonBox(
+                          width: 52, height: 36, radius: 10),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  const _PageSkeletonBox(
+                      width: 220, height: 13, radius: 6),
+                  const SizedBox(height: 8),
+                  const _PageSkeletonBox(
+                      width: 140, height: 13, radius: 6),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: const [
+                      _PageSkeletonBox(
+                          width: 78, height: 26, radius: 10),
+                      Spacer(),
+                      _PageSkeletonBox(
+                          width: 38, height: 38, radius: 12),
+                      SizedBox(width: 10),
+                      _PageSkeletonBox(
+                          width: 90, height: 38, radius: 12),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _PageSkeletonBox extends StatelessWidget {
   final double width;
   final double height;
@@ -12860,193 +13170,6 @@ class _PageSkeletonBox extends StatelessWidget {
   }
 }
 
-class _HomePageSkeleton extends StatelessWidget {
-  const _HomePageSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    final topPadding = MediaQuery.paddingOf(context).top;
-    return Scaffold(
-      backgroundColor: const Color(0xFFF1F5F9),
-      body: SafeArea(
-        top: false,
-        left: false,
-        right: false,
-        child: Column(
-          children: [
-            // Compact Header Skeleton (matching 102 + topPadding)
-            Container(
-              width: double.infinity,
-              height: 102 + topPadding,
-              padding: EdgeInsets.fromLTRB(16, 8 + topPadding, 12, 12),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFF2563EB),
-                    Color(0xFF1D4ED8),
-                  ],
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.30),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: const [
-                  _PageSkeletonBox(width: 80, height: 75, radius: 14),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _PageSkeletonBox(width: 110, height: 12, radius: 6),
-                        SizedBox(height: 6),
-                        _PageSkeletonBox(width: 150, height: 16, radius: 8),
-                      ],
-                    ),
-                  ),
-                  SizedBox(width: 8),
-                  _PageSkeletonBox(width: 38, height: 38, radius: 12),
-                  SizedBox(width: 6),
-                  _PageSkeletonBox(width: 38, height: 38, radius: 12),
-                ],
-              ),
-            ),
-
-            // Body Content Skeleton
-            Expanded(
-              child: ListView(
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(top: 12),
-                children: [
-                  // Compact Search Bar Row
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: const [
-                        Expanded(
-                          child: _PageSkeletonBox(
-                              width: double.infinity, height: 48, radius: 16),
-                        ),
-                        SizedBox(width: 10),
-                        _PageSkeletonBox(width: 48, height: 48, radius: 16),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Filter Pills Row
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.only(left: 20),
-                    child: Row(
-                      children: const [
-                        _PageSkeletonBox(width: 68, height: 32, radius: 12),
-                        SizedBox(width: 10),
-                        _PageSkeletonBox(width: 88, height: 32, radius: 12),
-                        SizedBox(width: 10),
-                        _PageSkeletonBox(width: 95, height: 32, radius: 12),
-                        SizedBox(width: 10),
-                        _PageSkeletonBox(width: 80, height: 32, radius: 12),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Jobs Available Header + Sort Dropdown
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: const [
-                        _PageSkeletonBox(width: 140, height: 18, radius: 8),
-                        Spacer(),
-                        _PageSkeletonBox(width: 34, height: 34, radius: 12),
-                        SizedBox(width: 8),
-                        _PageSkeletonBox(width: 85, height: 32, radius: 20),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-
-                  // Flattened Job Cards Skeleton
-                  ...List.generate(
-                    3,
-                    (_) => Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      child: Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(24),
-                          border: Border.all(color: const Color(0xFFE2E8F0)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const _PageSkeletonBox(
-                                    width: 46, height: 46, radius: 12),
-                                const SizedBox(width: 12),
-                                const Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      _PageSkeletonBox(
-                                          width: 160, height: 16, radius: 8),
-                                      SizedBox(height: 6),
-                                      _PageSkeletonBox(
-                                          width: 110, height: 13, radius: 6),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                const _PageSkeletonBox(
-                                    width: 52, height: 36, radius: 10),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            const _PageSkeletonBox(
-                                width: 220, height: 13, radius: 6),
-                            const SizedBox(height: 8),
-                            const _PageSkeletonBox(
-                                width: 140, height: 13, radius: 6),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: const [
-                                _PageSkeletonBox(
-                                    width: 78, height: 26, radius: 10),
-                                Spacer(),
-                                _PageSkeletonBox(
-                                    width: 38, height: 38, radius: 12),
-                                SizedBox(width: 10),
-                                _PageSkeletonBox(
-                                    width: 90, height: 38, radius: 12),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _EventsPageSkeleton extends StatelessWidget {
   const _EventsPageSkeleton();
