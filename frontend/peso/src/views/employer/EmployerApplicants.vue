@@ -74,7 +74,12 @@
                     <td class="job-cell">{{ a.jobApplied }}</td>
                     <td class="date-cell">{{ a.date }}</td>
                     <td @click.stop><div class="score-cell"><div class="score-bar-bg"><div class="score-bar-fill" :style="{ width: a.matchScore + '%', background: scoreColor(a.matchScore) }"></div></div><span class="score-val" :style="{ color: scoreColor(a.matchScore) }">{{ a.matchScore }}%</span></div></td>
-                    <td @click.stop><span class="status-badge" :class="statusClass(a)">{{ statusDisplay(a) }}</span></td>
+                    <td @click.stop>
+                      <span class="status-badge" :class="statusClass(a)">
+                        <span class="status-dot"></span>
+                        {{ statusDisplay(a) }}
+                      </span>
+                    </td>
                     <td @click.stop>
                       <div class="action-btns">
                         <button class="act-btn view" @click="openDrawer(a)" title="View"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
@@ -192,7 +197,10 @@
           <div class="drawer-header">
             <div class="drawer-avatar" :style="{ background: selected?.avatarBg }">{{ selected?.name[0] }}</div>
             <div class="drawer-title-wrap"><h2 class="drawer-name">{{ selected?.name }}</h2><p class="drawer-loc">{{ selected?.location }} · {{ selected?.jobApplied }}</p></div>
-            <span v-if="selected && !selected._isPotential" class="status-badge lg" :class="statusClass(selected)">{{ statusDisplay(selected) }}</span>
+            <span v-if="selected && !selected._isPotential" class="status-badge lg" :class="statusClass(selected)">
+              <span class="status-dot"></span>
+              {{ statusDisplay(selected) }}
+            </span>
             <button class="drawer-close" @click="drawerOpen = false">✕</button>
           </div>
           <div class="match-banner" :style="{ background: scoreBg(selected?.matchScore) }">
@@ -256,7 +264,10 @@
             <div v-if="drawerTab === 'Status'">
               <div class="section-label">Update Status</div>
               <div class="status-options">
-                <button v-for="st in statusOptionsFor(selected)" :key="st" :class="['status-option', statusClass(st), { active: selected?.status === st }]" @click="selected.status = st">{{ st }}</button>
+                <button v-for="st in statusOptionsFor(selected)" :key="st" :class="['status-option', statusClass(st), { active: selected?.status === st }]" @click="selected.status = st">
+                  <span class="status-dot"></span>
+                  {{ st }}
+                </button>
               </div>
               <div class="section-label mt16">Internal Notes</div>
               <textarea class="notes-area" placeholder="Add notes about this applicant…" rows="4" v-model="selected.notes"></textarea>
@@ -613,9 +624,9 @@ export default {
       try {
         const params = { page: this.localCurrentPage }
         if (this.search)      params.search       = this.search
-        if (this.filterStatus && this.filterStatus !== '') params.status = this.filterStatus.toLowerCase()
+        if (this.filterStatus && this.filterStatus !== '') params.status = this.filterStatus.toLowerCase().replace(/\s+/g, '_')
         if (this.filterJob)   params.job_title    = this.filterJob
-        if (this.activeTab !== 'all' && this.activeTab !== 'potential') params.status = this.activeTab.toLowerCase()
+        if (this.activeTab !== 'all' && this.activeTab !== 'potential') params.status = this.activeTab.toLowerCase().replace(/\s+/g, '_')
 
         const { data } = await employerApi.getApplications(params)
         // Backend now returns: { success, data: [...items], meta: { current_page, last_page, total } }
@@ -672,23 +683,42 @@ export default {
     },
 
     statusDisplay(a) {
-      if (a.status === 'For Job Offer') {
-        if (!a.offerSentAt) return 'Preparing Offer'
-        if (a.offerResponse === 'accepted') return 'Offer Accepted'
-        if (a.offerResponse === 'declined') return 'Offer Declined'
-        return 'Awaiting Response'
+      if (!a) return 'Reviewing'
+      const s = typeof a === 'string' ? a : a.status
+      const str = (s || '').toLowerCase().replace(/_/g, ' ')
+      if (str === 'for job offer') {
+        if (typeof a === 'object') {
+          if (!a.offerSentAt) return 'Preparing Offer'
+          if (a.offerResponse === 'accepted') return 'Offer Accepted'
+          if (a.offerResponse === 'declined') return 'Offer Declined'
+          return 'Awaiting Response'
+        }
+        return 'For Job Offer'
       }
-      return a.status
+      return s
     },
     statusClass(a) {
+      if (!a) return 'reviewing'
       const s = typeof a === 'string' ? a : a.status
-      if (s === 'For Job Offer' && typeof a === 'object') {
+      const str = (s || '').toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-')
+      if (str === 'for-job-offer' && typeof a === 'object') {
         if (!a.offerSentAt) return 'preparing-offer'
         if (a.offerResponse === 'accepted') return 'offer-accepted'
         if (a.offerResponse === 'declined') return 'offer-declined'
         return 'awaiting-response'
       }
-      return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', 'For Job Offer':'for-job-offer', Hired:'hired', Rejected:'rejected' }[s] || ''
+      return {
+        reviewing: 'reviewing',
+        shortlisted: 'shortlisted',
+        interview: 'interview',
+        'for-job-offer': 'for-job-offer',
+        'preparing-offer': 'preparing-offer',
+        'awaiting-response': 'awaiting-response',
+        'offer-accepted': 'offer-accepted',
+        'offer-declined': 'offer-declined',
+        hired: 'hired',
+        rejected: 'rejected'
+      }[str] || 'reviewing'
     },
     statusOptionsFor(applicant) {
       const base = ['Reviewing', 'Shortlisted', 'Interview', 'For Job Offer']
@@ -1061,12 +1091,13 @@ export default {
 .tab-btn:hover { background: #f1f5f9; }
 .tab-btn.active { background: #eff8ff; color: #1a5f8a; font-weight: 700; }
 .tab-count { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: #f1f5f9; color: #64748b; }
-.tab-count.reviewing   { background: #eff6ff; color: #3b82f6; }
-.tab-count.shortlisted { background: #eff8ff; color: #1a5f8a; }
-.tab-count.interview   { background: #faf5ff; color: #8b5cf6; }
-.tab-count.for-job-offer { background: #fef3c7; color: #92400e; }
-.tab-count.hired       { background: #f0fdf4; color: #22c55e; }
-.tab-count.rejected    { background: #fef2f2; color: #ef4444; }
+.tab-count.reviewing     { background: #eff6ff; color: #1d4ed8; }
+.tab-count.shortlisted   { background: #eff8ff; color: #1a5f8a; }
+.tab-count.interview     { background: #faf5ff; color: #7c3aed; }
+.tab-count.for-job-offer,
+.tab-count.for_job_offer { background: #fef3c7; color: #92400e; }
+.tab-count.hired         { background: #f0fdf4; color: #15803d; }
+.tab-count.rejected      { background: #fef2f2; color: #ef4444; }
 .potential-notice { background: #eff8ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 11px 14px; font-size: 12.5px; color: #1a5f8a; display: flex; align-items: flex-start; gap: 8px; }
 .listing-tabs { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .listing-tab { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #64748b; background: #fff; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 5px 12px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
@@ -1104,17 +1135,56 @@ export default {
 .score-bar-bg { width: 60px; height: 5px; background: #f1f5f9; border-radius: 99px; overflow: hidden; }
 .score-bar-fill { height: 100%; border-radius: 99px; }
 .score-val { font-size: 12px; font-weight: 700; min-width: 32px; }
-.status-badge { padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.reviewing   { background: #eff6ff; color: #3b82f6; }
-.shortlisted { background: #eff8ff; color: #1a5f8a; }
-.interview   { background: #faf5ff; color: #8b5cf6; }
-.for-job-offer { background: #fef3c7; color: #92400e; }
-.preparing-offer { background: #e0f2fe; color: #0369a1; }
-.awaiting-response { background: #fef3c7; color: #92400e; }
-.offer-accepted { background: #f0fdf4; color: #16a34a; }
-.offer-declined { background: #fef2f2; color: #dc2626; }
-.hired       { background: #f0fdf4; color: #22c55e; }
-.rejected    { background: #fef2f2; color: #ef4444; }
+
+/* STATUS BADGES */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.status-badge.lg {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-badge.lg .status-dot {
+  width: 7px;
+  height: 7px;
+}
+.status-badge.reviewing     { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.status-badge.reviewing     .status-dot { background: #3b82f6; }
+.status-badge.shortlisted   { background: #eff8ff; color: #1a5f8a; border: 1px solid #bae6fd; }
+.status-badge.shortlisted   .status-dot { background: #2872A1; }
+.status-badge.interview     { background: #faf5ff; color: #7c3aed; border: 1px solid #e9d5ff; }
+.status-badge.interview     .status-dot { background: #8b5cf6; }
+.status-badge.for-job-offer,
+.status-badge.for_job_offer { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.status-badge.for-job-offer .status-dot,
+.status-badge.for_job_offer .status-dot { background: #d97706; }
+.status-badge.preparing-offer { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; }
+.status-badge.preparing-offer .status-dot { background: #0284c7; }
+.status-badge.awaiting-response { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.status-badge.awaiting-response .status-dot { background: #d97706; }
+.status-badge.offer-accepted { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.status-badge.offer-accepted .status-dot { background: #22c55e; }
+.status-badge.offer-declined { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.status-badge.offer-declined .status-dot { background: #ef4444; }
+.status-badge.hired         { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.status-badge.hired         .status-dot { background: #22c55e; }
+.status-badge.rejected      { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.status-badge.rejected      .status-dot { background: #ef4444; }
 .not-applied-badge { display: inline-flex; align-items: center; gap: 6px; background: #fef9ec; color: #92400e; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 99px; border: 1px solid #fde68a; white-space: nowrap; }
 .na-dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
 .listing-match-cell { display: flex; align-items: center; gap: 9px; }
@@ -1184,14 +1254,46 @@ export default {
 .btn-blue { background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 9px 20px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; min-width: 160px; }
 .btn-blue:disabled { opacity: 0.55; cursor: not-allowed; }
 .status-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.status-option { padding: 10px; border-radius: 10px; border: 2px solid transparent; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; background: #f8fafc; color: #64748b; }
-.status-option.active.reviewing   { background: #eff6ff; color: #3b82f6; border-color: #3b82f6; }
+.status-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  background: #f8fafc;
+  color: #64748b;
+}
+.status-option .status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #94a3b8;
+  flex-shrink: 0;
+}
+.status-option:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+.status-option.active.reviewing   { background: #eff6ff; color: #1d4ed8; border-color: #3b82f6; }
+.status-option.active.reviewing   .status-dot { background: #3b82f6; }
 .status-option.active.shortlisted { background: #eff8ff; color: #1a5f8a; border-color: #2872A1; }
-.status-option.active.interview   { background: #faf5ff; color: #8b5cf6; border-color: #8b5cf6; }
+.status-option.active.shortlisted .status-dot { background: #2872A1; }
+.status-option.active.interview   { background: #faf5ff; color: #7c3aed; border-color: #8b5cf6; }
+.status-option.active.interview   .status-dot { background: #8b5cf6; }
 .status-option.active.for-job-offer { background: #fef3c7; color: #92400e; border-color: #d97706; }
+.status-option.active.for-job-offer .status-dot { background: #d97706; }
 .status-option.active.preparing-offer { background: #e0f2fe; color: #0369a1; border-color: #0284c7; }
-.status-option.active.hired       { background: #f0fdf4; color: #22c55e; border-color: #22c55e; }
-.status-option.active.rejected    { background: #fef2f2; color: #ef4444; border-color: #ef4444; }
+.status-option.active.preparing-offer .status-dot { background: #0284c7; }
+.status-option.active.hired       { background: #f0fdf4; color: #15803d; border-color: #22c55e; }
+.status-option.active.hired       .status-dot { background: #22c55e; }
+.status-option.active.rejected    { background: #fef2f2; color: #b91c1c; border-color: #ef4444; }
+.status-option.active.rejected    .status-dot { background: #ef4444; }
 .notes-area { width: 100%; border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px 12px; font-size: 13px; color: #1e293b; font-family: inherit; resize: vertical; outline: none; background: #f8fafc; }
 .notes-area:focus { border-color: #08BDDE; background: #fff; }
 .btn-blue-full { width: 100%; background: #2872A1; color: #fff; border: none; border-radius: 10px; padding: 11px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; display: flex; align-items: center; justify-content: center; }

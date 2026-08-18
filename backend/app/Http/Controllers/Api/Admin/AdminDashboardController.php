@@ -153,17 +153,28 @@ class AdminDashboardController extends Controller
             ->orderByDesc('applied_at')
             ->limit(5)
             ->get()
-            ->map(fn($a) => [
-                'name'        => $a->jobseeker ? $a->jobseeker->fullName() : 'Unknown',
-                'location'    => optional($a->jobseeker)->city ?? '',
-                'skill'       => $a->jobseeker 
-                                    ? ($a->jobseeker->skills()->pluck('skill')->first() ?? $a->jobseeker->primary_skill ?? 'General')
-                                    : 'General',
-                'job'         => optional($a->jobListing)->title ?? 'Unknown Job',
-                'date'        => optional($a->applied_at)->format('M d, Y'),
-                'status'      => ucfirst($a->status),
-                'statusClass' => strtolower($a->status),
-            ]);
+            ->map(function ($a) {
+                $statusMap = [
+                    'reviewing'     => 'Reviewing',
+                    'shortlisted'   => 'Shortlisted',
+                    'interview'     => 'Interview',
+                    'for_job_offer' => 'For Job Offer',
+                    'hired'         => 'Hired',
+                    'rejected'      => 'Rejected',
+                ];
+                $statusRaw = strtolower((string) $a->status);
+                return [
+                    'name'        => $a->jobseeker ? $a->jobseeker->fullName() : 'Unknown',
+                    'location'    => optional($a->jobseeker)->city ?? '',
+                    'skill'       => $a->jobseeker 
+                                        ? ($a->jobseeker->skills()->pluck('skill')->first() ?? $a->jobseeker->primary_skill ?? 'General')
+                                        : 'General',
+                    'job'         => optional($a->jobListing)->title ?? 'Unknown Job',
+                    'date'        => optional($a->applied_at)->format('M d, Y'),
+                    'status'      => $statusMap[$statusRaw] ?? ucwords(str_replace('_', ' ', $statusRaw)),
+                    'statusClass' => str_replace('_', '-', $statusRaw),
+                ];
+            });
 
         // ── Upcoming Events ───────────────────────────────────────────
         $upcomingEvents = Event::where('event_date', '>=', now())

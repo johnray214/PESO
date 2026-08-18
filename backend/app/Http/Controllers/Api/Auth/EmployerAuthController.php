@@ -15,13 +15,36 @@ use Illuminate\Support\Facades\Log;
 
 class EmployerAuthController extends Controller
 {
+    public function checkEmail(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|max:191',
+        ]);
+
+        $exists = Employer::where('email', $request->email)->exists();
+
+        return response()->json([
+            'success'   => true,
+            'available' => !$exists,
+            'message'   => $exists ? 'This email address is already in use.' : 'Email is available.',
+        ]);
+    }
+
     public function register(Request $request)
     {
         $validated = $request->validate([
             'company_name'   => 'required|string|max:255',
             'contact_person' => 'required|string|max:255',
-            'email'          => 'required|email|unique:employers|max:191',
-            'password'       => 'required|string|min:8|confirmed',
+            'email'          => 'required|email|unique:employers,email|max:191',
+            'password'       => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/[a-z]/',      // at least one lowercase letter
+                'regex:/[A-Z]/',      // at least one uppercase letter
+                'regex:/[0-9]/',      // at least one number
+            ],
             'industry'       => 'required|string|max:100',
             'company_size'   => 'required|string|max:30',
             'employer_type'  => 'nullable|string|in:local,overseas',
@@ -32,9 +55,16 @@ class EmployerAuthController extends Controller
             'phone'          => 'required|string|max:20',
             'tin'            => 'nullable|string|max:50',
             'website'        => 'nullable|string|max:255',
-            'biz_permit'     => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'bir_cert'       => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'dmw_license'    => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'biz_permit'     => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'bir_cert'       => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'dmw_license'    => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+        ], [
+            'email.unique'       => 'This email address is already in use.',
+            'password.min'       => 'Password must be at least 8 characters long.',
+            'password.regex'     => 'Password must include at least one uppercase letter, one lowercase letter, and one number.',
+            'biz_permit.max'     => 'Business Permit must not exceed 5MB.',
+            'bir_cert.max'       => 'BIR Certificate must not exceed 5MB.',
+            'dmw_license.max'    => 'DMW License must not exceed 5MB.',
         ]);
 
         // Default employer_type to 'local' if not provided
@@ -210,9 +240,9 @@ class EmployerAuthController extends Controller
         $request->validate([
             'email'       => 'required|email',
             'password'    => 'required|string',
-            'biz_permit'  => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'bir_cert'    => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
-            'dmw_license' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'biz_permit'  => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'bir_cert'    => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
+            'dmw_license' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
         $employer = Employer::where('email', $request->email)->first();

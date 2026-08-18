@@ -130,7 +130,12 @@
                     </div>
                   </td>
                   <td class="date-cell">{{ a.date }}</td>
-                  <td @click.stop><span class="status-badge" :class="statusClass(a.status)">{{ a.status }}</span></td>
+                  <td @click.stop>
+                    <span class="status-badge" :class="statusClass(a.status)">
+                      <span class="status-dot"></span>
+                      {{ a.status }}
+                    </span>
+                  </td>
                   <td @click.stop>
                     <div class="file-icons">
                       <button class="file-btn" :class="{ has: a.files.resume }" title="Resume"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></button>
@@ -271,7 +276,10 @@
                 <h2 class="drawer-name">{{ selected?.name }}</h2>
                 <p class="drawer-loc">{{ selected?.location }}</p>
               </div>
-              <span v-if="selected && !selected._isPotential" class="status-badge lg" :class="statusClass(selected.status)">{{ selected?.status }}</span>
+              <span v-if="selected && !selected._isPotential" class="status-badge lg" :class="statusClass(selected.status)">
+                <span class="status-dot"></span>
+                {{ selected?.status }}
+              </span>
               <button class="drawer-close" @click="drawerOpen = false">✕</button>
             </div>
 
@@ -668,19 +676,30 @@ export default {
     },
 
     initials(name) { return (name||'').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase() },
-    statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', 'For Job Offer':'for-job-offer', Hired:'hired', Rejected:'rejected' }[s] || 'reviewing' },
+    statusClass(s) {
+      const str = (s || '').toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-')
+      if (str === 'for-job-offer' || str === 'for_job_offer') return 'for-job-offer'
+      return {
+        reviewing: 'reviewing',
+        shortlisted: 'shortlisted',
+        interview: 'interview',
+        'for-job-offer': 'for-job-offer',
+        hired: 'hired',
+        rejected: 'rejected'
+      }[str] || 'reviewing'
+    },
     scoreColor(v) { return v >= 85 ? '#22c55e' : v >= 70 ? '#2872A1' : '#ef4444' },
     scoreBg(v)    { return v >= 85 ? '#f0fdf4' : v >= 70 ? '#eff8ff' : '#fef2f2' },
 
     historyClass(action) {
-      const a = (action||'').toLowerCase()
-      if (a.includes('invited'))   return 'invited'
-      if (a === 'reviewing')       return 'reviewing'
-      if (a === 'shortlisted')     return 'shortlisted'
-      if (a === 'interview')       return 'interview'
-      if (a.includes('for_job_offer') || a.includes('for job offer')) return 'for_job_offer'
-      if (a === 'hired')               return 'hired'
-      if (a === 'rejected')            return 'rejected'
+      const a = (action || '').toLowerCase()
+      if (a.includes('invited')) return 'invited'
+      if (a.includes('for_job_offer') || a.includes('for job offer') || a.includes('job offer') || a.includes('offer')) return 'for_job_offer'
+      if (a.includes('reviewing')) return 'reviewing'
+      if (a.includes('shortlisted')) return 'shortlisted'
+      if (a.includes('interview')) return 'interview'
+      if (a.includes('hired')) return 'hired'
+      if (a.includes('rejected')) return 'rejected'
       return 'default'
     },
 
@@ -840,11 +859,13 @@ export default {
 .tab-btn:hover { background: #f1f5f9; }
 .tab-btn.active { background: #eff8ff; color: #2872A1; font-weight: 700; }
 .tab-count { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; background: #f1f5f9; color: #64748b; }
-.tab-count.reviewing   { background: #dbeafe; color: #1d4ed8; }
-.tab-count.shortlisted { background: #eff8ff; color: #1a5f8a; }
-.tab-count.interview   { background: #ede9fe; color: #8B5CF6; }
-.tab-count.hired       { background: #dcfce7; color: #16a34a; }
-.tab-count.rejected    { background: #fef2f2; color: #ef4444; }
+.tab-count.reviewing     { background: #dbeafe; color: #1d4ed8; }
+.tab-count.shortlisted   { background: #eff8ff; color: #1a5f8a; }
+.tab-count.interview     { background: #ede9fe; color: #8B5CF6; }
+.tab-count.for_job_offer,
+.tab-count.for-job-offer { background: #fef3c7; color: #92400e; }
+.tab-count.hired         { background: #dcfce7; color: #16a34a; }
+.tab-count.rejected      { background: #fef2f2; color: #ef4444; }
 
 /* POTENTIAL NOTICE */
 .potential-notice { background: #eff8ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 11px 14px; font-size: 12.5px; color: #1a5f8a; display: flex; align-items: flex-start; gap: 8px; }
@@ -892,14 +913,46 @@ export default {
 .na-dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
 
 /* STATUS BADGES */
-.status-badge { padding: 4px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; text-transform: capitalize; }
-.status-badge.lg { padding: 5px 14px; font-size: 12px; }
-.reviewing   { background: #dbeafe; color: #1d4ed8; }
-.shortlisted { background: #eff8ff; color: #1a5f8a; }
-.interview   { background: #ede9fe; color: #8B5CF6; }
-.for-job-offer { background: #fef3c7; color: #92400e; }
-.hired       { background: #dcfce7; color: #16a34a; }
-.rejected    { background: #fef2f2; color: #ef4444; }
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.status-badge.lg {
+  padding: 5px 12px;
+  font-size: 12px;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-badge.lg .status-dot {
+  width: 7px;
+  height: 7px;
+}
+.reviewing     { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.reviewing     .status-dot { background: #3b82f6; }
+.shortlisted   { background: #eff8ff; color: #1a5f8a; border: 1px solid #bae6fd; }
+.shortlisted   .status-dot { background: #2872A1; }
+.interview     { background: #faf5ff; color: #7c3aed; border: 1px solid #e9d5ff; }
+.interview     .status-dot { background: #8b5cf6; }
+.for-job-offer,
+.for_job_offer { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.for-job-offer .status-dot,
+.for_job_offer .status-dot { background: #d97706; }
+.hired         { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.hired         .status-dot { background: #22c55e; }
+.rejected      { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.rejected      .status-dot { background: #ef4444; }
 
 /* FILE ICONS */
 .file-icons { display: flex; gap: 4px; }

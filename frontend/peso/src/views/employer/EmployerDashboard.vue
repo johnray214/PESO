@@ -329,7 +329,12 @@
                     <td><span class="skill-tag">{{ a.skill }}</span></td>
                     <td class="job-cell">{{ a.job }}</td>
                     <td class="date-cell">{{ a.date }}</td>
-                    <td><span class="status-badge" :class="a.statusClass">{{ a.status }}</span></td>
+                    <td>
+                      <span class="status-badge" :class="normalizeStatusClass(a.statusClass || a.status)">
+                        <span class="status-dot"></span>
+                        {{ a.status }}
+                      </span>
+                    </td>
                   </tr>
                   <tr v-if="!recentApplicants.length">
                     <td colspan="5" class="empty-row">No recent applicants yet.</td>
@@ -413,6 +418,7 @@ export default {
         { label: 'Reviewed',              count: 0, color: '#3b82f6' },
         { label: 'Shortlisted',           count: 0, color: '#8b5cf6' },
         { label: 'Interviewed',           count: 0, color: '#06b6d4' },
+        { label: 'For Job Offer',         count: 0, color: '#f59e0b' },
         { label: 'Hired',                 count: 0, color: '#22c55e' },
       ],
 
@@ -610,16 +616,26 @@ export default {
 
         if (d?.recent_applications?.length) {
           const colors = ['#2563eb','#f97316','#8b5cf6','#22c55e','#06b6d4']
+          const statusMap = {
+            for_job_offer: 'For Job Offer',
+            'for-job-offer': 'For Job Offer',
+            reviewing: 'Reviewing',
+            shortlisted: 'Shortlisted',
+            interview: 'Interview',
+            hired: 'Hired',
+            rejected: 'Rejected',
+          }
           this.recentApplicants = d.recent_applications.slice(0,5).map((a,i) => {
             const js = a.jobseeker || {}
+            const raw = (a.status || 'reviewing').toLowerCase().replace(/\s+/g, '_')
             return {
               name:        js.full_name || 'Unknown',
               location:    js.address   || '',
               skill:       (js.skills||[])[0]?.skill || 'N/A',
               job:         a.job_listing?.title || 'Unknown',
               date:        new Date(a.applied_at).toLocaleDateString('en-US',{ month:'short', day:'2-digit', year:'numeric' }),
-              status:      (a.status?.charAt(0).toUpperCase() + a.status?.slice(1)) || 'Reviewing',
-              statusClass: a.status?.toLowerCase() || 'reviewing',
+              status:      statusMap[raw] || (raw.charAt(0).toUpperCase() + raw.slice(1)),
+              statusClass: raw.replace(/_/g, '-'),
               color:       colors[i%colors.length],
             }
           })
@@ -631,7 +647,8 @@ export default {
           this.funnelStages[1].count = c.reviewing   || 0
           this.funnelStages[2].count = c.shortlisted || 0
           this.funnelStages[3].count = c.interview   || 0
-          this.funnelStages[4].count = c.hired       || 0
+          this.funnelStages[4].count = c.for_job_offer || 0
+          this.funnelStages[5].count = c.hired       || 0
         }
 
         this.lastUpdated = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
@@ -651,6 +668,11 @@ export default {
       } else {
         this.lastUpdated = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       }
+    },
+
+    normalizeStatusClass(s) {
+      const str = (s || '').toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-')
+      return str || 'reviewing'
     },
 
     getX(i)   { return 50 + i*(560/Math.max(this.chartData.length-1,1)) },
@@ -956,13 +978,40 @@ export default {
 .date-cell     { color: #94a3b8; white-space: nowrap; }
 
 /* ── STATUS BADGES ───────────────────────────────────────────────── */
-.status-badge  { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.shortlisted { background: #eff8ff; color: #1a5f8a; }
-.reviewing   { background: #eff6ff; color: #3b82f6; }
-.interview   { background: #faf5ff; color: #8b5cf6; }
-.hired       { background: #f0fdf4; color: #22c55e; }
-.rejected    { background: #fef2f2; color: #ef4444; }
-.pending     { background: #fff7ed; color: #f97316; }
+.status-badge  {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-badge.reviewing   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.status-badge.reviewing   .status-dot { background: #3b82f6; }
+.status-badge.shortlisted { background: #eff8ff; color: #1a5f8a; border: 1px solid #bae6fd; }
+.status-badge.shortlisted .status-dot { background: #2872A1; }
+.status-badge.interview   { background: #faf5ff; color: #7c3aed; border: 1px solid #e9d5ff; }
+.status-badge.interview   .status-dot { background: #8b5cf6; }
+.status-badge.for-job-offer,
+.status-badge.for_job_offer { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.status-badge.for-job-offer .status-dot,
+.status-badge.for_job_offer .status-dot { background: #d97706; }
+.status-badge.hired       { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.status-badge.hired       .status-dot { background: #22c55e; }
+.status-badge.rejected    { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.status-badge.rejected    .status-dot { background: #ef4444; }
+.status-badge.pending     { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.status-badge.pending     .status-dot { background: #f97316; }
 
 /* ── ACTIVE LISTINGS ─────────────────────────────────────────────── */
 .jobs-list { display: flex; flex-direction: column; gap: 12px; }

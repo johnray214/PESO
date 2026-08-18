@@ -21,12 +21,12 @@ export const useEmployerApplicantsStore = defineStore('employerApplicants', {
   getters: {
     totalApplicants:  (state) => state.applicants.length || state.counts.applicants,
     totalPotential:   (state) => state.potentialApplicants.length || state.counts.potential,
-    reviewingCount:   (state) => state.applicants.length ? state.applicants.filter((a) => a.status === 'Reviewing').length : (state.counts.reviewing || 0),
-    shortlistedCount: (state) => state.applicants.filter((a) => a.status === 'Shortlisted').length,
-    interviewCount:   (state) => state.applicants.filter((a) => a.status === 'Interview').length,
-    forJobOfferCount: (state) => state.applicants.filter((a) => a.status === 'For Job Offer').length,
-    hiredCount:       (state) => state.applicants.filter((a) => a.status === 'Hired').length,
-    rejectedCount:    (state) => state.applicants.filter((a) => a.status === 'Rejected').length,
+    reviewingCount:   (state) => state.applicants.length ? state.applicants.filter((a) => a.status === 'Reviewing' || a.status === 'reviewing').length : (state.counts.reviewing || 0),
+    shortlistedCount: (state) => state.applicants.filter((a) => a.status === 'Shortlisted' || a.status === 'shortlisted').length,
+    interviewCount:   (state) => state.applicants.filter((a) => a.status === 'Interview' || a.status === 'interview').length,
+    forJobOfferCount: (state) => state.applicants.filter((a) => a.status === 'For Job Offer' || a.status === 'for_job_offer').length,
+    hiredCount:       (state) => state.applicants.filter((a) => a.status === 'Hired' || a.status === 'hired').length,
+    rejectedCount:    (state) => state.applicants.filter((a) => a.status === 'Rejected' || a.status === 'rejected').length,
   },
 
   actions: {

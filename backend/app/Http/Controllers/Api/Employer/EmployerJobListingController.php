@@ -33,7 +33,7 @@ class EmployerJobListingController extends Controller
      * - otherwise auto-create a new catalog skill
      * Returns canonical skill name.
      */
-    private function resolveSkillName(string $rawSkill): ?string
+    private function resolveSkillName(string $rawSkill, ?string $category = null): ?string
     {
         $input = $this->normaliseSkillInput($rawSkill);
         if ($input === '') return null;
@@ -45,6 +45,9 @@ class EmployerJobListingController extends Controller
             ->whereRaw('LOWER(name) = ?', [$inputLower])
             ->first();
         if ($exact) {
+            if ($category && empty($exact->category)) {
+                $exact->update(['category' => $category]);
+            }
             return $exact->name;
         }
 
@@ -92,7 +95,7 @@ class EmployerJobListingController extends Controller
         $created = Skill::create([
             'name' => $input,
             'slug' => $slug,
-            'category' => null,
+            'category' => $category,
             'is_active' => true,
         ]);
 
@@ -103,8 +106,16 @@ class EmployerJobListingController extends Controller
     {
         $canonical = [];
         foreach ($skills as $raw) {
-            if (!is_string($raw)) continue;
-            $name = $this->resolveSkillName($raw);
+            $rawName = '';
+            $cat = null;
+            if (is_string($raw)) {
+                $rawName = $raw;
+            } elseif (is_array($raw)) {
+                $rawName = $raw['name'] ?? $raw['skill'] ?? '';
+                $cat = $raw['category'] ?? null;
+            }
+            if (!is_string($rawName) || trim($rawName) === '') continue;
+            $name = $this->resolveSkillName($rawName, $cat);
             if (!$name) continue;
             $canonical[mb_strtolower($name)] = $name; // de-dupe by canonical value
         }

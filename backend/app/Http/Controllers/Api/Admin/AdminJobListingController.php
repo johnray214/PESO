@@ -21,17 +21,33 @@ class AdminJobListingController extends Controller
     {
         $canonical = [];
         foreach ($skills as $raw) {
-            if (!is_string($raw) || trim($raw) === '') continue;
-            $name = trim(preg_replace('/\s+/', ' ', $raw));
-            
+            $name = '';
+            $category = null;
+            if (is_string($raw)) {
+                $name = trim(preg_replace('/\s+/', ' ', $raw));
+            } elseif (is_array($raw)) {
+                $name = trim(preg_replace('/\s+/', ' ', $raw['name'] ?? $raw['skill'] ?? ''));
+                $category = !empty($raw['category']) ? trim($raw['category']) : null;
+            }
+            if ($name === '') continue;
+
             $slugBase = \Illuminate\Support\Str::slug($name);
             $slug = $slugBase ?: \Illuminate\Support\Str::random(12);
 
+            $createAttributes = ['slug' => $slug, 'is_active' => true];
+            if ($category) {
+                $createAttributes['category'] = $category;
+            }
+
             $skill = \App\Models\Skill::firstOrCreate(
                 ['name' => $name],
-                ['slug' => $slug, 'is_active' => true]
+                $createAttributes
             );
-            
+
+            if ($category && empty($skill->category)) {
+                $skill->update(['category' => $category]);
+            }
+
             $canonical[mb_strtolower($skill->name)] = $skill->name;
         }
         return array_values($canonical);

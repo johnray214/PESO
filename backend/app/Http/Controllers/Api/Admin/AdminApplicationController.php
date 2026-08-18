@@ -25,8 +25,8 @@ class AdminApplicationController extends Controller
             });
         }
         
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+        if ($request->has('status') && $request->status !== '') {
+            $query->where('status', str_replace(' ', '_', strtolower((string) $request->status)));
         }
         
         if ($request->has('job_listing_id')) {
@@ -149,7 +149,7 @@ class AdminApplicationController extends Controller
                 'application_id' => $application->id,
                 'actor_type'     => 'peso',
                 'actor_label'    => 'PESO',
-                'action'         => ucfirst($newStatus),
+                'action'         => $newStatus === 'for_job_offer' ? 'For Job Offer' : ucfirst($newStatus),
             ]);
 
             // Auto-close job if hired count reaches slots
@@ -272,7 +272,7 @@ class AdminApplicationController extends Controller
     public function counts()
     {
         $counts = \Illuminate\Support\Facades\Cache::remember('admin_app_counts', 15, function () {
-            $statuses = ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'];
+            $statuses = ['reviewing', 'shortlisted', 'interview', 'for_job_offer', 'hired', 'rejected'];
             $res = ['all' => Application::count()];
             foreach ($statuses as $s) {
                 $res[$s] = Application::where('status', $s)->count();

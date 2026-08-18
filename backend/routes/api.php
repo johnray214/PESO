@@ -88,6 +88,7 @@ Route::middleware('throttle:10,1')->group(function () {
 // Employer Auth (throttled)
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('/employer/login', [EmployerAuthController::class, 'login']);
+    Route::get('/employer/check-email', [EmployerAuthController::class, 'checkEmail']);
     Route::post('/employer/register', [EmployerAuthController::class, 'register']);
     Route::post('/employer/forgot-password', [EmployerAuthController::class, 'forgotPassword']);
     Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPassword']);
