@@ -33,10 +33,54 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
   List<String> _selectedSkills = [];
   Map<String, List<String>> _skillCatalog = {};
   Map<String, int> _skillNameToId = {};
+  Map<String, String> _skillToCategory = {};
   bool _isLoadingCatalog = true;
   bool _isSaving = false;
   bool _hasChanges = false;
   List<String> _lastSavedSkills = [];
+
+  List<String> get _suggestedSkills {
+    if (_selectedSkills.isEmpty || _skillCatalog.isEmpty) return const [];
+
+    final selectedLower = _selectedSkills.map((s) => s.toLowerCase()).toSet();
+    final suggested = <String>[];
+
+    // 1. Gather all categories the user is active in
+    final activeCategories = <String>{};
+    for (final skill in _selectedSkills) {
+      final cat = _skillToCategory[skill.toLowerCase()];
+      if (cat != null) activeCategories.add(cat);
+    }
+
+    // 2. Extract top unselected skills from those active categories
+    for (final cat in activeCategories) {
+      final catSkills = _skillCatalog[cat] ?? [];
+      for (final skill in catSkills) {
+        if (!selectedLower.contains(skill.toLowerCase()) &&
+            !suggested.contains(skill)) {
+          suggested.add(skill);
+          if (suggested.length >= 8) break;
+        }
+      }
+      if (suggested.length >= 8) break;
+    }
+
+    // 3. Fallback to common catalog skills if list is small
+    if (suggested.length < 5) {
+      for (final entry in _skillCatalog.entries) {
+        for (final skill in entry.value) {
+          if (!selectedLower.contains(skill.toLowerCase()) &&
+              !suggested.contains(skill)) {
+            suggested.add(skill);
+            if (suggested.length >= 8) break;
+          }
+        }
+        if (suggested.length >= 8) break;
+      }
+    }
+
+    return suggested;
+  }
 
   /// When false, selected chips have no remove (X); browse/search add is locked too.
   /// New users with no skills yet can always browse/add (`_canChangeSkills`).
@@ -322,6 +366,13 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
         byCategory.putIfAbsent(category, () => <String>[]).add(name);
       }
 
+      final skillToCategory = <String, String>{};
+      for (final entry in byCategory.entries) {
+        for (final skillName in entry.value) {
+          skillToCategory[skillName.toLowerCase()] = entry.key;
+        }
+      }
+
       // Only keep already-selected skills that exist in the catalog.
       final filteredSelected = _selectedSkills
           .where((s) => nameToId.containsKey(s.toLowerCase()))
@@ -330,6 +381,7 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       setState(() {
         _skillCatalog = byCategory;
         _skillNameToId = nameToId;
+        _skillToCategory = skillToCategory;
         _selectedSkills = filteredSelected;
         _isLoadingCatalog = false;
         _hasChanges = false;
@@ -1547,90 +1599,139 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
                                 children: _selectedSkills.map((skill) {
                                   return _SelectedSkillChip(
                                     skill: skill,
+                                    category: _skillToCategory[
+                                        skill.toLowerCase()],
                                     onRemove: _editingSelectedSkills
                                         ? () => _toggleSkill(skill)
                                         : null,
                                   );
                                 }).toList(),
                               ),
-                            const SizedBox(height: 24),
-                          ],
 
-                          // Header card (hidden while searching)
-                          if (!isSearching) ...[
-                            Container(
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF2563EB),
-                                    Color(0xFF1D4ED8)
-                                  ],
+                            // Frequently Paired Skills (Smart Discovery Carousel)
+                            if (!isSearching &&
+                                _selectedSkills.isNotEmpty &&
+                                _suggestedSkills.isNotEmpty) ...[
+                              const SizedBox(height: 14),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                      color: const Color(0xFFE2E8F0)),
                                 ),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFF2563EB)
-                                        .withOpacity(0.3),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 8),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    alignment: Alignment.center,
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: const HugeIcon(
-                                      icon: HugeIcons.strokeRoundedBrain01,
-                                      color: Colors.white,
-                                      size: 22,
-                                      strokeWidth: 2.0,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
                                       children: [
+                                        const HugeIcon(
+                                          icon: HugeIcons.strokeRoundedIdea01,
+                                          size: 15,
+                                          color: Color(0xFF6366F1),
+                                          strokeWidth: 1.8,
+                                        ),
+                                        const SizedBox(width: 6),
                                         Text(
                                           Localizations.localeOf(context)
                                                       .languageCode ==
                                                   'tl'
-                                              ? 'Buuin ang Profile ng Kasanayan'
-                                              : 'Build Your Skills Profile',
-                                          style: TextStyle(
-                                            fontSize: 16,
+                                              ? 'Madalas Ipares na Kasanayan'
+                                              : 'Frequently Paired Skills',
+                                          style: const TextStyle(
+                                            fontSize: 12,
                                             fontWeight: FontWeight.w800,
-                                            color: Colors.white,
+                                            color: Color(0xFF1E293B),
                                           ),
                                         ),
-                                        SizedBox(height: 4),
+                                        const Spacer(),
                                         Text(
-                                          Localizations.localeOf(context)
-                                                      .languageCode ==
-                                                  'tl'
-                                              ? 'Maghanap o mag-browse ng mga kasanayan sa ibaba at hahanapan ka namin ng pinakaangkop na oportunidad sa trabaho.'
-                                              : 'Search or browse skills below and we\'ll match you with the best job opportunities.',
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.white70,
-                                            height: 1.4,
+                                          _canChangeSkills
+                                              ? 'Tap + to add'
+                                              : 'Tap Edit to add',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF94A3B8),
                                           ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ],
+                                    const SizedBox(height: 10),
+                                    SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      physics: const BouncingScrollPhysics(),
+                                      child: Row(
+                                        children: _suggestedSkills.map((skill) {
+                                          final theme = SkillTheme.resolve(
+                                              skill,
+                                              _skillToCategory[
+                                                  skill.toLowerCase()]);
+                                          return Padding(
+                                            padding:
+                                                const EdgeInsets.only(right: 8),
+                                            child: InkWell(
+                                              onTap: _canChangeSkills
+                                                  ? () => _toggleSkill(skill)
+                                                  : () =>
+                                                      _confirmEnableSkillEditing(),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                              child: Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 11,
+                                                        vertical: 6),
+                                                decoration: BoxDecoration(
+                                                  color: theme.background,
+                                                  borderRadius:
+                                                      BorderRadius.circular(10),
+                                                  border: Border.all(
+                                                      color: theme.border,
+                                                      width: 1.1),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    HugeIcon(
+                                                      icon: HugeIcons
+                                                          .strokeRoundedAdd01,
+                                                      size: 13,
+                                                      color: theme.primary,
+                                                      strokeWidth: 2.0,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      skill,
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        color: theme.primary,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                          );
+                                        }).toList(),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
+                            ],
+
+                            const SizedBox(height: 20),
+                          ],
+
+                          // Live Match Power Dashboard Card (hidden while searching)
+                          if (!isSearching) ...[
+                            _buildMatchPowerCard(),
                             const SizedBox(height: 24),
                           ],
 
@@ -2388,6 +2489,249 @@ class _SkillsProfilePageState extends State<SkillsProfilePage>
       ],
     );
   }
+
+  Widget _buildMatchPowerCard() {
+    final count = _selectedSkills.length;
+    final progress = (count / 10.0).clamp(0.0, 1.0);
+    final percent = (progress * 100).toInt();
+
+    final isTagalog =
+        Localizations.localeOf(context).languageCode == 'tl';
+
+    final tier = count == 0
+        ? (isTagalog ? 'Nagsisimula' : 'Getting Started')
+        : count < 4
+            ? (isTagalog ? 'Pangunahing Profile' : 'Core Profile')
+            : count < 8
+                ? (isTagalog ? 'Detalyadong Profile' : 'Detailed Profile')
+                : (isTagalog ? 'Natatanging Profile' : 'Standout Profile');
+
+    final (tierBg, tierBorder, tierText) = count == 0
+        ? (
+            const Color(0xFFF1F5F9),
+            const Color(0xFFCBD5E1),
+            const Color(0xFF64748B)
+          )
+        : count < 4
+            ? (
+                const Color(0xFFE0F2FE),
+                const Color(0xFFBAE6FD),
+                const Color(0xFF0369A1)
+              )
+            : count < 8
+                ? (
+                    const Color(0xFFEEF2FF),
+                    const Color(0xFFC7D2FE),
+                    const Color(0xFF4338CA)
+                  )
+                : (
+                    const Color(0xFFECFDF5),
+                    const Color(0xFFA7F3D0),
+                    const Color(0xFF047857)
+                  );
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [
+            Colors.white,
+            Color(0xFFF8FAFC),
+            Color(0xFFEFF6FF),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: const Color(0xFFE2E8F0),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: const Color(0xFF2563EB).withValues(alpha: 0.04),
+            blurRadius: 20,
+            spreadRadius: -2,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 4.5),
+                  decoration: BoxDecoration(
+                    color: tierBg,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: tierBorder),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                        size: 13,
+                        color: tierText,
+                        strokeWidth: 2.0,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        tier,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                          color: tierText,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '$percent% Profile Strength',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF475569),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              isTagalog
+                  ? 'Lakas ng Tugma sa Trabaho'
+                  : 'Job Match Strength',
+              style: const TextStyle(
+                fontSize: 16.5,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF0F172A),
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              count == 0
+                  ? (isTagalog
+                      ? 'Magdagdag ng mga kasanayan upang makita ang mga tugmang trabaho sa Batangas.'
+                      : 'Add key skills below to unlock matching job opportunities.')
+                  : (isTagalog
+                      ? 'Kwalipikado ang iyong $count kasanayan sa ${_matchedJobs.length} oportunidad sa trabaho sa Batangas.'
+                      : 'Your $count skill${count == 1 ? '' : 's'} qualify you for ${_matchedJobs.length} job opportunities in Batangas.'),
+              style: const TextStyle(
+                fontSize: 12.5,
+                color: Color(0xFF64748B),
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // Animated Progress Bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                height: 6,
+                color: const Color(0xFFE2E8F0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: AnimatedFractionallySizedBox(
+                    duration: const Duration(milliseconds: 500),
+                    curve: Curves.easeOutCubic,
+                    widthFactor: progress > 0 ? progress : 0.04,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF38BDF8),
+                            Color(0xFF2563EB),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            if (_matchedJobs.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              InkWell(
+                onTap: () {
+                  if (_skillsGuideActive &&
+                      !_isActionAllowedDuringGuide('job_matches')) {
+                    _showToast('Follow the tutorial steps first.',
+                        type: ToastType.info);
+                    return;
+                  }
+                  AppHaptics.lightImpact();
+                  _tabController.animateTo(1);
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.25),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedBriefcase01,
+                        size: 15,
+                        color: Colors.white,
+                        strokeWidth: 2.0,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          isTagalog
+                              ? 'Tingnan ang ${_matchedJobs.length} Tugmang Trabaho'
+                              : 'View ${_matchedJobs.length} Matched Jobs',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedArrowRight01,
+                        size: 15,
+                        color: Colors.white,
+                        strokeWidth: 2.0,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SkillsSkeletonBox extends StatelessWidget {
@@ -2670,47 +3014,312 @@ class _Step2GuideFloatingCardState extends State<_Step2GuideFloatingCard>
   }
 }
 
+// ─── Skill Theme Engine ─────────────────────────────────────────────────────
+
+class SkillTheme {
+  final String domain;
+  final Color primary;
+  final Color background;
+  final Color border;
+  final List<List<dynamic>> hugeIcon;
+
+  const SkillTheme({
+    required this.domain,
+    required this.primary,
+    required this.background,
+    required this.border,
+    required this.hugeIcon,
+  });
+
+  static const SkillTheme tech = SkillTheme(
+    domain: 'Tech & Development',
+    primary: Color(0xFF4F46E5), // Indigo
+    background: Color(0xFFEEF2FF),
+    border: Color(0xFFC7D2FE),
+    hugeIcon: HugeIcons.strokeRoundedCode,
+  );
+
+  static const SkillTheme creative = SkillTheme(
+    domain: 'Creative & Design',
+    primary: Color(0xFF9333EA), // Purple / Fuchsia
+    background: Color(0xFFFAF5FF),
+    border: Color(0xFFE9D5FF),
+    hugeIcon: HugeIcons.strokeRoundedPaintBoard,
+  );
+
+  static const SkillTheme business = SkillTheme(
+    domain: 'Business & Administration',
+    primary: Color(0xFF0D9488), // Teal
+    background: Color(0xFFF0FDFA),
+    border: Color(0xFFCCFBF1),
+    hugeIcon: HugeIcons.strokeRoundedBriefcase01,
+  );
+
+  static const SkillTheme finance = SkillTheme(
+    domain: 'Finance & Accounting',
+    primary: Color(0xFFD97706), // Amber
+    background: Color(0xFFFFFBEB),
+    border: Color(0xFFFDE68A),
+    hugeIcon: HugeIcons.strokeRoundedAnalytics01,
+  );
+
+  static const SkillTheme agriculture = SkillTheme(
+    domain: 'Agriculture & Nature',
+    primary: Color(0xFF16A34A), // Green
+    background: Color(0xFFF0FDF4),
+    border: Color(0xFFBBF7D0),
+    hugeIcon: HugeIcons.strokeRoundedPlant01,
+  );
+
+  static const SkillTheme engineering = SkillTheme(
+    domain: 'Engineering & Industrial',
+    primary: Color(0xFF0284C7), // Sky Blue
+    background: Color(0xFFF0F9FF),
+    border: Color(0xFFBAE6FD),
+    hugeIcon: HugeIcons.strokeRoundedSettings01,
+  );
+
+  static const SkillTheme hospitality = SkillTheme(
+    domain: 'Hospitality & Services',
+    primary: Color(0xFFE11D48), // Rose
+    background: Color(0xFFFFF1F2),
+    border: Color(0xFFFECDD3),
+    hugeIcon: HugeIcons.strokeRoundedRestaurant01,
+  );
+
+  static const SkillTheme healthcare = SkillTheme(
+    domain: 'Healthcare & Medical',
+    primary: Color(0xFF059669), // Emerald
+    background: Color(0xFFECFDF5),
+    border: Color(0xFFA7F3D0),
+    hugeIcon: HugeIcons.strokeRoundedHeartCheck,
+  );
+
+  static const SkillTheme general = SkillTheme(
+    domain: 'General Skills',
+    primary: Color(0xFF2563EB), // PESO Blue
+    background: Color(0xFFEFF6FF),
+    border: Color(0xFFBFDBFE),
+    hugeIcon: HugeIcons.strokeRoundedCheckmarkCircle01,
+  );
+
+  static SkillTheme resolve(String skillName, [String? categoryName]) {
+    final cat = (categoryName ?? '').toLowerCase();
+    final skill = skillName.toLowerCase();
+
+    // 1. Check category string
+    if (cat.contains('tech') ||
+        cat.contains('it') ||
+        cat.contains('software') ||
+        cat.contains('comput') ||
+        cat.contains('program') ||
+        cat.contains('web') ||
+        cat.contains('data') ||
+        cat.contains('network') ||
+        cat.contains('cyber')) {
+      return tech;
+    }
+    if (cat.contains('design') ||
+        cat.contains('creat') ||
+        cat.contains('art') ||
+        cat.contains('media') ||
+        cat.contains('graph') ||
+        cat.contains('video') ||
+        cat.contains('photo') ||
+        cat.contains('animat')) {
+      return creative;
+    }
+    if (cat.contains('financ') ||
+        cat.contains('account') ||
+        cat.contains('audit') ||
+        cat.contains('bank') ||
+        cat.contains('tax') ||
+        cat.contains('bookkeep')) {
+      return finance;
+    }
+    if (cat.contains('agri') ||
+        cat.contains('fish') ||
+        cat.contains('farm') ||
+        cat.contains('plant') ||
+        cat.contains('aquacult') ||
+        cat.contains('forest')) {
+      return agriculture;
+    }
+    if (cat.contains('engin') ||
+        cat.contains('construct') ||
+        cat.contains('indust') ||
+        cat.contains('mechan') ||
+        cat.contains('electr')) {
+      return engineering;
+    }
+    if (cat.contains('hospit') ||
+        cat.contains('tour') ||
+        cat.contains('food') ||
+        cat.contains('hotel') ||
+        cat.contains('culin') ||
+        cat.contains('beverag')) {
+      return hospitality;
+    }
+    if (cat.contains('health') ||
+        cat.contains('medic') ||
+        cat.contains('nurs') ||
+        cat.contains('care')) {
+      return healthcare;
+    }
+    if (cat.contains('busin') ||
+        cat.contains('offic') ||
+        cat.contains('admin') ||
+        cat.contains('manage') ||
+        cat.contains('clerk') ||
+        cat.contains('custom') ||
+        cat.contains('secur')) {
+      return business;
+    }
+
+    // 2. Keyword fallback from skill name
+    if (skill.contains('php') ||
+        skill.contains('laravel') ||
+        skill.contains('vue') ||
+        skill.contains('react') ||
+        skill.contains('node') ||
+        skill.contains('docker') ||
+        skill.contains('sql') ||
+        skill.contains('python') ||
+        skill.contains('java') ||
+        skill.contains('html') ||
+        skill.contains('css') ||
+        skill.contains('git') ||
+        skill.contains('flutter') ||
+        skill.contains('dart') ||
+        skill.contains('code') ||
+        skill.contains('develop') ||
+        skill.contains('api') ||
+        skill.contains('web')) {
+      return tech;
+    }
+    if (skill.contains('photoshop') ||
+        skill.contains('illustrator') ||
+        skill.contains('design') ||
+        skill.contains('figma') ||
+        skill.contains('ui') ||
+        skill.contains('ux') ||
+        skill.contains('video') ||
+        skill.contains('edit') ||
+        skill.contains('animat') ||
+        skill.contains('art') ||
+        skill.contains('draw') ||
+        skill.contains('canva')) {
+      return creative;
+    }
+    if (skill.contains('account') ||
+        skill.contains('finance') ||
+        skill.contains('audit') ||
+        skill.contains('tax') ||
+        skill.contains('bookkeep') ||
+        skill.contains('payroll') ||
+        skill.contains('invoic')) {
+      return finance;
+    }
+    if (skill.contains('admin') ||
+        skill.contains('support') ||
+        skill.contains('clerk') ||
+        skill.contains('office') ||
+        skill.contains('reception') ||
+        skill.contains('assist') ||
+        skill.contains('custom') ||
+        skill.contains('service') ||
+        skill.contains('manag')) {
+      return business;
+    }
+    if (skill.contains('farm') ||
+        skill.contains('fish') ||
+        skill.contains('agri') ||
+        skill.contains('plant') ||
+        skill.contains('crop') ||
+        skill.contains('harv')) {
+      return agriculture;
+    }
+    if (skill.contains('repair') ||
+        skill.contains('mechan') ||
+        skill.contains('welding') ||
+        skill.contains('carpentr') ||
+        skill.contains('electr') ||
+        skill.contains('engin')) {
+      return engineering;
+    }
+
+    return general;
+  }
+}
+
 // ─── Selected Skill Chip ────────────────────────────────────────────────────
 
 class _SelectedSkillChip extends StatelessWidget {
   final String skill;
+  final String? category;
   final VoidCallback? onRemove;
 
-  const _SelectedSkillChip({required this.skill, this.onRemove});
+  const _SelectedSkillChip({
+    required this.skill,
+    this.category,
+    this.onRemove,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    final theme = SkillTheme.resolve(skill, category);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: EdgeInsets.fromLTRB(10, 7, onRemove != null ? 8 : 12, 7),
       decoration: BoxDecoration(
-        color: const Color(0xFF2563EB).withOpacity(0.1),
+        color: theme.background,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2563EB).withOpacity(0.25)),
+        border: Border.all(color: theme.border, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: theme.primary.withValues(alpha: 0.06),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          HugeIcon(
+            icon: theme.hugeIcon,
+            size: 14,
+            color: theme.primary,
+            strokeWidth: 1.9,
+          ),
+          const SizedBox(width: 6),
           Text(
             skill,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF2563EB),
+              fontWeight: FontWeight.w700,
+              color: theme.primary,
+              letterSpacing: -0.1,
             ),
           ),
           if (onRemove != null) ...[
             const SizedBox(width: 6),
             GestureDetector(
               onTap: onRemove,
+              behavior: HitTestBehavior.opaque,
               child: Container(
                 width: 18,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withOpacity(0.15),
+                  color: theme.primary.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.close_rounded,
-                    size: 12, color: Color(0xFF2563EB)),
+                child: Icon(
+                  Icons.close_rounded,
+                  size: 11,
+                  color: theme.primary,
+                ),
               ),
             ),
           ],
@@ -2754,13 +3363,7 @@ class _SkillCategoryCard extends StatefulWidget {
 class _SkillCategoryCardState extends State<_SkillCategoryCard> {
   bool _expanded = false;
 
-  List<List<dynamic>> _categoryIcon(String cat) {
-    return HugeIcons.strokeRoundedBriefcase01;
-  }
-
-  Color _categoryColor(String cat) {
-    return const Color(0xFF2563EB);
-  }
+  SkillTheme get _theme => SkillTheme.resolve('', widget.category);
 
   @override
   Widget build(BuildContext context) {
@@ -2794,7 +3397,7 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
     final matchingCount = isSearching
         ? widget.skills.where((s) => s.toLowerCase().contains(q)).length
         : 0;
-    final color = _categoryColor(widget.category);
+    final theme = _theme;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -2803,12 +3406,12 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isSearching && matchingCount > 0
-              ? color.withOpacity(0.3)
+              ? theme.primary.withValues(alpha: 0.35)
               : const Color(0xFFE2E8F0),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -2829,17 +3432,18 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
               child: Row(
                 children: [
                   Container(
-                    width: 34,
-                    height: 34,
+                    width: 36,
+                    height: 36,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: color.withOpacity(0.1),
+                      color: theme.background,
                       borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: theme.border, width: 1),
                     ),
                     child: HugeIcon(
-                      icon: _categoryIcon(widget.category),
-                      color: color,
-                      size: 15,
+                      icon: theme.hugeIcon,
+                      color: theme.primary,
+                      size: 17,
                       strokeWidth: 1.8,
                     ),
                   ),
@@ -2864,7 +3468,7 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                             fontSize: 12,
                             color: (isSearching && matchingCount > 0) ||
                                     selectedInCat > 0
-                                ? color
+                                ? theme.primary
                                 : const Color(0xFF94A3B8),
                             fontWeight: (isSearching && matchingCount > 0) ||
                                     selectedInCat > 0
@@ -2875,6 +3479,34 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                       ],
                     ),
                   ),
+                  if (selectedInCat > 0 && !isSearching) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.background,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: theme.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.check_rounded,
+                              size: 12, color: theme.primary),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$selectedInCat',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: theme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   if (!widget.forceExpanded)
                     AnimatedRotation(
                       duration: const Duration(milliseconds: 200),
@@ -2900,6 +3532,9 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                   final isSearchMatch =
                       isSearching && skill.toLowerCase().contains(q);
                   final canTap = widget.skillsEditable;
+                  final itemTheme =
+                      SkillTheme.resolve(skill, widget.category);
+
                   return GestureDetector(
                     onTap: canTap
                         ? () => widget.onToggle(skill)
@@ -2909,21 +3544,22 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 9),
+                            horizontal: 13, vertical: 8),
                         decoration: BoxDecoration(
                           color: isSelected
-                              ? color.withOpacity(0.12)
+                              ? itemTheme.background
                               : isSearchMatch
                                   ? const Color(0xFFFFFBEB)
                                   : const Color(0xFFF8FAFC),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: isSelected
-                                ? color.withOpacity(0.4)
+                                ? itemTheme.border
                                 : isSearchMatch
-                                    ? const Color(0xFFF59E0B).withOpacity(0.4)
+                                    ? const Color(0xFFF59E0B)
+                                        .withValues(alpha: 0.4)
                                     : const Color(0xFFE2E8F0),
-                            width: (isSelected || isSearchMatch) ? 1.5 : 1,
+                            width: (isSelected || isSearchMatch) ? 1.4 : 1,
                           ),
                         ),
                         child: Row(
@@ -2933,7 +3569,7 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                               Padding(
                                 padding: const EdgeInsets.only(right: 6),
                                 child: Icon(Icons.check_rounded,
-                                    size: 14, color: color),
+                                    size: 14, color: itemTheme.primary),
                               )
                             else if (isSearchMatch)
                               const Padding(
@@ -2949,10 +3585,10 @@ class _SkillCategoryCardState extends State<_SkillCategoryCard> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: isSelected
-                                      ? FontWeight.w600
+                                      ? FontWeight.w700
                                       : FontWeight.w500,
                                   color: isSelected
-                                      ? color
+                                      ? itemTheme.primary
                                       : const Color(0xFF475569),
                                 ),
                               ),

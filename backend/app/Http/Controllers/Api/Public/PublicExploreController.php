@@ -42,6 +42,7 @@ class PublicExploreController extends Controller
 
         $activeEmployers = (int) DB::table('job_listings')
             ->where('status', 'open')
+            ->whereNotNull('employer_id')
             ->whereNull('deleted_at')
             ->selectRaw('COUNT(DISTINCT employer_id) as explore_employer_count')
             ->value('explore_employer_count');
@@ -89,6 +90,7 @@ class PublicExploreController extends Controller
 
         $rows = JobListing::query()
             ->open()
+            ->whereNotNull('employer_id')
             ->selectRaw('employer_id, COUNT(*) as job_count')
             ->groupBy('employer_id')
             ->orderByDesc('job_count')

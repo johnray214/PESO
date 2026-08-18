@@ -19,6 +19,9 @@ class Job {
 
   /// Relative storage path from employer profile (`employers.photo`), if any.
   final String? companyPhotoPath;
+  final String? employerId;
+  final String? program;
+  final bool isPesoPosted;
   final String? employerEmail;
   final String? employerPhone;
   final String location;
@@ -46,6 +49,9 @@ class Job {
     required this.companyInitial,
     required this.companyColor,
     this.companyPhotoPath,
+    this.employerId,
+    this.program,
+    this.isPesoPosted = false,
     this.employerEmail,
     this.employerPhone,
     required this.location,
@@ -66,6 +72,45 @@ class Job {
     this.isUrgent = false,
     this.isOverseas = false,
   });
+
+  bool get isDoleProgram {
+    if (program != null &&
+        program!.trim().isNotEmpty &&
+        program!.trim().toLowerCase() != 'none' &&
+        program!.trim().toLowerCase() != 'null') {
+      return true;
+    }
+    final compLower = company.trim().toLowerCase();
+    return compLower.contains('dole') ||
+        compLower.contains('department of labor');
+  }
+
+  /// Compact name used for tight 2x2 grid views ('DOLE' instead of full name).
+  String get compactCompanyName {
+    if (isDoleProgram) return 'DOLE';
+    return company;
+  }
+
+  bool get isPesoOffice {
+    if (isDoleProgram) return false;
+    if (isPesoPosted) return true;
+    final compLower = company.trim().toLowerCase();
+    return compLower == 'peso' ||
+        compLower == 'peso santiago' ||
+        compLower.contains('peso santiago') ||
+        compLower == 'employer';
+  }
+
+  /// Local asset image path for PESO Santiago or DOLE postings, if applicable.
+  String? get assetLogoPath {
+    if (isDoleProgram) {
+      return 'assets/Department_of_Labor_and_Employment_(DOLE).png';
+    }
+    if (isPesoOffice) {
+      return 'assets/PESOLOGO.jpg';
+    }
+    return null;
+  }
 
   String get salaryDisplay {
     final min = salaryMin.trim();
@@ -95,14 +140,57 @@ class Job {
       color = const Color(0xFF3B82F6);
     }
 
+    final rawProgram = (json['program'] as String?)?.trim();
+    final bool hasProgram = rawProgram != null &&
+        rawProgram.isNotEmpty &&
+        rawProgram.toLowerCase() != 'none' &&
+        rawProgram.toLowerCase() != 'null';
+
     final rawEmployer = json['employer'];
     Map<String, dynamic>? employerMap;
     if (rawEmployer is Map) {
       employerMap = Map<String, dynamic>.from(rawEmployer);
     }
-    final companyName = (json['company'] as String?) ??
-        (employerMap?['company_name'] as String?) ??
-        'Employer';
+    final employerIdStr =
+        json['employer_id']?.toString() ?? employerMap?['id']?.toString();
+
+    final isPeso = employerIdStr == null ||
+        employerIdStr.isEmpty ||
+        employerIdStr == '0' ||
+        json['is_peso_posted'] == true;
+
+    String companyName;
+    if (hasProgram) {
+      companyName = 'Department of Labor and Employment';
+    } else if (isPeso) {
+      final rawName = (json['company'] as String?) ??
+          (json['employer_name'] as String?) ??
+          (employerMap?['company_name'] as String?);
+      if (rawName == null ||
+          rawName.trim().isEmpty ||
+          rawName.trim().toLowerCase() == 'employer') {
+        companyName = 'PESO Santiago';
+      } else if (rawName.trim().toLowerCase() == 'dole' ||
+          rawName.trim().toLowerCase().contains('department of labor')) {
+        companyName = 'Department of Labor and Employment';
+      } else {
+        companyName = rawName.trim();
+      }
+    } else {
+      final rawName = (json['company'] as String?) ??
+          (employerMap?['company_name'] as String?) ??
+          (json['employer_name'] as String?);
+      if (rawName == null ||
+          rawName.trim().isEmpty ||
+          rawName.trim().toLowerCase() == 'employer') {
+        companyName = 'PESO Santiago';
+      } else if (rawName.trim().toLowerCase() == 'dole' ||
+          rawName.trim().toLowerCase().contains('department of labor')) {
+        companyName = 'Department of Labor and Employment';
+      } else {
+        companyName = rawName.trim();
+      }
+    }
 
     // Prefer API-computed absolute URL; then nested employer.photo / photo_url.
     String? companyPhotoPath;
@@ -119,7 +207,7 @@ class Job {
     final companyInitial = (json['company_initial'] as String?) ??
         (companyName.trim().isNotEmpty
             ? companyName.trim()[0].toUpperCase()
-            : '?');
+            : (hasProgram ? 'D' : 'P'));
 
     String? cleanContactValue(dynamic value) {
       final text = value?.toString().trim();
@@ -199,6 +287,9 @@ class Job {
       companyInitial: companyInitial,
       companyColor: color,
       companyPhotoPath: companyPhotoPath,
+      employerId: employerIdStr,
+      program: rawProgram,
+      isPesoPosted: isPeso,
       employerEmail: employerEmail,
       employerPhone: employerPhone,
       location: (json['location'] as String?) ?? '',
@@ -317,10 +408,49 @@ class CompanyLogoBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final assetLogo = job.assetLogoPath;
     final path = job.companyPhotoPath;
     final url = ApiService.storageOrAbsoluteUrl(path) ?? '';
     final radius = borderRadius ?? size / 2;
     final hasLogo = url.isNotEmpty;
+
+    if (assetLogo != null) {
+      final isDole = job.isDoleProgram;
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(radius),
+          border: Border.all(
+            color: isDole
+                ? const Color(0xFF1E3A8A).withOpacity(0.18)
+                : AppColors.pesoBlue.withOpacity(0.22),
+            width: 1.5,
+          ),
+          boxShadow: boxShadow ??
+              [
+                BoxShadow(
+                  color: (isDole ? const Color(0xFF1E3A8A) : AppColors.pesoBlue)
+                      .withOpacity(0.14),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: EdgeInsets.all(isDole ? size * 0.08 : 0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: Image.asset(
+              assetLogo,
+              fit: isDole ? BoxFit.contain : BoxFit.cover,
+            ),
+          ),
+        ),
+      );
+    }
 
     return Container(
       width: size,
@@ -805,13 +935,98 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
           ],
         ),
         const SizedBox(height: 48),
-        // Badges (Overseas / Urgent)
-        if (job.isOverseas || job.isUrgent) ...[
+        // Badges (DOLE / PESO / Overseas / Urgent)
+        if (job.isDoleProgram ||
+            job.isPesoOffice ||
+            job.isOverseas ||
+            job.isUrgent) ...[
           Wrap(
             alignment: WrapAlignment.center,
             spacing: 8,
             runSpacing: 8,
             children: [
+              if (job.isDoleProgram)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2563EB), Color(0xFF1D4ED8)],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF1D4ED8).withOpacity(0.30),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedBerlin,
+                        size: 13,
+                        color: Colors.white,
+                        strokeWidth: 2.0,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        job.program != null &&
+                                job.program!.trim().isNotEmpty &&
+                                job.program!.toLowerCase() != 'none'
+                            ? 'DOLE • ${job.program!.toUpperCase()}'
+                            : 'DOLE PROGRAM',
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else if (job.isPesoOffice)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0284C7).withOpacity(0.30),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      HugeIcon(
+                        icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                        size: 13,
+                        color: Colors.white,
+                        strokeWidth: 2.0,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'PESO SANTIAGO',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               if (job.isOverseas)
                 Container(
                   padding:

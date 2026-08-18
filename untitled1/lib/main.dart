@@ -912,7 +912,7 @@ class _AuthEntryPageState extends State<AuthEntryPage> {
                   OutlinedButton.icon(
                     onPressed: _continueAsGuest,
                     icon: const HugeIcon(
-                      icon: HugeIcons.strokeRoundedCompass01,
+                      icon: HugeIcons.strokeRoundedUser,
                       size: 19,
                       color: Color(0xFF2563EB),
                       strokeWidth: 2.0,

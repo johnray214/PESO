@@ -552,7 +552,7 @@
             <!-- Employer field (admin only) -->
             <div class="form-group" v-if="!form.program">
               <label class="form-label">Employer / Company Name</label>
-              <input v-model="form.employer" class="form-input" :class="{ 'is-invalid': errors.employer }" placeholder="Leave blank if admin-posted (e.g. DOLE)"/>
+              <input v-model="form.employer" class="form-input" :class="{ 'is-invalid': errors.employer }" placeholder="Leave blank for PESO Santiago"/>
               <span v-if="errors.employer" class="error-text">{{ errors.employer[0] }}</span>
             </div>
 
@@ -873,7 +873,7 @@ export default {
         program_duration:    j.program_duration || '',
         program_target:      j.program_target || '',
         implementing_agency: j.implementing_agency || '',
-        employer:            j.employer?.company_name || j.employer_name || '',
+        employer:            j.employer?.company_name || (j.employer_name && j.employer_name.toLowerCase() !== 'employer' ? j.employer_name : (j.program ? 'Department of Labor and Employment' : 'PESO Santiago')),
         employer_id:         j.employer_id,
         bg:    colors[idx % colors.length][0],
         color: colors[idx % colors.length][1],

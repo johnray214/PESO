@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'api_service.dart';
 import 'user_session.dart';
+import 'job_action_service.dart';
 import 'main.dart';
 
 /// Displays the interactive Job Offer Decision Bottom Sheet (Accept / Reject Offer).
@@ -18,8 +19,6 @@ Future<String?> showJobOfferDecisionSheet({
 }) async {
   String? selectedResponse = initialResponse;
   bool isSubmitting = false;
-  bool isActionCooldown = initialResponse == null;
-  bool hasStartedActionCooldown = false;
 
   List<TextSpan> parseMessageWithBold(String message) {
     final spans = <TextSpan>[];
@@ -55,21 +54,28 @@ Future<String?> showJobOfferDecisionSheet({
     backgroundColor: Colors.transparent,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setModalState) {
-        if (!hasStartedActionCooldown && initialResponse == null) {
-          hasStartedActionCooldown = true;
-          unawaited(() async {
-            await Future<void>.delayed(const Duration(milliseconds: 1500));
-            if (!ctx.mounted) return;
-            setModalState(() {
-              isActionCooldown = false;
-            });
-          }());
-        }
-
         Future<void> handleResponse(String response) async {
-          if (isSubmitting || selectedResponse != null || isActionCooldown) {
+          if (isSubmitting || selectedResponse != null) {
             return;
           }
+
+          final isAccept = response == 'accepted';
+          final confirmed = await showAppDialog<bool>(
+            context: context,
+            type: isAccept ? AppDialogType.confirm : AppDialogType.destructive,
+            icon: isAccept ? Icons.check_circle_rounded : Icons.cancel_outlined,
+            title: isAccept ? 'Accept Job Offer?' : 'Decline Job Offer?',
+            message: isAccept
+                ? 'You are accepting the offer from $companyName for the $jobTitle role. This will notify the employer and move forward with your hiring.'
+                : 'Are you sure you want to decline the offer from $companyName for the $jobTitle role? This action cannot be undone.',
+            confirmLabel: isAccept ? 'Confirm & Accept' : 'Decline Offer',
+            cancelLabel: isAccept ? 'Cancel' : 'Keep Offer',
+            onConfirm: () => Navigator.of(context).pop(true),
+            onCancel: () => Navigator.of(context).pop(false),
+          );
+
+          if (confirmed != true || !ctx.mounted) return;
+
           setModalState(() => isSubmitting = true);
 
           final token = UserSession().token;
@@ -87,6 +93,7 @@ Future<String?> showJobOfferDecisionSheet({
           if (!ctx.mounted) return;
 
           if (result['success'] == true) {
+            JobActionService().recordOfferResponse(applicationId, response);
             setModalState(() {
               selectedResponse = response;
               isSubmitting = false;
@@ -255,39 +262,30 @@ Future<String?> showJobOfferDecisionSheet({
                       Expanded(
                         child: OutlinedButton(
                           onPressed: (isSubmitting ||
-                                  selectedResponse != null ||
-                                  isActionCooldown)
+                                  selectedResponse != null)
                               ? null
                               : () => handleResponse('declined'),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: isActionCooldown
-                                ? const Color(0xFF94A3B8)
-                                : selectedResponse == null
-                                    ? const Color(0xFFB91C1C)
-                                    : const Color(0xFF94A3B8),
+                            foregroundColor: selectedResponse == null
+                                ? const Color(0xFFB91C1C)
+                                : const Color(0xFF94A3B8),
                             side: BorderSide(
-                              color: isActionCooldown
-                                  ? const Color(0xFFE2E8F0)
-                                  : selectedResponse == null
-                                      ? const Color(0xFFFCA5A5)
-                                      : const Color(0xFFE2E8F0),
+                              color: selectedResponse == null
+                                  ? const Color(0xFFFCA5A5)
+                                  : const Color(0xFFE2E8F0),
                             ),
-                            backgroundColor: isActionCooldown
-                                ? const Color(0xFFF1F5F9)
-                                : selectedResponse == 'declined'
-                                    ? const Color(0xFFFEF2F2)
-                                    : Colors.white,
+                            backgroundColor: selectedResponse == 'declined'
+                                ? const Color(0xFFFEF2F2)
+                                : Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
                           child: Text(
-                            isActionCooldown
-                                ? 'Reject Offer'
-                                : selectedResponse == 'declined'
-                                    ? 'Rejected'
-                                    : 'Reject Offer',
+                            selectedResponse == 'declined'
+                                ? 'Rejected'
+                                : 'Reject Offer',
                             style:
                                 const TextStyle(fontWeight: FontWeight.w700),
                           ),
@@ -297,23 +295,18 @@ Future<String?> showJobOfferDecisionSheet({
                       Expanded(
                         child: ElevatedButton(
                           onPressed: (isSubmitting ||
-                                  selectedResponse != null ||
-                                  isActionCooldown)
+                                  selectedResponse != null)
                               ? null
                               : () => handleResponse('accepted'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: isActionCooldown
-                                ? const Color(0xFFCBD5E1)
-                                : selectedResponse == 'accepted'
-                                    ? const Color(0xFF047857)
-                                    : (selectedResponse == null
-                                        ? const Color(0xFF059669)
-                                        : const Color(0xFFCBD5E1)),
-                            foregroundColor: isActionCooldown
-                                ? const Color(0xFF475569)
-                                : selectedResponse == null
-                                    ? Colors.white
-                                    : const Color(0xFF475569),
+                            backgroundColor: selectedResponse == 'accepted'
+                                ? const Color(0xFF047857)
+                                : (selectedResponse == null
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFFCBD5E1)),
+                            foregroundColor: selectedResponse == null
+                                ? Colors.white
+                                : const Color(0xFF475569),
                             padding: const EdgeInsets.symmetric(vertical: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(10),

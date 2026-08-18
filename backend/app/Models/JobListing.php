@@ -21,6 +21,8 @@ class JobListing extends Model
      */
     protected $appends = [
         'employer_photo_url',
+        'is_peso_posted',
+        'company_name',
     ];
 
     protected $fillable = [
@@ -96,4 +98,38 @@ class JobListing extends Model
             }
         );
     }
+
+    /**
+     * Determine if job was posted directly by PESO Admin rather than an employer.
+     */
+    protected function isPesoPosted(): Attribute
+    {
+        return Attribute::make(
+            get: fn(): bool => $this->employer_id === null
+        );
+    }
+
+    /**
+     * Fallback display company name: 'DOLE' for DOLE special programs,
+     * 'PESO Santiago' for direct PESO posts, or employer company name.
+     */
+    protected function companyName(): Attribute
+    {
+        return Attribute::make(
+            get: function (): string {
+                if ($this->employer_id !== null && $this->relationLoaded('employer') && $this->employer !== null) {
+                    return $this->employer->company_name ?? ($this->employer_name ?: 'PESO Santiago');
+                }
+                if (!empty($this->employer_name) && strtolower(trim($this->employer_name)) !== 'employer') {
+                    return $this->employer_name;
+                }
+                $program = trim((string) $this->program);
+                if ($program !== '' && strtolower($program) !== 'none') {
+                    return 'Department of Labor and Employment';
+                }
+                return 'PESO Santiago';
+            }
+        );
+    }
 }
+

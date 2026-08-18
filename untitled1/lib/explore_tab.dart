@@ -153,7 +153,18 @@ class _ExploreTabState extends State<ExploreTab>
             (snapshot['total_open_positions'] as num?)?.toInt() ?? 0;
 
         final companies = data['top_companies'] as List<dynamic>? ?? [];
-        _topCompanies = companies.cast<Map<String, dynamic>>();
+        _topCompanies = companies
+            .cast<Map<String, dynamic>>()
+            .where((c) {
+              final name = (c['name'] as String? ?? '').toLowerCase();
+              final isDole = name.contains('dole') ||
+                  name.contains('department of labor');
+              final isPeso = name.contains('peso') ||
+                  name.contains('santiago') ||
+                  name == 'employer';
+              return !isDole && !isPeso;
+            })
+            .toList();
 
         final skills = data['in_demand_skills'] as List<dynamic>? ?? [];
         _inDemandSkills = skills.cast<Map<String, dynamic>>();
@@ -209,15 +220,17 @@ class _ExploreTabState extends State<ExploreTab>
             jobs.where((j) => j.postedDate.isAfter(weekAgo)).length;
         _totalOpenPositions = total;
 
-        // Build top companies from job data
+        // Build top companies from job data (excluding DOLE & direct PESO posts)
         final companyMap = <String, Map<String, dynamic>>{};
         for (final job in jobs) {
+          if (job.isDoleProgram || job.isPesoOffice) continue;
           companyMap.putIfAbsent(
               job.company,
               () => {
                     'name': job.company,
                     'initial': job.companyInitial,
                     'photo_url': job.companyPhotoPath,
+                    'asset_logo': job.assetLogoPath,
                     'job_count': 0,
                   });
           companyMap[job.company]!['job_count'] =
@@ -666,51 +679,30 @@ class _ExploreTabState extends State<ExploreTab>
       child: _isLoading
           ? _buildLoadingState(topPadding, bottomPadding)
           : _errorMessage != null
-              ? _buildErrorState()
+              ? _buildErrorState(topPadding, bottomPadding)
               : _buildContent(topPadding, bottomPadding),
     );
   }
 
   Widget _buildLoadingState(double topPadding, double bottomPadding) {
     return CustomScrollView(
-      physics: const ClampingScrollPhysics(),
+      physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(
-          child: Container(
-            padding: EdgeInsets.fromLTRB(20, topPadding + 18, 20, 18),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFF1E40AF),
-                  Color(0xFF2563EB),
-                  Color(0xFF3B82F6),
-                ],
-              ),
-            ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _SkeletonBox(width: 150, height: 28, color: Colors.white24),
-                SizedBox(height: 10),
-                _SkeletonBox(width: 230, height: 28, color: Colors.white24),
-              ],
-            ),
-          ),
+          child: _buildHeader(topPadding),
         ),
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 38, 20, 0),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
             child: Column(
               children: const [
+                _SkeletonSnapshotStrip(),
+                SizedBox(height: 20),
                 _SkeletonCard(height: 136),
                 SizedBox(height: 12),
-                _SkeletonCard(height: 96),
-                SizedBox(height: 12),
-                _SkeletonCard(height: 112),
-                SizedBox(height: 24),
-                _SkeletonRowCards(),
+                _SkeletonCard(height: 136),
+                SizedBox(height: 20),
+                _SkeletonCard(height: 180),
                 SizedBox(height: 20),
                 _SkeletonCard(height: 120),
               ],
@@ -722,46 +714,57 @@ class _ExploreTabState extends State<ExploreTab>
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState(double topPadding, double bottomPadding) {
     final s = S.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.explore_off_rounded,
-              size: 64,
-              color: const Color(0xFFCBD5E1),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _localizedExploreError(context, _errorMessage),
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                color: const Color(0xFF64748B),
-              ),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () => _loadExploreData(userInitiated: true),
-              icon: const Icon(Icons.refresh_rounded, size: 18),
-              label: Text(s?.retry ?? 'Retry'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF2563EB),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            ),
-          ],
+    return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
+      slivers: [
+        SliverToBoxAdapter(
+          child: _buildHeader(topPadding),
         ),
-      ),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.explore_off_rounded,
+                    size: 64,
+                    color: const Color(0xFFCBD5E1),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _localizedExploreError(context, _errorMessage),
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: const Color(0xFF64748B),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton.icon(
+                    onPressed: () => _loadExploreData(userInitiated: true),
+                    icon: const Icon(Icons.refresh_rounded, size: 18),
+                    label: Text(s?.retry ?? 'Retry'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 24, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -783,7 +786,7 @@ class _ExploreTabState extends State<ExploreTab>
               onRefresh: _refreshExploreData,
               child: CustomScrollView(
                 physics: const AlwaysScrollableScrollPhysics(
-                  parent: ClampingScrollPhysics(),
+                  parent: BouncingScrollPhysics(),
                 ),
                 slivers: [
                   SliverToBoxAdapter(
@@ -915,7 +918,7 @@ class _ExploreTabState extends State<ExploreTab>
           ),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0);
+    );
   }
 
   // ─── Snapshot stats (one bar, vertical separators) ────────────────────────
@@ -1456,49 +1459,153 @@ class _SkeletonBox extends StatelessWidget {
   }
 }
 
-class _SkeletonCard extends StatelessWidget {
-  final double height;
-
-  const _SkeletonCard({required this.height});
+class _SkeletonSnapshotStrip extends StatelessWidget {
+  const _SkeletonSnapshotStrip();
 
   @override
   Widget build(BuildContext context) {
-    final compact = height < 120;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                _SkeletonBox(width: 22, height: 22),
+                SizedBox(height: 8),
+                _SkeletonBox(width: 36, height: 16),
+                SizedBox(height: 4),
+                _SkeletonBox(width: 56, height: 10),
+              ],
+            ),
+          ),
+          Container(width: 1, height: 48, color: const Color(0xFFF1F5F9)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                _SkeletonBox(width: 22, height: 22),
+                SizedBox(height: 8),
+                _SkeletonBox(width: 36, height: 16),
+                SizedBox(height: 4),
+                _SkeletonBox(width: 56, height: 10),
+              ],
+            ),
+          ),
+          Container(width: 1, height: 48, color: const Color(0xFFF1F5F9)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                _SkeletonBox(width: 22, height: 22),
+                SizedBox(height: 8),
+                _SkeletonBox(width: 36, height: 16),
+                SizedBox(height: 4),
+                _SkeletonBox(width: 56, height: 10),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
+class _SkeletonCard extends StatelessWidget {
+  final double height;
+  final double borderRadius;
+
+  const _SkeletonCard({
+    required this.height,
+    this.borderRadius = 16,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       height: height,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(borderRadius),
         border: Border.all(color: const Color(0xFFE2E8F0)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final maxWidth = constraints.maxWidth;
+          final maxHeight = constraints.maxHeight;
           double lineWidth(double desired) =>
               desired.clamp(24.0, maxWidth).toDouble();
 
+          if (maxHeight < 50) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _SkeletonBox(width: lineWidth(140), height: 14),
+                const Spacer(),
+                _SkeletonBox(width: lineWidth(40), height: 14),
+              ],
+            );
+          }
+
+          if (maxHeight < 85) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _SkeletonBox(width: lineWidth(160), height: 14),
+                const SizedBox(height: 8),
+                _SkeletonBox(width: lineWidth(240), height: 12),
+              ],
+            );
+          }
+
+          final showBottomRow = maxHeight >= 110;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SkeletonBox(width: lineWidth(150), height: 14),
               const SizedBox(height: 10),
-              const _SkeletonBox(width: double.infinity, height: 18),
+              const _SkeletonBox(width: double.infinity, height: 16),
               const SizedBox(height: 8),
-              _SkeletonBox(width: lineWidth(220), height: 14),
-              if (!compact) ...[
+              _SkeletonBox(width: lineWidth(220), height: 12),
+              if (showBottomRow) ...[
                 const Spacer(),
                 Row(
-                  children: [
+                  children: const [
                     Expanded(
                       child: _SkeletonBox(
                         width: double.infinity,
                         height: 22,
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     Expanded(
                       child: _SkeletonBox(
                         width: double.infinity,
@@ -1562,12 +1669,14 @@ String _localizedExploreError(BuildContext context, String? message) {
 
 class _EmployerLogo extends StatelessWidget {
   final String? photoUrl;
+  final String? assetLogo;
   final String initial;
   final Color color;
   final double size;
 
   const _EmployerLogo({
     required this.photoUrl,
+    this.assetLogo,
     required this.initial,
     required this.color,
     this.size = 42,
@@ -1575,6 +1684,42 @@ class _EmployerLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (assetLogo != null) {
+      final isDole = assetLogo!.contains('DOLE');
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isDole
+                ? const Color(0xFF1E3A8A).withValues(alpha: 0.18)
+                : const Color(0xFF2563EB).withValues(alpha: 0.20),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 4,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: EdgeInsets.all(isDole ? size * 0.08 : 0),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9),
+            child: Image.asset(
+              assetLogo!,
+              fit: isDole ? BoxFit.contain : BoxFit.cover,
+            ),
+          ),
+        ),
+      );
+    }
+
     final resolvedUrl = ApiService.storageOrAbsoluteUrl(photoUrl);
     final fallback = Center(
       child: Text(
@@ -1667,6 +1812,7 @@ class _RecommendedJobCard extends StatelessWidget {
                 children: [
                   _EmployerLogo(
                     photoUrl: job.companyPhotoPath,
+                    assetLogo: job.assetLogoPath,
                     initial: job.companyInitial,
                     color: job.companyColor,
                     size: 34,
@@ -1727,6 +1873,22 @@ class _RecommendedJobCard extends StatelessWidget {
                       label: s?.exploreMatchPercent(job.matchPercentage) ??
                           '${job.matchPercentage}% match',
                       color: const Color(0xFF0D9488),
+                    ),
+                  if (job.isDoleProgram)
+                    _MiniMetaPill(
+                      icon: HugeIcons.strokeRoundedBerlin,
+                      label: job.program != null &&
+                              job.program!.trim().isNotEmpty &&
+                              job.program!.toLowerCase() != 'none'
+                          ? 'DOLE • ${job.program}'
+                          : 'DOLE',
+                      color: const Color(0xFF1D4ED8),
+                    )
+                  else if (job.isPesoOffice)
+                    const _MiniMetaPill(
+                      icon: HugeIcons.strokeRoundedCheckmarkCircle01,
+                      label: 'PESO Santiago',
+                      color: Color(0xFF0284C7),
                     ),
                   if (job.isOverseas)
                     _MiniMetaPill(
@@ -1789,6 +1951,7 @@ class _RecentJobCard extends StatelessWidget {
             children: [
               _EmployerLogo(
                 photoUrl: job.companyPhotoPath,
+                assetLogo: job.assetLogoPath,
                 initial: job.companyInitial,
                 color: job.companyColor,
                 size: 40,
@@ -2905,6 +3068,7 @@ class __AutoGlideCompanyCarouselState extends State<_AutoGlideCompanyCarousel>
                 name: company['name'] as String? ?? '',
                 initial: (company['initial'] as String?) ?? '',
                 photoUrl: company['photo_url'] as String?,
+                assetLogo: company['asset_logo'] as String?,
                 jobCount: (company['job_count'] as num?)?.toInt() ?? 0,
                 delay: realIndex * 40,
                 onTap: () => widget.onCompanyTap(
@@ -2927,6 +3091,7 @@ class _CompanyCard extends StatelessWidget {
   final String name;
   final String initial;
   final String? photoUrl;
+  final String? assetLogo;
   final int jobCount;
   final int delay;
   final VoidCallback onTap;
@@ -2935,6 +3100,7 @@ class _CompanyCard extends StatelessWidget {
     required this.name,
     required this.initial,
     required this.photoUrl,
+    this.assetLogo,
     required this.jobCount,
     required this.delay,
     required this.onTap,
@@ -2946,6 +3112,7 @@ class _CompanyCard extends StatelessWidget {
     final resolvedUrl = ApiService.storageOrAbsoluteUrl(photoUrl);
     final logo = _EmployerLogo(
       photoUrl: resolvedUrl,
+      assetLogo: assetLogo,
       initial: initial,
       color: _kExplorePrimaryBlue,
       size: 42,

@@ -9,6 +9,7 @@ import 'app_haptics.dart';
 class NotificationSwipeCard extends StatefulWidget {
   final Widget child;
   final VoidCallback onDismissed;
+  final Future<bool> Function()? confirmDismiss;
   final bool enabled;
   final bool isFirstCard;
 
@@ -16,6 +17,7 @@ class NotificationSwipeCard extends StatefulWidget {
     super.key,
     required this.child,
     required this.onDismissed,
+    this.confirmDismiss,
     this.enabled = true,
     this.isFirstCard = false,
   });
@@ -192,7 +194,7 @@ class _NotificationSwipeCardState extends State<NotificationSwipeCard>
     _handleRelease();
   }
 
-  void _handleRelease() {
+  Future<void> _handleRelease() async {
     if (!widget.enabled) {
       _animateToOffset(0.0, Curves.easeOutBack);
       AppHaptics.lightImpact();
@@ -202,7 +204,18 @@ class _NotificationSwipeCardState extends State<NotificationSwipeCard>
     final absOffset = _dragOffset.abs();
 
     if (_isCommitted) {
-      // Crossed Commit Line -> Execute Full Swipe Delete!
+      if (widget.confirmDismiss != null) {
+        _animateToOffset(-_thresholdReveal, Curves.easeOutCubic);
+        final canDismiss = await widget.confirmDismiss!();
+        if (!mounted) return;
+        if (!canDismiss) {
+          _isCommitted = false;
+          _isOpenChoice = false;
+          _animateToOffset(0.0, Curves.easeOutBack);
+          AppHaptics.selectionClick();
+          return;
+        }
+      }
       _triggerFullDismissal();
     } else if (absOffset >= 42.0) {
       // Short Pull -> Snap to Reveal Action Button
@@ -216,6 +229,21 @@ class _NotificationSwipeCardState extends State<NotificationSwipeCard>
     }
   }
 
+  Future<void> _onActionButtonTap() async {
+    if (_isDismissing) return;
+    if (widget.confirmDismiss != null) {
+      final canDismiss = await widget.confirmDismiss!();
+      if (!mounted) return;
+      if (!canDismiss) {
+        _isCommitted = false;
+        _isOpenChoice = false;
+        _animateToOffset(0.0, Curves.easeOutBack);
+        return;
+      }
+    }
+    _triggerFullDismissal();
+  }
+
   void _animateToOffset(double target, Curve curve) {
     _snapAnimation = Tween<double>(
       begin: _dragOffset,
@@ -223,7 +251,8 @@ class _NotificationSwipeCardState extends State<NotificationSwipeCard>
     ).animate(CurvedAnimation(
       parent: _snapController,
       curve: curve,
-    ))..addListener(() {
+    ))
+      ..addListener(() {
         if (mounted) {
           setState(() {
             _dragOffset = _snapAnimation!.value;
@@ -253,7 +282,8 @@ class _NotificationSwipeCardState extends State<NotificationSwipeCard>
     ).animate(CurvedAnimation(
       parent: _snapController,
       curve: Curves.easeInCubic,
-    ))..addListener(() {
+    ))
+      ..addListener(() {
         if (mounted) {
           setState(() {
             _dragOffset = _snapAnimation!.value;
@@ -282,7 +312,8 @@ class _NotificationSwipeCardState extends State<NotificationSwipeCard>
   @override
   Widget build(BuildContext context) {
     return SizeTransition(
-      sizeFactor: Tween<double>(begin: 1.0, end: 0.0).animate(_collapseAnimation),
+      sizeFactor:
+          Tween<double>(begin: 1.0, end: 0.0).animate(_collapseAnimation),
       axisAlignment: 0.0,
       child: Stack(
         children: [
@@ -364,9 +395,7 @@ class _NotificationSwipeCardState extends State<NotificationSwipeCard>
               style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w800,
-                color: _isCommitted
-                    ? Colors.white
-                    : const Color(0xFFDC2626),
+                color: _isCommitted ? Colors.white : const Color(0xFFDC2626),
                 letterSpacing: 0.2,
               ),
             ),
@@ -375,7 +404,7 @@ class _NotificationSwipeCardState extends State<NotificationSwipeCard>
 
           // Interactive / Animated Trash Icon Button
           GestureDetector(
-            onTap: _triggerFullDismissal,
+            onTap: _onActionButtonTap,
             child: ScaleTransition(
               scale: _iconScaleAnimation,
               child: AnimatedContainer(

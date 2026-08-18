@@ -11,6 +11,8 @@ class JobActionService extends ChangeNotifier {
 
   final Set<String> _savedJobIds = {};
   final Set<String> _appliedJobIds = {};
+  final Map<int, String> _offerResponses = {};
+  final Map<int, String> _applicationStatuses = {};
   bool _hasShownApplySuccessGuidance = false;
 
   Set<String> get savedJobIds => Set.unmodifiable(_savedJobIds);
@@ -18,6 +20,25 @@ class JobActionService extends ChangeNotifier {
 
   bool isSaved(String jobId) => _savedJobIds.contains(jobId);
   bool isApplied(String jobId) => _appliedJobIds.contains(jobId);
+
+  String? getOfferResponse(int applicationId) => _offerResponses[applicationId];
+  String? getApplicationStatus(int applicationId) => _applicationStatuses[applicationId];
+
+  void recordOfferResponse(int applicationId, String response) {
+    _offerResponses[applicationId] = response.trim().toLowerCase();
+    _applicationStatuses[applicationId] =
+        response.trim().toLowerCase() == 'accepted' ? 'Placement/Hired' : 'Denied';
+    notifyListeners();
+  }
+
+  void recordApplicationStatus(int applicationId, String status) {
+    _applicationStatuses[applicationId] = status;
+    notifyListeners();
+  }
+
+  void notifyApplicationsChanged() {
+    notifyListeners();
+  }
 
   bool consumeApplySuccessGuidance() {
     if (_hasShownApplySuccessGuidance) return false;
@@ -54,6 +75,8 @@ class JobActionService extends ChangeNotifier {
     if (token == null || token.isEmpty) {
       _savedJobIds.clear();
       _appliedJobIds.clear();
+      _offerResponses.clear();
+      _applicationStatuses.clear();
       _cachedHasResume = null;
       notifyListeners();
       return;
@@ -72,6 +95,20 @@ class JobActionService extends ChangeNotifier {
           final map = item as Map<String, dynamic>;
           final id = map['job_listing_id'];
           if (id != null) applied.add(id.toString());
+
+          final rawAppId = map['id'];
+          final appId =
+              rawAppId is int ? rawAppId : int.tryParse(rawAppId?.toString() ?? '');
+          if (appId != null) {
+            final offerResp = map['offer_response']?.toString().toLowerCase();
+            if (offerResp != null && offerResp.isNotEmpty) {
+              _offerResponses[appId] = offerResp;
+            }
+            final rawStatus = map['status']?.toString();
+            if (rawStatus != null && rawStatus.isNotEmpty) {
+              _applicationStatuses[appId] = rawStatus;
+            }
+          }
         }
       }
 
@@ -179,6 +216,8 @@ class JobActionService extends ChangeNotifier {
   void clear() {
     _savedJobIds.clear();
     _appliedJobIds.clear();
+    _offerResponses.clear();
+    _applicationStatuses.clear();
     _hasShownApplySuccessGuidance = false;
     notifyListeners();
   }

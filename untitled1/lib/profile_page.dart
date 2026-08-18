@@ -272,7 +272,7 @@ class _ProfileTabState extends State<ProfileTab> {
         children: [
           Positioned.fill(
             child: CustomScrollView(
-              physics: const ClampingScrollPhysics(),
+              physics: const BouncingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(
                   child: SizedBox(
@@ -697,6 +697,7 @@ class _ProfileTabState extends State<ProfileTab> {
                           onTap: () => _confirmSignOut(context),
                         ),
                       ),
+                      const SizedBox(height: 36),
                     ]),
                   ),
                 ),
@@ -2837,6 +2838,24 @@ class _Application {
     return status.toUpperCase();
   }
 
+  _Application withOfferResponse(String response) {
+    final normalized = response.trim().toLowerCase();
+    final isAccept = normalized == 'accepted';
+    return _Application(
+      id: id,
+      job: job,
+      appliedDate: appliedDate,
+      status: isAccept ? 'Placement/Hired' : 'Denied',
+      rawStatus: isAccept ? 'hired' : 'rejected',
+      processingStage: isAccept ? 'Placement' : 'Declined',
+      offerResponse: normalized,
+      offerSentAt: offerSentAt,
+      statusColor:
+          isAccept ? const Color(0xFF10B981) : const Color(0xFFEF4444),
+      statusIcon: isAccept ? Icons.work_rounded : Icons.cancel_rounded,
+    );
+  }
+
   const _Application({
     this.id,
     required this.job,
@@ -3068,7 +3087,27 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
   }
 
   void _onJobActionsChanged() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      bool hadLocalChanges = false;
+      final updated = _applications.map((app) {
+        if (app.id != null) {
+          final liveOffer = _jobActionService.getOfferResponse(app.id!);
+          if (liveOffer != null && liveOffer != app.offerResponse) {
+            hadLocalChanges = true;
+            return app.withOfferResponse(liveOffer);
+          }
+        }
+        return app;
+      }).toList();
+      if (hadLocalChanges) {
+        setState(() {
+          _applications
+            ..clear()
+            ..addAll(updated);
+        });
+      }
+      unawaited(_fetchApplications(showPageLoader: false));
+    }
   }
 
   @override
@@ -3077,18 +3116,22 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
     super.dispose();
   }
 
-  Future<void> _fetchApplications() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+  Future<void> _fetchApplications({bool showPageLoader = true}) async {
+    if (showPageLoader) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = null;
+      });
+    }
 
     final token = UserSession().token;
     if (token == null || token.isEmpty) {
-      setState(() {
-        _applications.clear();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _applications.clear();
+          _isLoading = false;
+        });
+      }
       return;
     }
 
@@ -3108,35 +3151,51 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                 '') ??
             DateTime.now();
         final appliedDate = _formatApplicationDate(createdAt);
+        final rawId = map['id'];
+        final appId =
+            rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
         final rawStatus = (map['status'] as String? ?? '').trim().toLowerCase();
+
+        final serverOffer = map['offer_response']?.toString().toLowerCase();
+        final localOffer =
+            appId != null ? _jobActionService.getOfferResponse(appId) : null;
+        final offerResponse = localOffer ?? serverOffer;
+
         final processingStage = switch (rawStatus) {
           'shortlisted' => 'Shortlisted',
           'interview' => 'Interview',
-          'for_job_offer' => 'For Job Offer',
+          'for_job_offer' => (offerResponse == 'accepted')
+              ? 'Placement'
+              : (offerResponse == 'declined' ? 'Declined' : 'For Job Offer'),
           _ => null,
         };
+
         // Map backend statuses → app display labels.
         // Backend: reviewing, shortlisted, interview, hired, rejected
-        final normalizedStatus = switch (rawStatus) {
-          // REGISTRATION = reviewing
-          'reviewing' => 'Registration',
+        final normalizedStatus = (offerResponse == 'accepted')
+            ? 'Placement/Hired'
+            : (offerResponse == 'declined'
+                ? 'Denied'
+                : switch (rawStatus) {
+                    // REGISTRATION = reviewing
+                    'reviewing' => 'Registration',
 
-          // PROCESSING = interview, shortlisted
-          'shortlisted' => 'Processing',
-          'interview' => 'Processing',
-          'for_job_offer' => 'Processing',
+                    // PROCESSING = interview, shortlisted
+                    'shortlisted' => 'Processing',
+                    'interview' => 'Processing',
+                    'for_job_offer' => 'Processing',
 
-          // PLACEMENT/HIRED = hired / rejected
-          'hired' => 'Placement/Hired',
-          'rejected' => 'Placement/Hired',
+                    // PLACEMENT/HIRED = hired / rejected
+                    'hired' => 'Placement/Hired',
+                    'rejected' => 'Placement/Hired',
 
-          // Backward compatibility with legacy labels
-          'submitted' => 'Registration',
-          'under review' => 'Processing',
-          'interview scheduled' => 'Processing',
-          'decision' => 'Processing',
-          _ => rawStatus.isEmpty ? 'Registration' : rawStatus,
-        };
+                    // Backward compatibility with legacy labels
+                    'submitted' => 'Registration',
+                    'under review' => 'Processing',
+                    'interview scheduled' => 'Processing',
+                    'decision' => 'Processing',
+                    _ => rawStatus.isEmpty ? 'Registration' : rawStatus,
+                  });
 
         Color statusColor;
         IconData statusIcon;
@@ -3165,10 +3224,6 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
             statusIcon = Icons.app_registration_rounded;
         }
 
-        final rawId = map['id'];
-        final appId =
-            rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
-        final offerResponse = map['offer_response']?.toString().toLowerCase();
         final rawOfferSentAt = map['offer_sent_at']?.toString();
         final offerSentAt =
             rawOfferSentAt != null ? DateTime.tryParse(rawOfferSentAt) : null;
@@ -3178,7 +3233,9 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
           job: job,
           appliedDate: appliedDate,
           status: normalizedStatus,
-          rawStatus: rawStatus,
+          rawStatus: (offerResponse == 'accepted')
+              ? 'hired'
+              : ((offerResponse == 'declined') ? 'rejected' : rawStatus),
           processingStage: processingStage,
           offerResponse: offerResponse,
           offerSentAt: offerSentAt,
@@ -3197,18 +3254,23 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         }
       }
 
-      setState(() {
-        _applications
-          ..clear()
-          ..addAll(apps);
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _applications
+            ..clear()
+            ..addAll(apps);
+          _isLoading = false;
+          _errorMessage = null;
+        });
+      }
     } else {
-      setState(() {
-        _errorMessage =
-            result['message'] as String? ?? 'Failed to load applications.';
-        _isLoading = false;
-      });
+      if (mounted && showPageLoader) {
+        setState(() {
+          _errorMessage =
+              result['message'] as String? ?? 'Failed to load applications.';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -3252,7 +3314,7 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
                       onRefresh: _fetchApplications,
                       child: ListView.builder(
                         physics: const AlwaysScrollableScrollPhysics(
-                          parent: ClampingScrollPhysics(),
+                          parent: BouncingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                         itemCount: _applications.length + 1,
@@ -3351,7 +3413,16 @@ class _ApplicationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final job = application.job;
+    final jobActionService = JobActionService();
+    final liveOffer = application.id != null
+        ? jobActionService.getOfferResponse(application.id!)
+        : null;
+    final effectiveApp =
+        (liveOffer != null && liveOffer != application.offerResponse)
+            ? application.withOfferResponse(liveOffer)
+            : application;
+    final job = effectiveApp.job;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -3370,7 +3441,7 @@ class _ApplicationCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(20),
-          onTap: () => _openApplicationDetail(context, application,
+          onTap: () => _openApplicationDetail(context, effectiveApp,
               onRefresh: onRefresh),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -3455,25 +3526,25 @@ class _ApplicationCard extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: application.statusColor.withValues(alpha: 0.10),
+                        color: effectiveApp.statusColor.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color:
-                              application.statusColor.withValues(alpha: 0.25),
+                              effectiveApp.statusColor.withValues(alpha: 0.25),
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(application.statusIcon,
-                              size: 13, color: application.statusColor),
+                          Icon(effectiveApp.statusIcon,
+                              size: 13, color: effectiveApp.statusColor),
                           const SizedBox(width: 5),
                           Text(
-                            application.compactBadgeLabel,
+                            effectiveApp.compactBadgeLabel,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w800,
-                              color: application.statusColor,
+                              color: effectiveApp.statusColor,
                               letterSpacing: 0.3,
                             ),
                           ),
@@ -3481,7 +3552,7 @@ class _ApplicationCard extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      'Applied ${application.appliedDate}',
+                      'Applied ${effectiveApp.appliedDate}',
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -3523,7 +3594,7 @@ Future<void> _openOfferModal(
     employmentType: application.job.employmentTypeLabel,
     initialResponse: application.offerResponse,
     onResponseSubmitted: () {
-      Navigator.of(context, rootNavigator: true).pop();
+      Navigator.of(context).pop();
       onRefresh?.call();
     },
   );
@@ -3531,73 +3602,118 @@ Future<void> _openOfferModal(
 
 void _openApplicationDetail(
   BuildContext context,
-  _Application application, {
+  _Application initialApp, {
   VoidCallback? onRefresh,
 }) {
-  final job = application.job;
-  final isPendingOffer = application.rawStatus == 'for_job_offer' &&
-      (application.offerResponse == null || application.offerResponse!.isEmpty);
-
-  final banner = _ApplicationStatusBanner(
-    application: application,
-    onReviewOffer: isPendingOffer
-        ? () => _openOfferModal(context, application, onRefresh: onRefresh)
-        : null,
-  );
   final jobActionService = JobActionService();
+  final job = initialApp.job;
 
-  showJobDetailSheet(
-    context,
-    job,
-    headerBanner: banner,
-    isApplied: true,
-    isSaved: jobActionService.isSaved(job.id),
-    customActionLabel: isPendingOffer ? 'Review Job Offer' : null,
-    customActionIcon: isPendingOffer ? Icons.gavel_rounded : null,
-    customActionGradientColors: isPendingOffer
-        ? [const Color(0xFF0EA5E9), const Color(0xFF0284C7)]
-        : null,
-    onCustomActionTap: isPendingOffer
-        ? () => _openOfferModal(context, application, onRefresh: onRefresh)
-        : null,
-    onViewMap: () {
-      Navigator.of(context).pop(); // Pop modal
-      Navigator.of(context)
-          .pop(); // Pop the Applications/Detail page to return home
-      homeNavRequestNotifier.value = 2; // Switch to Map Tab
-      mapFocusRequestNotifier.value = MapFocusRequest.fromJob(job);
-    },
-    onSave: () async {
-      final error = await jobActionService.toggleSave(job.id);
-      if (context.mounted) {
-        if (error == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(jobActionService.isSaved(job.id)
-                  ? 'Job saved successfully.'
-                  : 'Job removed from saved.'),
-              backgroundColor: jobActionService.isSaved(job.id)
-                  ? const Color(0xFF2563EB)
-                  : const Color(0xFF64748B),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) {
+      return AnimatedBuilder(
+        animation: jobActionService,
+        builder: (modalCtx, _) {
+          final liveOffer = initialApp.id != null
+              ? jobActionService.getOfferResponse(initialApp.id!)
+              : null;
+          final app =
+              (liveOffer != null && liveOffer != initialApp.offerResponse)
+                  ? initialApp.withOfferResponse(liveOffer)
+                  : initialApp;
+
+          final isPendingOffer = app.rawStatus == 'for_job_offer' &&
+              (app.offerResponse == null || app.offerResponse!.isEmpty);
+
+          final banner = _ApplicationStatusBanner(
+            application: app,
+            onReviewOffer: isPendingOffer
+                ? () => _openOfferModal(modalCtx, app, onRefresh: onRefresh)
+                : null,
+          );
+
+          final isOfferAccepted = app.offerResponse == 'accepted';
+          final isOfferDeclined = app.offerResponse == 'declined';
+
+          String? customLabel;
+          dynamic customIcon;
+          List<Color>? customGradient;
+          VoidCallback? customTap;
+
+          if (isPendingOffer) {
+            customLabel = 'Review Job Offer';
+            customIcon = Icons.gavel_rounded;
+            customGradient = [
+              const Color(0xFF0EA5E9),
+              const Color(0xFF0284C7)
+            ];
+            customTap =
+                () => _openOfferModal(modalCtx, app, onRefresh: onRefresh);
+          } else if (isOfferAccepted) {
+            customLabel = 'Offer Accepted';
+            customIcon = Icons.check_circle_rounded;
+            customGradient = [
+              const Color(0xFF10B981),
+              const Color(0xFF059669)
+            ];
+            customTap = null;
+          } else if (isOfferDeclined) {
+            customLabel = 'Offer Declined';
+            customIcon = Icons.cancel_outlined;
+            customGradient = [
+              const Color(0xFF94A3B8),
+              const Color(0xFF64748B)
+            ];
+            customTap = null;
+          }
+
+          return GestureDetector(
+            onTap: () => Navigator.of(modalCtx).pop(),
+            behavior: HitTestBehavior.opaque,
+            child: SafeArea(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: JobDetailSheet(
+                    job: job,
+                    headerBanner: banner,
+                    isApplied: true,
+                    isSaved: jobActionService.isSaved(job.id),
+                    customActionLabel: customLabel,
+                    customActionIcon: customIcon,
+                    customActionGradientColors: customGradient,
+                    onCustomActionTap: customTap,
+                    onViewMap: () {
+                      Navigator.of(modalCtx).pop();
+                      Navigator.of(context).pop();
+                      homeNavRequestNotifier.value = 2;
+                      mapFocusRequestNotifier.value =
+                          MapFocusRequest.fromJob(job);
+                    },
+                    onSave: () async {
+                      final error = await jobActionService.toggleSave(job.id);
+                      if (modalCtx.mounted) {
+                        CustomToast.show(
+                          modalCtx,
+                          message: error ??
+                              (jobActionService.isSaved(job.id)
+                                  ? 'Job saved successfully.'
+                                  : 'Job removed from saved.'),
+                          type:
+                              error == null ? ToastType.info : ToastType.error,
+                        );
+                      }
+                    },
+                  ),
+                ),
               ),
             ),
           );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error),
-              backgroundColor: const Color(0xFFEF4444),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          );
-        }
-      }
+        },
+      );
     },
   );
 }
@@ -3890,7 +4006,7 @@ class _SavedJobsPageState extends State<SavedJobsPage> {
                       child: ListView.builder(
                         controller: _scrollController,
                         physics: const AlwaysScrollableScrollPhysics(
-                          parent: ClampingScrollPhysics(),
+                          parent: BouncingScrollPhysics(),
                         ),
                         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                         itemCount:
