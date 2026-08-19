@@ -58,9 +58,13 @@ class AdminAuthController extends Controller
 
     public function me(Request $request)
     {
+        $user = $request->user();
         return response()->json([
             'success' => true,
-            'data' => $request->user(),
+            'data' => $user->only([
+                'id', 'first_name', 'last_name', 'middle_name',
+                'email', 'role', 'status', 'photo', 'contact', 'address',
+            ]),
         ]);
     }
 
@@ -92,6 +96,8 @@ class AdminAuthController extends Controller
                     'password' => \Illuminate\Support\Facades\Hash::make($password)
                 ])->setRememberToken(\Illuminate\Support\Str::random(60));
                 $user->save();
+                // Revoke all active tokens so stolen tokens can't be reused post-reset
+                $user->tokens()->delete();
             }
         );
 

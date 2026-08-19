@@ -35,11 +35,11 @@ class AdminArchiveController extends Controller
 
             case 'all':
                 // Return all soft-deleted records across all types in one request
-                $users       = User::onlyTrashed()->get()->map(fn($m) => $this->formatItem($m, 'users'));
-                $employers   = Employer::onlyTrashed()->get()->map(fn($m) => $this->formatItem($m, 'employers'));
-                $jobseekers  = Jobseeker::onlyTrashed()->get()->map(fn($m) => $this->formatItem($m, 'jobseekers'));
-                $jobListings = JobListing::onlyTrashed()->get()->map(fn($m) => $this->formatItem($m, 'job_listings'));
-                $events      = Event::onlyTrashed()->get()->map(fn($m) => $this->formatItem($m, 'events'));
+                $users       = User::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'users'));
+                $employers   = Employer::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'employers'));
+                $jobseekers  = Jobseeker::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'jobseekers'));
+                $jobListings = JobListing::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'job_listings'));
+                $events      = Event::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'events'));
 
                 $all = $users
                     ->concat($employers)

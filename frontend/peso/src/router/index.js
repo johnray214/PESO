@@ -290,8 +290,6 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to, _from, next) => {
-  const employerToken = localStorage.getItem('employer_token')
-
   const isEmployerRoute      = to.matched.some(r => r.meta.employerOnly)
   const isEmployerPublicPage = [
     'employer-login', 'employer-register',
@@ -299,17 +297,7 @@ router.beforeEach(async (to, _from, next) => {
   ].includes(to.name)
   const isAdminGuestPage     = to.meta.guest
 
-  // employer routes — redirect to employer login if no token
-  if (isEmployerRoute && !employerToken) {
-    return next({ name: 'employer-login', query: { redirect: to.fullPath } })
-  }
-
-  // already logged in employer trying to hit login/register
-  if (isEmployerPublicPage && employerToken) {
-    return next({ name: 'employer-dashboard' })
-  }
-
-  // init employer auth store so user data is in state
+  // init employer auth store so user data is in state (validates token server-side)
   const employerAuthStore = useEmployerAuthStore()
   if (!employerAuthStore.initialized) {
     await employerAuthStore.init()
@@ -321,7 +309,18 @@ router.beforeEach(async (to, _from, next) => {
     await authStore.init()
   }
 
-  const authenticated = authStore.isAuthenticated
+  const isEmployerAuthenticated = employerAuthStore.isAuthenticated
+  const authenticated           = authStore.isAuthenticated
+
+  // employer routes — redirect to employer login if not authenticated
+  if (isEmployerRoute && !isEmployerAuthenticated) {
+    return next({ name: 'employer-login', query: { redirect: to.fullPath } })
+  }
+
+  // already logged in employer trying to hit login/register
+  if (isEmployerPublicPage && isEmployerAuthenticated) {
+    return next({ name: 'employer-dashboard' })
+  }
 
   // already logged in admin trying to hit /admin/login
   if (isAdminGuestPage && authenticated) {

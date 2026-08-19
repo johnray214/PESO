@@ -36,7 +36,19 @@ export const useEmployerAuthStore = defineStore('employerAuth', {
           this.user = JSON.parse(saved)
           if (this.user?.photo) this.user.photo = normalizeStorageUrl(this.user.photo)
           this.token = token
-        } catch (_) { /* ignore invalid saved auth */ }
+          // Server-validate so expired/revoked tokens are caught immediately
+          const { data } = await api.get('/employer/me')
+          if (data.success && data.data) {
+            this.user = { ...data.data, photo: normalizeStorageUrl(data.data.photo) }
+            localStorage.setItem(EMPLOYER_USER_KEY, JSON.stringify(this.user))
+          }
+        } catch (_) {
+          // Token invalid/expired — clear auth state
+          this.token = null
+          this.user = null
+          localStorage.removeItem(EMPLOYER_TOKEN_KEY)
+          localStorage.removeItem(EMPLOYER_USER_KEY)
+        }
       }
       this.initialized = true
     },
@@ -65,17 +77,19 @@ export const useEmployerAuthStore = defineStore('employerAuth', {
       })
       if (!data.success || !data.data) throw new Error(data.message || 'Registration failed')
       const { employer, token } = data.data
-      
+
       this.user = {
         ...employer,
         photo: normalizeStorageUrl(employer.photo),
       }
-      this.token = token
-      
-      localStorage.setItem(EMPLOYER_TOKEN_KEY, token)
-      localStorage.setItem(EMPLOYER_USER_KEY, JSON.stringify(this.user))
-      
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+
+      // Backend returns no token for pending accounts — guard against null storage
+      if (token) {
+        this.token = token
+        localStorage.setItem(EMPLOYER_TOKEN_KEY, token)
+        localStorage.setItem(EMPLOYER_USER_KEY, JSON.stringify(this.user))
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      }
     },
 
     async logout() {

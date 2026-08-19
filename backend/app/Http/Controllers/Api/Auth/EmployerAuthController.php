@@ -225,6 +225,8 @@ class EmployerAuthController extends Controller
                     'password' => \Illuminate\Support\Facades\Hash::make($password)
                 ])->setRememberToken(\Illuminate\Support\Str::random(60));
                 $user->save();
+                // Revoke all active tokens so stolen tokens can't be reused post-reset
+                $user->tokens()->delete();
             }
         );
 

@@ -34,7 +34,22 @@ export const useAuthStore = defineStore('auth', {
           this.user = user
           this.role = role
           this.photo = photo ?? null
-        } catch (_) { /* ignore invalid saved auth */ }
+          // Server-validate the token so tampered localStorage roles get corrected
+          const { data } = await api.get('/admin/me')
+          if (data.success && data.data) {
+            this.user = data.data
+            this.role = data.data.role
+            this.photo = data.data.photo ?? null
+          }
+        } catch (_) {
+          // Token invalid/expired — clear auth state
+          this.token = null
+          this.user = null
+          this.role = null
+          this.photo = null
+          localStorage.removeItem(TOKEN_KEY)
+          localStorage.removeItem('peso-auth')
+        }
       }
       this.initialized = true
     },

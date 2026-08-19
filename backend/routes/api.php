@@ -10,15 +10,6 @@ use App\Http\Controllers\Api\Auth\AdminAuthController;
 use App\Http\Controllers\Api\Auth\EmployerAuthController;
 use App\Http\Controllers\Api\Auth\JobseekerAuthController;
 
-Route::get('/debug-notifs', function() {
-    return \App\Models\NotificationRead::with('notification')->where('recipient_type', 'employer')->orderByDesc('created_at')->limit(10)->get();
-});
-
-// Pusher private channel auth endpoint for employers (stateless, uses Bearer token)
-Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
-    return Broadcast::auth($request);
-})->middleware('auth:employer');
-
 // Public Controllers
 use App\Http\Controllers\Api\Public\PublicEmployerController;
 use App\Http\Controllers\Api\Public\PublicEventController;
@@ -236,14 +227,19 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
 
     Route::get('/download', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        $fullPath = storage_path('app/public/' . $path);
 
-        if (!$path || !\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        // Prevent path traversal and empty path
+        if (!$path || str_contains($path, '..') || str_starts_with($path, '/')) {
             abort(404);
         }
 
-        return response()->download($fullPath);
-    })->middleware('auth:sanctum');
+        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        // Use disk API — never build raw filesystem paths from user input
+        return \Illuminate\Support\Facades\Storage::disk('public')->download($path);
+    }); // Note: already protected by admin middleware group above
 });
 
 /*

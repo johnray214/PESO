@@ -25,7 +25,19 @@ export const useJobseekerAuthStore = defineStore('jobseekerAuth', {
         try {
           this.user = JSON.parse(saved)
           this.token = token
-        } catch (_) { /* ignore invalid saved auth */ }
+          // Server-validate so expired/revoked tokens are caught immediately
+          const { data } = await api.get('/jobseeker/me')
+          if (data.success && data.data) {
+            this.user = { ...this.user, ...data.data }
+            localStorage.setItem(JOBSEEKER_USER_KEY, JSON.stringify(this.user))
+          }
+        } catch (_) {
+          // Token invalid/expired — clear auth state
+          this.token = null
+          this.user = null
+          localStorage.removeItem(JOBSEEKER_TOKEN_KEY)
+          localStorage.removeItem(JOBSEEKER_USER_KEY)
+        }
       }
       this.initialized = true
     },
@@ -77,6 +89,7 @@ export const useJobseekerAuthStore = defineStore('jobseekerAuth', {
       try {
         await api.post('/jobseeker/logout')
       } catch (_) { void _; }
+      this.initialized = false
       this.user = null
       this.token = null
       localStorage.removeItem(JOBSEEKER_TOKEN_KEY)
