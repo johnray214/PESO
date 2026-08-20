@@ -31,6 +31,7 @@ class Job {
   final List<String> requirements;
   final List<String> skills;
   final String experienceLevel;
+  final String? educationLevel;
   final String salaryMin;
   final String salaryMax;
   final String employmentType;
@@ -61,6 +62,7 @@ class Job {
     required this.requirements,
     required this.skills,
     required this.experienceLevel,
+    this.educationLevel,
     required this.salaryMin,
     required this.salaryMax,
     required this.employmentType,
@@ -72,6 +74,13 @@ class Job {
     this.isUrgent = false,
     this.isOverseas = false,
   });
+
+  /// Whether this job has valid GPS map coordinates available.
+  bool get hasCoordinates =>
+      latitude != null &&
+      longitude != null &&
+      latitude != 0.0 &&
+      longitude != 0.0;
 
   bool get isDoleProgram {
     if (program != null &&
@@ -121,8 +130,109 @@ class Job {
     return '$min - $max';
   }
 
+  /// Formatted experience level string for user display.
+  String get experienceDisplay {
+    final raw = experienceLevel.trim().toLowerCase();
+    if (raw.isEmpty) return 'Not specified';
+    switch (raw) {
+      case 'fresh_grad':
+      case 'fresh_graduate':
+      case 'entry_level':
+        return 'Fresh Grad / None';
+      case 'less_than_1':
+      case 'less_than_1_year':
+        return '< 1 year exp';
+      case '1_year':
+      case '1':
+        return 'At least 1 year';
+      case '2_years':
+      case '2':
+        return 'At least 2 years';
+      case '3_years':
+      case '3':
+        return 'At least 3 years';
+      case '5_years':
+      case '5':
+        return 'At least 5 years';
+      case '10_years':
+      case '10':
+        return '10+ years exp';
+      default:
+        return experienceLevel.trim();
+    }
+  }
+
+  /// Formatted education level string for user display.
+  String get educationDisplay {
+    final raw = (educationLevel ?? '').trim().toLowerCase();
+    if (raw.isEmpty || raw == 'none') return 'Any education';
+    switch (raw) {
+      case 'elementary':
+        return 'Elementary Grad';
+      case 'highschool':
+      case 'high_school':
+      case 'high school':
+      case 'secondary':
+        return 'High School / SHS';
+      case 'vocational':
+      case 'technical':
+        return 'Vocational / Tech';
+      case 'associate':
+      case 'college_level':
+      case 'college_undergrad':
+        return 'College Level';
+      case 'bachelors':
+      case 'college_graduate':
+      case 'college':
+      case 'tertiary':
+        return "Bachelor's Degree";
+      case 'masters':
+      case 'postgraduate':
+        return "Master's Degree";
+      case 'doctorate':
+      case 'phd':
+        return 'Doctorate / PhD';
+      default:
+        return educationLevel!.trim();
+    }
+  }
+
   /// Display form of [employmentType] for modals, chips, and lists.
   String get employmentTypeLabel => formatEmploymentTypeLabel(employmentType);
+
+  /// Relative time for feed cards: e.g. "Just now", "2h ago", "Yesterday", "3d ago", "2w ago"
+  String get postedTimeAgo {
+    final now = DateTime.now();
+    final diff = now.difference(postedDate);
+
+    if (diff.isNegative || diff.inMinutes < 1) {
+      return 'Just now';
+    }
+    if (diff.inHours < 1) {
+      return '${diff.inMinutes}m ago';
+    }
+    if (diff.inHours < 24) {
+      return '${diff.inHours}h ago';
+    }
+    if (diff.inDays == 1) {
+      return 'Yesterday';
+    }
+    if (diff.inDays < 7) {
+      return '${diff.inDays}d ago';
+    }
+    if (diff.inDays < 30) {
+      final weeks = (diff.inDays / 7).floor();
+      return '${weeks}w ago';
+    }
+    if (diff.inDays < 365) {
+      final months = (diff.inDays / 30).floor();
+      return '${months}mo ago';
+    }
+    return formatJobDeadlineDate(postedDate);
+  }
+
+  /// Exact full date for Job Details modal / sheet: e.g. "Aug 18, 2026"
+  String get postedDateFormatted => formatJobDeadlineDate(postedDate);
 
   factory Job.fromJson(Map<String, dynamic> json) {
     // Supports both old app JSON and current Laravel JobListing shape.
@@ -214,10 +324,19 @@ class Job {
       return text == null || text.isEmpty ? null : text;
     }
 
-    final employerEmail =
-        cleanContactValue(json['employer_email'] ?? employerMap?['email']);
-    final employerPhone =
-        cleanContactValue(json['employer_phone'] ?? employerMap?['phone']);
+    final employerEmail = cleanContactValue(
+      json['employer_email'] ??
+          json['email'] ??
+          employerMap?['email'] ??
+          (isPeso || hasProgram ? 'admin@peso.gov.ph' : null),
+    );
+    final employerPhone = cleanContactValue(
+      json['employer_phone'] ??
+          json['phone'] ??
+          json['contact'] ??
+          employerMap?['phone'] ??
+          (isPeso || hasProgram ? '09001234567' : null),
+    );
 
     final salaryRange = (json['salary_range'] as String?)?.trim();
     String salaryMin = (json['salary_min'] as String?) ?? '';
@@ -235,18 +354,27 @@ class Job {
       }
     }
 
-    final latValue = json['latitude'];
-    final lonValue = json['longitude'];
-    final double? latitude = switch (latValue) {
+    final latValue = json['latitude'] ?? employerMap?['latitude'];
+    final lonValue = json['longitude'] ?? employerMap?['longitude'];
+    double? latitude = switch (latValue) {
       final num v => v.toDouble(),
       final String v => double.tryParse(v),
       _ => null,
     };
-    final double? longitude = switch (lonValue) {
+    double? longitude = switch (lonValue) {
       final num v => v.toDouble(),
       final String v => double.tryParse(v),
       _ => null,
     };
+
+    if ((latitude == null ||
+            longitude == null ||
+            latitude == 0 ||
+            longitude == 0) &&
+        (isPeso || hasProgram)) {
+      latitude = 16.68930015164032;
+      longitude = 121.55596296008191;
+    }
 
     final rawSkills = json['skills'];
     final skills = (rawSkills is List ? rawSkills : const <dynamic>[])
@@ -300,7 +428,14 @@ class Job {
           .map((e) => e.toString())
           .toList(),
       skills: skills,
-      experienceLevel: (json['experience_level'] as String?) ?? '',
+      experienceLevel: (json['experience_required'] as String?) ??
+          (json['experience_level'] as String?) ??
+          (json['experience'] as String?) ??
+          (json['work_experience'] as String?) ??
+          '',
+      educationLevel: (json['education_level'] as String?) ??
+          (json['educational_attainment'] as String?) ??
+          (json['education'] as String?),
       salaryMin: salaryMin,
       salaryMax: salaryMax,
       employmentType: (json['employment_type'] as String?) ??
@@ -1184,7 +1319,7 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                   ),
                 ),
               ),
-              if (widget.onViewMap != null) ...[
+              if (widget.onViewMap != null && job.hasCoordinates) ...[
                 const SizedBox(width: 8),
                 GestureDetector(
                   onTap: widget.onViewMap,
@@ -1218,9 +1353,72 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                     ),
                   ),
                 ),
+              ] else ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () {
+                    CustomToast.show(
+                      context,
+                      message:
+                          'Exact map pin is being verified by PESO Santiago staff',
+                      type: ToastType.info,
+                      duration: const Duration(seconds: 3),
+                    );
+                  },
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        HugeIcon(
+                          icon: HugeIcons.strokeRoundedLocation01,
+                          size: 13,
+                          color: Color(0xFF94A3B8),
+                          strokeWidth: 2.0,
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'Pin Pending',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ],
           ),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const HugeIcon(
+              icon: HugeIcons.strokeRoundedClock01,
+              size: 13,
+              color: Color(0xFF64748B),
+              strokeWidth: 2.0,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Posted ${job.postedDateFormatted} (${job.postedTimeAgo})',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF64748B),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
         // Match badge
         if (job.matchPercentage > 0) ...[
@@ -1524,6 +1722,28 @@ class _JobDetailSheetState extends State<JobDetailSheet> {
                 label: 'Salary Range',
                 value: job.salaryDisplay,
                 color: const Color(0xFF10B981),
+              ),
+            ),
+          ],
+        ),
+        Container(height: 1, color: const Color(0xFFF1F5F9)),
+        Row(
+          children: [
+            Expanded(
+              child: _buildDetailCell(
+                icon: HugeIcons.strokeRoundedCertificate01,
+                label: 'Experience',
+                value: job.experienceDisplay,
+                color: const Color(0xFF6366F1),
+              ),
+            ),
+            Container(width: 1, height: 60, color: const Color(0xFFF1F5F9)),
+            Expanded(
+              child: _buildDetailCell(
+                icon: HugeIcons.strokeRoundedGraduateMale,
+                label: 'Education',
+                value: job.educationDisplay,
+                color: const Color(0xFF0D9488),
               ),
             ),
           ],

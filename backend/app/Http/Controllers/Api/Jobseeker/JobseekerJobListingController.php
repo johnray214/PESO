@@ -106,16 +106,16 @@ class JobseekerJobListingController extends Controller
         $jobListing = JobListing::with(['employer', 'skills'])->findOrFail($id);
         
         // Calculate match score
-        $matchScore = Application::calculateMatchScore($jobseeker, $jobListing);
+        $matchScore = $jobseeker ? Application::calculateMatchScore($jobseeker, $jobListing) : 0;
         
         // Check if already applied
-        $hasApplied = Application::where('job_listing_id', $id)
-            ->where('jobseeker_id', $jobseeker->id)
-            ->exists();
+        $hasApplied = $jobseeker
+            ? Application::where('job_listing_id', $id)->where('jobseeker_id', $jobseeker->id)->exists()
+            : false;
         
         // Calculate Haversine distance
         $distanceMeters = null;
-        if ($jobseeker->latitude && $jobseeker->longitude && $jobListing->employer->latitude && $jobListing->employer->longitude) {
+        if ($jobseeker && $jobseeker->latitude && $jobseeker->longitude && $jobListing->employer?->latitude && $jobListing->employer?->longitude) {
             $distanceMeters = $this->haversineDistance(
                 $jobseeker->latitude,
                 $jobseeker->longitude,

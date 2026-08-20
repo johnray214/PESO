@@ -39,6 +39,9 @@ class ApplicationResource extends JsonResource
                 ];
             }),
             'status' => $this->status,
+            'withdrawal_reason' => $this->withdrawal_reason,
+            'withdrawal_notes' => $this->withdrawal_notes,
+            'withdrawn_at' => $this->withdrawn_at,
             'offer_response' => $this->offer_response,
             'offer_sent_at' => $this->offer_sent_at,
             'offer_response_at' => $this->offer_response_at,

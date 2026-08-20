@@ -696,6 +696,32 @@ class ApiService {
     }
   }
 
+  static Future<Map<String, dynamic>> withdrawApplication({
+    required String token,
+    required int applicationId,
+    required String reason,
+    String? notes,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/jobseeker/applications/$applicationId/withdraw'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'reason': reason,
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        }),
+      );
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+      return {'success': false, 'message': 'Invalid response'};
+    } catch (e) {
+      return _handleError(e);
+    }
+  }
+
   static Future<Map<String, dynamic>> getSavedJobs(
     String token, {
     String? cursor,

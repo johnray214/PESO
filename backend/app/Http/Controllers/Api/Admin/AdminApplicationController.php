@@ -272,7 +272,7 @@ class AdminApplicationController extends Controller
     public function counts()
     {
         $counts = \Illuminate\Support\Facades\Cache::remember('admin_app_counts', 15, function () {
-            $statuses = ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'];
+            $statuses = ['reviewing', 'shortlisted', 'interview', 'for_job_offer', 'hired', 'rejected', 'withdrawn'];
             $res = ['all' => Application::count()];
             foreach ($statuses as $s) {
                 $res[$s] = Application::where('status', $s)->count();

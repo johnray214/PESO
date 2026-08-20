@@ -322,6 +322,7 @@ Route::middleware(['auth:jobseeker', \App\Http\Middleware\EnsureJobseeker::class
     Route::post('/applications', [JobseekerApplicationController::class, 'store']);
     Route::post('/applications/{id}/respond-offer', [JobseekerApplicationController::class, 'respondOffer']);
     Route::delete('/applications/{id}', [JobseekerApplicationController::class, 'withdraw']);
+    Route::post('/applications/{id}/withdraw', [JobseekerApplicationController::class, 'withdraw']);
 
     // Saved Jobs
     Route::get('/saved-jobs', [JobseekerSavedJobController::class, 'index']);

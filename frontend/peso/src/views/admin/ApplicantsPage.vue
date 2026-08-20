@@ -315,6 +315,16 @@
                     <p class="applied-employer">{{ selected?.employer }}</p>
                     <p class="applied-date">Applied {{ selected?.date }}</p>
                   </div>
+
+                  <!-- Withdrawal details callout -->
+                  <div v-if="selected?.withdrawalReason" class="withdrawal-box">
+                    <div class="withdrawal-header">
+                      <span class="withdrawal-tag"><i class="bi bi-info-circle-fill"></i> Withdrawn by Jobseeker</span>
+                      <span v-if="selected.withdrawnAt" class="withdrawal-date">{{ selected.withdrawnAt }}</span>
+                    </div>
+                    <div class="withdrawal-detail"><strong>Reason:</strong> {{ selected.withdrawalReason }}</div>
+                    <div v-if="selected.withdrawalNotes" class="withdrawal-detail"><strong>Note:</strong> "{{ selected.withdrawalNotes }}"</div>
+                  </div>
                 </template>
 
                 <!-- Potential applicants: best matching job -->
@@ -453,12 +463,13 @@ export default {
       activeTab: 'all',
       applicants: [], currentPage: 1, lastPage: 1, totalApplicants: 0,
       loading: false, tabsLoading: true, pageLoading: false, searching: false,
-      tabCounts: { all:0, reviewing:0, shortlisted:0, interview:0, for_job_offer:0, hired:0, rejected:0 },
+      tabCounts: { all:0, reviewing:0, shortlisted:0, interview:0, for_job_offer:0, hired:0, rejected:0, withdrawn:0 },
       statusTabs: [
         { label:'All', value:'all', count:0 }, { label:'Reviewing', value:'reviewing', count:0 },
         { label:'Shortlisted', value:'shortlisted', count:0 }, { label:'Interview', value:'interview', count:0 },
         { label:'For Job Offer', value:'for_job_offer', count:0 },
         { label:'Hired', value:'hired', count:0 }, { label:'Rejected', value:'rejected', count:0 },
+        { label:'Withdrawn', value:'withdrawn', count:0 },
       ],
       skillOptions: ['Accounting','IT / Dev','Nursing','Electrical','Teaching','BPO','Welding','Driving'],
       // Potential
@@ -613,7 +624,10 @@ export default {
             jobApplied:  jl.title || 'Unknown',
             employer:    jl.employer?.company_name || 'Unknown',
             date:        new Date(a.created_at || a.applied_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }),
-            status:      (() => { const r = a.status || 'reviewing'; return {for_job_offer:'For Job Offer'}[r] || r.charAt(0).toUpperCase() + r.slice(1) })(),
+            status:      (() => { const r = a.status || 'reviewing'; return {for_job_offer:'For Job Offer', withdrawn:'Withdrawn'}[r] || r.charAt(0).toUpperCase() + r.slice(1) })(),
+            withdrawalReason: a.withdrawal_reason || null,
+            withdrawalNotes:  a.withdrawal_notes || null,
+            withdrawnAt:      a.withdrawn_at ? new Date(a.withdrawn_at).toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' }) : null,
             matchScore:  a.match_score || 0,
             avatarBg:    COLORS[i % COLORS.length],
             invited:     false,
@@ -668,7 +682,7 @@ export default {
     },
 
     initials(name) { return (name||'').split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase() },
-    statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', 'For Job Offer':'for-job-offer', Hired:'hired', Rejected:'rejected' }[s] || 'reviewing' },
+    statusClass(s) { return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', 'For Job Offer':'for-job-offer', Hired:'hired', Rejected:'rejected', Withdrawn:'withdrawn' }[s] || 'reviewing' },
     scoreColor(v) { return v >= 85 ? '#22c55e' : v >= 70 ? '#2872A1' : '#ef4444' },
     scoreBg(v)    { return v >= 85 ? '#f0fdf4' : v >= 70 ? '#eff8ff' : '#fef2f2' },
 
@@ -900,6 +914,13 @@ export default {
 .for-job-offer { background: #fef3c7; color: #92400e; }
 .hired       { background: #dcfce7; color: #16a34a; }
 .rejected    { background: #fef2f2; color: #ef4444; }
+.withdrawn   { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+.withdrawal-box { margin-top: 14px; padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; border-left: 3px solid #64748b; }
+.withdrawal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.withdrawal-tag { font-size: 11.5px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 5px; }
+.withdrawal-date { font-size: 11px; color: #94a3b8; }
+.withdrawal-detail { font-size: 12px; color: #334155; margin-top: 3px; line-height: 1.4; }
 
 /* FILE ICONS */
 .file-icons { display: flex; gap: 4px; }

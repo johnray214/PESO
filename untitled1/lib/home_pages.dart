@@ -1379,6 +1379,31 @@ String formatExploreEmployerDistance(double meters) {
 }
 
 Widget _buildBusinessLogo(Business business, double size, double borderRadius) {
+  final isPesoOffice = business.id == 'peso_santiago_hq' ||
+      business.id == 'emp_0' ||
+      business.name.toLowerCase().contains('peso santiago');
+
+  if (isPesoOffice) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: Image.asset(
+        'assets/PESOLOGO.jpg',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => ClipRRect(
+          borderRadius: BorderRadius.circular(borderRadius),
+          child: Image.asset(
+            'assets/PESOLOGO.png',
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+          ),
+        ),
+      ),
+    );
+  }
+
   final hasLogo = business.imageUrl.isNotEmpty;
   Color brandColor;
   if (business.availableJobs.isNotEmpty) {
@@ -1424,6 +1449,18 @@ Widget _buildBusinessLogo(Business business, double size, double borderRadius) {
   );
 
   if (hasLogo) {
+    if (business.imageUrl.startsWith('assets/')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Image.asset(
+          business.imageUrl,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => fallback,
+        ),
+      );
+    }
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: Image.network(
@@ -4833,6 +4870,32 @@ class _JobCardState extends State<_JobCard> {
                           color: Color(0xFF64748B),
                         ),
                       ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6),
+                        child: Text(
+                          '·',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                      const HugeIcon(
+                        icon: HugeIcons.strokeRoundedClock01,
+                        size: 13.5,
+                        color: Color(0xFF64748B),
+                        strokeWidth: 2.0,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        job.postedTimeAgo,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 5),
@@ -5220,7 +5283,7 @@ class _JobCardCompact extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  job.compactCompanyName,
+                  '${job.compactCompanyName} · ${job.postedTimeAgo}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -5579,13 +5642,17 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
           if (lat == null || lng == null) continue;
 
           final company = emp['company_name']?.toString() ?? 'Employer';
+          final isPesoHq = emp['id'] == 0 ||
+              company.toLowerCase().contains('peso santiago');
           final photoUrlRaw = emp['photo_url']?.toString().trim();
           final photoRaw = emp['photo']?.toString().trim();
           final imageUrl = (photoUrlRaw != null && photoUrlRaw.isNotEmpty)
               ? photoUrlRaw
               : (photoRaw != null && photoRaw.isNotEmpty)
-                  ? (ApiService.storageOrAbsoluteUrl(photoRaw) ?? '')
-                  : '';
+                  ? (photoRaw.startsWith('assets/')
+                      ? photoRaw
+                      : (ApiService.storageOrAbsoluteUrl(photoRaw) ?? ''))
+                  : (isPesoHq ? 'assets/PESOLOGO.jpg' : '');
           final address = emp['address_full']?.toString();
           final city = emp['city']?.toString();
           final province = emp['province']?.toString();
@@ -5610,15 +5677,33 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
 
           businesses.add(
             Business(
-              id: 'emp_${emp['id']}',
+              id: isPesoHq ? 'peso_santiago_hq' : 'emp_${emp['id']}',
               name: company,
               description: locationText.isNotEmpty
                   ? locationText
                   : (emp['tagline']?.toString() ?? ''),
-              imageUrl: imageUrl,
+              imageUrl: imageUrl.isNotEmpty
+                  ? imageUrl
+                  : (isPesoHq ? 'assets/PESOLOGO.jpg' : ''),
               latitude: lat,
               longitude: lng,
               availableJobs: jobs,
+            ),
+          );
+        }
+
+        if (!businesses.any((b) => b.id == 'peso_santiago_hq')) {
+          businesses.insert(
+            0,
+            const Business(
+              id: 'peso_santiago_hq',
+              name: 'PESO Santiago Office',
+              description:
+                  'City Hall Compound, San Andres, Santiago City, Isabela (DOLE & PESO Services)',
+              imageUrl: 'assets/PESOLOGO.jpg',
+              latitude: 16.68930015164032,
+              longitude: 121.55596296008191,
+              availableJobs: [],
             ),
           );
         }
@@ -6081,17 +6166,38 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
 
   void _tryApplyPendingMapFocus() {
     final request = _pendingMapFocusRequest;
-    if (request == null || _allBusinesses.isEmpty) return;
+    if (request == null) return;
     final business = _findBestBusinessForRequest(request);
-    if (business == null) return;
-    _pendingMapFocusRequest = null;
-    _centerOnBusiness(business);
+    if (business != null) {
+      _pendingMapFocusRequest = null;
+      _centerOnBusiness(business);
+    } else if (request.latitude != null && request.longitude != null) {
+      _pendingMapFocusRequest = null;
+      _animatedMove(
+        LatLng(request.latitude!, request.longitude!),
+        16,
+      );
+    }
   }
 
   Business? _findBestBusinessForRequest(MapFocusRequest request) {
     String norm(String v) => v.toLowerCase().trim();
     final reqCompany = norm(request.companyName);
     final reqLocation = norm(request.locationText);
+
+    final bool isPesoOrDole = reqCompany.contains('dole') ||
+        reqCompany.contains('peso') ||
+        reqCompany.contains('department of labor');
+
+    if (isPesoOrDole) {
+      for (final business in _allBusinesses) {
+        if (business.id == 'peso_santiago_hq' ||
+            norm(business.name).contains('peso') ||
+            norm(business.name).contains('dole')) {
+          return business;
+        }
+      }
+    }
 
     for (final business in _allBusinesses) {
       if (norm(business.name) == reqCompany) return business;
@@ -7206,40 +7312,64 @@ class _MapTabState extends State<MapTab> with TickerProviderStateMixin {
                                     ),
                                     clipBehavior: Clip.antiAlias,
                                     child: ClipOval(
-                                      child: business.imageUrl.isNotEmpty
-                                          ? Image.network(
-                                              business.imageUrl,
+                                      child: (business.id ==
+                                                  'peso_santiago_hq' ||
+                                              business.id == 'emp_0' ||
+                                              business.name
+                                                  .toLowerCase()
+                                                  .contains('peso santiago'))
+                                          ? Image.asset(
+                                              'assets/PESOLOGO.jpg',
                                               width: pinSize,
                                               height: pinSize,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
-                                                  Container(
-                                                width: pinSize,
-                                                height: pinSize,
-                                                color: color,
-                                                alignment: Alignment.center,
-                                                child: HugeIcon(
-                                                  icon: HugeIcons
-                                                      .strokeRoundedBuilding02,
-                                                  color: Colors.white,
-                                                  size: isSelected ? 22 : 18,
-                                                  strokeWidth: 2.0,
-                                                ),
-                                              ),
                                             )
-                                          : Container(
-                                              width: pinSize,
-                                              height: pinSize,
-                                              color: color,
-                                              alignment: Alignment.center,
-                                              child: HugeIcon(
-                                                icon: HugeIcons
-                                                    .strokeRoundedBuilding02,
-                                                color: Colors.white,
-                                                size: isSelected ? 22 : 18,
-                                                strokeWidth: 2.0,
-                                              ),
-                                            ),
+                                          : business.imageUrl.isNotEmpty
+                                              ? (business.imageUrl
+                                                      .startsWith('assets/')
+                                                  ? Image.asset(
+                                                      business.imageUrl,
+                                                      width: pinSize,
+                                                      height: pinSize,
+                                                      fit: BoxFit.cover,
+                                                    )
+                                                  : Image.network(
+                                                      business.imageUrl,
+                                                      width: pinSize,
+                                                      height: pinSize,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder:
+                                                          (_, __, ___) =>
+                                                              Container(
+                                                        width: pinSize,
+                                                        height: pinSize,
+                                                        color: color,
+                                                        alignment:
+                                                            Alignment.center,
+                                                        child: HugeIcon(
+                                                          icon: HugeIcons
+                                                              .strokeRoundedBuilding02,
+                                                          color: Colors.white,
+                                                          size: isSelected
+                                                              ? 22
+                                                              : 18,
+                                                          strokeWidth: 2.0,
+                                                        ),
+                                                      ),
+                                                    ))
+                                              : Container(
+                                                  width: pinSize,
+                                                  height: pinSize,
+                                                  color: color,
+                                                  alignment: Alignment.center,
+                                                  child: HugeIcon(
+                                                    icon: HugeIcons
+                                                        .strokeRoundedBuilding02,
+                                                    color: Colors.white,
+                                                    size: isSelected ? 22 : 18,
+                                                    strokeWidth: 2.0,
+                                                  ),
+                                                ),
                                     ),
                                   ),
                                 ),

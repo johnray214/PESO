@@ -92,10 +92,12 @@ class JobseekerApplicationController extends Controller
             'applied_at' => now(),
         ]);
 
+        $companyName = $jobListing->company_name ?? $jobListing->employer?->company_name ?? ($jobListing->employer_name ?: 'PESO Santiago');
+
         // Create notification for jobseekers: Registration (first time applying)
         $notification = Notification::create([
             'subject'    => 'Application submitted',
-            'message'    => "Your application for {$jobListing->title} at {$jobListing->employer->company_name} has been received and is under review.",
+            'message'    => "Your application for {$jobListing->title} at {$companyName} has been received and is under review.",
             'recipients' => 'jobseekers',
             'scheduled_at' => null,
             'sent_at'    => now(),
@@ -110,25 +112,36 @@ class JobseekerApplicationController extends Controller
             'read_at'         => null,
         ]);
 
-        // Create notification for Employer: New Applicant
-        $employerNotification = Notification::create([
-            'subject'        => 'New Job Applicant',
-            'message'        => "{$jobseeker->fullName()} has submitted an application for the {$jobListing->title} position.",
-            'type'           => 'applicant',
-            'job_listing_id' => $jobListing->id,
-            'recipients'     => 'specific',
-            'scheduled_at'   => null,
-            'sent_at'        => now(),
-            'status'         => 'sent',
-            'created_by'     => null,
-        ]);
+        // Create notification for Employer if this is an employer-posted job
+        if ($jobListing->employer_id) {
+            $employerNotification = Notification::create([
+                'subject'        => 'New Job Applicant',
+                'message'        => "{$jobseeker->fullName()} has submitted an application for the {$jobListing->title} position.",
+                'type'           => 'applicant',
+                'job_listing_id' => $jobListing->id,
+                'recipients'     => 'specific',
+                'scheduled_at'   => null,
+                'sent_at'        => now(),
+                'status'         => 'sent',
+                'created_by'     => null,
+            ]);
 
-        $employerNotifRead = NotificationRead::create([
-            'notification_id' => $employerNotification->id,
-            'recipient_type'  => 'employer',
-            'recipient_id'    => $jobListing->employer_id,
-            'read_at'         => null,
-        ]);
+            $employerNotifRead = NotificationRead::create([
+                'notification_id' => $employerNotification->id,
+                'recipient_type'  => 'employer',
+                'recipient_id'    => $jobListing->employer_id,
+                'read_at'         => null,
+            ]);
+
+            // 🔴 Real-time: push to the specific employer's private channel
+            event(new EmployerNotificationEvent(
+                $jobListing->employer_id,
+                $employerNotifRead->id,
+                'applicant',
+                'New Job Applicant',
+                "{$jobseeker->fullName()} has submitted an application for the {$jobListing->title} position."
+            ));
+        }
 
         // 🔴 Real-time: push to admin feed channel
         event(new AdminActivityEvent(
@@ -136,15 +149,6 @@ class JobseekerApplicationController extends Controller
             'New Application',
             "{$jobseeker->fullName()} applied for {$jobListing->title}.",
             'app_new_' . $application->id
-        ));
-
-        // 🔴 Real-time: push to the specific employer's private channel
-        event(new EmployerNotificationEvent(
-            $jobListing->employer_id,
-            $employerNotifRead->id,
-            'applicant',
-            'New Job Applicant',
-            "{$jobseeker->fullName()} has submitted an application for the {$jobListing->title} position."
         ));
 
         return response()->json([
@@ -158,15 +162,95 @@ class JobseekerApplicationController extends Controller
     {
         $jobseeker = $request->user();
         
+        $validated = $request->validate([
+            'reason' => 'required|string|max:255',
+            'notes'  => 'nullable|string|max:1000',
+        ]);
+
         $application = Application::where('jobseeker_id', $jobseeker->id)
-            ->whereIn('status', ['reviewing', 'shortlisted'])
+            ->whereIn('status', ['reviewing', 'shortlisted', 'interview', 'for_job_offer'])
+            ->with(['jobListing', 'jobListing.employer'])
             ->findOrFail($id);
         
-        $application->delete();
+        $application->update([
+            'status'            => 'withdrawn',
+            'withdrawal_reason' => $validated['reason'],
+            'withdrawal_notes'  => $validated['notes'] ?? null,
+            'withdrawn_at'      => now(),
+        ]);
+
+        $jobListing = $application->jobListing;
+        $companyName = $jobListing->company_name ?? $jobListing->employer?->company_name ?? ($jobListing->employer_name ?: 'PESO Santiago');
+
+        // Activity log
+        \App\Models\ApplicationActivityLog::create([
+            'application_id' => $application->id,
+            'actor_type'     => 'jobseeker',
+            'actor_label'    => $jobseeker->fullName(),
+            'action'         => 'Withdrawn: ' . $validated['reason'],
+        ]);
+
+        // Notification for the jobseeker confirming withdrawal
+        $jsNotification = Notification::create([
+            'subject'        => 'Application Withdrawn',
+            'message'        => "You have withdrawn your application for {$jobListing->title} at {$companyName}.",
+            'recipients'     => 'jobseekers',
+            'type'           => 'applicant',
+            'job_listing_id' => $jobListing->id,
+            'scheduled_at'   => null,
+            'sent_at'        => now(),
+            'status'         => 'sent',
+            'created_by'     => null,
+        ]);
+
+        NotificationRead::create([
+            'notification_id' => $jsNotification->id,
+            'recipient_type'  => 'jobseeker',
+            'recipient_id'    => $jobseeker->id,
+            'read_at'         => null,
+        ]);
+
+        event(new AdminActivityEvent(
+            'Status',
+            'Application Withdrawn',
+            "{$jobseeker->fullName()} withdrew from {$jobListing->title} ({$validated['reason']}).",
+            'app_withdrawn_' . $application->id
+        ));
+
+        // Notification for Employer (if employer-posted job)
+        if ($jobListing->employer_id) {
+            $employerNotification = Notification::create([
+                'subject'        => 'Application Withdrawn',
+                'message'        => "{$jobseeker->fullName()} has withdrawn their application for {$jobListing->title}. Reason: {$validated['reason']}",
+                'type'           => 'applicant',
+                'job_listing_id' => $jobListing->id,
+                'recipients'     => 'specific',
+                'scheduled_at'   => null,
+                'sent_at'        => now(),
+                'status'         => 'sent',
+                'created_by'     => null,
+            ]);
+
+            $employerNotifRead = NotificationRead::create([
+                'notification_id' => $employerNotification->id,
+                'recipient_type'  => 'employer',
+                'recipient_id'    => $jobListing->employer_id,
+                'read_at'         => null,
+            ]);
+
+            event(new EmployerNotificationEvent(
+                $jobListing->employer_id,
+                $employerNotifRead->id,
+                'applicant',
+                'Application Withdrawn',
+                "{$jobseeker->fullName()} has withdrawn their application for {$jobListing->title}."
+            ));
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Application withdrawn successfully',
+            'message' => 'Application withdrawn successfully and PESO staff have been notified.',
+            'data'    => $application,
         ]);
     }
 
@@ -239,7 +323,7 @@ class JobseekerApplicationController extends Controller
                             'Subject' => 'Acknowledgment: Job Offer Declined',
                             'Variables' => [
                                 'first_name'   => $jobseeker->first_name,
-                                'company_name' => $jobListing->employer->company_name ?? 'Employer',
+                                'company_name' => $jobListing->company_name ?? $jobListing->employer?->company_name ?? 'Employer',
                                 'job_title'    => $jobListing->title,
                             ]
                         ]

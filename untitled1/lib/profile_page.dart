@@ -272,7 +272,7 @@ class _ProfileTabState extends State<ProfileTab> {
         children: [
           Positioned.fill(
             child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
+              physics: const ClampingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(
                   child: SizedBox(
@@ -280,6 +280,17 @@ class _ProfileTabState extends State<ProfileTab> {
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
+                        // Top safety extension for overscroll (matches top gradient color)
+                        Positioned(
+                          top: -400,
+                          left: 0,
+                          right: 0,
+                          height: 400,
+                          child: Container(
+                            color: const Color(0xFF1E3A8A),
+                          ),
+                        ),
+
                         // Cover — app blue gradient (same family as rest of PESO UI)
                         Positioned(
                           top: 0,
@@ -2817,8 +2828,21 @@ class _Application {
   final String? processingStage;
   final String? offerResponse;
   final DateTime? offerSentAt;
+  final String? withdrawalReason;
+  final String? withdrawalNotes;
+  final DateTime? withdrawnAt;
   final Color statusColor;
   final IconData statusIcon;
+
+  bool get isWithdrawn =>
+      rawStatus == 'withdrawn' || status == 'Withdrawn';
+
+  bool get canWithdraw =>
+      !isWithdrawn &&
+      rawStatus != 'hired' &&
+      rawStatus != 'rejected' &&
+      offerResponse != 'accepted' &&
+      offerResponse != 'declined';
 
   String get statusWithStage =>
       status == 'Processing' && (processingStage?.isNotEmpty ?? false)
@@ -2826,6 +2850,7 @@ class _Application {
           : status;
 
   String get compactBadgeLabel {
+    if (isWithdrawn) return 'WITHDRAWN';
     if (status == 'Processing' && (processingStage?.isNotEmpty ?? false)) {
       final stage = processingStage!;
       if (stage == 'For Job Offer') {
@@ -2850,6 +2875,9 @@ class _Application {
       processingStage: isAccept ? 'Placement' : 'Declined',
       offerResponse: normalized,
       offerSentAt: offerSentAt,
+      withdrawalReason: withdrawalReason,
+      withdrawalNotes: withdrawalNotes,
+      withdrawnAt: withdrawnAt,
       statusColor:
           isAccept ? const Color(0xFF10B981) : const Color(0xFFEF4444),
       statusIcon: isAccept ? Icons.work_rounded : Icons.cancel_rounded,
@@ -2865,6 +2893,9 @@ class _Application {
     this.processingStage,
     this.offerResponse,
     this.offerSentAt,
+    this.withdrawalReason,
+    this.withdrawalNotes,
+    this.withdrawnAt,
     required this.statusColor,
     this.statusIcon = Icons.info_outline_rounded,
   });
@@ -3171,31 +3202,36 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         };
 
         // Map backend statuses → app display labels.
-        // Backend: reviewing, shortlisted, interview, hired, rejected
-        final normalizedStatus = (offerResponse == 'accepted')
-            ? 'Placement/Hired'
-            : (offerResponse == 'declined'
-                ? 'Denied'
-                : switch (rawStatus) {
-                    // REGISTRATION = reviewing
-                    'reviewing' => 'Registration',
+        // Backend: reviewing, shortlisted, interview, hired, rejected, withdrawn
+        final normalizedStatus = (rawStatus == 'withdrawn')
+            ? 'Withdrawn'
+            : ((offerResponse == 'accepted')
+                ? 'Placement/Hired'
+                : (offerResponse == 'declined'
+                    ? 'Denied'
+                    : switch (rawStatus) {
+                        // REGISTRATION = reviewing
+                        'reviewing' => 'Registration',
 
-                    // PROCESSING = interview, shortlisted
-                    'shortlisted' => 'Processing',
-                    'interview' => 'Processing',
-                    'for_job_offer' => 'Processing',
+                        // PROCESSING = interview, shortlisted
+                        'shortlisted' => 'Processing',
+                        'interview' => 'Processing',
+                        'for_job_offer' => 'Processing',
 
-                    // PLACEMENT/HIRED = hired / rejected
-                    'hired' => 'Placement/Hired',
-                    'rejected' => 'Placement/Hired',
+                        // PLACEMENT/HIRED = hired / rejected
+                        'hired' => 'Placement/Hired',
+                        'rejected' => 'Placement/Hired',
 
-                    // Backward compatibility with legacy labels
-                    'submitted' => 'Registration',
-                    'under review' => 'Processing',
-                    'interview scheduled' => 'Processing',
-                    'decision' => 'Processing',
-                    _ => rawStatus.isEmpty ? 'Registration' : rawStatus,
-                  });
+                        // WITHDRAWN
+                        'withdrawn' => 'Withdrawn',
+
+                        // Backward compatibility with legacy labels
+                        'submitted' => 'Registration',
+                        'under review' => 'Processing',
+                        'interview scheduled' => 'Processing',
+                        'decision' => 'Processing',
+                        _ => rawStatus.isEmpty ? 'Registration' : rawStatus,
+                      }));
 
         Color statusColor;
         IconData statusIcon;
@@ -3219,6 +3255,10 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
             statusColor = const Color(0xFFEF4444); // red
             statusIcon = Icons.cancel_rounded;
             break;
+          case 'Withdrawn':
+            statusColor = const Color(0xFF64748B); // slate grey
+            statusIcon = Icons.archive_outlined;
+            break;
           default:
             statusColor = const Color(0xFF3B82F6);
             statusIcon = Icons.app_registration_rounded;
@@ -3227,6 +3267,12 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
         final rawOfferSentAt = map['offer_sent_at']?.toString();
         final offerSentAt =
             rawOfferSentAt != null ? DateTime.tryParse(rawOfferSentAt) : null;
+
+        final withdrawalReason = map['withdrawal_reason']?.toString();
+        final withdrawalNotes = map['withdrawal_notes']?.toString();
+        final rawWithdrawnAt = map['withdrawn_at']?.toString();
+        final withdrawnAt =
+            rawWithdrawnAt != null ? DateTime.tryParse(rawWithdrawnAt) : null;
 
         apps.add(_Application(
           id: appId,
@@ -3239,6 +3285,9 @@ class _MyApplicationsPageState extends State<MyApplicationsPage> {
           processingStage: processingStage,
           offerResponse: offerResponse,
           offerSentAt: offerSentAt,
+          withdrawalReason: withdrawalReason,
+          withdrawalNotes: withdrawalNotes,
+          withdrawnAt: withdrawnAt,
           statusColor: statusColor,
           statusIcon: statusIcon,
         ));
@@ -3513,6 +3562,45 @@ class _ApplicationCard extends StatelessWidget {
                         ],
                       ),
                     ),
+                    if (effectiveApp.canWithdraw)
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert_rounded,
+                            size: 20, color: Color(0xFF94A3B8)),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        onSelected: (value) {
+                          if (value == 'withdraw') {
+                            _openWithdrawModal(
+                              context,
+                              effectiveApp,
+                              onRefresh: onRefresh,
+                            );
+                          }
+                        },
+                        itemBuilder: (ctx) => [
+                          const PopupMenuItem(
+                            value: 'withdraw',
+                            child: Row(
+                              children: [
+                                Icon(Icons.cancel_outlined,
+                                    size: 16, color: Color(0xFFDC2626)),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Unable to proceed / Withdraw',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFFDC2626),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
                 const SizedBox(height: 14),
@@ -3564,6 +3652,492 @@ class _ApplicationCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _openWithdrawModal(
+  BuildContext context,
+  _Application application, {
+  VoidCallback? onRefresh,
+}) async {
+  final appId = application.id;
+  if (appId == null || appId <= 0) {
+    CustomToast.show(
+      context,
+      message: 'Unable to locate application record.',
+      type: ToastType.error,
+    );
+    return;
+  }
+
+  await showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) => _WithdrawApplicationSheet(
+      application: application,
+      onWithdrawn: onRefresh,
+    ),
+  );
+}
+
+class _WithdrawApplicationSheet extends StatefulWidget {
+  final _Application application;
+  final VoidCallback? onWithdrawn;
+
+  const _WithdrawApplicationSheet({
+    required this.application,
+    this.onWithdrawn,
+  });
+
+  @override
+  State<_WithdrawApplicationSheet> createState() =>
+      _WithdrawApplicationSheetState();
+}
+
+class _WithdrawApplicationSheetState extends State<_WithdrawApplicationSheet> {
+  final TextEditingController _notesController = TextEditingController();
+  bool _isSubmitting = false;
+
+  final List<Map<String, dynamic>> _reasons = const [
+    {
+      'label': 'Accepted another job offer / Already employed',
+      'icon': Icons.work_rounded,
+    },
+    {
+      'label': 'Pursuing studies or skills training',
+      'icon': Icons.school_rounded,
+    },
+    {
+      'label': 'Location, distance, or transportation constraints',
+      'icon': Icons.directions_bus_rounded,
+    },
+    {
+      'label': 'Schedule or personal/family conflict',
+      'icon': Icons.family_restroom_rounded,
+    },
+    {
+      'label': 'Salary or benefits expectations not aligned',
+      'icon': Icons.payments_rounded,
+    },
+    {
+      'label': 'Medical or health reasons',
+      'icon': Icons.healing_rounded,
+    },
+    {
+      'label': 'Found another opportunity elsewhere',
+      'icon': Icons.lightbulb_outline_rounded,
+    },
+    {
+      'label': 'Other personal reasons',
+      'icon': Icons.edit_note_rounded,
+    },
+  ];
+
+  late String _selectedReason;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedReason = _reasons.first['label'] as String;
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitWithdrawal() async {
+    final appId = widget.application.id;
+    if (appId == null) {
+      CustomToast.show(
+        context,
+        message: 'Unable to locate application record.',
+        type: ToastType.error,
+      );
+      return;
+    }
+
+    final token = UserSession().token;
+    if (token == null || token.isEmpty) {
+      CustomToast.show(
+        context,
+        message: 'Please sign in to withdraw your application.',
+        type: ToastType.error,
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    AppHaptics.mediumImpact();
+
+    try {
+      final res = await ApiService.withdrawApplication(
+        token: token,
+        applicationId: appId,
+        reason: _selectedReason,
+        notes: _notesController.text.trim(),
+      );
+
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+
+      if (res['success'] == true) {
+        AppHaptics.heavyImpact();
+        Navigator.of(context).pop();
+        CustomToast.show(
+          context,
+          message:
+              'Application withdrawn. PESO staff and employer have been notified.',
+          type: ToastType.info,
+          duration: const Duration(seconds: 4),
+        );
+        widget.onWithdrawn?.call();
+      } else {
+        AppHaptics.lightImpact();
+        CustomToast.show(
+          context,
+          message:
+              res['message']?.toString() ?? 'Failed to withdraw application.',
+          type: ToastType.error,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      CustomToast.show(
+        context,
+        message: 'Connection error. Please try again.',
+        type: ToastType.error,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final job = widget.application.job;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + bottomInset),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 44,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCBD5E1),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Header banner
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFFEE2E2)),
+                  ),
+                  child: const Center(
+                    child: Icon(
+                      Icons.cancel_outlined,
+                      color: Color(0xFFDC2626),
+                      size: 24,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Withdraw Application',
+                        style: TextStyle(
+                          fontSize: 18.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        'Notify PESO Santiago staff that you can no longer proceed with this application.',
+                        style: TextStyle(
+                          fontSize: 12.5,
+                          color: Colors.grey[600],
+                          height: 1.35,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Job target card
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                children: [
+                  CompanyLogoBox(
+                    job: job,
+                    size: 38,
+                    borderRadius: 10,
+                    boxShadow: const [],
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          job.title,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0F172A),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          job.company,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.blueAccent,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 18),
+
+            // Reason dropdown section
+            const Text(
+              'REASON FOR WITHDRAWAL',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: Color(0xFF475569),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFCBD5E1)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: _selectedReason,
+                  isExpanded: true,
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                      color: Color(0xFF64748B)),
+                  borderRadius: BorderRadius.circular(16),
+                  items: _reasons.map((r) {
+                    final label = r['label'] as String;
+                    final icon = r['icon'] as IconData;
+                    return DropdownMenuItem<String>(
+                      value: label,
+                      child: Row(
+                        children: [
+                          Icon(icon, size: 18, color: const Color(0xFF2563EB)),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              label,
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0F172A),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: _isSubmitting
+                      ? null
+                      : (val) {
+                          if (val != null) {
+                            setState(() => _selectedReason = val);
+                          }
+                        },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Optional message notes
+            const Text(
+              'ADDITIONAL MESSAGE TO PESO (OPTIONAL)',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: Color(0xFF475569),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _notesController,
+              enabled: !_isSubmitting,
+              maxLines: 3,
+              maxLength: 500,
+              style: const TextStyle(fontSize: 13.5, color: Color(0xFF0F172A)),
+              decoration: InputDecoration(
+                hintText:
+                    'Provide any extra details or a thank-you note to PESO Santiago...',
+                hintStyle: TextStyle(fontSize: 12.5, color: Colors.grey[400]),
+                filled: true,
+                fillColor: const Color(0xFFF8FAFC),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide:
+                      const BorderSide(color: AppColors.blueAccent, width: 1.5),
+                ),
+                contentPadding: const EdgeInsets.all(14),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Informational tip callout
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEFF6FF),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFBFDBFE)),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline_rounded,
+                      size: 16, color: Color(0xFF2563EB)),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Withdrawing notifies PESO so that another applicant can be prioritized. You can always apply to future job openings anytime.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        color: Color(0xFF1E40AF),
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Action Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _isSubmitting
+                        ? null
+                        : () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: const BorderSide(color: Color(0xFFCBD5E1)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: const Text(
+                      'Keep Application',
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _isSubmitting ? null : _submitWithdrawal,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFDC2626),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    child: _isSubmitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : const Text(
+                            'Submit & Notify',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -3631,6 +4205,18 @@ void _openApplicationDetail(
             application: app,
             onReviewOffer: isPendingOffer
                 ? () => _openOfferModal(modalCtx, app, onRefresh: onRefresh)
+                : null,
+            onWithdraw: app.canWithdraw
+                ? () async {
+                    await _openWithdrawModal(
+                      modalCtx,
+                      app,
+                      onRefresh: () {
+                        Navigator.of(modalCtx).pop();
+                        onRefresh?.call();
+                      },
+                    );
+                  }
                 : null,
           );
 
@@ -4465,10 +5051,12 @@ class _RotatingHourglassIconState extends State<_RotatingHourglassIcon>
 class _ApplicationStatusBanner extends StatelessWidget {
   final _Application application;
   final VoidCallback? onReviewOffer;
+  final VoidCallback? onWithdraw;
 
   const _ApplicationStatusBanner({
     required this.application,
     this.onReviewOffer,
+    this.onWithdraw,
   });
 
   @override
@@ -4485,9 +5073,11 @@ class _ApplicationStatusBanner extends StatelessWidget {
       'Denied': 2,
       'Hired': 2,
       'Placement': 2,
+      'Withdrawn': 2,
     };
     final currentStep = statusToStep[application.status] ?? 0;
     final isProcessing = application.status == 'Processing';
+    final isWithdrawn = application.isWithdrawn;
     final isPendingOffer = application.rawStatus == 'for_job_offer' &&
         (application.offerResponse == null ||
             application.offerResponse!.isEmpty);
@@ -4599,186 +5189,283 @@ class _ApplicationStatusBanner extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 16),
-
-          // Progress timeline
-          Row(
-            children: List.generate(steps.length, (index) {
-              final isPassed = index < currentStep;
-              final isCurrent = index == currentStep;
-              final isLast = index == steps.length - 1;
-
-              Widget stepNodeIcon;
-              if (isPassed) {
-                stepNodeIcon = const Icon(Icons.check_rounded,
-                    size: 12, color: Colors.white);
-              } else if (isCurrent) {
-                if (index == 1) {
-                  stepNodeIcon = isPendingOffer
-                      ? const Icon(Icons.gavel_rounded,
-                          size: 12, color: Colors.white)
-                      : const _RotatingHourglassIcon(
-                          size: 12, color: Colors.white);
-                } else if (index == 0) {
-                  stepNodeIcon = const Icon(Icons.edit_note_rounded,
-                      size: 12, color: Colors.white);
-                } else {
-                  stepNodeIcon = const Icon(Icons.work_rounded,
-                      size: 12, color: Colors.white);
-                }
-              } else {
-                stepNodeIcon = Text(
-                  '${index + 1}',
-                  style: const TextStyle(
-                      fontSize: 10,
-                      color: Color(0xFF94A3B8),
-                      fontWeight: FontWeight.w700),
-                );
-              }
-
-              final nodeColor = isPendingOffer && isCurrent
-                  ? const Color(0xFF0284C7)
-                  : application.statusColor;
-
-              final nodeCircle = AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: (isPassed || isCurrent)
-                      ? nodeColor
-                      : const Color(0xFFE2E8F0),
-                  shape: BoxShape.circle,
-                ),
-                child: Center(child: stepNodeIcon),
-              );
-
-              Widget nodeWidget;
-              if (isCurrent) {
-                nodeWidget = SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: Stack(
-                    alignment: Alignment.center,
+          if (isWithdrawn) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
                     children: [
-                      // Expanding sonar aura behind node circle
-                      Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: nodeColor.withValues(alpha: 0.30),
+                      Icon(Icons.info_outline_rounded,
+                          size: 15, color: Color(0xFF64748B)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Application Discontinued',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF334155),
                         ),
-                      )
-                          .animate(onPlay: (c) => c.repeat())
-                          .scale(
-                              begin: const Offset(0.7, 0.7),
-                              end: const Offset(1.35, 1.35),
-                              duration: 1400.ms,
-                              curve: Curves.easeOut)
-                          .fade(
-                              begin: 0.7,
-                              end: 0.0,
-                              duration: 1400.ms,
-                              curve: Curves.easeOut),
-                      // Solid stationary node circle
-                      nodeCircle,
+                      ),
+                    ],
+                  ),
+                  if (application.withdrawalReason != null &&
+                      application.withdrawalReason!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'Reason: ${application.withdrawalReason}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF475569),
+                      ),
+                    ),
+                  ],
+                  if (application.withdrawalNotes != null &&
+                      application.withdrawalNotes!.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Note: "${application.withdrawalNotes}"',
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontStyle: FontStyle.italic,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ] else ...[
+            const SizedBox(height: 16),
+
+            // Progress timeline
+            Row(
+              children: List.generate(steps.length, (index) {
+                final isPassed = index < currentStep;
+                final isCurrent = index == currentStep;
+                final isLast = index == steps.length - 1;
+
+                Widget stepNodeIcon;
+                if (isPassed) {
+                  stepNodeIcon = const Icon(Icons.check_rounded,
+                      size: 12, color: Colors.white);
+                } else if (isCurrent) {
+                  if (index == 1) {
+                    stepNodeIcon = isPendingOffer
+                        ? const Icon(Icons.gavel_rounded,
+                            size: 12, color: Colors.white)
+                        : const _RotatingHourglassIcon(
+                            size: 12, color: Colors.white);
+                  } else if (index == 0) {
+                    stepNodeIcon = const Icon(Icons.edit_note_rounded,
+                        size: 12, color: Colors.white);
+                  } else {
+                    stepNodeIcon = const Icon(Icons.work_rounded,
+                        size: 12, color: Colors.white);
+                  }
+                } else {
+                  stepNodeIcon = Text(
+                    '${index + 1}',
+                    style: const TextStyle(
+                        fontSize: 10,
+                        color: Color(0xFF94A3B8),
+                        fontWeight: FontWeight.w700),
+                  );
+                }
+
+                final nodeColor = isPendingOffer && isCurrent
+                    ? const Color(0xFF0284C7)
+                    : application.statusColor;
+
+                final nodeCircle = AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: (isPassed || isCurrent)
+                        ? nodeColor
+                        : const Color(0xFFE2E8F0),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(child: stepNodeIcon),
+                );
+
+                Widget nodeWidget;
+                if (isCurrent) {
+                  nodeWidget = SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        // Expanding sonar aura behind node circle
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: nodeColor.withValues(alpha: 0.20),
+                          ),
+                        )
+                            .animate(
+                              onPlay: (controller) =>
+                                  controller.repeat(reverse: true),
+                            )
+                            .scale(
+                              begin: const Offset(0.85, 0.85),
+                              end: const Offset(1.22, 1.22),
+                              duration: 1200.ms,
+                              curve: Curves.easeInOut,
+                            )
+                            .fadeIn(
+                              duration: 400.ms,
+                              curve: Curves.easeIn,
+                            ),
+                        nodeCircle,
+                      ],
+                    ),
+                  );
+                } else {
+                  nodeWidget = SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: Center(child: nodeCircle),
+                  );
+                }
+
+                return Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          children: [
+                            nodeWidget,
+                            const SizedBox(height: 6),
+                            Text(
+                              steps[index],
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: (isPassed || isCurrent)
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: (isPassed || isCurrent)
+                                    ? nodeColor
+                                    : const Color(0xFF94A3B8),
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              softWrap: false,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (!isLast)
+                        Expanded(
+                          child: Container(
+                            height: 2,
+                            margin: const EdgeInsets.only(bottom: 18),
+                            color: isPassed
+                                ? application.statusColor
+                                : const Color(0xFFE2E8F0),
+                          ),
+                        ),
                     ],
                   ),
                 );
-              } else {
-                nodeWidget = SizedBox(
-                  width: 32,
-                  height: 32,
-                  child: Center(child: nodeCircle),
-                );
-              }
-
-              return Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        children: [
-                          nodeWidget,
-                          const SizedBox(height: 6),
-                          Text(
-                            steps[index],
-                            style: TextStyle(
-                              fontSize: 9,
-                              fontWeight: (isPassed || isCurrent)
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              color: (isPassed || isCurrent)
-                                  ? nodeColor
-                                  : const Color(0xFF94A3B8),
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 1,
-                            softWrap: false,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (!isLast)
-                      Expanded(
-                        child: Container(
-                          height: 2,
-                          margin: const EdgeInsets.only(bottom: 18),
-                          color: isPassed
-                              ? application.statusColor
-                              : const Color(0xFFE2E8F0),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            }),
-          ),
-
-          const SizedBox(height: 14),
-
-          // Next steps advice
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFFF1F5F9)),
+              }),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  isPendingOffer
-                      ? Icons.celebration_rounded
-                      : Icons.info_outline_rounded,
-                  size: 16,
-                  color: isPendingOffer
-                      ? const Color(0xFF0284C7)
-                      : application.statusColor,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _getNextStepAdvice(application),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF475569),
-                      height: 1.5,
+
+            const SizedBox(height: 14),
+
+            // Next steps advice
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFF1F5F9)),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    isPendingOffer
+                        ? Icons.celebration_rounded
+                        : Icons.info_outline_rounded,
+                    size: 16,
+                    color: isPendingOffer
+                        ? const Color(0xFF0284C7)
+                        : application.statusColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _getNextStepAdvice(application),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF475569),
+                        height: 1.5,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+          ],
+
+          if (application.canWithdraw && onWithdraw != null) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: onWithdraw,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF2F2),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFFEE2E2)),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.cancel_outlined,
+                          size: 14, color: Color(0xFFDC2626)),
+                      SizedBox(width: 6),
+                      Text(
+                        'Unable to proceed? Notify PESO & Withdraw',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFDC2626),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
   String _getNextStepAdvice(_Application app) {
+    if (app.isWithdrawn) {
+      return 'You have withdrawn this application (${app.withdrawalReason ?? "No longer proceeding"}). PESO staff and the employer have been notified.';
+    }
     if (app.rawStatus == 'for_job_offer') {
       final response = app.offerResponse?.toLowerCase();
       if (response == 'accepted') {

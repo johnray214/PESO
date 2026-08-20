@@ -13,6 +13,9 @@ class Application extends Model
         'job_listing_id',
         'jobseeker_id',
         'status',
+        'withdrawal_reason',
+        'withdrawal_notes',
+        'withdrawn_at',
         'offer_response',
         'offer_sent_at',
         'offer_response_at',
@@ -28,6 +31,7 @@ class Application extends Model
     protected $casts = [
         'match_score' => 'integer',
         'applied_at' => 'datetime',
+        'withdrawn_at' => 'datetime',
         'interview_date' => 'date',
         'offer_sent_at' => 'datetime',
         'offer_response_at' => 'datetime',

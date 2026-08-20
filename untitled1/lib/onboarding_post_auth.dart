@@ -227,8 +227,9 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
         }
       }
     } finally {
-      if (!mounted) return;
-      setState(() => _locationLoading = false);
+      if (mounted) {
+        setState(() => _locationLoading = false);
+      }
     }
   }
 
@@ -478,11 +479,16 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
   }
 
   Widget _stepGoal() {
+    final firstName = UserSession().firstName?.trim();
+    final greeting = (firstName != null && firstName.isNotEmpty)
+        ? 'Welcome, $firstName! 🎉'
+        : 'Welcome to PESO! 🎉';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'What are you looking for?',
+          greeting,
           style: GoogleFonts.poppins(
             fontSize: 24,
             fontWeight: FontWeight.w800,
@@ -491,7 +497,7 @@ class _PostAuthOnboardingScreenState extends State<PostAuthOnboardingScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'We’ll tailor job suggestions and reminders to your goal.',
+          'What type of work are you looking for? We’ll tailor job suggestions and reminders to your goal.',
           style: GoogleFonts.poppins(
             fontSize: 14,
             color: const Color(0xFF64748B),

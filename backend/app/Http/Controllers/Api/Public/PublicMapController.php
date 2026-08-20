@@ -83,6 +83,69 @@ class PublicMapController extends Controller
             })
             ->values();
 
+        if ($request->query('cursor') === null) {
+            $pesoJobListings = \App\Models\JobListing::query()
+                ->open()
+                ->whereNull('employer_id')
+                ->select([
+                    'id',
+                    'employer_id',
+                    'employer_name',
+                    'title',
+                    'type',
+                    'location',
+                    'salary_range',
+                    'description',
+                    'posted_date',
+                    'deadline',
+                    'created_at',
+                    'program',
+                    'is_overseas',
+                    'slots',
+                    'education_level',
+                    'experience_required',
+                ])
+                ->orderByDesc('posted_date')
+                ->get()
+                ->map(function ($j) {
+                    return [
+                        'id' => $j->id,
+                        'employer_id' => null,
+                        'employer_name' => $j->company_name,
+                        'company' => $j->company_name,
+                        'title' => $j->title,
+                        'type' => $j->type,
+                        'location' => $j->location,
+                        'salary_range' => $j->salary_range,
+                        'description' => $j->description,
+                        'posted_date' => $j->posted_date,
+                        'deadline' => $j->deadline,
+                        'created_at' => $j->created_at,
+                        'program' => $j->program,
+                        'is_overseas' => (bool) $j->is_overseas,
+                        'is_peso_posted' => true,
+                        'employer_email' => $j->employer_email,
+                        'employer_phone' => $j->employer_phone,
+                    ];
+                })
+                ->values();
+
+            $pesoOfficeEntry = [
+                'id' => 0,
+                'company_name' => 'PESO Santiago Office',
+                'photo' => 'assets/PESOLOGO.jpg',
+                'photo_url' => null,
+                'address_full' => 'City Hall Compound, San Andres, Santiago City, Isabela (DOLE & PESO Services)',
+                'city' => 'Santiago City',
+                'province' => 'Isabela',
+                'latitude' => 16.68930015164032,
+                'longitude' => 121.55596296008191,
+                'job_listings' => $pesoJobListings,
+            ];
+
+            $employers->prepend($pesoOfficeEntry);
+        }
+
         return response()->json([
             'success' => true,
             'data' => $employers,

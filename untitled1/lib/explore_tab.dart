@@ -492,8 +492,13 @@ class _ExploreTabState extends State<ExploreTab>
 
     var imageUrl = photoUrlFallback?.trim() ?? '';
     if (imageUrl.isEmpty) {
-      final path = collected.first.companyPhotoPath;
-      imageUrl = ApiService.storageOrAbsoluteUrl(path) ?? '';
+      if (companyName.toLowerCase().contains('peso') ||
+          companyName.toLowerCase().contains('dole')) {
+        imageUrl = 'assets/PESOLOGO.jpg';
+      } else {
+        final path = collected.first.companyPhotoPath;
+        imageUrl = ApiService.storageOrAbsoluteUrl(path) ?? '';
+      }
     }
 
     return Business(

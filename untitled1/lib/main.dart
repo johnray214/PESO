@@ -4509,7 +4509,7 @@ class _ToastWidgetState extends State<_ToastWidget>
                             MediaQuery.sizeOf(context).width - 32, 420.0),
                       ),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 11),
+                          horizontal: 16, vertical: 10),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(999),
@@ -4532,6 +4532,7 @@ class _ToastWidgetState extends State<_ToastWidget>
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Container(
                             width: 28,
@@ -4548,11 +4549,11 @@ class _ToastWidgetState extends State<_ToastWidget>
                               widget.message,
                               style: GoogleFonts.inter(
                                 fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: FontWeight.w600,
                                 color: const Color(0xFF0F172A),
-                                height: 1.2,
+                                height: 1.3,
                               ),
-                              maxLines: 1,
+                              maxLines: 4,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -4587,12 +4588,12 @@ class _ToastWidgetState extends State<_ToastWidget>
                           const SizedBox(width: 8),
                           GestureDetector(
                             onTap: () => _dismissWithAnimation(),
-                            child: Padding(
-                              padding: const EdgeInsets.all(2),
+                            child: const Padding(
+                              padding: EdgeInsets.all(2),
                               child: Icon(
                                 Icons.close_rounded,
-                                color: const Color(0xFF94A3B8),
-                                size: 16,
+                                color: Color(0xFF94A3B8),
+                                size: 18,
                               ),
                             ),
                           ),

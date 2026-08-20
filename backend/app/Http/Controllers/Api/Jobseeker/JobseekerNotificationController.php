@@ -46,7 +46,7 @@ class JobseekerNotificationController extends Controller
 
             $notification->meta = [
                 'job_title'       => $jobListing->title ?? 'N/A',
-                'company_name'    => $jobListing->employer->company_name ?? 'N/A',
+                'company_name'    => $jobListing->company_name ?? $jobListing->employer?->company_name ?? 'PESO Santiago',
                 'start_date'      => 'To be discussed',
                 'salary'          => $jobListing->salary_range ?? 'Negotiable',
                 'employment_type' => $jobListing->job_type ?? 'Full-time',
@@ -60,7 +60,7 @@ class JobseekerNotificationController extends Controller
 
             $notification->meta = [
                 'job_title'    => $jobListing->title ?? 'N/A',
-                'company_name' => $jobListing->employer->company_name ?? 'N/A',
+                'company_name' => $jobListing->company_name ?? $jobListing->employer?->company_name ?? 'PESO Santiago',
                 'update_date'  => $notification->created_at
                     ? Carbon::parse($notification->created_at)->format('F d, Y')
                     : now()->format('F d, Y'),
@@ -86,7 +86,7 @@ class JobseekerNotificationController extends Controller
             $jobListing = $notification->jobListing;
             $meta['application_id'] = $app->id;
             $meta['job_title'] = $meta['job_title'] ?? ($jobListing->title ?? 'N/A');
-            $meta['company_name'] = $meta['company_name'] ?? ($jobListing->employer->company_name ?? 'N/A');
+            $meta['company_name'] = $meta['company_name'] ?? ($jobListing->company_name ?? $jobListing->employer?->company_name ?? 'PESO Santiago');
             $meta['start_date'] = $meta['start_date'] ?? 'To be discussed';
             $meta['salary'] = $meta['salary'] ?? ($jobListing->salary_range ?? 'Negotiable');
             $meta['employment_type'] = $meta['employment_type'] ?? ($jobListing->job_type ?? 'Full-time');

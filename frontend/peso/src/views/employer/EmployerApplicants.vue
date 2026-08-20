@@ -220,6 +220,16 @@
               <template v-if="!selected?._isPotential">
                 <div class="section-label">Applied Position</div>
                 <div class="applied-box"><p class="applied-job">{{ selected?.jobApplied }}</p><p class="applied-date">Applied {{ selected?.date }}</p></div>
+
+                <!-- Withdrawal details callout -->
+                <div v-if="selected?.withdrawalReason" class="withdrawal-box">
+                  <div class="withdrawal-header">
+                    <span class="withdrawal-tag"><i class="bi bi-info-circle-fill"></i> Withdrawn by Applicant</span>
+                    <span v-if="selected.withdrawnAt" class="withdrawal-date">{{ selected.withdrawnAt }}</span>
+                  </div>
+                  <div class="withdrawal-detail"><strong>Reason:</strong> {{ selected.withdrawalReason }}</div>
+                  <div v-if="selected.withdrawalNotes" class="withdrawal-detail"><strong>Note:</strong> "{{ selected.withdrawalNotes }}"</div>
+                </div>
               </template>
               <template v-else>
                 <div class="section-label">Best Matching Listing</div>
@@ -653,9 +663,12 @@ export default {
             matchScore:      a.match_score || 0,
             status:          (() => {
               const raw = a.status || 'reviewing'
-              const map = { for_job_offer: 'For Job Offer' }
+              const map = { for_job_offer: 'For Job Offer', withdrawn: 'Withdrawn' }
               return map[raw] || (raw.charAt(0).toUpperCase() + raw.slice(1))
             })(),
+            withdrawalReason: a.withdrawal_reason || null,
+            withdrawalNotes:  a.withdrawal_notes || null,
+            withdrawnAt:      a.withdrawn_at ? new Date(a.withdrawn_at).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }) : null,
             offerResponse:   a.offer_response || null,
             offerSentAt:     a.offer_sent_at || null,
             offerResponseAt: a.offer_response_at || null,
@@ -688,7 +701,7 @@ export default {
         if (a.offerResponse === 'declined') return 'offer-declined'
         return 'awaiting-response'
       }
-      return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', 'For Job Offer':'for-job-offer', Hired:'hired', Rejected:'rejected' }[s] || ''
+      return { Reviewing:'reviewing', Shortlisted:'shortlisted', Interview:'interview', 'For Job Offer':'for-job-offer', Hired:'hired', Rejected:'rejected', Withdrawn:'withdrawn' }[s] || ''
     },
     statusOptionsFor(applicant) {
       const base = ['Reviewing', 'Shortlisted', 'Interview', 'For Job Offer']
@@ -1115,6 +1128,13 @@ export default {
 .offer-declined { background: #fef2f2; color: #dc2626; }
 .hired       { background: #f0fdf4; color: #22c55e; }
 .rejected    { background: #fef2f2; color: #ef4444; }
+.withdrawn   { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+
+.withdrawal-box { margin-top: 14px; padding: 12px 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; border-left: 3px solid #64748b; }
+.withdrawal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.withdrawal-tag { font-size: 11.5px; font-weight: 700; color: #475569; display: flex; align-items: center; gap: 5px; }
+.withdrawal-date { font-size: 11px; color: #94a3b8; }
+.withdrawal-detail { font-size: 12px; color: #334155; margin-top: 3px; line-height: 1.4; }
 .not-applied-badge { display: inline-flex; align-items: center; gap: 6px; background: #fef9ec; color: #92400e; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 99px; border: 1px solid #fde68a; white-space: nowrap; }
 .na-dot { width: 6px; height: 6px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; }
 .listing-match-cell { display: flex; align-items: center; gap: 9px; }
