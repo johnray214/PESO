@@ -137,6 +137,7 @@ class EmployerNotificationController extends Controller
 
         $nr = NotificationRead::where('recipient_type', 'employer')
             ->where('recipient_id', $employer->id)
+            ->whereNotNull('read_at')
             ->findOrFail($id);
 
         $nr->delete();
@@ -150,8 +151,9 @@ class EmployerNotificationController extends Controller
 
         NotificationRead::where('recipient_type', 'employer')
             ->where('recipient_id', $employer->id)
+            ->whereNotNull('read_at')
             ->delete();
 
-        return response()->json(['success' => true, 'message' => 'All notifications deleted.']);
+        return response()->json(['success' => true, 'message' => 'All read notifications deleted.']);
     }
 }

@@ -187,6 +187,7 @@ class EmployerSeeder extends Seeder
                     ? now()->subDays($seed['verified_days_ago'])
                     : null,
                 'total_hired' => $seed['total_hired'],
+                'employer_type' => 'local',
             ];
 
             $employer = Employer::updateOrCreate(['email' => $data['email']], $data);

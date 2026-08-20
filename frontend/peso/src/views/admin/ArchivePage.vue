@@ -142,7 +142,7 @@
             </div>
             <div>
               <h3 class="modal-title" style="margin-bottom:2px">{{ viewingRecord.name }}</h3>
-              <span class="type-badge" :style="{ background: typeColor(viewingRecord.type).bg, color: typeColor(viewingRecord.type).text }">{{ viewingRecord.type }}</span>
+              <span class="type-badge" :style="{ background: typeColor(viewingRecord.type).bg, color: typeColor(viewingRecord.type).text }">{{ typeLabel(viewingRecord.type) }}</span>
             </div>
             <button class="modal-close-btn" @click="viewingRecord = null">✕</button>
           </div>
@@ -297,7 +297,7 @@ export default {
       else if (type === 'jobseekers')     { name = `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'Jobseeker'; detail = item.email || '' }
       else if (type === 'events')         { name = item.title || 'Event';        detail = item.location || '' }
       else if (type === 'users')          { name = item.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'User'; detail = item.email || '' }
-      else if (type === 'job_listings')   { name = item.title || 'Job Listing';  detail = item.employer?.company_name || 'No Employer' }
+      else if (type === 'job_listings')   { name = item.title || 'Job Listing';  detail = item.employer?.company_name || (item.program ? 'DOLE: ' + item.program : 'PESO Job Listing') }
       return {
         id:        item.id,
         type,
@@ -309,8 +309,18 @@ export default {
     },
 
     typeLabel(type) {
-      const map = { employers: 'Employers', jobseekers: 'Jobseekers', events: 'Events', users: 'Users', job_listings: 'Job Listings' }
-      return map[type] || (type ? type.charAt(0).toUpperCase() + type.slice(1) : '')
+      const map = {
+        employers: 'Employers',
+        jobseekers: 'Jobseekers',
+        events: 'Events',
+        users: 'Users',
+        job_listings: 'Job Listings',
+        job_listing: 'Job Listing',
+        joblisting: 'Job Listing',
+        joblistings: 'Job Listings',
+      }
+      if (!type) return ''
+      return map[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
     },
 
     typeColor(type) {

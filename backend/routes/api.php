@@ -10,15 +10,6 @@ use App\Http\Controllers\Api\Auth\AdminAuthController;
 use App\Http\Controllers\Api\Auth\EmployerAuthController;
 use App\Http\Controllers\Api\Auth\JobseekerAuthController;
 
-Route::get('/debug-notifs', function() {
-    return \App\Models\NotificationRead::with('notification')->where('recipient_type', 'employer')->orderByDesc('created_at')->limit(10)->get();
-});
-
-// Pusher private channel auth endpoint for employers (stateless, uses Bearer token)
-Route::post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
-    return Broadcast::auth($request);
-})->middleware('auth:employer');
-
 // Public Controllers
 use App\Http\Controllers\Api\Public\PublicEmployerController;
 use App\Http\Controllers\Api\Public\PublicEventController;
@@ -88,6 +79,7 @@ Route::middleware('throttle:10,1')->group(function () {
 // Employer Auth (throttled)
 Route::middleware('throttle:10,1')->group(function () {
     Route::post('/employer/login', [EmployerAuthController::class, 'login']);
+    Route::get('/employer/check-email', [EmployerAuthController::class, 'checkEmail']);
     Route::post('/employer/register', [EmployerAuthController::class, 'register']);
     Route::post('/employer/forgot-password', [EmployerAuthController::class, 'forgotPassword']);
     Route::post('/employer/reset-password', [EmployerAuthController::class, 'resetPassword']);
@@ -154,6 +146,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     
     // Auth
     Route::post('/logout', [AdminAuthController::class, 'logout']);
+    Route::post('/peso-employee/logout', [AdminAuthController::class, 'logout']); // Alias for frontend
     Route::get('/me', [AdminAuthController::class, 'me']);
 
     // Profile
@@ -200,6 +193,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     Route::get('/applications/{id}', [AdminApplicationController::class, 'show']);
     Route::get('/applications/{id}/history', [AdminApplicationController::class, 'history']);
     Route::patch('/applications/{id}/status', [AdminApplicationController::class, 'updateStatus']);
+    Route::post('/applications/schedule-interview', [AdminApplicationController::class, 'scheduleInterview']);
     Route::delete('/applications/{id}', [AdminApplicationController::class, 'destroy']);
 
     // Admin Invitations (PESO sends invite to jobseeker for any job listing)
@@ -235,14 +229,19 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
 
     Route::get('/download', function (\Illuminate\Http\Request $request) {
         $path = $request->query('path');
-        $fullPath = storage_path('app/public/' . $path);
 
-        if (!$path || !\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+        // Prevent path traversal and empty path
+        if (!$path || str_contains($path, '..') || str_starts_with($path, '/')) {
             abort(404);
         }
 
-        return response()->download($fullPath);
-    })->middleware('auth:sanctum');
+        if (!\Illuminate\Support\Facades\Storage::disk('public')->exists($path)) {
+            abort(404);
+        }
+
+        // Use disk API — never build raw filesystem paths from user input
+        return \Illuminate\Support\Facades\Storage::disk('public')->download($path);
+    }); // Note: already protected by admin middleware group above
 });
 
 /*

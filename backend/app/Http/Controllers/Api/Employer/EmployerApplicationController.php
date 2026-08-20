@@ -32,8 +32,9 @@ class EmployerApplicationController extends Controller
             });
         }
         
-        if ($request->has('status')) {
-            $query->where('status', $request->status);
+        if ($request->has('status') && $request->status !== '') {
+            $status = str_replace(' ', '_', strtolower((string) $request->status));
+            $query->where('status', $status);
         }
         
         if ($request->has('job_title')) {

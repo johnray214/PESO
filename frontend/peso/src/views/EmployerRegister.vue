@@ -147,47 +147,117 @@
               </div>
             </div>
 
+            <!-- Work Email Address -->
             <div class="form-group">
               <label class="form-label">Work Email Address</label>
               <div class="input-wrap">
                 <span class="input-icon">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                 </span>
-                <input class="form-input" :class="{ 'input-error': emailError }" type="email"
-                  v-model="form.email" @blur="validateEmail" placeholder="hr@yourcompany.com.ph"/>
+                <input
+                  class="form-input"
+                  :class="{ 'input-error': emailError, 'input-success': form.email && !emailError && !checkingEmail && !emailAlreadyTaken }"
+                  type="email"
+                  v-model="form.email"
+                  @input="onEmailInput"
+                  @blur="validateEmail(true)"
+                  placeholder="hr@yourcompany.com.ph"
+                />
+                <span v-if="checkingEmail" class="spinner-sm input-action-spinner"></span>
+                <span v-else-if="form.email && !emailError && !emailAlreadyTaken" class="input-check-icon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
               </div>
-              <p v-if="emailError" class="field-error">{{ emailError }}</p>
+              <div v-if="emailError" class="field-error-box">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>{{ emailError }}</span>
+                <router-link v-if="emailAlreadyTaken" to="/employer/login" class="error-login-link">Log in here →</router-link>
+              </div>
             </div>
 
+            <!-- Password -->
             <div class="form-group">
               <label class="form-label">Password</label>
               <div class="input-wrap">
                 <span class="input-icon">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                 </span>
-                <input class="form-input" :type="showPw ? 'text' : 'password'" v-model="form.password" placeholder="Min. 8 characters"/>
+                <input
+                  class="form-input"
+                  :class="{ 'input-error': passwordError && !form.password }"
+                  :type="showPw ? 'text' : 'password'"
+                  v-model="form.password"
+                  @input="onPasswordInput"
+                  placeholder="Create a strong password"
+                />
                 <button class="pw-toggle" @click="showPw = !showPw" type="button">
                   <svg v-if="!showPw" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                 </button>
               </div>
+
+              <!-- Password Strength Bar -->
+              <div v-if="form.password" class="pw-strength-box">
+                <div class="pw-strength-header">
+                  <span class="pw-strength-text">Password Strength: <strong :class="'strength-text-' + passwordStrengthClass">{{ passwordStrengthLabel }}</strong></span>
+                  <span class="pw-strength-percent" :class="'strength-text-' + passwordStrengthClass">{{ passwordStrengthPercent }}%</span>
+                </div>
+                <div class="pw-strength-track">
+                  <div class="pw-strength-fill" :class="'strength-fill-' + passwordStrengthClass" :style="{ width: passwordStrengthPercent + '%' }"></div>
+                </div>
+              </div>
+
+              <!-- Dynamic Checklist Requirements -->
+              <div class="pw-rules-list">
+                <div class="pw-rule-item" :class="{ met: hasMinLength }">
+                  <svg v-if="hasMinLength" class="rule-icon met" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span v-else class="rule-icon uncheck">○</span>
+                  <span>At least 8 characters</span>
+                </div>
+                <div class="pw-rule-item" :class="{ met: hasUppercase }">
+                  <svg v-if="hasUppercase" class="rule-icon met" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span v-else class="rule-icon uncheck">○</span>
+                  <span>At least one uppercase letter (A-Z)</span>
+                </div>
+                <div class="pw-rule-item" :class="{ met: hasLowercase }">
+                  <svg v-if="hasLowercase" class="rule-icon met" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span v-else class="rule-icon uncheck">○</span>
+                  <span>At least one lowercase letter (a-z)</span>
+                </div>
+                <div class="pw-rule-item" :class="{ met: hasNumber }">
+                  <svg v-if="hasNumber" class="rule-icon met" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span v-else class="rule-icon uncheck">○</span>
+                  <span>At least one number (0-9)</span>
+                </div>
+              </div>
             </div>
 
+            <!-- Confirm Password -->
             <div class="form-group">
               <label class="form-label">Confirm Password</label>
               <div class="input-wrap">
                 <span class="input-icon">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                 </span>
-                <input class="form-input" :class="{ 'input-error': passwordError }"
-                  :type="showConfirmPw ? 'text' : 'password'" v-model="form.confirmPassword"
-                  @blur="validatePassword" placeholder="Repeat password"/>
+                <input
+                  class="form-input"
+                  :class="{ 'input-error': passwordError, 'input-success': form.confirmPassword && passwordsMatch }"
+                  :type="showConfirmPw ? 'text' : 'password'"
+                  v-model="form.confirmPassword"
+                  @input="validatePassword"
+                  @blur="validatePassword"
+                  placeholder="Repeat your password"
+                />
                 <button class="pw-toggle" @click="showConfirmPw = !showConfirmPw" type="button">
                   <svg v-if="!showConfirmPw" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
                 </button>
               </div>
-              <p v-if="passwordError" class="field-error">{{ passwordError }}</p>
+              <div v-if="form.confirmPassword && !passwordsMatch" class="field-error-box">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                <span>Passwords do not match.</span>
+              </div>
+              <p v-else-if="passwordError" class="field-error">{{ passwordError }}</p>
             </div>
           </div>
 
@@ -304,13 +374,21 @@
           <div v-if="currentStep === 3" class="step-body">
             <div class="form-group">
               <label class="form-label">Business Permit</label>
-              <div class="upload-area" @click="$refs.bizPermit.click()" :class="{ 'has-file': form.bizPermitFile }">
+              <div
+                class="upload-area"
+                :class="{ 'has-file': form.bizPermitFile, 'is-dragging': isDragging.bizPermit }"
+                @click="$refs.bizPermit.click()"
+                @dragover.prevent="isDragging.bizPermit = true"
+                @dragenter.prevent="isDragging.bizPermit = true"
+                @dragleave.prevent="isDragging.bizPermit = false"
+                @drop.prevent="handleFileDrop('bizPermit', $event)"
+              >
                 <div v-if="!bizPermitPreview" class="upload-inner">
                   <div class="upload-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </div>
-                  <p class="upload-label">Click to upload Business Permit or drag & drop</p>
-                  <p class="upload-sub">PDF, JPG, PNG — max 2MB</p>
+                  <p class="upload-label">{{ isDragging.bizPermit ? 'Drop Business Permit here' : 'Click to upload Business Permit or drag & drop' }}</p>
+                  <p class="upload-sub">PDF, JPG, PNG — max 5MB</p>
                 </div>
                 <div v-else class="file-preview">
                   <img v-if="bizPermitPreview !== 'pdf'" :src="bizPermitPreview" class="preview-img"/>
@@ -329,13 +407,21 @@
             <!-- DMW License (Required for Overseas Agencies/Employers) -->
             <div v-if="form.employerType === 'overseas'" class="form-group">
               <label class="form-label">DMW License <span style="color:#ef4444">*</span></label>
-              <div class="upload-area" @click="$refs.dmwLicense.click()" :class="{ 'has-file': form.dmwLicenseFile }">
+              <div
+                class="upload-area"
+                :class="{ 'has-file': form.dmwLicenseFile, 'is-dragging': isDragging.dmwLicense }"
+                @click="$refs.dmwLicense.click()"
+                @dragover.prevent="isDragging.dmwLicense = true"
+                @dragenter.prevent="isDragging.dmwLicense = true"
+                @dragleave.prevent="isDragging.dmwLicense = false"
+                @drop.prevent="handleFileDrop('dmwLicense', $event)"
+              >
                 <div v-if="!dmwLicensePreview" class="upload-inner">
                   <div class="upload-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </div>
-                  <p class="upload-label">Click to upload DMW License or drag & drop</p>
-                  <p class="upload-sub">PDF, JPG, PNG — max 2MB</p>
+                  <p class="upload-label">{{ isDragging.dmwLicense ? 'Drop DMW License here' : 'Click to upload DMW License or drag & drop' }}</p>
+                  <p class="upload-sub">PDF, JPG, PNG — max 5MB</p>
                 </div>
                 <div v-else class="file-preview">
                   <img v-if="dmwLicensePreview !== 'pdf'" :src="dmwLicensePreview" class="preview-img"/>
@@ -353,13 +439,21 @@
 
             <div class="form-group">
               <label class="form-label">BIR Certificate of Registration <span class="optional-tag">Optional</span></label>
-              <div class="upload-area" @click="$refs.birCert.click()" :class="{ 'has-file': form.birCertFile }">
+              <div
+                class="upload-area"
+                :class="{ 'has-file': form.birCertFile, 'is-dragging': isDragging.birCert }"
+                @click="$refs.birCert.click()"
+                @dragover.prevent="isDragging.birCert = true"
+                @dragenter.prevent="isDragging.birCert = true"
+                @dragleave.prevent="isDragging.birCert = false"
+                @drop.prevent="handleFileDrop('birCert', $event)"
+              >
                 <div v-if="!birCertPreview" class="upload-inner">
                   <div class="upload-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </div>
-                  <p class="upload-label">Click to upload or drag & drop</p>
-                  <p class="upload-sub">PDF, JPG, PNG — max 2MB</p>
+                  <p class="upload-label">{{ isDragging.birCert ? 'Drop BIR Certificate here' : 'Click to upload or drag & drop' }}</p>
+                  <p class="upload-sub">PDF, JPG, PNG — max 5MB</p>
                 </div>
                 <div v-else class="file-preview">
                   <img v-if="birCertPreview !== 'pdf'" :src="birCertPreview" class="preview-img"/>
@@ -440,13 +534,23 @@ export default {
       error: '',
 
       emailError: '',
+      emailAlreadyTaken: false,
+      checkingEmail: false,
+      emailCheckTimeout: null,
       passwordError: '',
       bizPermitError: '',
       dmwLicenseError: '',
+      birCertError: '',
 
       bizPermitPreview: null,
       birCertPreview: null,
       dmwLicensePreview: null,
+
+      isDragging: {
+        bizPermit: false,
+        dmwLicense: false,
+        birCert: false,
+      },
 
       provinces: [],
       cities: [],
@@ -514,6 +618,46 @@ export default {
         i.toLowerCase().includes(this.form.industry.toLowerCase())
       )
     },
+    hasMinLength() {
+      return (this.form.password || '').length >= 8
+    },
+    hasUppercase() {
+      return /[A-Z]/.test(this.form.password || '')
+    },
+    hasLowercase() {
+      return /[a-z]/.test(this.form.password || '')
+    },
+    hasNumber() {
+      return /[0-9]/.test(this.form.password || '')
+    },
+    passwordsMatch() {
+      return !!(this.form.password && this.form.confirmPassword && this.form.password === this.form.confirmPassword)
+    },
+    passwordScore() {
+      let score = 0
+      if (this.hasMinLength) score++
+      if (this.hasUppercase) score++
+      if (this.hasLowercase) score++
+      if (this.hasNumber) score++
+      return score
+    },
+    passwordStrengthPercent() {
+      if (!this.form.password) return 0
+      return Math.round((this.passwordScore / 4) * 100)
+    },
+    passwordStrengthLabel() {
+      if (!this.form.password) return 'Enter password'
+      if (this.passwordScore === 4) return 'Strong'
+      if (this.passwordScore === 3) return 'Good'
+      if (this.passwordScore === 2) return 'Fair'
+      return 'Weak'
+    },
+    passwordStrengthClass() {
+      if (this.passwordScore === 4) return 'strong'
+      if (this.passwordScore === 3) return 'good'
+      if (this.passwordScore === 2) return 'fair'
+      return 'weak'
+    },
   },
 
   mounted() {
@@ -521,26 +665,113 @@ export default {
   },
 
   methods: {
-    validateEmail() {
+    onEmailInput() {
+      this.emailAlreadyTaken = false
+      if (this.emailCheckTimeout) clearTimeout(this.emailCheckTimeout)
+      const email = (this.form.email || '').trim()
       const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-      this.emailError = re.test(this.form.email)
-        ? '' : 'Please enter a valid email address.'
+      if (!email) {
+        this.emailError = ''
+        return
+      }
+      if (!re.test(email)) {
+        this.emailError = 'Please enter a valid email address.'
+        return
+      }
+      this.emailError = ''
+      this.emailCheckTimeout = setTimeout(() => {
+        this.validateEmail(true)
+      }, 500)
+    },
+
+    async validateEmail(forceCheck = false) {
+      const email = (this.form.email || '').trim()
+      if (!email) {
+        this.emailError = 'Work email address is required.'
+        this.emailAlreadyTaken = false
+        return false
+      }
+      const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!re.test(email)) {
+        this.emailError = 'Please enter a valid email address.'
+        this.emailAlreadyTaken = false
+        return false
+      }
+      this.emailError = ''
+
+      if (forceCheck) {
+        this.checkingEmail = true
+        try {
+          const { data } = await api.get('/employer/check-email', { params: { email } })
+          if (data.available === false) {
+            this.emailAlreadyTaken = true
+            this.emailError = 'This email address is already in use.'
+            return false
+          } else {
+            this.emailAlreadyTaken = false
+            this.emailError = ''
+            return true
+          }
+        } catch (_) {
+          return true
+        } finally {
+          this.checkingEmail = false
+        }
+      }
+      return true
+    },
+
+    onPasswordInput() {
+      this.validatePassword()
     },
 
     validatePassword() {
-      if (this.form.password.length < 8) {
-        this.passwordError = 'Password must be at least 8 characters.'
-        return
+      if (!this.form.password) {
+        this.passwordError = 'Password is required.'
+        return false
       }
-      this.passwordError = this.form.password !== this.form.confirmPassword
-        ? 'Passwords do not match.' : ''
+      if (!this.hasMinLength) {
+        this.passwordError = 'Password must be at least 8 characters long.'
+        return false
+      }
+      if (!this.hasUppercase) {
+        this.passwordError = 'Password must include at least one uppercase letter (A-Z).'
+        return false
+      }
+      if (!this.hasLowercase) {
+        this.passwordError = 'Password must include at least one lowercase letter (a-z).'
+        return false
+      }
+      if (!this.hasNumber) {
+        this.passwordError = 'Password must include at least one number (0-9).'
+        return false
+      }
+      if (this.form.confirmPassword && !this.passwordsMatch) {
+        this.passwordError = 'Passwords do not match.'
+        return false
+      }
+      this.passwordError = ''
+      return true
     },
 
-    nextStep() {
+    async nextStep() {
       if (this.currentStep === 1) {
-        this.validateEmail()
-        this.validatePassword()
-        if (this.emailError || this.passwordError) return
+        const isEmailValid = await this.validateEmail(true)
+        const isPasswordValid = this.validatePassword()
+
+        if (!this.form.confirmPassword) {
+          this.passwordError = 'Please confirm your password.'
+          return
+        }
+
+        if (!this.passwordsMatch) {
+          this.passwordError = 'Passwords do not match.'
+          return
+        }
+
+        if (!isEmailValid || !isPasswordValid || this.emailError || this.passwordError) {
+          return
+        }
       }
       if (this.currentStep === 2) {
         if (!this.form.companyName)   { this.error = 'Company name is required.'; return }
@@ -592,20 +823,24 @@ export default {
        .sort((a, b) => a.name.localeCompare(b.name))
     },
 
-    handleFileUpload(type, event) {
-      const file = event.target.files[0]
+    processFile(type, file) {
       if (!file) return
 
-      if (file.size > 2 * 1024 * 1024) {
-        if (type === 'bizPermit') this.bizPermitError = 'File must be under 2MB.'
-        if (type === 'dmwLicense') this.dmwLicenseError = 'File must be under 2MB.'
+      const maxLimit = 5 * 1024 * 1024 // 5MB limit
+      if (file.size > maxLimit) {
+        const err = 'File exceeds 5MB. Please upload a file under 5MB.'
+        if (type === 'bizPermit') this.bizPermitError = err
+        if (type === 'dmwLicense') this.dmwLicenseError = err
+        if (type === 'birCert') this.birCertError = err
         return
       }
+
+      const isPdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf')
 
       if (type === 'bizPermit') {
         this.bizPermitError     = ''
         this.form.bizPermitFile = file
-        if (file.type === 'application/pdf') {
+        if (isPdf) {
           this.bizPermitPreview = 'pdf'
         } else {
           const reader = new FileReader()
@@ -615,7 +850,7 @@ export default {
       } else if (type === 'dmwLicense') {
         this.dmwLicenseError     = ''
         this.form.dmwLicenseFile = file
-        if (file.type === 'application/pdf') {
+        if (isPdf) {
           this.dmwLicensePreview = 'pdf'
         } else {
           const reader = new FileReader()
@@ -623,8 +858,9 @@ export default {
           reader.readAsDataURL(file)
         }
       } else {
+        this.birCertError     = ''
         this.form.birCertFile = file
-        if (file.type === 'application/pdf') {
+        if (isPdf) {
           this.birCertPreview = 'pdf'
         } else {
           const reader = new FileReader()
@@ -634,18 +870,36 @@ export default {
       }
     },
 
+    handleFileUpload(type, event) {
+      const file = event.target?.files?.[0]
+      if (file) {
+        this.processFile(type, file)
+      }
+    },
+
+    handleFileDrop(type, event) {
+      this.isDragging[type] = false
+      const file = event.dataTransfer?.files?.[0]
+      if (file) {
+        this.processFile(type, file)
+      }
+    },
+
     removeFile(type) {
       if (type === 'bizPermit') {
         this.form.bizPermitFile = null
         this.bizPermitPreview   = null
+        this.bizPermitError     = ''
         if (this.$refs.bizPermit) this.$refs.bizPermit.value = ''
       } else if (type === 'dmwLicense') {
         this.form.dmwLicenseFile = null
         this.dmwLicensePreview   = null
+        this.dmwLicenseError     = ''
         if (this.$refs.dmwLicense) this.$refs.dmwLicense.value = ''
       } else {
         this.form.birCertFile = null
         this.birCertPreview   = null
+        this.birCertError     = ''
         if (this.$refs.birCert) this.$refs.birCert.value = ''
       }
     },
@@ -694,9 +948,18 @@ export default {
 
       } catch (e) {
         const errs = e.response?.data?.errors
-        this.error = errs
-          ? Object.values(errs).flat().join(' ')
-          : (e.response?.data?.message || 'Registration failed. Please try again.')
+        if (errs?.email) {
+          this.currentStep = 1
+          this.emailAlreadyTaken = true
+          this.emailError = Array.isArray(errs.email) ? errs.email[0] : errs.email
+        } else if (errs?.password) {
+          this.currentStep = 1
+          this.passwordError = Array.isArray(errs.password) ? errs.password[0] : errs.password
+        } else {
+          this.error = errs
+            ? Object.values(errs).flat().join(' ')
+            : (e.response?.data?.message || 'Registration failed. Please try again.')
+        }
       } finally {
         this.loading = false
       }
@@ -770,6 +1033,130 @@ export default {
 .form-input:focus { border-color: #08BDDE; box-shadow: 0 0 0 3px rgba(8,189,222,0.1); }
 .form-input::placeholder { color: #cbd5e1; }
 .form-input.input-error { border-color: #ef4444 !important; }
+.form-input.input-success { border-color: #10b981; }
+
+.input-check-icon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+}
+.input-action-spinner {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.spinner-sm {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #e2e8f0;
+  border-top-color: #2872A1;
+  animation: spin 0.6s linear infinite;
+  display: inline-block;
+}
+
+.field-error-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #ef4444;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.error-login-link {
+  color: #2872A1;
+  font-weight: 700;
+  text-decoration: underline;
+  margin-left: 4px;
+}
+.error-login-link:hover {
+  color: #1a5f8a;
+}
+
+/* ── PASSWORD STRENGTH METER ── */
+.pw-strength-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 4px;
+}
+.pw-strength-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 5px;
+}
+.pw-strength-text {
+  font-weight: 500;
+}
+.pw-strength-percent {
+  font-weight: 800;
+}
+.pw-strength-track {
+  width: 100%;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.pw-strength-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.3s ease, background-color 0.3s ease;
+}
+.strength-fill-weak   { background: #ef4444; }
+.strength-fill-fair   { background: #f59e0b; }
+.strength-fill-good   { background: #0284c7; }
+.strength-fill-strong { background: #10b981; }
+
+.strength-text-weak   { color: #ef4444; }
+.strength-text-fair   { color: #d97706; }
+.strength-text-good   { color: #0284c7; }
+.strength-text-strong { color: #059669; }
+
+/* ── PASSWORD CHECKLIST ── */
+.pw-rules-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 0 4px;
+}
+.pw-rule-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  transition: color 0.15s;
+}
+.pw-rule-item.met {
+  color: #15803d;
+  font-weight: 600;
+}
+.rule-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.rule-icon.met {
+  color: #16a34a;
+}
+.rule-icon.uncheck {
+  font-size: 11px;
+  color: #cbd5e1;
+}
 
 .form-select { width: 100%; padding: 11px 38px 11px 14px; border: 1.5px solid #e2e8f0; border-radius: 10px; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 13.5px; color: #1e293b; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 14px center; outline: none; appearance: none; cursor: pointer; transition: border 0.15s; }
 .form-select:focus { border-color: #08BDDE; box-shadow: 0 0 0 3px rgba(8,189,222,0.1); }
@@ -791,6 +1178,12 @@ export default {
 .upload-area { border: 2px dashed #e2e8f0; border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: #fafafa; }
 .upload-area:hover { border-color: #08BDDE; background: #f0f9ff; }
 .upload-area.has-file { border-color: #08BDDE; border-style: solid; background: #f0f9ff; }
+.upload-area.is-dragging {
+  border-color: #2872A1;
+  background: #e0f2fe;
+  transform: scale(1.01);
+  box-shadow: 0 4px 16px rgba(40,114,161,0.15);
+}
 .upload-inner { display: flex; flex-direction: column; align-items: center; }
 .upload-icon { color: #94a3b8; margin-bottom: 6px; display: flex; justify-content: center; }
 .upload-label { font-size: 13px; font-weight: 600; color: #475569; }

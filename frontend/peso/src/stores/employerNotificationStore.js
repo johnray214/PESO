@@ -151,6 +151,8 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
     },
 
     async deleteNotif(notifId) {
+      const item = this.notifications.find(n => n.id === notifId)
+      if (item && !item.read) return
       this.notifications = this.notifications.filter(n => n.id !== notifId)
       this.unreadCount = this.notifications.filter(n => !n.read).length
       localStorage.setItem('employer_notifications', JSON.stringify(this.notifications))
@@ -163,10 +165,11 @@ export const useEmployerNotificationStore = defineStore('employerNotifications',
     },
 
     async deleteAll() {
-      this.notifications = []
-      this.unreadCount = 0
-      localStorage.setItem('employer_notifications', JSON.stringify([]))
-      localStorage.setItem('employer_unread_count', 0)
+      const unread = this.notifications.filter(n => !n.read)
+      this.notifications = unread
+      this.unreadCount = unread.length
+      localStorage.setItem('employer_notifications', JSON.stringify(this.notifications))
+      localStorage.setItem('employer_unread_count', this.unreadCount)
       try {
         await employerApi.deleteAllNotifications()
       } catch (e) {

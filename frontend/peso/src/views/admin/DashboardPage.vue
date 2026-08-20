@@ -599,7 +599,12 @@
                 <td><span class="skill-tag">{{ a.skill }}</span></td>
                 <td class="job-cell">{{ a.job }}</td>
                 <td class="date-cell">{{ a.date }}</td>
-                <td><span class="status-badge" :class="a.statusClass">{{ a.status }}</span></td>
+                <td>
+                  <span class="status-badge" :class="normalizeStatusClass(a.statusClass || a.status)">
+                    <span class="status-dot"></span>
+                    {{ a.status }}
+                  </span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -919,7 +924,24 @@ export default {
       if (d.skillGaps?.length)         this.skillGaps    = d.skillGaps
       if (d.recentApplicants?.length) {
         const colors = ['#2563eb','#f97316','#22c55e','#8b5cf6','#06b6d4','#ef4444']
-        this.applicants = d.recentApplicants.map((a, i) => ({ ...a, color: colors[i%colors.length] }))
+        const statusMap = {
+          for_job_offer: 'For Job Offer',
+          'for-job-offer': 'For Job Offer',
+          reviewing: 'Reviewing',
+          shortlisted: 'Shortlisted',
+          interview: 'Interview',
+          hired: 'Hired',
+          rejected: 'Rejected',
+        }
+        this.applicants = d.recentApplicants.map((a, i) => {
+          const rawStatus = (a.status || 'reviewing').toLowerCase().replace(/\s+/g, '_')
+          return {
+            ...a,
+            status: statusMap[rawStatus] || a.status,
+            statusClass: rawStatus.replace(/_/g, '-'),
+            color: colors[i % colors.length]
+          }
+        })
       }
       if (d.upcomingEvents?.length) {
         const typeMap = {
@@ -937,6 +959,11 @@ export default {
         const bgs = ['#2563eb','#f97316','#22c55e','#7c3aed','#06b6d4']
         this.topEmployers = d.topEmployers.map((emp, i) => ({ ...emp, bg: bgs[i%bgs.length] }))
       }
+    },
+
+    normalizeStatusClass(s) {
+      const str = (s || '').toLowerCase().replace(/_/g, '-').replace(/\s+/g, '-')
+      return str || 'reviewing'
     },
 
     // ── Chart helpers ────────────────────────────────────────────────
@@ -1264,14 +1291,42 @@ export default {
 .skill-tag     { background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 500; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
 .job-cell      { color: #475569; }
 .date-cell     { color: #94a3b8; white-space: nowrap; }
-.status-badge  { padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
-.status-badge.matched     { background: #f0fdf4; color: #22c55e; }
-.status-badge.pending     { background: #fff7ed; color: #f97316; }
-.status-badge.reviewing   { background: #dbeafe; color: #1d4ed8; }
-.status-badge.shortlisted { background: #eff8ff; color: #1a5f8a; }
-.status-badge.interview   { background: #ede9fe; color: #8B5CF6; }
-.status-badge.hired       { background: #dcfce7; color: #16a34a; }
-.status-badge.rejected    { background: #fef2f2; color: #ef4444; }
+.status-badge  {
+  display: inline-flex;
+  align-items: center;
+  gap: 5.5px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-badge.matched     { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.status-badge.matched     .status-dot { background: #22c55e; }
+.status-badge.pending     { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.status-badge.pending     .status-dot { background: #f97316; }
+.status-badge.reviewing   { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
+.status-badge.reviewing   .status-dot { background: #3b82f6; }
+.status-badge.shortlisted { background: #eff8ff; color: #1a5f8a; border: 1px solid #bae6fd; }
+.status-badge.shortlisted .status-dot { background: #2872A1; }
+.status-badge.interview   { background: #faf5ff; color: #7c3aed; border: 1px solid #e9d5ff; }
+.status-badge.interview   .status-dot { background: #8b5cf6; }
+.status-badge.for-job-offer,
+.status-badge.for_job_offer { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.status-badge.for-job-offer .status-dot,
+.status-badge.for_job_offer .status-dot { background: #d97706; }
+.status-badge.hired       { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+.status-badge.hired       .status-dot { background: #22c55e; }
+.status-badge.rejected    { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+.status-badge.rejected    .status-dot { background: #ef4444; }
 
 /* ── EVENTS ──────────────────────────────────────────────────────────────── */
 .events-list { display: flex; flex-direction: column; gap: 10px; }

@@ -97,10 +97,12 @@ class JobseekerSeeder extends Seeder
             'Agustin'       => ['province' => 'Isabela',  'province_name' => 'Isabela',  'city_code' => '033102', 'province_code' => '0331'],
         ];
 
+        $barangays = ['Villasis', 'Dubinan East', 'Dubinan West', 'Centro East', 'Centro West', 'Malvar', 'Rizal', 'Calaocan', 'San Andres', 'Plaridel', 'Victory Norte', 'Mabini', 'Sinsayon', 'Patul', 'Batal'];
         $n = 0;
         foreach ($jobseekers as $js) {
             $n++;
             $cityData = $cities[$js['city']] ?? $cities['Santiago City'];
+            $bgy = $barangays[$n % count($barangays)];
             $fullName = "{$js['first']} {$js['last']}";
             $email    = strtolower(str_replace(' ', '.', "{$js['first']}.{$js['last']}")) . "@gmail.com";
 
@@ -117,12 +119,13 @@ class JobseekerSeeder extends Seeder
                     'job_experience'  => $js['exp'],
                     'bio'             => "Experienced professional from {$js['city']}, Isabela looking for new opportunities.",
                     'contact'         => '091' . rand(10000000, 99999999),
-                    'address'         => "{$js['city']}, {$cityData['province']}",
+                    'address'         => "{$bgy}, {$js['city']}, {$cityData['province']}",
+                    'street_address'  => $bgy,
                     'city_name'       => $js['city'],
                     'city_code'       => $cityData['city_code'],
                     'province_name'   => $cityData['province_name'],
                     'province_code'   => $cityData['province_code'],
-                    'barangay_name'   => 'Poblacion',
+                    'barangay_name'   => $bgy,
                     'status'          => 'active',
                     'latitude'        => 16.6 + ($n * 0.005),
                     'longitude'       => 121.5 + ($n * 0.004),

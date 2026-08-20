@@ -194,6 +194,7 @@
                 <div class="info-grid">
                   <div class="info-item"><span class="info-label">Company</span><span class="info-val">{{ selected?.name }}</span></div>
                   <div class="info-item"><span class="info-label">Industry</span><span class="info-val">{{ selected?.industry }}</span></div>
+                  <div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Full Address</span><span class="info-val">{{ selected?.fullAddress || selected?.location || 'N/A' }}</span></div>
                   <div class="info-item"><span class="info-label">Contact</span><span class="info-val">{{ selected?.contactPerson }}</span></div>
                   <div class="info-item"><span class="info-label">Role</span><span class="info-val">{{ selected?.contactRole }}</span></div>
                   <div class="info-item"><span class="info-label">Email</span><span class="info-val">{{ selected?.email }}</span></div>
@@ -396,20 +397,24 @@ export default {
           this.totalEmployers = dataList.length
         }
 
-        this.employers = dataList.map(emp => ({
-          id:            emp.id,
-          name:          emp.company_name,
-          industry:      emp.industry || 'Not specified',
-          location:      'Philippines',
-          contactPerson: emp.contact_person || 'N/A',
-          contactRole:   'Contact Person',
-          email:         emp.email,
-          phone:         emp.phone || 'N/A',
-          photo:         emp.photo ? (emp.photo.startsWith('http') ? emp.photo : '/storage/' + emp.photo) : null,
-          dateJoined:    new Date(emp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          status:        (emp.status || 'pending').charAt(0).toUpperCase() + (emp.status || 'pending').slice(1),
-          logoBg:        this.getRandomColor(),
-          totalHired:    emp.total_hired || 0,
+        this.employers = dataList.map(emp => {
+          const fullAddr = emp.full_address || emp.address_full || [emp.barangay, emp.city, emp.province].filter(Boolean).join(', ') || emp.city || 'Santiago City, Isabela'
+          return {
+            id:            emp.id,
+            name:          emp.company_name,
+            industry:      emp.industry || 'Not specified',
+            location:      fullAddr,
+            fullAddress:   fullAddr,
+            city:          emp.city || 'Santiago City',
+            contactPerson: emp.contact_person || 'N/A',
+            contactRole:   'Contact Person',
+            email:         emp.email,
+            phone:         emp.phone || 'N/A',
+            photo:         emp.photo ? (emp.photo.startsWith('http') ? emp.photo : '/storage/' + emp.photo) : null,
+            dateJoined:    new Date(emp.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            status:        (emp.status || 'pending').charAt(0).toUpperCase() + (emp.status || 'pending').slice(1),
+            logoBg:        this.getRandomColor(),
+            totalHired:    emp.total_hired || 0,
           listings: (emp.job_listings || []).map(jl => ({
             title:      jl.title,
             type:       jl.type,
@@ -425,7 +430,8 @@ export default {
             return { ...h, color: colors[i % colors.length] }
           }),
           emailVerified: !!emp.email_verified_at,
-        }))
+        }
+      })
 
         this.updateStatusTabCounts()
       } catch (error) {
