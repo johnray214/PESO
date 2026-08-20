@@ -24,6 +24,7 @@ class EmployerResource extends JsonResource
             'city'           => $this->city,
             'province'       => $this->province,
             'address_full'   => $this->address_full,
+            'full_address'   => $this->full_address,
             'latitude'       => $this->latitude,
             'longitude'      => $this->longitude,
             'map_visible'    => $this->map_visible,

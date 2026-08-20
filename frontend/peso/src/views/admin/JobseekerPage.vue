@@ -77,7 +77,7 @@
                     <div class="person-avatar" :style="{ background: js.avatarBg }">{{ js.firstName[0] }}{{ js.lastName[0] }}</div>
                     <div>
                       <p class="person-name">{{ js.firstName }} {{ js.lastName }}</p>
-                      <p class="person-meta">{{ js.city || js.address || '—' }}</p>
+                      <p class="person-meta">{{ js.city || 'Santiago City' }}</p>
                     </div>
                   </div>
                 </td>
@@ -188,7 +188,7 @@
                 <div class="info-item"><span class="info-label">Birth Date</span><span class="info-val">{{ selectedJobseeker?.dateOfBirth || '—' }}</span></div>
                 <div class="info-item"><span class="info-label">Sex</span><span class="info-val">{{ selectedJobseeker?.sex || '—' }}</span></div>
                 <div class="info-item"><span class="info-label">Education</span><span class="info-val">{{ selectedJobseeker?.educationLevel || '—' }}</span></div>
-                <div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Address</span><span class="info-val" style="white-space:normal">{{ selectedJobseeker?.address || '—' }}</span></div>
+                <div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Full Address</span><span class="info-val" style="white-space:normal">{{ selectedJobseeker?.fullAddress || selectedJobseeker?.address || '—' }}</span></div>
                 <div class="info-item"><span class="info-label">Registered</span><span class="info-val">{{ selectedJobseeker?.registeredDate }}</span></div>
                 <div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Experience</span><span class="info-val" style="white-space:normal; line-height:1.4;">{{ selectedJobseeker?.jobExperience || '—' }}</span></div>
               </div>
@@ -354,29 +354,34 @@ export default {
         this.lastPage        = data.data?.last_page    || 1
         this.totalJobseekers = data.data?.total        || list.length
 
-        this.jobseekers = (Array.isArray(list) ? list : []).map((js, i) => ({
-          id:               js.id,
-          firstName:        js.first_name        || 'Unknown',
-          lastName:         js.last_name         || '',
-          email:            js.email             || '—',
-          phone:            js.contact           || js.phone || '',
-          city:             js.city              || '',
-          address:          js.address           || '',
-          educationLevel:   js.education_level   || '',
-          jobExperience:    js.job_experience    || null,
-          skills:           js.skills?.map(s => s.skill || s) || [],
-          applicationsCount: js.applications_count || 0,
-          hasResume:        !!js.resume_path,
-          status:           js.status            || 'active',
-          registeredDate:   js.created_at ? new Date(js.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
-          avatarBg:         AVATAR_COLORS[i % AVATAR_COLORS.length],
-          applications:     (js.applications || []).map(a => ({
-            id:       a.id,
-            jobTitle: a.job_listing?.title                  || '',
-            company:  a.job_listing?.employer?.company_name || '',
-            status:   a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Reviewing',
-          })),
-        }))
+        this.jobseekers = (Array.isArray(list) ? list : []).map((js, i) => {
+          const fullAddr = js.full_address || [js.street_address, js.barangay_name, js.city_name, js.province_name].filter(Boolean).join(', ') || js.address || ''
+          const cleanCity = js.city_name || js.city || (js.address ? js.address.split(',')[0]?.trim() : 'Santiago City') || 'Santiago City'
+          return {
+            id:               js.id,
+            firstName:        js.first_name        || 'Unknown',
+            lastName:         js.last_name         || '',
+            email:            js.email             || '—',
+            phone:            js.contact           || js.phone || '',
+            city:             cleanCity,
+            address:          fullAddr,
+            fullAddress:      fullAddr,
+            educationLevel:   js.education_level   || '',
+            jobExperience:    js.job_experience    || null,
+            skills:           js.skills?.map(s => s.skill || s) || [],
+            applicationsCount: js.applications_count || 0,
+            hasResume:        !!js.resume_path,
+            status:           js.status            || 'active',
+            registeredDate:   js.created_at ? new Date(js.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+            avatarBg:         AVATAR_COLORS[i % AVATAR_COLORS.length],
+            applications:     (js.applications || []).map(a => ({
+              id:       a.id,
+              jobTitle: a.job_listing?.title                  || '',
+              company:  a.job_listing?.employer?.company_name || '',
+              status:   a.status ? a.status.charAt(0).toUpperCase() + a.status.slice(1) : 'Reviewing',
+            })),
+          }
+        })
       } catch (e) {
         console.error(e)
         this.showToastMsg('Failed to load jobseekers', 'error')
@@ -395,8 +400,11 @@ export default {
         const { data } = await api.get(`/admin/jobseekers/${js.id}`)
         const d = data.data
         const EDU = { no_requirement:'No Requirement',elementary:'Elementary Graduate',highschool:'High School Graduate',senior_highschool:'Senior High / K-12',vocational:'Vocational / TESDA',college_level:'At Least College Level',college_graduate:'College Graduate',related_course:'College Graduate (Related Course)',postgraduate:"Post-Graduate" }
+        const fullAddr = d.full_address || [d.street_address, d.barangay_name, d.city_name, d.province_name].filter(Boolean).join(', ') || d.address || js.fullAddress || js.address || ''
         this.selectedJobseeker = {
           ...js,
+          address: fullAddr,
+          fullAddress: fullAddr,
           skills: d.skills?.map(s => s.skill || s) || [],
           hasResume: !!d.resume_path,
           educationLevel: EDU[d.education_level] || d.education_level || '—',

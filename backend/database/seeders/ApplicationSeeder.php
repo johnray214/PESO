@@ -3,30 +3,30 @@
 namespace Database\Seeders;
 
 use App\Models\Application;
-use App\Models\Employer;
+use App\Models\ApplicationActivityLog;
 use App\Models\JobListing;
 use App\Models\Jobseeker;
-use App\Models\JobSkill;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class ApplicationSeeder extends Seeder
 {
     public function run(): void
     {
-        // For each job listing, find jobseekers whose skills overlap,
-        // calculate a real match score, and seed applications & potential applicants.
         $jobs = JobListing::with(['employer', 'skills'])->get();
 
-        $statuses    = ['reviewing', 'shortlisted', 'interview', 'hired', 'rejected'];
-        $statusWeights = [15, 15, 10, 50, 10]; // % distribution (Increased 'hired' to 50%)
+        $statuses      = ['reviewing', 'shortlisted', 'interview', 'for_job_offer', 'hired', 'rejected'];
+        $statusWeights = [20, 20, 15, 10, 25, 10]; // % distribution
 
         foreach ($jobs as $job) {
             $jobSkills = $job->skills->pluck('skill')->map(fn($s) => strtolower($s))->toArray();
-            if (empty($jobSkills)) continue;
+            if (empty($jobSkills)) {
+                continue;
+            }
 
             // Find jobseekers with matching skills
             $matchingSeekers = Jobseeker::whereHas('skills', function ($q) use ($jobSkills) {
-                $q->whereIn(\Illuminate\Support\Facades\DB::raw('LOWER(skill)'), $jobSkills);
+                $q->whereIn(DB::raw('LOWER(skill)'), $jobSkills);
             })->with('skills')->get();
 
             $applied = 0;
@@ -35,30 +35,44 @@ class ApplicationSeeder extends Seeder
                 $intersection = array_intersect($jobSkills, $seekerSkills);
                 $matchScore   = (int) round(count($intersection) / count($jobSkills) * 100);
 
-                // Only apply if match score is meaningful
-                if ($matchScore < 30) continue;
+                if ($matchScore < 25) {
+                    continue;
+                }
 
-                // Limit to a reasonable number of applications per job
-                if ($applied >= ($job->slots * 5 + 5)) break;
+                if ($applied >= ($job->slots * 3 + 3)) {
+                    break;
+                }
 
-                // Pick a status weighted toward reviewing
                 $rand   = rand(1, 100);
                 $cumul  = 0;
                 $status = 'reviewing';
                 foreach ($statuses as $i => $s) {
                     $cumul += $statusWeights[$i];
-                    if ($rand <= $cumul) { $status = $s; break; }
+                    if ($rand <= $cumul) {
+                        $status = $s;
+                        break;
+                    }
                 }
 
-                // Ensure we don't duplicate applications
-                Application::firstOrCreate(
+                $application = Application::firstOrCreate(
                     ['job_listing_id' => $job->id, 'jobseeker_id' => $seeker->id],
                     [
-                        'status'     => $status,
+                        'status'      => $status,
                         'match_score' => $matchScore,
                         'applied_at'  => now()->subDays(rand(1, 20)),
                     ]
                 );
+
+                if ($application->wasRecentlyCreated) {
+                    ApplicationActivityLog::create([
+                        'application_id' => $application->id,
+                        'actor_type'     => $job->employer_id ? 'employer' : 'peso',
+                        'actor_label'    => $job->employer->company_name ?? 'PESO Santiago',
+                        'action'         => $status === 'for_job_offer' ? 'For Job Offer' : ucfirst($status),
+                        'created_at'     => $application->applied_at,
+                    ]);
+                }
+
                 $applied++;
             }
         }

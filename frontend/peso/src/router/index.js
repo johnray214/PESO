@@ -273,8 +273,18 @@ const routes = [
   // Public LEGS Feedback form (no auth required)
   {
     path: '/LEGS_Feedback',
+    alias: [
+      '/legs_feedback',
+      '/legs-feedback',
+      '/legsfeedback',
+      '/legs',
+      '/LEGS-Feedback',
+      '/LEGSFeedback',
+      '/legs_Feedback',
+    ],
     name: 'legs-feedback',
     component: () => import('@/views/LEGSFeedback.vue'),
+    meta: { public: true, title: "Citizen's Feedback Form" },
   },
 
   // Catch-all

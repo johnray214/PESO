@@ -214,13 +214,13 @@
             <div v-if="drawerTab === 'Profile'">
               <div class="info-grid">
                 <div class="info-item"><span class="info-label">Full Name</span><span class="info-val">{{ selected?.name }}</span></div>
-                <div class="info-item"><span class="info-label">Location</span><span class="info-val">{{ selected?.location }}</span></div>
-                <div class="info-item"><span class="info-label">Contact</span><span class="info-val">{{ selected?.contact }}</span></div>
-                <div class="info-item"><span class="info-label">Email</span><span class="info-val">{{ selected?.email }}</span></div>
+                <div class="info-item"><span class="info-label">Contact</span><span class="info-val">{{ selected?.contact || '—' }}</span></div>
+                <div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Full Address</span><span class="info-val">{{ selected?.fullAddress || selected?.location || '—' }}</span></div>
+                <div class="info-item"><span class="info-label">Email</span><span class="info-val">{{ selected?.email || '—' }}</span></div>
                 <div class="info-item"><span class="info-label">Sex</span><span class="info-val" style="text-transform: capitalize;">{{ selected?.sex || 'Not specified' }}</span></div>
                 <div class="info-item"><span class="info-label">Date of Birth</span><span class="info-val">{{ selected?.dateOfBirth ? formatDate(selected.dateOfBirth) : 'Not specified' }}</span></div>
-                <div class="info-item"><span class="info-label">Education</span><span class="info-val">{{ selected?.education }}</span></div>
-                <div class="info-item"><span class="info-label">Experience</span><span class="info-val">{{ selected?.experience }}</span></div>
+                <div class="info-item"><span class="info-label">Education</span><span class="info-val">{{ selected?.education || '—' }}</span></div>
+                <div class="info-item" style="grid-column: 1 / -1;"><span class="info-label">Experience</span><span class="info-val">{{ selected?.experience || '—' }}</span></div>
               </div>
               <div class="section-label">Skills</div>
               <div class="skill-tags mt4"><span v-for="sk in selected?.skills" :key="sk" class="skill-tag">{{ sk }}</span></div>
@@ -649,7 +649,8 @@ export default {
           return {
             id:              a.id,
             name:            js.full_name || `${js.first_name || ''} ${js.last_name || ''}`.trim() || 'Unknown',
-            location:        js.address   || 'Unknown',
+            location:        js.full_address || js.address || 'Unknown',
+            fullAddress:     js.full_address || js.address || 'Unknown',
             contact:         js.contact   || '',
             email:           js.email     || '',
             sex:             js.sex       || '',
@@ -722,7 +723,7 @@ export default {
     },
     statusOptionsFor(applicant) {
       const base = ['Reviewing', 'Shortlisted', 'Interview', 'For Job Offer']
-      if (applicant?.status === 'For Job Offer' || applicant?.status === 'Hired') base.push('Hired')
+      if (applicant?.status === 'Hired') base.push('Hired')
       base.push('Rejected')
       return base
     },

@@ -215,8 +215,8 @@
                 <div class="detail-rows">
                   <div class="detail-row"><span class="detail-key">Company Name</span><span class="detail-val">{{ selectedEmployer.companyName }}</span></div>
                   <div class="detail-row"><span class="detail-key">Industry</span><span class="detail-val">{{ selectedEmployer.industry }}</span></div>
-                  <div class="detail-row"><span class="detail-key">Company Size</span><span class="detail-val">{{ selectedEmployer.companySize }} employees</span></div>
                   <div class="detail-row"><span class="detail-key">City</span><span class="detail-val">{{ selectedEmployer.city }}</span></div>
+                  <div class="detail-row"><span class="detail-key">Full Address</span><span class="detail-val">{{ selectedEmployer.fullAddress || selectedEmployer.addressFull || selectedEmployer.city }}</span></div>
                   <div class="detail-row"><span class="detail-key">TIN</span><span class="detail-val">{{ selectedEmployer.tin }}</span></div>
                   <div class="detail-row"><span class="detail-key">Website</span><span class="detail-val">{{ selectedEmployer.website || '—' }}</span></div>
                 </div>
@@ -571,13 +571,17 @@ export default {
           const bizPermitUrl  = e.biz_permit_url  || (e.biz_permit_path  ? `/storage/${e.biz_permit_path}`  : null)
           const birCertUrl    = e.bir_cert_url    || (e.bir_cert_path    ? `/storage/${e.bir_cert_path}`    : null)
           const dmwLicenseUrl = e.dmw_license_url || (e.dmw_license_path ? `/storage/${e.dmw_license_path}` : null)
+          const fullAddr = e.full_address || e.address_full || [e.barangay, e.city, e.province].filter(Boolean).join(', ') || e.city || 'Santiago City, Isabela'
+          const cleanCity = e.city || (e.address_full ? e.address_full.split(',')[1]?.trim() : 'Santiago City') || 'Santiago City'
           return {
             id:                 e.id,
             companyName:        e.company_name   || 'Unknown',
             employerType:       e.employer_type  || 'local',
             industry:           e.industry       || '—',
             companySize:        e.company_size   || '—',
-            city:               e.city           || '—',
+            city:               cleanCity,
+            fullAddress:        fullAddr,
+            addressFull:        fullAddr,
             tin:                e.tin            || '—',
             website:            e.website        || '',
             contactPerson:      e.contact_person || '',

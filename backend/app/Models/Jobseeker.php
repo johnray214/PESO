@@ -57,7 +57,7 @@ class Jobseeker extends Authenticatable
         'remember_token',
     ];
 
-    protected $appends = ['full_name'];
+    protected $appends = ['full_name', 'full_address'];
 
     protected $casts = [
         'password' => 'hashed',
@@ -68,6 +68,20 @@ class Jobseeker extends Authenticatable
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
     ];
+
+    public function getFullAddressAttribute(): string
+    {
+        $bgy = $this->barangay_name ?: $this->street_address;
+        $parts = array_filter([
+            $bgy,
+            $this->city_name,
+            $this->province_name,
+        ]);
+        if (!empty($parts)) {
+            return implode(', ', $parts);
+        }
+        return (string) ($this->address ?: '');
+    }
 
     public function getMiddleInitialAttribute($value)
     {

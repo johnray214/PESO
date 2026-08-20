@@ -94,20 +94,16 @@
               </select>
             </div>
             <div class="filter-row">
+              <label class="filter-label">DOLE Program</label>
+              <select v-model="form.filters.doleProgram" class="filter-select">
+                <option v-for="dp in dolePrograms" :key="dp.value" :value="dp.value">{{ dp.label }}</option>
+              </select>
+            </div>
+            <div class="filter-row">
               <label class="filter-label">Industry</label>
               <select v-model="form.filters.industry" class="filter-select">
                 <option value="">All Industries</option>
-                <option>Agriculture</option>
-                <option>Manufacturing</option>
-                <option>Construction</option>
-                <option>Wholesale and Retail Trade</option>
-                <option>Hotels and Restaurants</option>
-                <option>Transport, Storage and Communication</option>
-                <option>Financial Intermediation</option>
-                <option>Real Estate, Renting and Business Activities</option>
-                <option>Education</option>
-                <option>Health and Social Work</option>
-                <option>Other Community, Social and Personal Service Activities</option>
+                <option v-for="ind in industries" :key="ind" :value="ind">{{ ind }}</option>
               </select>
             </div>
           </template>
@@ -175,17 +171,7 @@
               <label class="filter-label">Industry</label>
               <select v-model="form.filters.industry" class="filter-select">
                 <option value="">All Industries</option>
-                <option>Agriculture</option>
-                <option>Manufacturing</option>
-                <option>Construction</option>
-                <option>Wholesale and Retail Trade</option>
-                <option>Hotels and Restaurants</option>
-                <option>Transport, Storage and Communication</option>
-                <option>Financial Intermediation</option>
-                <option>Real Estate, Renting and Business Activities</option>
-                <option>Education</option>
-                <option>Health and Social Work</option>
-                <option>Other Community, Social and Personal Service Activities</option>
+                <option v-for="ind in industries" :key="ind" :value="ind">{{ ind }}</option>
               </select>
             </div>
           </template>
@@ -208,19 +194,16 @@
               </select>
             </div>
             <div class="filter-row">
+              <label class="filter-label">DOLE Program</label>
+              <select v-model="form.filters.doleProgram" class="filter-select">
+                <option v-for="dp in dolePrograms" :key="dp.value" :value="dp.value">{{ dp.label }}</option>
+              </select>
+            </div>
+            <div class="filter-row">
               <label class="filter-label">Industry</label>
               <select v-model="form.filters.industry" class="filter-select">
                 <option value="">All Industries</option>
-                <option>Agriculture</option>
-                <option>Manufacturing</option>
-                <option>Construction</option>
-                <option>Wholesale and Retail Trade</option>
-                <option>Hotels and Restaurants</option>
-                <option>BPO</option>
-                <option>IT</option>
-                <option>Healthcare</option>
-                <option>Finance</option>
-                <option>Education</option>
+                <option v-for="ind in industries" :key="ind" :value="ind">{{ ind }}</option>
               </select>
             </div>
           </template>
@@ -245,18 +228,6 @@
             </div>
           </template>
         </div>
-
-        <!-- Columns -->
-        <div class="builder-section" v-if="form.reportType">
-          <p class="builder-section-title">Columns to Include</p>
-          <div class="columns-list">
-            <label v-for="col in availableColumns" :key="col.key" class="col-checkbox">
-              <input type="checkbox" v-model="form.columns" :value="col.key"/>
-              <span class="col-label">{{ col.label }}</span>
-            </label>
-          </div>
-        </div>
-
 
         <!-- Export Format -->
         <div class="builder-section" v-if="form.reportType">
@@ -552,13 +523,37 @@ export default {
         { value: 'pdf',  label: 'PDF',   icon: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h1a1 1 0 010 2H9v-2z"/></svg>` },
       ],
 
+      industries: [
+        'Agriculture',
+        'Manufacturing',
+        'Construction',
+        'Wholesale and Retail Trade',
+        'Hotels and Restaurants',
+        'Transport, Storage and Communication',
+        'Financial Intermediation',
+        'Real Estate, Renting and Business Activities',
+        'Education',
+        'Health and Social Work',
+        'Other Community, Social and Personal Service Activities',
+      ],
+
+      dolePrograms: [
+        { value: '', label: 'All (Regular & DOLE)' },
+        { value: 'ALL_DOLE', label: 'All DOLE Programs Only' },
+        { value: 'SPES', label: 'SPES — Special Program for Employment of Students' },
+        { value: 'GIP', label: 'GIP — Government Internship Program' },
+        { value: 'TUPAD', label: 'TUPAD — Tulong Panghanapbuhay' },
+        { value: 'JobStart', label: 'JobStart Philippines' },
+        { value: 'REGULAR', label: 'Regular Jobs Only (Non-DOLE)' },
+      ],
+
       columnDefs: {
-        placement:    [{ key:'month',label:'Month' },{ key:'name',label:'Applicant' },{ key:'company',label:'Employer' },{ key:'position',label:'Position' },{ key:'industry',label:'Industry' },{ key:'status',label:'Status' },{ key:'date',label:'Date' }],
+        placement:    [{ key:'month',label:'Month' },{ key:'name',label:'Applicant' },{ key:'company',label:'Employer' },{ key:'position',label:'Position' },{ key:'doleProgram',label:'DOLE Program' },{ key:'industry',label:'Industry' },{ key:'status',label:'Status' },{ key:'date',label:'Date' }],
         registration: [{ key:'month',label:'Month' },{ key:'name',label:'Name' },{ key:'sex',label:'Sex' },{ key:'type',label:'Type' },{ key:'city',label:'City' },{ key:'skills',label:'Skills' },{ key:'date',label:'Date' }],
         skills:       [{ key:'skill',label:'Skill' },{ key:'demand',label:'Demand %' },{ key:'supply',label:'Supply %' },{ key:'gap',label:'Gap' },{ key:'trend',label:'Trend' },{ key:'postings',label:'Postings' }],
         events:       [{ key:'title',label:'Event' },{ key:'type',label:'Type' },{ key:'date',label:'Date' },{ key:'sex',label:'Sex' },{ key:'location',label:'Location' },{ key:'slots',label:'Slots' },{ key:'attended',label:'Attended' },{ key:'status',label:'Status' }],
         employer:     [{ key:'company',label:'Company' },{ key:'industry',label:'Industry' },{ key:'city',label:'City' },{ key:'verificationStatus',label:'Status' },{ key:'vacancies',label:'Vacancies' },{ key:'date',label:'Registered' }],
-        jobposting:   [{ key:'title',label:'Job Title' },{ key:'company',label:'Company' },{ key:'industry',label:'Industry' },{ key:'vacancies',label:'Vacancies' },{ key:'status',label:'Status' },{ key:'date',label:'Date Posted' }],
+        jobposting:   [{ key:'title',label:'Job Title' },{ key:'company',label:'Company' },{ key:'doleProgram',label:'DOLE Program' },{ key:'industry',label:'Industry' },{ key:'vacancies',label:'Vacancies / Slots' },{ key:'applicants',label:'Applicants' },{ key:'hired',label:'Total Hired' },{ key:'status',label:'Status' },{ key:'date',label:'Date Posted' }],
         feedback:     [{ key:'name',label:'Submitted By' },{ key:'type',label:'User Type' },{ key:'rating',label:'Rating' },{ key:'comment',label:'Comment' },{ key:'category',label:'Category' },{ key:'date',label:'Date' }],
       },
 
@@ -646,7 +641,7 @@ export default {
         skills:       [{ label:'Skills Tracked',  color:'#1e293b', key:'total'     }, { label:'Have Job Postings', color:'#2563eb', key:'demand'     }, { label:'Critical Gaps (D>S)', color:'#ef4444', key:'gaps'       }],
         events:       [{ label:'Total Events',    color:'#1e293b', key:'total'     }, { label:'Completed',       color:'#22c55e', key:'completed'  }, { label:'Upcoming',         color:'#2563eb', key:'upcoming'   }],
         employer:     [{ label:'Total Employers', color:'#1e293b', key:'total'     }, { label:'Verified',        color:'#22c55e', key:'verified'   }, { label:'Pending',          color:'#f59e0b', key:'pending'    }],
-        jobposting:   [{ label:'Total Listings', color:'#1e293b', key:'total' }, { label:'Open / Active', color:'#22c55e', key:'open' }, { label:'Filled Out (Closed)', color:'#ef4444', key:'closed' }, { label:'Total Vacancies', color:'#3b82f6', key:'vacancies' }],
+        jobposting:   [{ label:'Total Listings / Tracks', color:'#1e293b', key:'total' }, { label:'Vacancies / Slots', color:'#3b82f6', key:'vacancies' }, { label:'Total Applicants', color:'#8b5cf6', key:'applicants' }, { label:'Total Hired', color:'#22c55e', key:'hired' }],
         feedback:     [{ label:'Total Feedback',  color:'#1e293b', key:'total'     }, { label:'Avg Rating',      color:'#a855f7', key:'avgRating'  }, { label:'5-Star Reviews',   color:'#22c55e', key:'fiveStar'   }],
       },
     }
@@ -662,14 +657,18 @@ export default {
     availableColumns() { return this.columnDefs[this.form.reportType] || [] },
 
     selectedColumns() {
-      const all = this.columnDefs[this.form.reportType] || []
-      return this.form.columns.length ? all.filter(c => this.form.columns.includes(c.key)) : all
+      return this.columnDefs[this.form.reportType] || []
     },
 
     activeReportType()   { return this.reportTypes.find(r => r.value === this.form.reportType) },
     activeExportFormat() { return this.exportFormats.find(f => f.value === this.form.exportFormat) },
 
     previewTitle() {
+      if (this.form.filters?.doleProgram && !['', 'REGULAR'].includes(this.form.filters.doleProgram)) {
+        const prog = this.form.filters.doleProgram
+        if (prog === 'ALL_DOLE') return this.form.reportType === 'placement' ? 'DOLE Special Programs Placement Report' : 'DOLE Special Programs Report'
+        return this.form.reportType === 'placement' ? `DOLE ${prog} Beneficiaries Report` : `DOLE ${prog} Program Report`
+      }
       const n = {
         placement:    'Placement Report',
         registration: 'Registration Report',
@@ -714,6 +713,8 @@ export default {
         else if (d.key === 'open')       v = rows.filter(r => r.status === 'Open').length
         else if (d.key === 'closed')     v = rows.filter(r => r.status === 'Closed').length
         else if (d.key === 'vacancies')  v = rows.reduce((s, r) => s + (r.vacancies || 0), 0)
+        else if (d.key === 'applicants') v = rows.reduce((s, r) => s + (r.applicants || 0), 0)
+        else if (d.key === 'hired')      v = rows.reduce((s, r) => s + (r.hired || 0), 0)
         else if (d.key === 'avgRating')  v = rows.length ? (rows.reduce((s, r) => s + (r.rating || 0), 0) / rows.length).toFixed(1) + '★' : '0★'
         else if (d.key === 'fiveStar')   v = rows.filter(r => r.rating === 5).length
         else v = '—'
@@ -905,10 +906,11 @@ export default {
       this.errorMessage    = null
 
       try {
+        const allCols = (this.columnDefs[this.form.reportType] || []).map(c => c.key)
         const payload = {
           type:     this.form.reportType,
           group_by: this.form.groupBy,
-          columns:  this.form.columns,
+          columns:  allCols,
           filters:  this.form.filters,
         }
         if (this.form.datePreset !== 'none') {
@@ -959,10 +961,11 @@ export default {
       if (!this.reportGenerated) return
       this.isExporting = true
       try {
+        const allCols = (this.columnDefs[this.form.reportType] || []).map(c => c.key)
         const payload = {
           type:    this.form.reportType,
           format:  this.form.exportFormat,
-          columns: this.form.columns,
+          columns: allCols,
           filters: this.form.filters,
         }
         if (this.form.datePreset !== 'none') {

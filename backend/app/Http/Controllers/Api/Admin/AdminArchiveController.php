@@ -27,7 +27,7 @@ class AdminArchiveController extends Controller
                 $results = Jobseeker::onlyTrashed()->orderByDesc('deleted_at')->paginate(15);
                 break;
             case 'job_listings':
-                $results = JobListing::onlyTrashed()->orderByDesc('deleted_at')->paginate(15);
+                $results = JobListing::onlyTrashed()->with('employer')->orderByDesc('deleted_at')->paginate(15);
                 break;
             case 'events':
                 $results = Event::onlyTrashed()->orderByDesc('deleted_at')->paginate(15);
@@ -38,7 +38,7 @@ class AdminArchiveController extends Controller
                 $users       = User::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'users'));
                 $employers   = Employer::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'employers'));
                 $jobseekers  = Jobseeker::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'jobseekers'));
-                $jobListings = JobListing::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'job_listings'));
+                $jobListings = JobListing::onlyTrashed()->with('employer')->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'job_listings'));
                 $events      = Event::onlyTrashed()->orderByDesc('deleted_at')->limit(500)->get()->map(fn($m) => $this->formatItem($m, 'events'));
 
                 $all = $users
@@ -104,7 +104,7 @@ class AdminArchiveController extends Controller
                 break;
             case 'job_listings':
                 $name   = $model->title ?? 'Job Listing';
-                $detail = 'ID: ' . $model->id;
+                $detail = $model->employer ? ($model->employer->company_name ?? 'Company') : ($model->program ? 'DOLE: ' . $model->program : 'Job Listing');
                 break;
             case 'events':
                 $name   = $model->title ?? 'Event';

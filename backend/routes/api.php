@@ -146,6 +146,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     
     // Auth
     Route::post('/logout', [AdminAuthController::class, 'logout']);
+    Route::post('/peso-employee/logout', [AdminAuthController::class, 'logout']); // Alias for frontend
     Route::get('/me', [AdminAuthController::class, 'me']);
 
     // Profile
@@ -192,6 +193,7 @@ Route::middleware(['auth:sanctum', \App\Http\Middleware\EnsureAdmin::class])->pr
     Route::get('/applications/{id}', [AdminApplicationController::class, 'show']);
     Route::get('/applications/{id}/history', [AdminApplicationController::class, 'history']);
     Route::patch('/applications/{id}/status', [AdminApplicationController::class, 'updateStatus']);
+    Route::post('/applications/schedule-interview', [AdminApplicationController::class, 'scheduleInterview']);
     Route::delete('/applications/{id}', [AdminApplicationController::class, 'destroy']);
 
     // Admin Invitations (PESO sends invite to jobseeker for any job listing)

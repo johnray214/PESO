@@ -65,6 +65,8 @@ class Employer extends Authenticatable
         'remember_token',
     ];
 
+    protected $appends = ['full_address'];
+
     // Single $casts — merged from your original + new fields needed by the resource
     protected $casts = [
         'password'    => 'hashed',
@@ -77,6 +79,19 @@ class Employer extends Authenticatable
         'founded'     => 'integer',
         'total_hired' => 'integer',
     ];
+
+    public function getFullAddressAttribute(): string
+    {
+        $parts = array_filter([
+            $this->barangay,
+            $this->city,
+            $this->province,
+        ]);
+        if (!empty($parts)) {
+            return implode(', ', $parts);
+        }
+        return (string) ($this->address_full ?: '');
+    }
 
     // ── Relationships ─────────────────────────────────────────────────────────
 

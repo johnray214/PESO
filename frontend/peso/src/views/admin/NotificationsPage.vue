@@ -39,7 +39,7 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
             Mark all read
           </button>
-          <button class="btn-delete-all" @click="showDeleteConfirm = true" :disabled="store.notifications.length === 0">
+          <button class="btn-delete-all" @click="showDeleteConfirm = true" :disabled="readCount === 0" title="Delete all read notifications">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
             Clear all
           </button>
@@ -207,6 +207,10 @@ export default {
   },
 
   computed: {
+    readCount() {
+      if (!this.store) return 0
+      return this.store.notifications.filter(n => n.read).length
+    },
     filtered() {
       if (!this.store) return []
       if (this.activeFilter === 'unread') return this.store.notifications.filter(n => !n.read)

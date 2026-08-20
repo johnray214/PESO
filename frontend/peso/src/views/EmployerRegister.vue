@@ -374,12 +374,20 @@
           <div v-if="currentStep === 3" class="step-body">
             <div class="form-group">
               <label class="form-label">Business Permit</label>
-              <div class="upload-area" @click="$refs.bizPermit.click()" :class="{ 'has-file': form.bizPermitFile }">
+              <div
+                class="upload-area"
+                :class="{ 'has-file': form.bizPermitFile, 'is-dragging': isDragging.bizPermit }"
+                @click="$refs.bizPermit.click()"
+                @dragover.prevent="isDragging.bizPermit = true"
+                @dragenter.prevent="isDragging.bizPermit = true"
+                @dragleave.prevent="isDragging.bizPermit = false"
+                @drop.prevent="handleFileDrop('bizPermit', $event)"
+              >
                 <div v-if="!bizPermitPreview" class="upload-inner">
                   <div class="upload-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </div>
-                  <p class="upload-label">Click to upload Business Permit or drag & drop</p>
+                  <p class="upload-label">{{ isDragging.bizPermit ? 'Drop Business Permit here' : 'Click to upload Business Permit or drag & drop' }}</p>
                   <p class="upload-sub">PDF, JPG, PNG — max 5MB</p>
                 </div>
                 <div v-else class="file-preview">
@@ -399,12 +407,20 @@
             <!-- DMW License (Required for Overseas Agencies/Employers) -->
             <div v-if="form.employerType === 'overseas'" class="form-group">
               <label class="form-label">DMW License <span style="color:#ef4444">*</span></label>
-              <div class="upload-area" @click="$refs.dmwLicense.click()" :class="{ 'has-file': form.dmwLicenseFile }">
+              <div
+                class="upload-area"
+                :class="{ 'has-file': form.dmwLicenseFile, 'is-dragging': isDragging.dmwLicense }"
+                @click="$refs.dmwLicense.click()"
+                @dragover.prevent="isDragging.dmwLicense = true"
+                @dragenter.prevent="isDragging.dmwLicense = true"
+                @dragleave.prevent="isDragging.dmwLicense = false"
+                @drop.prevent="handleFileDrop('dmwLicense', $event)"
+              >
                 <div v-if="!dmwLicensePreview" class="upload-inner">
                   <div class="upload-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </div>
-                  <p class="upload-label">Click to upload DMW License or drag & drop</p>
+                  <p class="upload-label">{{ isDragging.dmwLicense ? 'Drop DMW License here' : 'Click to upload DMW License or drag & drop' }}</p>
                   <p class="upload-sub">PDF, JPG, PNG — max 5MB</p>
                 </div>
                 <div v-else class="file-preview">
@@ -423,12 +439,20 @@
 
             <div class="form-group">
               <label class="form-label">BIR Certificate of Registration <span class="optional-tag">Optional</span></label>
-              <div class="upload-area" @click="$refs.birCert.click()" :class="{ 'has-file': form.birCertFile }">
+              <div
+                class="upload-area"
+                :class="{ 'has-file': form.birCertFile, 'is-dragging': isDragging.birCert }"
+                @click="$refs.birCert.click()"
+                @dragover.prevent="isDragging.birCert = true"
+                @dragenter.prevent="isDragging.birCert = true"
+                @dragleave.prevent="isDragging.birCert = false"
+                @drop.prevent="handleFileDrop('birCert', $event)"
+              >
                 <div v-if="!birCertPreview" class="upload-inner">
                   <div class="upload-icon">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   </div>
-                  <p class="upload-label">Click to upload or drag & drop</p>
+                  <p class="upload-label">{{ isDragging.birCert ? 'Drop BIR Certificate here' : 'Click to upload or drag & drop' }}</p>
                   <p class="upload-sub">PDF, JPG, PNG — max 5MB</p>
                 </div>
                 <div v-else class="file-preview">
@@ -521,6 +545,12 @@ export default {
       bizPermitPreview: null,
       birCertPreview: null,
       dmwLicensePreview: null,
+
+      isDragging: {
+        bizPermit: false,
+        dmwLicense: false,
+        birCert: false,
+      },
 
       provinces: [],
       cities: [],
@@ -793,22 +823,24 @@ export default {
        .sort((a, b) => a.name.localeCompare(b.name))
     },
 
-    handleFileUpload(type, event) {
-      const file = event.target.files[0]
+    processFile(type, file) {
       if (!file) return
 
       const maxLimit = 5 * 1024 * 1024 // 5MB limit
       if (file.size > maxLimit) {
-        if (type === 'bizPermit') this.bizPermitError = 'File exceeds 5MB. Please upload a file under 5MB.'
-        if (type === 'dmwLicense') this.dmwLicenseError = 'File exceeds 5MB. Please upload a file under 5MB.'
-        if (type === 'birCert') this.birCertError = 'File exceeds 5MB. Please upload a file under 5MB.'
+        const err = 'File exceeds 5MB. Please upload a file under 5MB.'
+        if (type === 'bizPermit') this.bizPermitError = err
+        if (type === 'dmwLicense') this.dmwLicenseError = err
+        if (type === 'birCert') this.birCertError = err
         return
       }
+
+      const isPdf = file.type === 'application/pdf' || file.name?.toLowerCase().endsWith('.pdf')
 
       if (type === 'bizPermit') {
         this.bizPermitError     = ''
         this.form.bizPermitFile = file
-        if (file.type === 'application/pdf') {
+        if (isPdf) {
           this.bizPermitPreview = 'pdf'
         } else {
           const reader = new FileReader()
@@ -818,7 +850,7 @@ export default {
       } else if (type === 'dmwLicense') {
         this.dmwLicenseError     = ''
         this.form.dmwLicenseFile = file
-        if (file.type === 'application/pdf') {
+        if (isPdf) {
           this.dmwLicensePreview = 'pdf'
         } else {
           const reader = new FileReader()
@@ -828,13 +860,28 @@ export default {
       } else {
         this.birCertError     = ''
         this.form.birCertFile = file
-        if (file.type === 'application/pdf') {
+        if (isPdf) {
           this.birCertPreview = 'pdf'
         } else {
           const reader = new FileReader()
           reader.onload = e => { this.birCertPreview = e.target.result }
           reader.readAsDataURL(file)
         }
+      }
+    },
+
+    handleFileUpload(type, event) {
+      const file = event.target?.files?.[0]
+      if (file) {
+        this.processFile(type, file)
+      }
+    },
+
+    handleFileDrop(type, event) {
+      this.isDragging[type] = false
+      const file = event.dataTransfer?.files?.[0]
+      if (file) {
+        this.processFile(type, file)
       }
     },
 
@@ -1131,6 +1178,12 @@ export default {
 .upload-area { border: 2px dashed #e2e8f0; border-radius: 10px; padding: 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: #fafafa; }
 .upload-area:hover { border-color: #08BDDE; background: #f0f9ff; }
 .upload-area.has-file { border-color: #08BDDE; border-style: solid; background: #f0f9ff; }
+.upload-area.is-dragging {
+  border-color: #2872A1;
+  background: #e0f2fe;
+  transform: scale(1.01);
+  box-shadow: 0 4px 16px rgba(40,114,161,0.15);
+}
 .upload-inner { display: flex; flex-direction: column; align-items: center; }
 .upload-icon { color: #94a3b8; margin-bottom: 6px; display: flex; justify-content: center; }
 .upload-label { font-size: 13px; font-weight: 600; color: #475569; }
